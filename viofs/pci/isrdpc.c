@@ -11,316 +11,321 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and / or other materials provided with the distribution.
- * 3. Neither the names of the copyright holders nor the names of their contributors
- *    may be used to endorse or promote products derived from this software
- *    without specific prior written permission.
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
+ * 3. Neither the names of the copyright holders nor the names of their
+ * contributors may be used to endorse or promote products derived from this
+ * software without specific prior written permission. THIS SOFTWARE IS
+ * PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ``AS IS'' AND ANY EXPRESS
+ * OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.IN NO
+ * EVENT SHALL THE COPYRIGHT HOLDERS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "viofs.h"
 #include "isrdpc.tmh"
+#include "viofs.h"
 
-static NTSTATUS MessageToQueueIdxs(BOOLEAN Signaled, ULONG Number,
-                                   ULONG NumQueues,
-                                   PULONG vq_idx_begin, PULONG vq_idx_end)
+static NTSTATUS
+MessageToQueueIdxs (BOOLEAN Signaled, ULONG Number, ULONG NumQueues,
+                    PULONG vq_idx_begin, PULONG vq_idx_end)
 {
-    if (Signaled)
+  if (Signaled)
     {
-        if (Number == VQ_TYPE_HIPRIO)
+      if (Number == VQ_TYPE_HIPRIO)
         {
-            *vq_idx_begin = 0;
-            *vq_idx_end = 1;
+          *vq_idx_begin = 0;
+          *vq_idx_end = 1;
         }
-        else if (Number == VQ_TYPE_REQUEST)
+      else if (Number == VQ_TYPE_REQUEST)
         {
-            *vq_idx_begin = 1;
-            *vq_idx_end = NumQueues;
+          *vq_idx_begin = 1;
+          *vq_idx_end = NumQueues;
         }
-        else
+      else
         {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_INTERRUPT,
-                "Can't find VQ for MessageNumber: %lu", Number);
+          TraceEvents (TRACE_LEVEL_ERROR, DBG_INTERRUPT,
+                       "Can't find VQ for MessageNumber: %lu", Number);
 
-            return STATUS_UNSUCCESSFUL;
+          return STATUS_UNSUCCESSFUL;
         }
     }
-    else
+  else
     {
-        *vq_idx_begin = 0;
-        *vq_idx_end = NumQueues;
+      *vq_idx_begin = 0;
+      *vq_idx_end = NumQueues;
     }
 
-    return STATUS_SUCCESS;
+  return STATUS_SUCCESS;
 }
 
-NTSTATUS VirtFsEvtInterruptEnable(IN WDFINTERRUPT Interrupt,
-                                  IN WDFDEVICE AssociatedDevice)
+NTSTATUS
+VirtFsEvtInterruptEnable (IN WDFINTERRUPT Interrupt,
+                          IN WDFDEVICE AssociatedDevice)
 {
-    PDEVICE_CONTEXT context;
-    WDF_INTERRUPT_INFO info;
-    ULONG vq_idx_begin = 0, vq_idx_end = 0;
-    NTSTATUS status;
+  PDEVICE_CONTEXT context;
+  WDF_INTERRUPT_INFO info;
+  ULONG vq_idx_begin = 0, vq_idx_end = 0;
+  NTSTATUS status;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT,
-        "--> %!FUNC! Interrupt: %p Device: %p",
-        Interrupt, AssociatedDevice);
+  TraceEvents (TRACE_LEVEL_VERBOSE, DBG_INTERRUPT,
+               "--> %!FUNC! Interrupt: %p Device: %p", Interrupt,
+               AssociatedDevice);
 
-    context = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
+  context = GetDeviceContext (WdfInterruptGetDevice (Interrupt));
 
-    WDF_INTERRUPT_INFO_INIT(&info);
-    WdfInterruptGetInfo(Interrupt, &info);
+  WDF_INTERRUPT_INFO_INIT (&info);
+  WdfInterruptGetInfo (Interrupt, &info);
 
-    status = MessageToQueueIdxs(info.MessageSignaled, info.MessageNumber,
-        context->NumQueues, &vq_idx_begin, &vq_idx_end);
+  status = MessageToQueueIdxs (info.MessageSignaled, info.MessageNumber,
+                               context->NumQueues, &vq_idx_begin, &vq_idx_end);
 
-    for (ULONG i = vq_idx_begin; i < vq_idx_end; i++)
+  for (ULONG i = vq_idx_begin; i < vq_idx_end; i++)
     {
-        struct virtqueue *vq = context->VirtQueues[i];
+      struct virtqueue *vq = context->VirtQueues[i];
 
-        virtqueue_enable_cb(vq);
-        virtqueue_kick(vq);
+      virtqueue_enable_cb (vq);
+      virtqueue_kick (vq);
     }
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "<-- %!FUNC!");
+  TraceEvents (TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "<-- %!FUNC!");
 
-    return status;
+  return status;
 }
 
-NTSTATUS VirtFsEvtInterruptDisable(IN WDFINTERRUPT Interrupt,
-                                   IN WDFDEVICE AssociatedDevice)
+NTSTATUS
+VirtFsEvtInterruptDisable (IN WDFINTERRUPT Interrupt,
+                           IN WDFDEVICE AssociatedDevice)
 {
-    PDEVICE_CONTEXT context;
-    WDF_INTERRUPT_INFO info;
-    ULONG vq_idx_begin = 0, vq_idx_end = 0;
-    NTSTATUS status;
+  PDEVICE_CONTEXT context;
+  WDF_INTERRUPT_INFO info;
+  ULONG vq_idx_begin = 0, vq_idx_end = 0;
+  NTSTATUS status;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT,
-        "--> %!FUNC! Interrupt: %p Device: %p",
-        Interrupt, AssociatedDevice);
+  TraceEvents (TRACE_LEVEL_VERBOSE, DBG_INTERRUPT,
+               "--> %!FUNC! Interrupt: %p Device: %p", Interrupt,
+               AssociatedDevice);
 
-    context = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
+  context = GetDeviceContext (WdfInterruptGetDevice (Interrupt));
 
-    WDF_INTERRUPT_INFO_INIT(&info);
-    WdfInterruptGetInfo(Interrupt, &info);
+  WDF_INTERRUPT_INFO_INIT (&info);
+  WdfInterruptGetInfo (Interrupt, &info);
 
-    status = MessageToQueueIdxs(info.MessageSignaled, info.MessageNumber,
-        context->NumQueues, &vq_idx_begin, &vq_idx_end);
+  status = MessageToQueueIdxs (info.MessageSignaled, info.MessageNumber,
+                               context->NumQueues, &vq_idx_begin, &vq_idx_end);
 
-    for (ULONG i = vq_idx_begin; i < vq_idx_end; i++)
+  for (ULONG i = vq_idx_begin; i < vq_idx_end; i++)
     {
-        struct virtqueue *vq = context->VirtQueues[i];
+      struct virtqueue *vq = context->VirtQueues[i];
 
-        virtqueue_disable_cb(vq);
+      virtqueue_disable_cb (vq);
     }
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "<-- %!FUNC!");
+  TraceEvents (TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "<-- %!FUNC!");
 
-    return status;
+  return status;
 }
 
-BOOLEAN VirtFsEvtInterruptIsr(IN WDFINTERRUPT Interrupt, IN ULONG MessageId)
+BOOLEAN
+VirtFsEvtInterruptIsr (IN WDFINTERRUPT Interrupt, IN ULONG MessageId)
 {
-    PDEVICE_CONTEXT context;
-    WDF_INTERRUPT_INFO info;
-    BOOLEAN serviced;
+  PDEVICE_CONTEXT context;
+  WDF_INTERRUPT_INFO info;
+  BOOLEAN serviced;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT,
-        "--> %!FUNC! Interrupt: %p MessageId: %u", Interrupt, MessageId);
+  TraceEvents (TRACE_LEVEL_VERBOSE, DBG_INTERRUPT,
+               "--> %!FUNC! Interrupt: %p MessageId: %u", Interrupt,
+               MessageId);
 
-    context = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
+  context = GetDeviceContext (WdfInterruptGetDevice (Interrupt));
 
-    WDF_INTERRUPT_INFO_INIT(&info);
-    WdfInterruptGetInfo(Interrupt, &info);
+  WDF_INTERRUPT_INFO_INIT (&info);
+  WdfInterruptGetInfo (Interrupt, &info);
 
-    if ((info.MessageSignaled && (MessageId < VQ_TYPE_MAX)) ||
-        VirtIOWdfGetISRStatus(&context->VDevice))
+  if ((info.MessageSignaled && (MessageId < VQ_TYPE_MAX))
+      || VirtIOWdfGetISRStatus (&context->VDevice))
     {
-        WdfInterruptQueueDpcForIsr(Interrupt);
-        serviced = TRUE;
+      WdfInterruptQueueDpcForIsr (Interrupt);
+      serviced = TRUE;
     }
-    else
+  else
     {
-        serviced = FALSE;
+      serviced = FALSE;
     }
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "<-- %!FUNC!");
+  TraceEvents (TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "<-- %!FUNC!");
 
-    return serviced;
+  return serviced;
 }
 
-BOOLEAN VirtFsDequeueRequest(PDEVICE_CONTEXT Context, PVIRTIO_FS_REQUEST Req)
+BOOLEAN
+VirtFsDequeueRequest (PDEVICE_CONTEXT Context, PVIRTIO_FS_REQUEST Req)
 {
-    PSINGLE_LIST_ENTRY iter;
-    BOOLEAN found = FALSE;
+  PSINGLE_LIST_ENTRY iter;
+  BOOLEAN found = FALSE;
 
-    WdfSpinLockAcquire(Context->RequestsLock);
-    iter = &Context->RequestsList;
-    while (iter->Next != NULL)
+  WdfSpinLockAcquire (Context->RequestsLock);
+  iter = &Context->RequestsList;
+  while (iter->Next != NULL)
     {
-        PVIRTIO_FS_REQUEST removed = CONTAINING_RECORD(iter->Next,
-            VIRTIO_FS_REQUEST, ListEntry);
+      PVIRTIO_FS_REQUEST removed
+          = CONTAINING_RECORD (iter->Next, VIRTIO_FS_REQUEST, ListEntry);
 
-        if (Req == removed)
+      if (Req == removed)
         {
-            TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC,
-                "Delete %p Request: %p", removed, removed->Request);
-            iter->Next = removed->ListEntry.Next;
-            found = TRUE;
-            break;
+          TraceEvents (TRACE_LEVEL_VERBOSE, DBG_DPC, "Delete %p Request: %p",
+                       removed, removed->Request);
+          iter->Next = removed->ListEntry.Next;
+          found = TRUE;
+          break;
         }
-        else
+      else
         {
-            iter = iter->Next;
+          iter = iter->Next;
         }
     };
-    WdfSpinLockRelease(Context->RequestsLock);
-    return found;
+  WdfSpinLockRelease (Context->RequestsLock);
+  return found;
 }
 
-static VOID VirtFsReadFromQueue(PDEVICE_CONTEXT context,
-                                struct virtqueue *vq,
-                                WDFSPINLOCK vq_lock)
+static VOID
+VirtFsReadFromQueue (PDEVICE_CONTEXT context, struct virtqueue *vq,
+                     WDFSPINLOCK vq_lock)
 {
-    PVIRTIO_FS_REQUEST fs_req;
-    NTSTATUS status = STATUS_SUCCESS;
-    unsigned int length;
+  PVIRTIO_FS_REQUEST fs_req;
+  NTSTATUS status = STATUS_SUCCESS;
+  unsigned int length;
 
-    for (;;)
+  for (;;)
     {
-        WdfSpinLockAcquire(vq_lock);
+      WdfSpinLockAcquire (vq_lock);
 
-        fs_req = virtqueue_get_buf(vq, &length);
-        if (fs_req == NULL)
+      fs_req = virtqueue_get_buf (vq, &length);
+      if (fs_req == NULL)
         {
-            WdfSpinLockRelease(vq_lock);
-            break;
+          WdfSpinLockRelease (vq_lock);
+          break;
         }
 
-        WdfSpinLockRelease(vq_lock);
+      WdfSpinLockRelease (vq_lock);
 
-        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC,
-            "Got %p Request: %p", fs_req, fs_req->Request);
+      TraceEvents (TRACE_LEVEL_VERBOSE, DBG_DPC, "Got %p Request: %p", fs_req,
+                   fs_req->Request);
 
-        VirtFsDequeueRequest(context, fs_req);
+      VirtFsDequeueRequest (context, fs_req);
 
-        if (fs_req->Request != NULL)
+      if (fs_req->Request != NULL)
         {
-            // TODO: why are we sure the wdfReq is valid and not destroyed yet?
-            NTSTATUS status2 = WdfRequestUnmarkCancelable(fs_req->Request);
-            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC,
-                "request %p -> uncancellable = %X", fs_req->Request, status2);
-            if (status2 == STATUS_CANCELLED)
+          // TODO: why are we sure the wdfReq is valid and not destroyed yet?
+          NTSTATUS status2 = WdfRequestUnmarkCancelable (fs_req->Request);
+          TraceEvents (TRACE_LEVEL_INFORMATION, DBG_DPC,
+                       "request %p -> uncancellable = %X", fs_req->Request,
+                       status2);
+          if (status2 == STATUS_CANCELLED)
             {
-                fs_req->Request = NULL;
+              fs_req->Request = NULL;
             }
         }
 
-        if (fs_req->Request != NULL)
+      if (fs_req->Request != NULL)
         {
 #if !VIRT_FS_DMAR
-            PUCHAR out_buf;
-            size_t out_len;
-            PVOID out_buf_va;
+          PUCHAR out_buf;
+          size_t out_len;
+          PVOID out_buf_va;
 
-            status = WdfRequestRetrieveOutputBuffer(fs_req->Request, length,
-                &out_buf, &out_len);
+          status = WdfRequestRetrieveOutputBuffer (fs_req->Request, length,
+                                                   &out_buf, &out_len);
 
-            if (NT_SUCCESS(status))
+          if (NT_SUCCESS (status))
             {
-                length = min(length, (unsigned)out_len);
+              length = min (length, (unsigned)out_len);
 
-                out_buf_va = MmMapLockedPagesSpecifyCache(
-                    fs_req->OutputBuffer, KernelMode, MmNonCached, NULL,
-                    FALSE, NormalPagePriority);
+              out_buf_va = MmMapLockedPagesSpecifyCache (
+                  fs_req->OutputBuffer, KernelMode, MmNonCached, NULL, FALSE,
+                  NormalPagePriority);
 
-                if (out_buf_va != NULL)
+              if (out_buf_va != NULL)
                 {
-                    RtlCopyMemory(out_buf, out_buf_va, length);
-                    MmUnmapLockedPages(out_buf_va, fs_req->OutputBuffer);
+                  RtlCopyMemory (out_buf, out_buf_va, length);
+                  MmUnmapLockedPages (out_buf_va, fs_req->OutputBuffer);
                 }
-                else
+              else
                 {
-                    TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL,
-                        "MmMapLockedPages failed");
-                    status = STATUS_INSUFFICIENT_RESOURCES;
-                    length = 0;
+                  TraceEvents (TRACE_LEVEL_ERROR, DBG_IOCTL,
+                               "MmMapLockedPages failed");
+                  status = STATUS_INSUFFICIENT_RESOURCES;
+                  length = 0;
                 }
             }
-            else
+          else
             {
-                TraceEvents(TRACE_LEVEL_ERROR, DBG_DPC,
-                    "WdfRequestRetrieveOutputBuffer failed");
+              TraceEvents (TRACE_LEVEL_ERROR, DBG_DPC,
+                           "WdfRequestRetrieveOutputBuffer failed");
             }
 #else
-            VirtIOWdfDeviceDmaTxComplete(&context->VDevice.VIODevice,
-                                         fs_req->H2D_Params.transaction);
-            VirtIOWdfDeviceDmaRxComplete(&context->VDevice.VIODevice,
-                                         fs_req->D2H_Params.transaction,
-                                         length);
+          VirtIOWdfDeviceDmaTxComplete (&context->VDevice.VIODevice,
+                                        fs_req->H2D_Params.transaction);
+          VirtIOWdfDeviceDmaRxComplete (&context->VDevice.VIODevice,
+                                        fs_req->D2H_Params.transaction,
+                                        length);
 #endif
 
-            TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC,
-                "Complete Request: %p Status: %!STATUS! Length: %d",
-                fs_req->Request, status, length);
+          TraceEvents (TRACE_LEVEL_VERBOSE, DBG_DPC,
+                       "Complete Request: %p Status: %!STATUS! Length: %d",
+                       fs_req->Request, status, length);
 
-            WdfRequestCompleteWithInformation(fs_req->Request, status,
-                (ULONG_PTR)length);
+          WdfRequestCompleteWithInformation (fs_req->Request, status,
+                                             (ULONG_PTR)length);
         }
 
-        FreeVirtFsRequest(fs_req);
+      FreeVirtFsRequest (fs_req);
     }
 }
 
-VOID VirtFsEvtInterruptDpc(IN WDFINTERRUPT Interrupt,
-                           IN WDFOBJECT AssociatedObject)
+VOID
+VirtFsEvtInterruptDpc (IN WDFINTERRUPT Interrupt,
+                       IN WDFOBJECT AssociatedObject)
 {
-    PDEVICE_CONTEXT context;
-    WDF_INTERRUPT_INFO info;
-    struct virtqueue *vq = NULL;
-    WDFSPINLOCK vq_lock = NULL;
-    ULONG i;
+  PDEVICE_CONTEXT context;
+  WDF_INTERRUPT_INFO info;
+  struct virtqueue *vq = NULL;
+  WDFSPINLOCK vq_lock = NULL;
+  ULONG i;
 
-    UNREFERENCED_PARAMETER(AssociatedObject);
+  UNREFERENCED_PARAMETER (AssociatedObject);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC,
-        "--> %!FUNC! Interrupt: %p", Interrupt);
+  TraceEvents (TRACE_LEVEL_VERBOSE, DBG_DPC, "--> %!FUNC! Interrupt: %p",
+               Interrupt);
 
-    context = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
+  context = GetDeviceContext (WdfInterruptGetDevice (Interrupt));
 
-    WDF_INTERRUPT_INFO_INIT(&info);
-    WdfInterruptGetInfo(Interrupt, &info);
+  WDF_INTERRUPT_INFO_INIT (&info);
+  WdfInterruptGetInfo (Interrupt, &info);
 
-    if ((info.MessageSignaled == TRUE) &&
-        (info.MessageNumber < VQ_TYPE_MAX))
+  if ((info.MessageSignaled == TRUE) && (info.MessageNumber < VQ_TYPE_MAX))
     {
-        vq = context->VirtQueues[info.MessageNumber];
-        vq_lock = context->VirtQueueLocks[info.MessageNumber];
+      vq = context->VirtQueues[info.MessageNumber];
+      vq_lock = context->VirtQueueLocks[info.MessageNumber];
     }
 
-    if (vq != NULL)
+  if (vq != NULL)
     {
-        VirtFsReadFromQueue(context, vq, vq_lock);
+      VirtFsReadFromQueue (context, vq, vq_lock);
     }
-    else
+  else
     {
-        for (i = 0; i < context->NumQueues; i++)
+      for (i = 0; i < context->NumQueues; i++)
         {
-            vq = context->VirtQueues[i];
-            vq_lock = context->VirtQueueLocks[i];
+          vq = context->VirtQueues[i];
+          vq_lock = context->VirtQueueLocks[i];
 
-            VirtFsReadFromQueue(context, vq, vq_lock);
+          VirtFsReadFromQueue (context, vq, vq_lock);
         }
     }
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "<-- %!FUNC!");
+  TraceEvents (TRACE_LEVEL_VERBOSE, DBG_DPC, "<-- %!FUNC!");
 }

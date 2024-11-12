@@ -14,20 +14,19 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and / or other materials provided with the distribution.
- * 3. Neither the names of the copyright holders nor the names of their contributors
- *    may be used to endorse or promote products derived from this software
- *    without specific prior written permission.
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
+ * 3. Neither the names of the copyright holders nor the names of their
+ * contributors may be used to endorse or promote products derived from this
+ * software without specific prior written permission. THIS SOFTWARE IS PROVIDED
+ * BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ``AS IS'' AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.IN NO
+ * EVENT SHALL THE COPYRIGHT HOLDERS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #include "osdep.h"
 #include "virtio_pci.h"
@@ -41,42 +40,35 @@
 /* READ_REGISTER_* and WRITE_REGISTER_* take volatile ptr in newer DDKs */
 #define _VOLATILE volatile
 
-#define READ_PORT_OR_REGISTER(address, width)                       \
-    (address & ~PORT_MASK) ?                                        \
-        READ_REGISTER_##width((_VOLATILE width *)address) :         \
-        READ_PORT_##width((width *)address)
+#define READ_PORT_OR_REGISTER(address, width)                                \
+  (address & ~PORT_MASK) ? READ_REGISTER_##width((_VOLATILE width *)address) \
+                         : READ_PORT_##width((width *)address)
 
-#define WRITE_PORT_OR_REGISTER(address, width, value)               \
-    (address & ~PORT_MASK) ?                                        \
-        WRITE_REGISTER_##width((_VOLATILE width *)address, value) : \
-        WRITE_PORT_##width((width *)address, value)
+#define WRITE_PORT_OR_REGISTER(address, width, value)             \
+  (address & ~PORT_MASK)                                          \
+      ? WRITE_REGISTER_##width((_VOLATILE width *)address, value) \
+      : WRITE_PORT_##width((width *)address, value)
 
-u8 ReadVirtIODeviceByte(ULONG_PTR ulRegister)
-{
-    return READ_PORT_OR_REGISTER(ulRegister, UCHAR);
+u8 ReadVirtIODeviceByte(ULONG_PTR ulRegister) {
+  return READ_PORT_OR_REGISTER(ulRegister, UCHAR);
 }
 
-void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue)
-{
-    WRITE_PORT_OR_REGISTER(ulRegister, UCHAR, bValue);
+void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue) {
+  WRITE_PORT_OR_REGISTER(ulRegister, UCHAR, bValue);
 }
 
-u16 ReadVirtIODeviceWord(ULONG_PTR ulRegister)
-{
-    return READ_PORT_OR_REGISTER(ulRegister, USHORT);
+u16 ReadVirtIODeviceWord(ULONG_PTR ulRegister) {
+  return READ_PORT_OR_REGISTER(ulRegister, USHORT);
 }
 
-void WriteVirtIODeviceWord(ULONG_PTR ulRegister, u16 wValue)
-{
-    WRITE_PORT_OR_REGISTER(ulRegister, USHORT, wValue);
+void WriteVirtIODeviceWord(ULONG_PTR ulRegister, u16 wValue) {
+  WRITE_PORT_OR_REGISTER(ulRegister, USHORT, wValue);
 }
 
-u32 ReadVirtIODeviceRegister(ULONG_PTR ulRegister)
-{
-    return READ_PORT_OR_REGISTER(ulRegister, ULONG);
+u32 ReadVirtIODeviceRegister(ULONG_PTR ulRegister) {
+  return READ_PORT_OR_REGISTER(ulRegister, ULONG);
 }
 
-void WriteVirtIODeviceRegister(ULONG_PTR ulRegister, u32 ulValue)
-{
-    WRITE_PORT_OR_REGISTER(ulRegister, ULONG, ulValue);
+void WriteVirtIODeviceRegister(ULONG_PTR ulRegister, u32 ulValue) {
+  WRITE_PORT_OR_REGISTER(ulRegister, ULONG, ulValue);
 }

@@ -3,7 +3,8 @@
 #include "ParaNdis-Util.h"
 #include "Parandis_DesignPatterns.h"
 
-enum class SMNotifications {
+enum class SMNotifications
+{
     Started,
     Stopped,
     SupriseRemoved,
@@ -14,7 +15,7 @@ enum class SMNotifications {
 
 class CFlowStateMachine : public CPlacementAllocatable
 {
-public:
+  public:
     virtual void Start()
     {
         if (m_State != FlowState::Stopped)
@@ -45,8 +46,7 @@ public:
         m_SurpriseRemoved = true;
     }
 
-    virtual bool RegisterOutstandingItems(ULONG NumItems,
-        NDIS_STATUS *FailureReason = nullptr)
+    virtual bool RegisterOutstandingItems(ULONG NumItems, NDIS_STATUS *FailureReason = nullptr)
     {
         auto value = m_Counter.AddRef(NumItems);
         if (value & StoppedMask)
@@ -100,12 +100,15 @@ public:
         UnregisterOutstandingItems(1);
     }
 
-    CFlowStateMachine() { m_Counter.SetMask(StoppedMask); }
+    CFlowStateMachine()
+    {
+        m_Counter.SetMask(StoppedMask);
+    }
     ~CFlowStateMachine() = default;
-    CFlowStateMachine(const CFlowStateMachine&) = delete;
-    CFlowStateMachine& operator= (const CFlowStateMachine&) = delete;
+    CFlowStateMachine(const CFlowStateMachine &) = delete;
+    CFlowStateMachine &operator=(const CFlowStateMachine &) = delete;
 
-protected:
+  protected:
     virtual void CompleteStopping()
     {
         TPassiveSpinLocker lock(m_CompleteStoppingLock);
@@ -116,7 +119,10 @@ protected:
         }
     }
 
-    enum { StoppedMask = 0x40000000 };
+    enum
+    {
+        StoppedMask = 0x40000000
+    };
 
     enum class FlowState
     {
@@ -135,22 +141,21 @@ protected:
 
 class CDataFlowStateMachine : public CFlowStateMachine
 {
-public:
-
-
-    CDataFlowStateMachine() { }
+  public:
+    CDataFlowStateMachine()
+    {
+    }
     ~CDataFlowStateMachine() = default;
-    CDataFlowStateMachine(const CDataFlowStateMachine&) = delete;
-    CDataFlowStateMachine& operator= (const CDataFlowStateMachine&) = delete;
+    CDataFlowStateMachine(const CDataFlowStateMachine &) = delete;
+    CDataFlowStateMachine &operator=(const CDataFlowStateMachine &) = delete;
 
-private:
+  private:
     DECLARE_CNDISLIST_ENTRY(CDataFlowStateMachine);
 };
 
 class CConfigFlowStateMachine : public CFlowStateMachine
 {
-public:
-
+  public:
     void Stop(NDIS_STATUS Reason = NDIS_STATUS_PAUSED) override
     {
         bool started = m_State != FlowState::Stopped;
@@ -169,19 +174,23 @@ public:
         m_NoOutstandingItems.Wait();
     }
 
-    CConfigFlowStateMachine() { }
+    CConfigFlowStateMachine()
+    {
+    }
     ~CConfigFlowStateMachine() = default;
-    CConfigFlowStateMachine(const CConfigFlowStateMachine&) = delete;
-    CConfigFlowStateMachine& operator= (const CConfigFlowStateMachine&) = delete;
+    CConfigFlowStateMachine(const CConfigFlowStateMachine &) = delete;
+    CConfigFlowStateMachine &operator=(const CConfigFlowStateMachine &) = delete;
 
-private:
+  private:
     DECLARE_CNDISLIST_ENTRY(CConfigFlowStateMachine);
 };
 
 class CFlowStateMachineWithPointer : public CFlowStateMachine
 {
-public:
-    CFlowStateMachineWithPointer() : m_Value(NULL) { }
+  public:
+    CFlowStateMachineWithPointer() : m_Value(NULL)
+    {
+    }
     void Clear()
     {
         Stop();
@@ -207,150 +216,149 @@ public:
     {
         UnregisterOutstandingItem();
     }
-private:
+
+  private:
     PVOID m_Value;
 };
 
 class CBindingToSriov : public CFlowStateMachineWithPointer, public CObserver<SMNotifications>
 {
-public:
+  public:
     void SetAdapterContext(PVOID Context)
     {
         m_Context = Context;
     }
-private:
+
+  private:
     void Notify(SMNotifications message) override;
     PVOID m_Context = NULL;
 };
 
 class CMiniportStateMachine : public CPlacementAllocatable, public CObservee<SMNotifications>
 {
-public:
-        void RegisterFlow(CDataFlowStateMachine &Flow)
-        { m_DataFlows.PushBack(&Flow); }
+  public:
+    void RegisterFlow(CDataFlowStateMachine &Flow)
+    {
+        m_DataFlows.PushBack(&Flow);
+    }
 
-        void UnregisterFlow(CDataFlowStateMachine &Flow)
-        { m_DataFlows.Remove(&Flow); }
+    void UnregisterFlow(CDataFlowStateMachine &Flow)
+    {
+        m_DataFlows.Remove(&Flow);
+    }
 
-        void RegisterFlow(CConfigFlowStateMachine &Flow)
-        { m_ConfigFlows.PushBack(&Flow); }
+    void RegisterFlow(CConfigFlowStateMachine &Flow)
+    {
+        m_ConfigFlows.PushBack(&Flow);
+    }
 
-        void UnregisterFlow(CConfigFlowStateMachine &Flow)
-        { m_ConfigFlows.Remove(&Flow); }
+    void UnregisterFlow(CConfigFlowStateMachine &Flow)
+    {
+        m_ConfigFlows.Remove(&Flow);
+    }
 
-        void NotifyInitialized(PVOID AdapterContext)
-        {
-            StartConfigFlows();
-            ChangeState(MiniportState::Paused, MiniportState::Halted);
-            m_BindingToSriov.SetAdapterContext(AdapterContext);
-            Add(&m_BindingToSriov);
-        }
+    void NotifyInitialized(PVOID AdapterContext)
+    {
+        StartConfigFlows();
+        ChangeState(MiniportState::Paused, MiniportState::Halted);
+        m_BindingToSriov.SetAdapterContext(AdapterContext);
+        Add(&m_BindingToSriov);
+    }
 
-        void NotifyShutdown()
-        { ChangeState(MiniportState::Shutdown,
-                      MiniportState::Paused,
-                      MiniportState::Running); }
+    void NotifyShutdown()
+    {
+        ChangeState(MiniportState::Shutdown, MiniportState::Paused, MiniportState::Running);
+    }
 
-        void NotifyRestarted()
+    void NotifyRestarted()
+    {
+        StartFlows();
+        ChangeState(MiniportState::Running, MiniportState::Paused);
+    }
+
+    void NotifyPaused()
+    {
+        StopFlows(NDIS_STATUS_PAUSED);
+        ChangeState(MiniportState::Paused, MiniportState::Running, MiniportState::SurpriseRemoved);
+    }
+
+    void NotifyPowerOn()
+    {
+        UpdateFlowsOnPowerOn();
+    }
+
+    void NotifyResumed()
+    {
+        if (IsInState(MiniportState::FastSuspend))
         {
             StartFlows();
-            ChangeState(MiniportState::Running, MiniportState::Paused);
+            ChangeState(MiniportState::Running, MiniportState::FastSuspend);
         }
-
-        void NotifyPaused()
+        else
         {
-            StopFlows(NDIS_STATUS_PAUSED);
-            ChangeState(MiniportState::Paused,
-                MiniportState::Running,
-                MiniportState::SurpriseRemoved);
+            ChangeState(MiniportState::Paused, MiniportState::Suspended);
         }
+    }
 
-        void NotifyPowerOn()
+    void NotifySupriseRemoved()
+    {
+        UpdateFlowsOnSurpriseRemove();
+        ChangeState(MiniportState::SurpriseRemoved, MiniportState::Halted, MiniportState::Paused,
+                    MiniportState::Running, MiniportState::Suspended, MiniportState::FastSuspend);
+    }
+
+    void NotifyDeviceNeedsReset()
+    {
+        UpdateFlowsOnNeedsReset();
+        ChangeState(MiniportState::NeedsReset, MiniportState::Halted, MiniportState::Paused, MiniportState::Running,
+                    MiniportState::Suspended, MiniportState::FastSuspend);
+    }
+
+    void NotifySuspended()
+    {
+        if (IsInState(MiniportState::Running))
         {
-            UpdateFlowsOnPowerOn();
+            StopFlows(NDIS_STATUS_LOW_POWER_STATE);
+            ChangeState(MiniportState::FastSuspend, MiniportState::Running);
         }
-
-        void NotifyResumed()
+        else
         {
-            if (IsInState(MiniportState::FastSuspend))
-            {
-                StartFlows();
-                ChangeState(MiniportState::Running, MiniportState::FastSuspend);
-            }
-            else
-            {
-                ChangeState(MiniportState::Paused, MiniportState::Suspended);
-            }
-
+            ChangeState(MiniportState::Suspended, MiniportState::Paused);
         }
+        UpdateFlowsOnEvent(SMNotifications::PoweringOff);
+    }
 
-        void NotifySupriseRemoved()
-        {
-            UpdateFlowsOnSurpriseRemove();
-            ChangeState(MiniportState::SurpriseRemoved,
-            MiniportState::Halted,
-            MiniportState::Paused,
-            MiniportState::Running,
-            MiniportState::Suspended,
-            MiniportState::FastSuspend);
-        }
+    void NotifyHalted()
+    {
+        StopConfigFlows(NDIS_STATUS_PAUSED);
+    }
 
-        void NotifyDeviceNeedsReset()
-        {
-            UpdateFlowsOnNeedsReset();
-            ChangeState(MiniportState::NeedsReset,
-                MiniportState::Halted,
-                MiniportState::Paused,
-                MiniportState::Running,
-                MiniportState::Suspended,
-                MiniportState::FastSuspend);
-        }
+    void NotifyBindSriov(PVOID Value)
+    {
+        m_BindingToSriov.Set(Value);
+    }
 
-        void NotifySuspended()
-        {
-            if (IsInState(MiniportState::Running))
-            {
-                StopFlows(NDIS_STATUS_LOW_POWER_STATE);
-                ChangeState(MiniportState::FastSuspend, MiniportState::Running);
-            }
-            else
-            {
-                ChangeState(MiniportState::Suspended, MiniportState::Paused);
-            }
-            UpdateFlowsOnEvent(SMNotifications::PoweringOff);
-        }
+    void NotifyUnbindSriov()
+    {
+        m_BindingToSriov.Clear();
+    }
 
-        void NotifyHalted()
-        {
-            StopConfigFlows(NDIS_STATUS_PAUSED);
-        }
+    PVOID ReferenceSriovBinding()
+    {
+        return m_BindingToSriov.Reference();
+    }
 
-        void NotifyBindSriov(PVOID Value)
-        {
-            m_BindingToSriov.Set(Value);
-        }
+    void DereferenceSriovBinding()
+    {
+        m_BindingToSriov.Dereference();
+    }
 
-        void NotifyUnbindSriov()
-        {
-            m_BindingToSriov.Clear();
-        }
+    CMiniportStateMachine() = default;
+    ~CMiniportStateMachine() = default;
+    CMiniportStateMachine(const CMiniportStateMachine &) = delete;
+    CMiniportStateMachine &operator=(const CMiniportStateMachine &) = delete;
 
-        PVOID ReferenceSriovBinding()
-        {
-            return m_BindingToSriov.Reference();
-        }
-
-        void DereferenceSriovBinding()
-        {
-            m_BindingToSriov.Dereference();
-        }
-
-        CMiniportStateMachine() = default;
-        ~CMiniportStateMachine() = default;
-        CMiniportStateMachine(const CMiniportStateMachine&) = delete;
-        CMiniportStateMachine& operator= (const CMiniportStateMachine&) = delete;
-
-private:
+  private:
     enum class MiniportState
     {
         Halted,
@@ -364,41 +372,51 @@ private:
     };
 
     bool IsInState(MiniportState State) const
-    { return m_State == State; }
+    {
+        return m_State == State;
+    }
+
+    template <typename... Args> bool IsInState(MiniportState State, Args... MoreStates) const
+    {
+        return IsInState(State) || IsInState(MoreStates...);
+    }
 
     template <typename... Args>
-    bool IsInState(MiniportState State, Args... MoreStates) const
-    { return IsInState(State) || IsInState(MoreStates...); }
-
-    template <typename... Args>
-    void ChangeState(MiniportState NewState,
-                     Args...
+    void ChangeState(MiniportState NewState, Args...
 #ifdef DBG
                      AllowedStates
 #endif
-                    )
+    )
     {
         NETKVM_ASSERT(IsInState(AllowedStates...));
         m_State = NewState;
     }
 
     void StartFlows()
-    { m_DataFlows.ForEach([](CDataFlowStateMachine* Flow) { Flow->Start(); }); }
+    {
+        m_DataFlows.ForEach([](CDataFlowStateMachine *Flow) { Flow->Start(); });
+    }
 
     void StopFlows(NDIS_STATUS Reason)
-    { m_DataFlows.ForEach([Reason](CDataFlowStateMachine* Flow) { Flow->Stop(Reason); }); }
+    {
+        m_DataFlows.ForEach([Reason](CDataFlowStateMachine *Flow) { Flow->Stop(Reason); });
+    }
 
     void StartConfigFlows()
-    { m_ConfigFlows.ForEach([](CConfigFlowStateMachine* Flow) { Flow->Start(); }); }
+    {
+        m_ConfigFlows.ForEach([](CConfigFlowStateMachine *Flow) { Flow->Start(); });
+    }
 
     void StopConfigFlows(NDIS_STATUS Reason)
-    { m_ConfigFlows.ForEach([Reason](CConfigFlowStateMachine* Flow) { Flow->Stop(Reason); }); }
+    {
+        m_ConfigFlows.ForEach([Reason](CConfigFlowStateMachine *Flow) { Flow->Stop(Reason); });
+    }
 
     void UpdateFlowsOnSurpriseRemove()
     {
         SMNotifications msg = SMNotifications::SupriseRemoved;
-        m_DataFlows.ForEach([](CDataFlowStateMachine* Flow) { Flow->SupriseRemove(); });
-        m_ConfigFlows.ForEach([](CConfigFlowStateMachine* Flow) { Flow->SupriseRemove(); });
+        m_DataFlows.ForEach([](CDataFlowStateMachine *Flow) { Flow->SupriseRemove(); });
+        m_ConfigFlows.ForEach([](CConfigFlowStateMachine *Flow) { Flow->SupriseRemove(); });
         UpdateFlowsOnEvent(msg);
     }
 

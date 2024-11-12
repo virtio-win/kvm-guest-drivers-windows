@@ -11,24 +11,23 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and / or other materials provided with the distribution.
- * 3. Neither the names of the copyright holders nor the names of their contributors
- *    may be used to endorse or promote products derived from this software
- *    without specific prior written permission.
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
+ * 3. Neither the names of the copyright holders nor the names of their
+ * contributors may be used to endorse or promote products derived from this
+ * software without specific prior written permission. THIS SOFTWARE IS
+ * PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ``AS IS'' AND ANY EXPRESS
+ * OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.IN NO
+ * EVENT SHALL THE COPYRIGHT HOLDERS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "pvpanic.h"
 #include "bugcheck.tmh"
+#include "pvpanic.h"
 
 static KBUGCHECK_CALLBACK_RECORD CallbackRecord;
 static KBUGCHECK_REASON_CALLBACK_RECORD DumpCallbackRecord;
@@ -36,93 +35,101 @@ static KBUGCHECK_REASON_CALLBACK_RECORD DumpCallbackRecord;
 KBUGCHECK_CALLBACK_ROUTINE PVPanicOnBugCheck;
 KBUGCHECK_REASON_CALLBACK_ROUTINE PVPanicOnDumpBugCheck;
 
-VOID PVPanicOnBugCheck(IN PVOID Buffer, IN ULONG Length)
+VOID
+PVPanicOnBugCheck (IN PVOID Buffer, IN ULONG Length)
 {
-    //Trigger the PVPANIC_PANICKED event if the crash dump isn't enabled,
-    if ((Buffer != NULL) && (Length == sizeof(PVOID)) && !bEmitCrashLoadedEvent)
+  // Trigger the PVPANIC_PANICKED event if the crash dump isn't enabled,
+  if ((Buffer != NULL) && (Length == sizeof (PVOID)) && !bEmitCrashLoadedEvent)
     {
-        if (BusType & PVPANIC_PCI)
-            *(PUCHAR)Buffer = (UCHAR)(PVPANIC_PANICKED);
-        else
-            WRITE_PORT_UCHAR((PUCHAR)Buffer, (UCHAR)(PVPANIC_PANICKED));
+      if (BusType & PVPANIC_PCI)
+        *(PUCHAR)Buffer = (UCHAR)(PVPANIC_PANICKED);
+      else
+        WRITE_PORT_UCHAR ((PUCHAR)Buffer, (UCHAR)(PVPANIC_PANICKED));
     }
 }
 
-VOID PVPanicOnDumpBugCheck(
-    KBUGCHECK_CALLBACK_REASON Reason,
-    PKBUGCHECK_REASON_CALLBACK_RECORD Record,
-    PVOID Data,
-    ULONG Length)
+VOID
+PVPanicOnDumpBugCheck (KBUGCHECK_CALLBACK_REASON Reason,
+                       PKBUGCHECK_REASON_CALLBACK_RECORD Record, PVOID Data,
+                       ULONG Length)
 {
-    UNREFERENCED_PARAMETER(Data);
-    UNREFERENCED_PARAMETER(Length);
+  UNREFERENCED_PARAMETER (Data);
+  UNREFERENCED_PARAMETER (Length);
 
-    //Trigger the PVPANIC_CRASHLOADED event before the crash dump.
-    if ((PvPanicPortOrMemAddress != NULL) && (Reason == KbCallbackDumpIo) && !bEmitCrashLoadedEvent)
+  // Trigger the PVPANIC_CRASHLOADED event before the crash dump.
+  if ((PvPanicPortOrMemAddress != NULL) && (Reason == KbCallbackDumpIo)
+      && !bEmitCrashLoadedEvent)
     {
-        if (BusType & PVPANIC_PCI)
-            *PvPanicPortOrMemAddress = (UCHAR)(PVPANIC_CRASHLOADED);
-        else
-            WRITE_PORT_UCHAR(PvPanicPortOrMemAddress, (UCHAR)(PVPANIC_CRASHLOADED));
+      if (BusType & PVPANIC_PCI)
+        *PvPanicPortOrMemAddress = (UCHAR)(PVPANIC_CRASHLOADED);
+      else
+        WRITE_PORT_UCHAR (PvPanicPortOrMemAddress,
+                          (UCHAR)(PVPANIC_CRASHLOADED));
 
-        bEmitCrashLoadedEvent = TRUE;
+      bEmitCrashLoadedEvent = TRUE;
     }
-    //Deregister BugCheckReasonCallback after PVPANIC_CRASHLOADED is triggered.
-    if (bEmitCrashLoadedEvent)
-        KeDeregisterBugCheckReasonCallback(Record);
+  // Deregister BugCheckReasonCallback after PVPANIC_CRASHLOADED is triggered.
+  if (bEmitCrashLoadedEvent)
+    KeDeregisterBugCheckReasonCallback (Record);
 }
 
-VOID PVPanicRegisterBugCheckCallback(IN PVOID PortAddress, PUCHAR Component)
+VOID
+PVPanicRegisterBugCheckCallback (IN PVOID PortAddress, PUCHAR Component)
 {
-    BOOLEAN bBugCheck;
+  BOOLEAN bBugCheck;
 
-    KeInitializeCallbackRecord(&CallbackRecord);
-    KeInitializeCallbackRecord(&DumpCallbackRecord);
+  KeInitializeCallbackRecord (&CallbackRecord);
+  KeInitializeCallbackRecord (&DumpCallbackRecord);
 
-    if (SupportedFeature & PVPANIC_PANICKED)
+  if (SupportedFeature & PVPANIC_PANICKED)
     {
-        bBugCheck = KeRegisterBugCheckCallback(&CallbackRecord, PVPanicOnBugCheck,
-                    (PVOID)PortAddress, sizeof(PVOID), Component);
-        if (!bBugCheck)
+      bBugCheck = KeRegisterBugCheckCallback (
+          &CallbackRecord, PVPanicOnBugCheck, (PVOID)PortAddress,
+          sizeof (PVOID), Component);
+      if (!bBugCheck)
         {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
-                "Failed to register bug check callback function.");
+          TraceEvents (TRACE_LEVEL_ERROR, DBG_POWER,
+                       "Failed to register bug check callback function.");
         }
     }
 
-    if (SupportedFeature & PVPANIC_CRASHLOADED)
+  if (SupportedFeature & PVPANIC_CRASHLOADED)
     {
-        bBugCheck = KeRegisterBugCheckReasonCallback(&DumpCallbackRecord,
-                    PVPanicOnDumpBugCheck, KbCallbackDumpIo, Component);
-        if (!bBugCheck)
+      bBugCheck = KeRegisterBugCheckReasonCallback (
+          &DumpCallbackRecord, PVPanicOnDumpBugCheck, KbCallbackDumpIo,
+          Component);
+      if (!bBugCheck)
         {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
-                "Failed to register bug check reason callback function.");
+          TraceEvents (
+              TRACE_LEVEL_ERROR, DBG_POWER,
+              "Failed to register bug check reason callback function.");
         }
     }
 }
 
-VOID PVPanicDeregisterBugCheckCallback()
+VOID
+PVPanicDeregisterBugCheckCallback ()
 {
-    BOOLEAN bBugCheck;
+  BOOLEAN bBugCheck;
 
-    if (SupportedFeature & PVPANIC_PANICKED)
+  if (SupportedFeature & PVPANIC_PANICKED)
     {
-        bBugCheck = KeDeregisterBugCheckCallback(&CallbackRecord);
-        if (!bBugCheck)
+      bBugCheck = KeDeregisterBugCheckCallback (&CallbackRecord);
+      if (!bBugCheck)
         {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
-                "Failed to unregister bug check callback function.");
+          TraceEvents (TRACE_LEVEL_ERROR, DBG_POWER,
+                       "Failed to unregister bug check callback function.");
         }
     }
 
-    if (SupportedFeature & PVPANIC_CRASHLOADED)
+  if (SupportedFeature & PVPANIC_CRASHLOADED)
     {
-        bBugCheck = KeDeregisterBugCheckReasonCallback(&DumpCallbackRecord);
-        if (!bBugCheck)
+      bBugCheck = KeDeregisterBugCheckReasonCallback (&DumpCallbackRecord);
+      if (!bBugCheck)
         {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
-                "Failed to unregister bug check reason callback function.");
+          TraceEvents (
+              TRACE_LEVEL_ERROR, DBG_POWER,
+              "Failed to unregister bug check reason callback function.");
         }
     }
 }

@@ -7,11 +7,9 @@
 
 #include "targetver.h"
 
+#include <Windows.h>
 #include <stdio.h>
 #include <string.h>
 #include <tchar.h>
-#include <Windows.h>
-
-
 
 // TODO: reference additional headers your program requires here

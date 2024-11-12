@@ -3,8 +3,8 @@
 
 struct sockaddr_un
 {
-    UINT family;
-    char sun_path[32];
+  UINT family;
+  char sun_path[32];
 };
 
 #endif

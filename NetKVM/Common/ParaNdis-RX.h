@@ -1,9 +1,10 @@
 #pragma once
-#include "ParaNdis-VirtQueue.h"
 #include "ParaNdis-AbstractPath.h"
+#include "ParaNdis-VirtQueue.h"
 
-class CParaNdisRX : public CParaNdisTemplatePath<CVirtQueue>, public CNdisAllocatable < CParaNdisRX, 'XRHR' > {
-public:
+class CParaNdisRX : public CParaNdisTemplatePath<CVirtQueue>, public CNdisAllocatable<CParaNdisRX, 'XRHR'>
+{
+  public:
     CParaNdisRX();
     ~CParaNdisRX();
 
@@ -22,7 +23,10 @@ public:
         ReuseReceiveBufferNoLock(pBuffersDescriptor);
     }
 
-    BOOLEAN IsRxBuffersShortage() { return m_NetNofReceiveBuffers < m_MinRxBufferLimit; }
+    BOOLEAN IsRxBuffersShortage()
+    {
+        return m_NetNofReceiveBuffers < m_MinRxBufferLimit;
+    }
 
     VOID ProcessRxRing(CCHAR nCurrCpuReceiveQueue);
 
@@ -38,13 +42,16 @@ public:
 
     void KickRXRing();
 
-    PARANDIS_RECEIVE_QUEUE &UnclassifiedPacketsQueue() { return m_UnclassifiedPacketsQueue;  }
+    PARANDIS_RECEIVE_QUEUE &UnclassifiedPacketsQueue()
+    {
+        return m_UnclassifiedPacketsQueue;
+    }
 
-private:
+  private:
     /* list of Rx buffers available for data (under VIRTIO management) */
-    LIST_ENTRY              m_NetReceiveBuffers;
-    UINT                    m_NetNofReceiveBuffers;
-    UINT                    m_MinRxBufferLimit;
+    LIST_ENTRY m_NetReceiveBuffers;
+    UINT m_NetNofReceiveBuffers;
+    UINT m_MinRxBufferLimit;
 
     UINT m_nReusedRxBuffersCounter, m_nReusedRxBuffersLimit = 0;
 
@@ -53,12 +60,12 @@ private:
     PARANDIS_RECEIVE_QUEUE m_UnclassifiedPacketsQueue;
 
     void ReuseReceiveBufferNoLock(pRxNetDescriptor pBuffersDescriptor);
-private:
+
+  private:
     int PrepareReceiveBuffers();
     pRxNetDescriptor CreateRxDescriptorOnInit();
 };
 
 #ifdef PARANDIS_SUPPORT_RSS
-VOID ParaNdis_ResetRxClassification(
-    PARANDIS_ADAPTER *pContext);
+VOID ParaNdis_ResetRxClassification(PARANDIS_ADAPTER *pContext);
 #endif

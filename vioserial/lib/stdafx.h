@@ -6,20 +6,16 @@
 
 #define INITGUID
 
-#include <windows.h>
-#include <initguid.h>
 #include "public.h"
-#include <setupapi.h>
-#include <setupapi.h>
-#include <winioctl.h>
 #include <dbt.h>
+#include <initguid.h>
+#include <setupapi.h>
+#include <windows.h>
+#include <winioctl.h>
 
 #include <conio.h>
 #include <stdio.h>
 #include <tchar.h>
 
-
 #include "PnPAll.h"
 #include "vioser.h"
-
-

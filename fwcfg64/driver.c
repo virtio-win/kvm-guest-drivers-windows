@@ -5,9 +5,9 @@
  *
  */
 #include "driver.h"
+#include "driver.tmh"
 #include "fwcfg.h"
 #include "trace.h"
-#include "driver.tmh"
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(INIT, DriverEntry)
@@ -25,10 +25,9 @@ NTSTATUS VMCoreInfoFill(PDEVICE_CONTEXT ctx)
 
     hdr_buf = (PUCHAR)ctx->vmci_data.pNote + FIELD_OFFSET(VMCI_ELF64_NOTE, n_desc);
     status = KeInitializeCrashDumpHeader(DUMP_TYPE_FULL, 0, hdr_buf,
-                                         DUMP_HDR_SIZE, &bufSizeNeeded);
+        DUMP_HDR_SIZE, &bufSizeNeeded);
 
-    if (!NT_SUCCESS(status))
-    {
+    if (!NT_SUCCESS(status)) {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_ALL, "Failed to obtain header");
         return status;
     }
@@ -54,7 +53,7 @@ NTSTATUS VMCoreInfoSend(PDEVICE_CONTEXT ctx)
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_ALL, "Sending header");
 
     status = FWCfgDmaSend(ctx->ioBase, ctx->vmci_data.vmci_pa, ctx->index,
-                          sizeof(VMCOREINFO), ctx->dma_access, ctx->dma_access_pa);
+        sizeof(VMCOREINFO), ctx->dma_access, ctx->dma_access_pa);
 
     return status;
 }
@@ -77,8 +76,7 @@ NTSTATUS GetKdbg(PDEVICE_CONTEXT ctx)
     NTSTATUS status = STATUS_SUCCESS;
 
     minidump = ExAllocatePoolUninitialized(NonPagedPoolNx, MINIDUMP_BUFFER_SIZE, 'pmdm');
-    if (!minidump)
-    {
+    if (!minidump) {
         return STATUS_MEMORY_NOT_ALLOCATED;
     }
     memset(minidump, 0, MINIDUMP_BUFFER_SIZE);
@@ -96,15 +94,13 @@ NTSTATUS GetKdbg(PDEVICE_CONTEXT ctx)
      * KeCapturePersistentThreadState is supposed to save Small Memory Dump to the buffer.
      * But since it is undocumented function, the driver should check actual output data.
      */
-    if (kdbg_size == 0 || (kdbg_offset + kdbg_size) > MINIDUMP_BUFFER_SIZE)
-    {
+    if (kdbg_size == 0 || (kdbg_offset + kdbg_size) > MINIDUMP_BUFFER_SIZE) {
         status = STATUS_INVALID_BUFFER_SIZE;
         goto out_free_minidump;
     }
 
     ctx->kdbg = ExAllocatePoolUninitialized(NonPagedPoolNx, kdbg_size, 'gbdk');
-    if (!ctx->kdbg)
-    {
+    if (!ctx->kdbg) {
         status = STATUS_MEMORY_NOT_ALLOCATED;
         goto out_free_minidump;
     }
@@ -162,8 +158,7 @@ NTSTATUS FwCfgEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
 
     status = WdfDeviceCreate(&DeviceInit, &attributes, &device);
 
-    if (!NT_SUCCESS(status))
-    {
+    if (!NT_SUCCESS(status)) {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
             "WdfDeviceCreate failed: %!STATUS!", status);
         return status;
@@ -173,12 +168,11 @@ NTSTATUS FwCfgEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
     memset(ctx, 0, sizeof(*ctx));
 
     WDF_DMA_ENABLER_CONFIG_INIT(&dmaEnablerConfig, WdfDmaProfilePacket64,
-                                sizeof(CBUF_DATA));
+        sizeof(CBUF_DATA));
     status = WdfDmaEnablerCreate(device, &dmaEnablerConfig,
-                                 WDF_NO_OBJECT_ATTRIBUTES, &ctx->dmaEnabler);
+        WDF_NO_OBJECT_ATTRIBUTES, &ctx->dmaEnabler);
 
-    if (!NT_SUCCESS(status))
-    {
+    if (!NT_SUCCESS(status)) {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
             "Failed to create DMA enabler");
         return status;
@@ -188,9 +182,8 @@ NTSTATUS FwCfgEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
         "DMA enabler created");
 
     status = WdfCommonBufferCreate(ctx->dmaEnabler, sizeof(CBUF_DATA),
-                                   WDF_NO_OBJECT_ATTRIBUTES, &ctx->cbuf);
-    if (!NT_SUCCESS(status))
-    {
+        WDF_NO_OBJECT_ATTRIBUTES, &ctx->cbuf);
+    if (!NT_SUCCESS(status)) {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
             "Failed to create common buffer");
         return status;
@@ -206,7 +199,7 @@ NTSTATUS FwCfgEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
 }
 
 NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject,
-                     IN PUNICODE_STRING RegistryPath)
+    IN PUNICODE_STRING RegistryPath)
 {
     NTSTATUS status;
     WDF_DRIVER_CONFIG config;
@@ -220,11 +213,10 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject,
     WDF_DRIVER_CONFIG_INIT(&config, FwCfgEvtDeviceAdd);
 
     status = WdfDriverCreate(DriverObject, RegistryPath, &attributes,
-                             &config, WDF_NO_HANDLE);
-    if (!NT_SUCCESS(status))
-    {
+        &config, WDF_NO_HANDLE);
+    if (!NT_SUCCESS(status)) {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-                    "WdfDriverCreate failed: %!STATUS!", status);
+            "WdfDriverCreate failed: %!STATUS!", status);
         WPP_CLEANUP(DriverObject);
     }
 

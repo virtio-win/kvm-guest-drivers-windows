@@ -1,7 +1,7 @@
+#include "Trace.h"
+#include "kdebugprint.h"
 #include "ndis56common.h"
 #include "virtio_net.h"
-#include "kdebugprint.h"
-#include "Trace.h"
 #ifdef NETKVM_WPP_ENABLED
 #include "ParaNdis_CX.tmh"
 #endif
@@ -27,8 +27,7 @@ bool CParaNdisCX::Create(UINT DeviceQueueIndex)
 
     if (!ParaNdis_InitialAllocatePhysicalMemory(m_Context, 512, &m_ControlData))
     {
-        DPrintf(0, "CParaNdisCX::Create - ParaNdis_InitialAllocatePhysicalMemory failed for %u\n",
-            DeviceQueueIndex);
+        DPrintf(0, "CParaNdisCX::Create - ParaNdis_InitialAllocatePhysicalMemory failed for %u\n", DeviceQueueIndex);
         m_ControlData.Virtual = nullptr;
         return false;
     }
@@ -37,26 +36,17 @@ bool CParaNdisCX::Create(UINT DeviceQueueIndex)
 
     CreatePath();
 
-    return m_VirtQueue.Create(DeviceQueueIndex,
-        &m_Context->IODevice,
-        m_Context->MiniportHandle);
+    return m_VirtQueue.Create(DeviceQueueIndex, &m_Context->IODevice, m_Context->MiniportHandle);
 }
 
-BOOLEAN CParaNdisCX::SendControlMessage(
-    UCHAR cls,
-    UCHAR cmd,
-    PVOID buffer1,
-    ULONG size1,
-    PVOID buffer2,
-    ULONG size2,
-    int levelIfOK
-    )
+BOOLEAN CParaNdisCX::SendControlMessage(UCHAR cls, UCHAR cmd, PVOID buffer1, ULONG size1, PVOID buffer2, ULONG size2,
+                                        int levelIfOK)
 {
     BOOLEAN bOK = FALSE;
     CLockedContext<CNdisSpinLock> autoLock(m_Lock);
 
-    if (m_ControlData.Virtual && m_ControlData.size > (size1 + size2 + 16) &&
-        m_VirtQueue.IsValid() && m_VirtQueue.CanTouchHardware())
+    if (m_ControlData.Virtual && m_ControlData.size > (size1 + size2 + 16) && m_VirtQueue.IsValid() &&
+        m_VirtQueue.CanTouchHardware())
     {
         struct VirtIOBufferDescriptor sg[4];
         PUCHAR pBase = (PUCHAR)m_ControlData.Virtual;
@@ -121,7 +111,8 @@ BOOLEAN CParaNdisCX::SendControlMessage(
             }
             else if (*(virtio_net_ctrl_ack *)(pBase + offset) != VIRTIO_NET_OK)
             {
-                DPrintf(0, "%s - ERROR: error %d returned for class %d\n", __FUNCTION__, *(virtio_net_ctrl_ack *)(pBase + offset), cls);
+                DPrintf(0, "%s - ERROR: error %d returned for class %d\n", __FUNCTION__,
+                        *(virtio_net_ctrl_ack *)(pBase + offset), cls);
             }
             else
             {

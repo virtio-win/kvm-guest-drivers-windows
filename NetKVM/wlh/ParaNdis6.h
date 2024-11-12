@@ -36,46 +36,36 @@ VOID ParaNdis6_GetSupportedOid(NDIS_MINIPORT_ADAPTER_GENERAL_ATTRIBUTES *pGenAtt
 /* returns supported statistics for statistics structure */
 ULONG ParaNdis6_GetSupportedStatisticsFlags();
 
-NDIS_STATUS ParaNdis6_GetRegistrationOffloadInfo(
-        PARANDIS_ADAPTER *pContext,
-        NDIS_MINIPORT_ADAPTER_OFFLOAD_ATTRIBUTES *pAttributes);
+NDIS_STATUS ParaNdis6_GetRegistrationOffloadInfo(PARANDIS_ADAPTER *pContext,
+                                                 NDIS_MINIPORT_ADAPTER_OFFLOAD_ATTRIBUTES *pAttributes);
 
 void ParaNdis6_ApplyOffloadPersistentConfiguration(PARANDIS_ADAPTER *pContext);
 
 MINIPORT_OID_REQUEST ParaNdis6_OidRequest;
-NDIS_STATUS ParaNdis6_OidRequest(
-    NDIS_HANDLE miniportAdapterContext,
-    PNDIS_OID_REQUEST  pNdisRequest);
+NDIS_STATUS ParaNdis6_OidRequest(NDIS_HANDLE miniportAdapterContext, PNDIS_OID_REQUEST pNdisRequest);
 
 MINIPORT_CANCEL_SEND ParaNdis6_CancelSendNetBufferLists;
-VOID ParaNdis6_CancelSendNetBufferLists(
-    NDIS_HANDLE  miniportAdapterContext,
-    PVOID pCancelId);
+VOID ParaNdis6_CancelSendNetBufferLists(NDIS_HANDLE miniportAdapterContext, PVOID pCancelId);
 
 MINIPORT_RETURN_NET_BUFFER_LISTS ParaNdis6_ReturnNetBufferLists;
-VOID ParaNdis6_ReturnNetBufferLists(
-    NDIS_HANDLE miniportAdapterContext,
-    PNET_BUFFER_LIST pNBL, ULONG returnFlags);
+VOID ParaNdis6_ReturnNetBufferLists(NDIS_HANDLE miniportAdapterContext, PNET_BUFFER_LIST pNBL, ULONG returnFlags);
 
 MINIPORT_CANCEL_OID_REQUEST ParaNdis6_OidCancelRequest;
-VOID ParaNdis6_OidCancelRequest(
-        NDIS_HANDLE hMiniportAdapterContext,
-        PVOID pRequestId);
+VOID ParaNdis6_OidCancelRequest(NDIS_HANDLE hMiniportAdapterContext, PVOID pRequestId);
 
 typedef struct _tagPowerWorkItem
 {
-    NDIS_HANDLE                 WorkItem;
-    PPARANDIS_ADAPTER           pContext;
-    NDIS_DEVICE_POWER_STATE     state;
-    PNDIS_OID_REQUEST           request;
-}tPowerWorkItem;
+    NDIS_HANDLE WorkItem;
+    PPARANDIS_ADAPTER pContext;
+    NDIS_DEVICE_POWER_STATE state;
+    PNDIS_OID_REQUEST request;
+} tPowerWorkItem;
 
 typedef struct _tagGeneralWorkItem
 {
-    NDIS_HANDLE                 WorkItem;
-    PPARANDIS_ADAPTER           pContext;
-}tGeneralWorkItem;
-
+    NDIS_HANDLE WorkItem;
+    PPARANDIS_ADAPTER pContext;
+} tGeneralWorkItem;
 
 #if NDIS_SUPPORT_NDIS620
 void ParaNdis6_Fill620PowerCapabilities(PNDIS_PM_CAPABILITIES pPower620Caps);

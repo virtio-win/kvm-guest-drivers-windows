@@ -36,35 +36,26 @@
 #pragma alloc_text(INIT, DriverEntry)
 #pragma alloc_text(PAGE, EvtDriverContextCleanup)
 
-NTSTATUS DriverEntry(
-                      IN PDRIVER_OBJECT   DriverObject,
-                      IN PUNICODE_STRING  RegistryPath
-                      )
+NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING RegistryPath)
 {
-    WDF_DRIVER_CONFIG      config;
-    NTSTATUS               status;
-    WDFDRIVER              driver;
-    WDF_OBJECT_ATTRIBUTES  attrib;
+    WDF_DRIVER_CONFIG config;
+    NTSTATUS status;
+    WDFDRIVER driver;
+    WDF_OBJECT_ATTRIBUTES attrib;
 
     ExInitializeDriverRuntime(DrvRtPoolNxOptIn);
 
-    InitializeDebugPrints( DriverObject, RegistryPath);
+    InitializeDebugPrints(DriverObject, RegistryPath);
 
-    TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "viomem driver, built on %s %s\n",
-            __DATE__, __TIME__);
+    TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "viomem driver, built on %s %s\n", __DATE__, __TIME__);
 
     WDF_OBJECT_ATTRIBUTES_INIT(&attrib);
     attrib.EvtCleanupCallback = EvtDriverContextCleanup;
 
     WDF_DRIVER_CONFIG_INIT(&config, ViomemDeviceAdd);
 
-    status =  WdfDriverCreate(
-                      DriverObject,
-                      RegistryPath,
-                      &attrib,
-                      &config,
-                      &driver);
-    if(!NT_SUCCESS(status))
+    status = WdfDriverCreate(DriverObject, RegistryPath, &attrib, &config, &driver);
+    if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfDriverCreate failed with status 0x%08x\n", status);
         WPP_CLEANUP(DriverObject);
@@ -76,17 +67,14 @@ NTSTATUS DriverEntry(
     return status;
 }
 
-VOID
-EvtDriverContextCleanup(
-    IN WDFOBJECT Driver
-    )
+VOID EvtDriverContextCleanup(IN WDFOBJECT Driver)
 {
     UNREFERENCED_PARAMETER(Driver);
-    PAGED_CODE ();
+    PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"%s Entry\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s Entry\n", __FUNCTION__);
 
-    WPP_CLEANUP(WdfDriverWdmGetDriverObject( (WDFDRIVER)Driver ));
+    WPP_CLEANUP(WdfDriverWdmGetDriverObject((WDFDRIVER)Driver));
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s Return\n", __FUNCTION__);
 }

@@ -1,6 +1,6 @@
-#include "ndis56common.h"
-#include "kdebugprint.h"
 #include "Trace.h"
+#include "kdebugprint.h"
+#include "ndis56common.h"
 #ifdef NETKVM_WPP_ENABLED
 #include "ParaNdis6_RSS.tmh"
 #endif
@@ -9,29 +9,28 @@
 
 #define RSS_PRINT_LEVEL 0
 
-static void PrintIndirectionTable(const NDIS_RECEIVE_SCALE_PARAMETERS* Params);
+static void PrintIndirectionTable(const NDIS_RECEIVE_SCALE_PARAMETERS *Params);
 static void PrintIndirectionTable(const PARANDIS_SCALING_SETTINGS *RSSScalingSetting);
 
 static void PrintRSSSettings(PPARANDIS_RSS_PARAMS RSSParameters);
 static NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext);
 
-static VOID ApplySettings(PPARANDIS_RSS_PARAMS RSSParameters,
-        PARANDIS_RSS_MODE NewRSSMode,
-        PARANDIS_HASHING_SETTINGS *ReceiveHashingSettings,
-        PARANDIS_SCALING_SETTINGS *ReceiveScalingSettings)
+static VOID ApplySettings(PPARANDIS_RSS_PARAMS RSSParameters, PARANDIS_RSS_MODE NewRSSMode,
+                          PARANDIS_HASHING_SETTINGS *ReceiveHashingSettings,
+                          PARANDIS_SCALING_SETTINGS *ReceiveScalingSettings)
 {
     CNdisPassiveWriteAutoLock autoLock(RSSParameters->rwLock);
 
     RSSParameters->RSSMode = NewRSSMode;
 
-    if(NewRSSMode != PARANDIS_RSS_MODE::PARANDIS_RSS_DISABLED)
+    if (NewRSSMode != PARANDIS_RSS_MODE::PARANDIS_RSS_DISABLED)
     {
         if (ReceiveHashingSettings != NULL)
             RSSParameters->ActiveHashingSettings = *ReceiveHashingSettings;
 
-        if(NewRSSMode == PARANDIS_RSS_MODE::PARANDIS_RSS_FULL && ReceiveScalingSettings != NULL)
+        if (NewRSSMode == PARANDIS_RSS_MODE::PARANDIS_RSS_FULL && ReceiveScalingSettings != NULL)
         {
-            if(RSSParameters->ActiveRSSScalingSettings.CPUIndexMapping != NULL)
+            if (RSSParameters->ActiveRSSScalingSettings.CPUIndexMapping != NULL)
                 NdisFreeMemory(RSSParameters->ActiveRSSScalingSettings.CPUIndexMapping, 0, 0);
 
             RSSParameters->ActiveRSSScalingSettings = *ReceiveScalingSettings;
@@ -51,12 +50,11 @@ static VOID InitRSSParameters(PARANDIS_ADAPTER *pContext)
 
 static VOID CleanupRSSParameters(PARANDIS_RSS_PARAMS *RSSParameters)
 {
-    if(RSSParameters->ActiveRSSScalingSettings.CPUIndexMapping != NULL)
+    if (RSSParameters->ActiveRSSScalingSettings.CPUIndexMapping != NULL)
         NdisFreeMemory(RSSParameters->ActiveRSSScalingSettings.CPUIndexMapping, 0, 0);
 
-    if(RSSParameters->RSSScalingSettings.CPUIndexMapping != NULL)
+    if (RSSParameters->RSSScalingSettings.CPUIndexMapping != NULL)
         NdisFreeMemory(RSSParameters->RSSScalingSettings.CPUIndexMapping, 0, 0);
-
 }
 
 static VOID InitRSSCapabilities(PARANDIS_ADAPTER *pContext)
@@ -65,32 +63,34 @@ static VOID InitRSSCapabilities(PARANDIS_ADAPTER *pContext)
     RSSCapabilities->Header.Type = NDIS_OBJECT_TYPE_RSS_CAPABILITIES;
     RSSCapabilities->Header.Revision = NDIS_RECEIVE_SCALE_CAPABILITIES_REVISION_1;
     RSSCapabilities->Header.Size = NDIS_SIZEOF_RECEIVE_SCALE_CAPABILITIES_REVISION_1;
-    RSSCapabilities->CapabilitiesFlags =    NDIS_RSS_CAPS_MESSAGE_SIGNALED_INTERRUPTS |
-                                        NDIS_RSS_CAPS_CLASSIFICATION_AT_ISR |
-                                        NdisHashFunctionToeplitz;
+    RSSCapabilities->CapabilitiesFlags =
+        NDIS_RSS_CAPS_MESSAGE_SIGNALED_INTERRUPTS | NDIS_RSS_CAPS_CLASSIFICATION_AT_ISR | NdisHashFunctionToeplitz;
     if (pContext->bRSSSupportedByDevice)
     {
         ULONG flags = 0;
-        flags |= (pContext->DeviceRSSCapabilities.SupportedHashes & VIRTIO_NET_RSS_HASH_TYPE_TCPv4) ?
-            NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV4 : 0;
-        flags |= (pContext->DeviceRSSCapabilities.SupportedHashes & VIRTIO_NET_RSS_HASH_TYPE_TCPv6) ?
-            NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV6 : 0;
-        flags |= (pContext->DeviceRSSCapabilities.SupportedHashes & VIRTIO_NET_RSS_HASH_TYPE_TCP_EX) ?
-            NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV6_EX : 0;
+        flags |= (pContext->DeviceRSSCapabilities.SupportedHashes & VIRTIO_NET_RSS_HASH_TYPE_TCPv4)
+                     ? NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV4
+                     : 0;
+        flags |= (pContext->DeviceRSSCapabilities.SupportedHashes & VIRTIO_NET_RSS_HASH_TYPE_TCPv6)
+                     ? NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV6
+                     : 0;
+        flags |= (pContext->DeviceRSSCapabilities.SupportedHashes & VIRTIO_NET_RSS_HASH_TYPE_TCP_EX)
+                     ? NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV6_EX
+                     : 0;
         RSSCapabilities->CapabilitiesFlags |= flags;
     }
     else
     {
-        RSSCapabilities->CapabilitiesFlags |= NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV4 |
-                                              NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV6 |
-                                              NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV6_EX;
+        RSSCapabilities->CapabilitiesFlags |=
+            NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV4 | NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV6 | NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV6_EX;
     }
     RSSCapabilities->NumberOfInterruptMessages = 1;
     RSSCapabilities->NumberOfReceiveQueues = pContext->RSSMaxQueuesNumber;
 #if (NDIS_SUPPORT_NDIS630)
     RSSCapabilities->Header.Revision = NDIS_RECEIVE_SCALE_CAPABILITIES_REVISION_2;
     RSSCapabilities->Header.Size = NDIS_SIZEOF_RECEIVE_SCALE_CAPABILITIES_REVISION_2;
-    RSSCapabilities->NumberOfIndirectionTableEntries = NDIS_RSS_INDIRECTION_TABLE_MAX_SIZE_REVISION_2 / sizeof(PROCESSOR_NUMBER);
+    RSSCapabilities->NumberOfIndirectionTableEntries =
+        NDIS_RSS_INDIRECTION_TABLE_MAX_SIZE_REVISION_2 / sizeof(PROCESSOR_NUMBER);
 #endif
 #if (NDIS_SUPPORT_NDIS680)
     if (CheckNdisVersion(6, 80))
@@ -100,36 +100,36 @@ static VOID InitRSSCapabilities(PARANDIS_ADAPTER *pContext)
         if (pContext->bRSSSupportedByDevice)
         {
             ULONG flags = 0;
-            flags |= (pContext->DeviceRSSCapabilities.SupportedHashes & VIRTIO_NET_RSS_HASH_TYPE_UDPv4) ?
-                NDIS_RSS_CAPS_HASH_TYPE_UDP_IPV4 : 0;
-            flags |= (pContext->DeviceRSSCapabilities.SupportedHashes & VIRTIO_NET_RSS_HASH_TYPE_UDPv6) ?
-                NDIS_RSS_CAPS_HASH_TYPE_UDP_IPV6 : 0;
-            flags |= (pContext->DeviceRSSCapabilities.SupportedHashes & VIRTIO_NET_RSS_HASH_TYPE_UDP_EX) ?
-                NDIS_RSS_CAPS_HASH_TYPE_UDP_IPV6_EX : 0;
+            flags |= (pContext->DeviceRSSCapabilities.SupportedHashes & VIRTIO_NET_RSS_HASH_TYPE_UDPv4)
+                         ? NDIS_RSS_CAPS_HASH_TYPE_UDP_IPV4
+                         : 0;
+            flags |= (pContext->DeviceRSSCapabilities.SupportedHashes & VIRTIO_NET_RSS_HASH_TYPE_UDPv6)
+                         ? NDIS_RSS_CAPS_HASH_TYPE_UDP_IPV6
+                         : 0;
+            flags |= (pContext->DeviceRSSCapabilities.SupportedHashes & VIRTIO_NET_RSS_HASH_TYPE_UDP_EX)
+                         ? NDIS_RSS_CAPS_HASH_TYPE_UDP_IPV6_EX
+                         : 0;
             RSSCapabilities->CapabilitiesFlags |= flags;
         }
         else
         {
-            RSSCapabilities->CapabilitiesFlags |= NDIS_RSS_CAPS_HASH_TYPE_UDP_IPV4 |
-                                                  NDIS_RSS_CAPS_HASH_TYPE_UDP_IPV6 |
+            RSSCapabilities->CapabilitiesFlags |= NDIS_RSS_CAPS_HASH_TYPE_UDP_IPV4 | NDIS_RSS_CAPS_HASH_TYPE_UDP_IPV6 |
                                                   NDIS_RSS_CAPS_HASH_TYPE_UDP_IPV6_EX;
         }
     }
 #endif
 }
 
-void ParaNdis6_CheckDeviceRSSCapabilities(PARANDIS_ADAPTER *pContext, bool& bRss, bool& bHash)
+void ParaNdis6_CheckDeviceRSSCapabilities(PARANDIS_ADAPTER *pContext, bool &bRss, bool &bHash)
 {
     if (bHash || bRss)
     {
         DPrintf(0, "[%s] Device supports %s %s: key of %d, table of %d, hashes %X\n", __FUNCTION__,
-            bHash ? "Hash" : " ", bRss ? "RSS" : " ",
-            pContext->DeviceRSSCapabilities.MaxKeySize,
-            pContext->DeviceRSSCapabilities.MaxIndirectEntries,
-            pContext->DeviceRSSCapabilities.SupportedHashes);
+                bHash ? "Hash" : " ", bRss ? "RSS" : " ", pContext->DeviceRSSCapabilities.MaxKeySize,
+                pContext->DeviceRSSCapabilities.MaxIndirectEntries, pContext->DeviceRSSCapabilities.SupportedHashes);
     }
     BOOLEAN bResult = (pContext->DeviceRSSCapabilities.SupportedHashes & VIRTIO_NET_RSS_HASH_TYPE_IPv4) &&
-        pContext->DeviceRSSCapabilities.MaxKeySize >= NDIS_RSS_HASH_SECRET_KEY_MAX_SIZE_REVISION_2;
+                      pContext->DeviceRSSCapabilities.MaxKeySize >= NDIS_RSS_HASH_SECRET_KEY_MAX_SIZE_REVISION_2;
 
     if (!bResult)
     {
@@ -137,7 +137,8 @@ void ParaNdis6_CheckDeviceRSSCapabilities(PARANDIS_ADAPTER *pContext, bool& bRss
         bHash = false;
     }
 
-    bResult = bResult && pContext->DeviceRSSCapabilities.MaxIndirectEntries >= NDIS_RSS_INDIRECTION_TABLE_MAX_SIZE_REVISION_2 / sizeof(PROCESSOR_NUMBER);
+    bResult = bResult && pContext->DeviceRSSCapabilities.MaxIndirectEntries >=
+                             NDIS_RSS_INDIRECTION_TABLE_MAX_SIZE_REVISION_2 / sizeof(PROCESSOR_NUMBER);
     if (!bResult)
     {
         bRss = false;
@@ -145,7 +146,7 @@ void ParaNdis6_CheckDeviceRSSCapabilities(PARANDIS_ADAPTER *pContext, bool& bRss
     DPrintf(0, "[%s] Driver will use: %s %s\n", __FUNCTION__, bHash ? "Hash" : " ", bRss ? "RSS" : " ");
 }
 
-NDIS_RECEIVE_SCALE_CAPABILITIES* ParaNdis6_RSSCreateConfiguration(PARANDIS_ADAPTER *pContext)
+NDIS_RECEIVE_SCALE_CAPABILITIES *ParaNdis6_RSSCreateConfiguration(PARANDIS_ADAPTER *pContext)
 {
     InitRSSParameters(pContext);
     InitRSSCapabilities(pContext);
@@ -177,7 +178,7 @@ static USHORT ResolveQueue(PARANDIS_ADAPTER *pContext, PPROCESSOR_NUMBER proc, U
     UINT n;
     for (n = 0; n < pContext->nPathBundles; ++n)
     {
-        const GROUP_AFFINITY& b = pContext->pPathBundles[n].rxPath.DPCAffinity;
+        const GROUP_AFFINITY &b = pContext->pPathBundles[n].rxPath.DPCAffinity;
         if (a.Group == b.Group && a.Mask == b.Mask)
         {
             return (USHORT)n;
@@ -199,8 +200,7 @@ static void SetDeviceRSSSettings(PARANDIS_ADAPTER *pContext, bool bForceOff = fa
     {
         return;
     }
-    UCHAR command = pContext->bRSSSupportedByDevice ?
-        VIRTIO_NET_CTRL_MQ_RSS_CONFIG : VIRTIO_NET_CTRL_MQ_HASH_CONFIG;
+    UCHAR command = pContext->bRSSSupportedByDevice ? VIRTIO_NET_CTRL_MQ_RSS_CONFIG : VIRTIO_NET_CTRL_MQ_HASH_CONFIG;
 
     if (pContext->RSSParameters.RSSMode == PARANDIS_RSS_MODE::PARANDIS_RSS_DISABLED || bForceOff)
     {
@@ -212,7 +212,8 @@ static void SetDeviceRSSSettings(PARANDIS_ADAPTER *pContext, bool bForceOff = fa
     {
         virtio_net_rss_config *cfg;
         USHORT fallbackQueue = 0;
-        USHORT indirection_table_len = pContext->RSSParameters.ActiveRSSScalingSettings.IndirectionTableSize / sizeof(PROCESSOR_NUMBER);
+        USHORT indirection_table_len =
+            pContext->RSSParameters.ActiveRSSScalingSettings.IndirectionTableSize / sizeof(PROCESSOR_NUMBER);
         UCHAR hash_key_len = (UCHAR)pContext->RSSParameters.ActiveHashingSettings.HashSecretKeySize;
         ULONG config_size;
         if (!pContext->bRSSSupportedByDevice)
@@ -226,15 +227,16 @@ static void SetDeviceRSSSettings(PARANDIS_ADAPTER *pContext, bool bForceOff = fa
             return;
         }
         cfg->indirection_table_mask = indirection_table_len - 1;
-        cfg->unclassified_queue = ResolveQueue(pContext, &pContext->RSSParameters.ActiveRSSScalingSettings.DefaultProcessor, &fallbackQueue);
+        cfg->unclassified_queue =
+            ResolveQueue(pContext, &pContext->RSSParameters.ActiveRSSScalingSettings.DefaultProcessor, &fallbackQueue);
         for (USHORT i = 0; i < indirection_table_len; ++i)
         {
-            cfg->indirection_table[i] = ResolveQueue(pContext,
-                pContext->RSSParameters.ActiveRSSScalingSettings.IndirectionTable + i,
-                &fallbackQueue);
+            cfg->indirection_table[i] = ResolveQueue(
+                pContext, pContext->RSSParameters.ActiveRSSScalingSettings.IndirectionTable + i, &fallbackQueue);
         }
         TraceNoPrefix(0, "[%s] Translated indirections: (len = %d)\n", __FUNCTION__, indirection_table_len);
-        ParaNdis_PrintTable<80, 10>(0, cfg->indirection_table, indirection_table_len, "%d", [](const __u16 *p) {  return *p; });
+        ParaNdis_PrintTable<80, 10>(0, cfg->indirection_table, indirection_table_len, "%d",
+                                    [](const __u16 *p) { return *p; });
         max_tx_vq(cfg) = (USHORT)pContext->nPathBundles;
         hash_key_length(cfg) = hash_key_len;
         for (USHORT i = 0; i < hash_key_len; ++i)
@@ -242,7 +244,8 @@ static void SetDeviceRSSSettings(PARANDIS_ADAPTER *pContext, bool bForceOff = fa
             hash_key_data(cfg, i) = pContext->RSSParameters.ActiveHashingSettings.HashSecretKey[i];
         }
         TraceNoPrefix(0, "[%s] RSS key: (len = %d)\n", __FUNCTION__, hash_key_len);
-        ParaNdis_PrintTable<80, 10>(0, (hash_key_length_ptr(cfg) + 1), hash_key_len, "%X", [](const __u8 *p) {  return *p; });
+        ParaNdis_PrintTable<80, 10>(0, (hash_key_length_ptr(cfg) + 1), hash_key_len, "%X",
+                                    [](const __u8 *p) { return *p; });
 
         cfg->hash_types = TranslateHashTypes(pContext->RSSParameters.ActiveHashingSettings.HashInformation);
 
@@ -254,12 +257,12 @@ static void SetDeviceRSSSettings(PARANDIS_ADAPTER *pContext, bool bForceOff = fa
 
 static BOOLEAN IsValidHashInfo(ULONG HashInformation)
 {
-#define HASH_FLAGS_COMBINATION(Type, Flags) ( ((Type) & (Flags)) && !((Type) & ~(Flags)) )
+#define HASH_FLAGS_COMBINATION(Type, Flags) (((Type) & (Flags)) && !((Type) & ~(Flags)))
 
     ULONG ulHashType = NDIS_RSS_HASH_TYPE_FROM_HASH_INFO(HashInformation);
     ULONG ulHashFunction = NDIS_RSS_HASH_FUNC_FROM_HASH_INFO(HashInformation);
     ULONG ulAllowedHashTypes = NDIS_HASH_IPV4 | NDIS_HASH_TCP_IPV4 | NDIS_HASH_IPV6 | NDIS_HASH_TCP_IPV6 |
-                                 NDIS_HASH_IPV6_EX | NDIS_HASH_TCP_IPV6_EX;
+                               NDIS_HASH_IPV6_EX | NDIS_HASH_TCP_IPV6_EX;
 #if (NDIS_SUPPORT_NDIS680)
     ulAllowedHashTypes |= NDIS_HASH_UDP_IPV4 | NDIS_HASH_UDP_IPV6 | NDIS_HASH_UDP_IPV6_EX;
 #endif
@@ -272,27 +275,24 @@ static BOOLEAN IsValidHashInfo(ULONG HashInformation)
     return FALSE;
 }
 
-static __inline
-BOOLEAN IsCompatibleAffinities(PGROUP_AFFINITY a1, PGROUP_AFFINITY a2)
+static __inline BOOLEAN IsCompatibleAffinities(PGROUP_AFFINITY a1, PGROUP_AFFINITY a2)
 {
     return (a1->Group == a2->Group) && (a1->Mask & a2->Mask);
 }
 
-static
-CCHAR FindReceiveQueueForCurrentCpu(PPARANDIS_SCALING_SETTINGS RSSScalingSettings)
+static CCHAR FindReceiveQueueForCurrentCpu(PPARANDIS_SCALING_SETTINGS RSSScalingSettings)
 {
     ULONG CurrProcIdx;
 
     CurrProcIdx = ParaNdis_GetCurrentCPUIndex();
 
-    if(CurrProcIdx >= RSSScalingSettings->CPUIndexMappingSize)
+    if (CurrProcIdx >= RSSScalingSettings->CPUIndexMappingSize)
         return PARANDIS_RECEIVE_NO_QUEUE;
 
     return RSSScalingSettings->CPUIndexMapping[CurrProcIdx];
 }
 
-static
-void SetDefaultQueue(PPARANDIS_SCALING_SETTINGS RSSScalingSettings, ULONG idx)
+static void SetDefaultQueue(PPARANDIS_SCALING_SETTINGS RSSScalingSettings, ULONG idx)
 {
     if (idx < RSSScalingSettings->CPUIndexMappingSize)
     {
@@ -307,20 +307,19 @@ void SetDefaultQueue(PPARANDIS_SCALING_SETTINGS RSSScalingSettings, ULONG idx)
     RSSScalingSettings->DefaultQueue = PARANDIS_RECEIVE_UNCLASSIFIED_PACKET;
 }
 
-static
-BOOLEAN AllocateCPUMappingArray(PARANDIS_ADAPTER *pContext, PPARANDIS_SCALING_SETTINGS RSSScalingSettings)
+static BOOLEAN AllocateCPUMappingArray(PARANDIS_ADAPTER *pContext, PPARANDIS_SCALING_SETTINGS RSSScalingSettings)
 {
     ULONG i;
     ULONG CPUNumber = KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
     PCHAR NewCPUMappingArray = (PCHAR)ParaNdis_AllocateMemory(pContext, sizeof(CCHAR) * CPUNumber);
 
-    if(!NewCPUMappingArray)
+    if (!NewCPUMappingArray)
         return FALSE;
 
     RSSScalingSettings->CPUIndexMapping = NewCPUMappingArray;
     RSSScalingSettings->CPUIndexMappingSize = CPUNumber;
 
-    for(i = 0; i < CPUNumber; i++)
+    for (i = 0; i < CPUNumber; i++)
     {
         RSSScalingSettings->CPUIndexMapping[i] = PARANDIS_RECEIVE_NO_QUEUE;
     }
@@ -328,10 +327,7 @@ BOOLEAN AllocateCPUMappingArray(PARANDIS_ADAPTER *pContext, PPARANDIS_SCALING_SE
     return TRUE;
 }
 
-static
-VOID FillCPUMappingArray(
-                            PPARANDIS_SCALING_SETTINGS RSSScalingSettings,
-                            CCHAR ReceiveQueuesNumber)
+static VOID FillCPUMappingArray(PPARANDIS_SCALING_SETTINGS RSSScalingSettings, CCHAR ReceiveQueuesNumber)
 {
     ULONG i;
     CCHAR ReceiveQueue = PARANDIS_FIRST_RSS_RECEIVE_QUEUE;
@@ -345,7 +341,7 @@ VOID FillCPUMappingArray(
         PPROCESSOR_NUMBER ProcNum = &RSSScalingSettings->IndirectionTable[i];
         ULONG CurrProcIdx = KeGetProcessorIndexFromNumber(ProcNum);
 
-        if(CurrProcIdx != INVALID_PROCESSOR_INDEX)
+        if (CurrProcIdx != INVALID_PROCESSOR_INDEX)
         {
             if (RSSScalingSettings->CPUIndexMapping[CurrProcIdx] == PARANDIS_RECEIVE_NO_QUEUE)
             {
@@ -359,7 +355,6 @@ VOID FillCPUMappingArray(
             }
 
             RSSScalingSettings->QueueIndirectionTable[i] = RSSScalingSettings->CPUIndexMapping[CurrProcIdx];
-
         }
         else
         {
@@ -381,7 +376,8 @@ VOID FillCPUMappingArray(
             mapping processor number to index failed or there are not enough queues,
             reassign the hash values to the first queue*/
             RSSScalingSettings->QueueIndirectionTable[i] = PARANDIS_FIRST_RSS_RECEIVE_QUEUE;
-            RSSScalingSettings->IndirectionTable[i] = RSSScalingSettings->IndirectionTable[RSSScalingSettings->FirstQueueIndirectionIndex];
+            RSSScalingSettings->IndirectionTable[i] =
+                RSSScalingSettings->IndirectionTable[RSSScalingSettings->FirstQueueIndirectionIndex];
             IndirectionTableChanged = true;
         }
     }
@@ -392,7 +388,7 @@ VOID FillCPUMappingArray(
     }
 }
 
-static ULONG MinimalRssParametersLength(const NDIS_RECEIVE_SCALE_PARAMETERS* Params)
+static ULONG MinimalRssParametersLength(const NDIS_RECEIVE_SCALE_PARAMETERS *Params)
 {
     if (Params->Header.Revision == NDIS_RECEIVE_SCALE_PARAMETERS_REVISION_2)
     {
@@ -408,10 +404,8 @@ static ULONG MinimalRssParametersLength(const NDIS_RECEIVE_SCALE_PARAMETERS* Par
     return sizeof(*Params);
 }
 
-NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
-                                        const NDIS_RECEIVE_SCALE_PARAMETERS* Params,
-                                        UINT ParamsLength,
-                                        PUINT ParamsBytesRead)
+NDIS_STATUS ParaNdis6_RSSSetParameters(PARANDIS_ADAPTER *pContext, const NDIS_RECEIVE_SCALE_PARAMETERS *Params,
+                                       UINT ParamsLength, PUINT ParamsBytesRead)
 {
     PARANDIS_RSS_PARAMS *RSSParameters = &pContext->RSSParameters;
     ULONG ProcessorMasksSize;
@@ -436,8 +430,7 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
     }
 
     if ((RSSParameters->RSSMode == PARANDIS_RSS_MODE::PARANDIS_RSS_HASHING) &&
-        !(Params->Flags & NDIS_RSS_PARAM_FLAG_DISABLE_RSS) &&
-        (Params->HashInformation != 0))
+        !(Params->Flags & NDIS_RSS_PARAM_FLAG_DISABLE_RSS) && (Params->HashInformation != 0))
     {
         return NDIS_STATUS_NOT_SUPPORTED;
     }
@@ -451,7 +444,7 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
 
     CNdisPassiveWriteAutoLock autoLock(RSSParameters->rwLock);
 
-    if(Params->Flags & NDIS_RSS_PARAM_FLAG_DISABLE_RSS || (Params->HashInformation == 0))
+    if (Params->Flags & NDIS_RSS_PARAM_FLAG_DISABLE_RSS || (Params->HashInformation == 0))
     {
         ApplySettings(RSSParameters, PARANDIS_RSS_MODE::PARANDIS_RSS_DISABLED, NULL, NULL);
     }
@@ -461,7 +454,7 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
 #if (NDIS_SUPPORT_NDIS660)
         // we can receive structure rev.3
         if (Params->Header.Revision >= NDIS_RECEIVE_SCALE_PARAMETERS_REVISION_3 &&
-           !(Params->Flags & NDIS_RSS_PARAM_FLAG_DEFAULT_PROCESSOR_UNCHANGED))
+            !(Params->Flags & NDIS_RSS_PARAM_FLAG_DEFAULT_PROCESSOR_UNCHANGED))
         {
             PROCESSOR_NUMBER num = Params->DefaultProcessorNumber;
             // due to unknown reason the Reserved field might be not zero
@@ -473,16 +466,15 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
         }
 #endif
 
-        DPrintf(0, "[%s] RSS Params: flags 0x%4.4x, hash information 0x%4.4lx\n",
-            __FUNCTION__, Params->Flags, Params->HashInformation);
+        DPrintf(0, "[%s] RSS Params: flags 0x%4.4x, hash information 0x%4.4lx\n", __FUNCTION__, Params->Flags,
+                Params->HashInformation);
 
         IndirectionTableEntries = Params->IndirectionTableSize / sizeof(PROCESSOR_NUMBER);
 
         if (!(Params->Flags & NDIS_RSS_PARAM_FLAG_ITABLE_UNCHANGED) &&
             ((Params->IndirectionTableSize > sizeof(RSSParameters->RSSScalingSettings.IndirectionTable)) ||
-            (ParamsLength < (Params->IndirectionTableOffset + Params->IndirectionTableSize)) ||
-                !IsPowerOfTwo(IndirectionTableEntries))
-            )
+             (ParamsLength < (Params->IndirectionTableOffset + Params->IndirectionTableSize)) ||
+             !IsPowerOfTwo(IndirectionTableEntries)))
         {
             DPrintf(0, "[%s] invalid length (2), flags %x\n", __FUNCTION__, Params->Flags);
             return NDIS_STATUS_INVALID_LENGTH;
@@ -490,8 +482,7 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
 
         if (!(Params->Flags & NDIS_RSS_PARAM_FLAG_HASH_KEY_UNCHANGED) &&
             ((Params->HashSecretKeySize > sizeof(RSSParameters->RSSHashingSettings.HashSecretKey)) ||
-            (ParamsLength < (Params->HashSecretKeyOffset + Params->HashSecretKeySize)))
-            )
+             (ParamsLength < (Params->HashSecretKeyOffset + Params->HashSecretKeySize))))
         {
             DPrintf(0, "[%s] invalid length (3), flags %x\n", __FUNCTION__, Params->Flags);
             return NDIS_STATUS_INVALID_LENGTH;
@@ -508,12 +499,12 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
         {
             PrintIndirectionTable(Params);
 
-            if(!AllocateCPUMappingArray(pContext, &RSSParameters->RSSScalingSettings))
+            if (!AllocateCPUMappingArray(pContext, &RSSParameters->RSSScalingSettings))
                 return NDIS_STATUS_RESOURCES;
 
             RSSParameters->RSSScalingSettings.IndirectionTableSize = Params->IndirectionTableSize;
             NdisMoveMemory(RSSParameters->RSSScalingSettings.IndirectionTable,
-                (char*)Params + Params->IndirectionTableOffset, Params->IndirectionTableSize);
+                           (char *)Params + Params->IndirectionTableOffset, Params->IndirectionTableSize);
             RSSParameters->RSSScalingSettings.RSSHashMask = IndirectionTableEntries - 1;
 
             *ParamsBytesRead += Params->IndirectionTableSize;
@@ -528,7 +519,8 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
         else
         {
             SetDefaultQueue(&RSSParameters->ActiveRSSScalingSettings, defaultCPUIndex);
-            TraceNoPrefix(0, "[%s] default queue -> %d\n", __FUNCTION__, RSSParameters->ActiveRSSScalingSettings.DefaultQueue);
+            TraceNoPrefix(0, "[%s] default queue -> %d\n", __FUNCTION__,
+                          RSSParameters->ActiveRSSScalingSettings.DefaultQueue);
         }
 
         if (!(Params->Flags & NDIS_RSS_PARAM_FLAG_HASH_INFO_UNCHANGED))
@@ -539,15 +531,18 @@ NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
             RSSParameters->RSSHashingSettings.HashSecretKeySize = Params->HashSecretKeySize;
 
             NdisMoveMemory(RSSParameters->RSSHashingSettings.HashSecretKey,
-                (char*)Params + Params->HashSecretKeyOffset, Params->HashSecretKeySize);
+                           (char *)Params + Params->HashSecretKeyOffset, Params->HashSecretKeySize);
 
             *ParamsBytesRead += Params->HashSecretKeySize;
         }
 
-        ApplySettings(RSSParameters,
-                    PARANDIS_RSS_MODE::PARANDIS_RSS_FULL,
-                    (!(Params->Flags & NDIS_RSS_PARAM_FLAG_HASH_INFO_UNCHANGED) || !(Params->Flags & NDIS_RSS_PARAM_FLAG_HASH_KEY_UNCHANGED)) ? &RSSParameters->RSSHashingSettings : NULL,
-                    (!(Params->Flags & NDIS_RSS_PARAM_FLAG_ITABLE_UNCHANGED)) ? &RSSParameters->RSSScalingSettings : NULL);
+        ApplySettings(RSSParameters, PARANDIS_RSS_MODE::PARANDIS_RSS_FULL,
+                      (!(Params->Flags & NDIS_RSS_PARAM_FLAG_HASH_INFO_UNCHANGED) ||
+                       !(Params->Flags & NDIS_RSS_PARAM_FLAG_HASH_KEY_UNCHANGED))
+                          ? &RSSParameters->RSSHashingSettings
+                          : NULL,
+                      (!(Params->Flags & NDIS_RSS_PARAM_FLAG_ITABLE_UNCHANGED)) ? &RSSParameters->RSSScalingSettings
+                                                                                : NULL);
     }
 
     *ParamsBytesRead += minimalLength;
@@ -582,27 +577,27 @@ ULONG ParaNdis6_QueryReceiveHash(const PARANDIS_RSS_PARAMS *RSSParameters,
     NdisZeroMemory(RSSHashKeyParameters, sizeof(*RSSHashKeyParameters));
     RSSHashKeyParameters->ReceiveHashParameters.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
     RSSHashKeyParameters->ReceiveHashParameters.Header.Revision = NDIS_RECEIVE_HASH_PARAMETERS_REVISION_1;
-    RSSHashKeyParameters->ReceiveHashParameters.Header.Size  = NDIS_SIZEOF_RECEIVE_HASH_PARAMETERS_REVISION_1;
+    RSSHashKeyParameters->ReceiveHashParameters.Header.Size = NDIS_SIZEOF_RECEIVE_HASH_PARAMETERS_REVISION_1;
     RSSHashKeyParameters->ReceiveHashParameters.HashInformation = RSSParameters->ReceiveHashingSettings.HashInformation;
 
-    if(RSSParameters->RSSMode == PARANDIS_RSS_MODE::PARANDIS_RSS_HASHING)
+    if (RSSParameters->RSSMode == PARANDIS_RSS_MODE::PARANDIS_RSS_HASHING)
         RSSHashKeyParameters->ReceiveHashParameters.Flags = NDIS_RECEIVE_HASH_FLAG_ENABLE_HASH;
 
-    RSSHashKeyParameters->ReceiveHashParameters.HashSecretKeySize = RSSParameters->ReceiveHashingSettings.HashSecretKeySize;
+    RSSHashKeyParameters->ReceiveHashParameters.HashSecretKeySize =
+        RSSParameters->ReceiveHashingSettings.HashSecretKeySize;
 
-    NdisMoveMemory(RSSHashKeyParameters->HashSecretKey,
-        RSSParameters->ReceiveHashingSettings.HashSecretKey,
-        RSSHashKeyParameters->ReceiveHashParameters.HashSecretKeySize);
+    NdisMoveMemory(RSSHashKeyParameters->HashSecretKey, RSSParameters->ReceiveHashingSettings.HashSecretKey,
+                   RSSHashKeyParameters->ReceiveHashParameters.HashSecretKeySize);
 
-    RSSHashKeyParameters->ReceiveHashParameters.HashSecretKeyOffset = FIELD_OFFSET(RSS_HASH_KEY_PARAMETERS, HashSecretKey);
+    RSSHashKeyParameters->ReceiveHashParameters.HashSecretKeyOffset =
+        FIELD_OFFSET(RSS_HASH_KEY_PARAMETERS, HashSecretKey);
 
-    return sizeof(RSSHashKeyParameters->ReceiveHashParameters) + RSSHashKeyParameters->ReceiveHashParameters.HashSecretKeySize;
+    return sizeof(RSSHashKeyParameters->ReceiveHashParameters) +
+           RSSHashKeyParameters->ReceiveHashParameters.HashSecretKeySize;
 }
 
-NDIS_STATUS ParaNdis6_RSSSetReceiveHash(PARANDIS_ADAPTER *pContext,
-                                        const NDIS_RECEIVE_HASH_PARAMETERS* Params,
-                                        UINT ParamsLength,
-                                        PUINT ParamsBytesRead)
+NDIS_STATUS ParaNdis6_RSSSetReceiveHash(PARANDIS_ADAPTER *pContext, const NDIS_RECEIVE_HASH_PARAMETERS *Params,
+                                        UINT ParamsLength, PUINT ParamsBytesRead)
 {
     PARANDIS_RSS_PARAMS *RSSParameters = &pContext->RSSParameters;
     CNdisPassiveWriteAutoLock autoLock(RSSParameters->rwLock);
@@ -614,26 +609,24 @@ NDIS_STATUS ParaNdis6_RSSSetReceiveHash(PARANDIS_ADAPTER *pContext,
 
     if (RSSParameters->RSSMode == PARANDIS_RSS_MODE::PARANDIS_RSS_FULL)
     {
-        //Here we check that originator doesn't try to enable hashing while full RSS is on.
-        //Disable hashing abd clear parameters is legitimate operation hovewer
-        if(Params->Flags & NDIS_RECEIVE_HASH_FLAG_ENABLE_HASH)
+        // Here we check that originator doesn't try to enable hashing while full RSS is on.
+        // Disable hashing abd clear parameters is legitimate operation hovewer
+        if (Params->Flags & NDIS_RECEIVE_HASH_FLAG_ENABLE_HASH)
         {
-            if(!(Params->Flags & NDIS_RECEIVE_HASH_FLAG_HASH_INFO_UNCHANGED) && (Params->HashInformation != 0))
+            if (!(Params->Flags & NDIS_RECEIVE_HASH_FLAG_HASH_INFO_UNCHANGED) && (Params->HashInformation != 0))
                 return NDIS_STATUS_NOT_SUPPORTED;
-            if((Params->Flags & NDIS_RECEIVE_HASH_FLAG_HASH_INFO_UNCHANGED) &&
+            if ((Params->Flags & NDIS_RECEIVE_HASH_FLAG_HASH_INFO_UNCHANGED) &&
                 (RSSParameters->ReceiveHashingSettings.HashInformation != 0))
                 return NDIS_STATUS_NOT_SUPPORTED;
         }
     }
 
-    if (!(Params->Flags & NDIS_RECEIVE_HASH_FLAG_HASH_INFO_UNCHANGED) &&
-        (!IsValidHashInfo(Params->HashInformation)))
+    if (!(Params->Flags & NDIS_RECEIVE_HASH_FLAG_HASH_INFO_UNCHANGED) && (!IsValidHashInfo(Params->HashInformation)))
         return NDIS_STATUS_INVALID_PARAMETER;
 
-    if ( (!(Params->Flags & NDIS_RECEIVE_HASH_FLAG_HASH_KEY_UNCHANGED)) &&
-         ( (Params->HashSecretKeySize > NDIS_RSS_HASH_SECRET_KEY_MAX_SIZE_REVISION_2) ||
-           (ParamsLength < (Params->HashSecretKeyOffset + Params->HashSecretKeySize)) )
-        )
+    if ((!(Params->Flags & NDIS_RECEIVE_HASH_FLAG_HASH_KEY_UNCHANGED)) &&
+        ((Params->HashSecretKeySize > NDIS_RSS_HASH_SECRET_KEY_MAX_SIZE_REVISION_2) ||
+         (ParamsLength < (Params->HashSecretKeyOffset + Params->HashSecretKeySize))))
         return NDIS_STATUS_INVALID_LENGTH;
 
     if (!(Params->Flags & NDIS_RECEIVE_HASH_FLAG_HASH_INFO_UNCHANGED))
@@ -646,17 +639,18 @@ NDIS_STATUS ParaNdis6_RSSSetReceiveHash(PARANDIS_ADAPTER *pContext,
         RSSParameters->ReceiveHashingSettings.HashSecretKeySize = Params->HashSecretKeySize;
 
         NdisMoveMemory(RSSParameters->ReceiveHashingSettings.HashSecretKey,
-            (char*)Params + Params->HashSecretKeyOffset, Params->HashSecretKeySize);
+                       (char *)Params + Params->HashSecretKeyOffset, Params->HashSecretKeySize);
 
         *ParamsBytesRead += Params->HashSecretKeySize;
     }
 
-    if(RSSParameters->RSSMode != PARANDIS_RSS_MODE::PARANDIS_RSS_FULL)
+    if (RSSParameters->RSSMode != PARANDIS_RSS_MODE::PARANDIS_RSS_FULL)
     {
         ApplySettings(RSSParameters,
-                ((Params->Flags & NDIS_RECEIVE_HASH_FLAG_ENABLE_HASH) && (Params->HashInformation != 0))
-                    ? PARANDIS_RSS_MODE::PARANDIS_RSS_HASHING : PARANDIS_RSS_MODE::PARANDIS_RSS_DISABLED,
-                &RSSParameters->ReceiveHashingSettings, NULL);
+                      ((Params->Flags & NDIS_RECEIVE_HASH_FLAG_ENABLE_HASH) && (Params->HashInformation != 0))
+                          ? PARANDIS_RSS_MODE::PARANDIS_RSS_HASHING
+                          : PARANDIS_RSS_MODE::PARANDIS_RSS_DISABLED,
+                      &RSSParameters->ReceiveHashingSettings, NULL);
     }
 
     ParaNdis_ResetRxClassification(pContext);
@@ -669,12 +663,11 @@ NDIS_STATUS ParaNdis6_RSSSetReceiveHash(PARANDIS_ADAPTER *pContext,
 typedef struct _tagHASH_CALC_SG_BUF_ENTRY
 {
     PCHAR chunkPtr;
-    ULONG  chunkLen;
+    ULONG chunkLen;
 } HASH_CALC_SG_BUF_ENTRY, *PHASH_CALC_SG_BUF_ENTRY;
 
 // Little Endian version ONLY
-static
-UINT32 ToeplitzHash(const PHASH_CALC_SG_BUF_ENTRY sgBuff, int sgEntriesNum, PCCHAR fullKey)
+static UINT32 ToeplitzHash(const PHASH_CALC_SG_BUF_ENTRY sgBuff, int sgEntriesNum, PCCHAR fullKey)
 {
 #define TOEPLITZ_MAX_BIT_NUM (7)
 #define TOEPLITZ_BYTE_HAS_BIT(byte, bit) ((byte) & (1 << (TOEPLITZ_MAX_BIT_NUM - (bit))))
@@ -684,9 +677,9 @@ UINT32 ToeplitzHash(const PHASH_CALC_SG_BUF_ENTRY sgBuff, int sgEntriesNum, PCCH
     UINT byte, bit;
     PHASH_CALC_SG_BUF_ENTRY sgEntry;
     PCCHAR next_key_byte = fullKey + sizeof(firstKeyWord);
-    firstKeyWord = RtlUlongByteSwap(*(UINT32*)fullKey);
+    firstKeyWord = RtlUlongByteSwap(*(UINT32 *)fullKey);
 
-    for(sgEntry = sgBuff; sgEntry < sgBuff + sgEntriesNum; ++sgEntry)
+    for (sgEntry = sgBuff; sgEntry < sgBuff + sgEntriesNum; ++sgEntry)
     {
         for (byte = 0; byte < sgEntry->chunkLen; ++byte)
         {
@@ -708,47 +701,35 @@ UINT32 ToeplitzHash(const PHASH_CALC_SG_BUF_ENTRY sgBuff, int sgEntriesNum, PCCH
 #undef TOEPLITZ_MAX_BIT_NUM
 }
 
-static __inline
-IPV6_ADDRESS* GetIP6SrcAddrForHash(
-                            PVOID dataBuffer,
-                            PNET_PACKET_INFO packetInfo,
-                            bool xEnabled)
+static __inline IPV6_ADDRESS *GetIP6SrcAddrForHash(PVOID dataBuffer, PNET_PACKET_INFO packetInfo, bool xEnabled)
 {
     ULONG offset = packetInfo->L2HdrLen + FIELD_OFFSET(IPv6Header, ip6_src_address);
 
     return (xEnabled && packetInfo->ip6HomeAddrOffset)
-        ? (IPV6_ADDRESS*) RtlOffsetToPointer(dataBuffer, packetInfo->ip6HomeAddrOffset)
-        : (IPV6_ADDRESS*) RtlOffsetToPointer(dataBuffer, offset);
+               ? (IPV6_ADDRESS *)RtlOffsetToPointer(dataBuffer, packetInfo->ip6HomeAddrOffset)
+               : (IPV6_ADDRESS *)RtlOffsetToPointer(dataBuffer, offset);
 }
 
-static __inline
-IPV6_ADDRESS* GetIP6DstAddrForHash(
-                            PVOID dataBuffer,
-                            PNET_PACKET_INFO packetInfo,
-                            bool xEnabled)
+static __inline IPV6_ADDRESS *GetIP6DstAddrForHash(PVOID dataBuffer, PNET_PACKET_INFO packetInfo, bool xEnabled)
 {
     ULONG offset = packetInfo->L2HdrLen + FIELD_OFFSET(IPv6Header, ip6_dst_address);
 
     return (xEnabled && packetInfo->ip6DestAddrOffset)
-        ? (IPV6_ADDRESS*) RtlOffsetToPointer(dataBuffer, packetInfo->ip6DestAddrOffset)
-        : (IPV6_ADDRESS*) RtlOffsetToPointer(dataBuffer, offset);
+               ? (IPV6_ADDRESS *)RtlOffsetToPointer(dataBuffer, packetInfo->ip6DestAddrOffset)
+               : (IPV6_ADDRESS *)RtlOffsetToPointer(dataBuffer, offset);
 }
 
-static
-VOID RSSCalcHash_Unsafe(
-                PARANDIS_RSS_PARAMS *RSSParameters,
-                PVOID dataBuffer,
-                PNET_PACKET_INFO packetInfo)
+static VOID RSSCalcHash_Unsafe(PARANDIS_RSS_PARAMS *RSSParameters, PVOID dataBuffer, PNET_PACKET_INFO packetInfo)
 {
     HASH_CALC_SG_BUF_ENTRY sgBuff[3];
     ULONG hashTypes = NDIS_RSS_HASH_TYPE_FROM_HASH_INFO(RSSParameters->ActiveHashingSettings.HashInformation);
 
-    if(packetInfo->isIP4)
+    if (packetInfo->isIP4)
     {
-        if(packetInfo->isTCP && (hashTypes & NDIS_HASH_TCP_IPV4))
+        if (packetInfo->isTCP && (hashTypes & NDIS_HASH_TCP_IPV4))
         {
-            IPv4Header *pIpHeader = (IPv4Header *) RtlOffsetToPointer(dataBuffer, packetInfo->L2HdrLen);
-            TCPHeader *pTCPHeader = (TCPHeader *) RtlOffsetToPointer(pIpHeader, packetInfo->L3HdrLen);
+            IPv4Header *pIpHeader = (IPv4Header *)RtlOffsetToPointer(dataBuffer, packetInfo->L2HdrLen);
+            TCPHeader *pTCPHeader = (TCPHeader *)RtlOffsetToPointer(pIpHeader, packetInfo->L3HdrLen);
 
             sgBuff[0].chunkPtr = RtlOffsetToPointer(pIpHeader, FIELD_OFFSET(IPv4Header, ip_src));
             sgBuff[0].chunkLen = RTL_FIELD_SIZE(IPv4Header, ip_src) + RTL_FIELD_SIZE(IPv4Header, ip_dest);
@@ -779,7 +760,7 @@ VOID RSSCalcHash_Unsafe(
         }
 #endif
 
-        if(hashTypes & NDIS_HASH_IPV4)
+        if (hashTypes & NDIS_HASH_IPV4)
         {
             ULONG chunkOffset = packetInfo->L2HdrLen + FIELD_OFFSET(IPv4Header, ip_src);
 
@@ -792,19 +773,19 @@ VOID RSSCalcHash_Unsafe(
             return;
         }
     }
-    else if(packetInfo->isIP6)
+    else if (packetInfo->isIP6)
     {
-        if(packetInfo->isTCP)
+        if (packetInfo->isTCP)
         {
-            if(hashTypes & (NDIS_HASH_TCP_IPV6 | NDIS_HASH_TCP_IPV6_EX))
+            if (hashTypes & (NDIS_HASH_TCP_IPV6 | NDIS_HASH_TCP_IPV6_EX))
             {
-                IPv6Header *pIpHeader =  (IPv6Header *) RtlOffsetToPointer(dataBuffer, packetInfo->L2HdrLen);
-                TCPHeader  *pTCPHeader = (TCPHeader *) RtlOffsetToPointer(pIpHeader, packetInfo->L3HdrLen);
+                IPv6Header *pIpHeader = (IPv6Header *)RtlOffsetToPointer(dataBuffer, packetInfo->L2HdrLen);
+                TCPHeader *pTCPHeader = (TCPHeader *)RtlOffsetToPointer(pIpHeader, packetInfo->L3HdrLen);
                 bool xEnabled = (hashTypes & NDIS_HASH_TCP_IPV6_EX) != 0;
 
-                sgBuff[0].chunkPtr = (PCHAR) GetIP6SrcAddrForHash(dataBuffer, packetInfo, xEnabled);
+                sgBuff[0].chunkPtr = (PCHAR)GetIP6SrcAddrForHash(dataBuffer, packetInfo, xEnabled);
                 sgBuff[0].chunkLen = RTL_FIELD_SIZE(IPv6Header, ip6_src_address);
-                sgBuff[1].chunkPtr = (PCHAR) GetIP6DstAddrForHash(dataBuffer, packetInfo, xEnabled);
+                sgBuff[1].chunkPtr = (PCHAR)GetIP6DstAddrForHash(dataBuffer, packetInfo, xEnabled);
                 sgBuff[1].chunkLen = RTL_FIELD_SIZE(IPv6Header, ip6_dst_address);
                 sgBuff[2].chunkPtr = RtlOffsetToPointer(pTCPHeader, FIELD_OFFSET(TCPHeader, tcp_src));
                 sgBuff[2].chunkLen = RTL_FIELD_SIZE(TCPHeader, tcp_src) + RTL_FIELD_SIZE(TCPHeader, tcp_dest);
@@ -820,7 +801,7 @@ VOID RSSCalcHash_Unsafe(
         if (packetInfo->isUDP && (hashTypes & (NDIS_HASH_UDP_IPV6 | NDIS_HASH_UDP_IPV6_EX)))
         {
             IPv6Header *pIpHeader = (IPv6Header *)RtlOffsetToPointer(dataBuffer, packetInfo->L2HdrLen);
-            UDPHeader  *pUDPHeader = (UDPHeader *)RtlOffsetToPointer(pIpHeader, packetInfo->L3HdrLen);
+            UDPHeader *pUDPHeader = (UDPHeader *)RtlOffsetToPointer(pIpHeader, packetInfo->L3HdrLen);
             bool xEnabled = (hashTypes & NDIS_HASH_UDP_IPV6_EX) != 0;
 
             sgBuff[0].chunkPtr = (PCHAR)GetIP6SrcAddrForHash(dataBuffer, packetInfo, xEnabled);
@@ -837,13 +818,13 @@ VOID RSSCalcHash_Unsafe(
         }
 #endif
 
-        if(hashTypes & (NDIS_HASH_IPV6 | NDIS_HASH_IPV6_EX))
+        if (hashTypes & (NDIS_HASH_IPV6 | NDIS_HASH_IPV6_EX))
         {
             bool xEnabled = (hashTypes & NDIS_HASH_IPV6_EX) != 0;
 
-            sgBuff[0].chunkPtr = (PCHAR) GetIP6SrcAddrForHash(dataBuffer, packetInfo, xEnabled);
+            sgBuff[0].chunkPtr = (PCHAR)GetIP6SrcAddrForHash(dataBuffer, packetInfo, xEnabled);
             sgBuff[0].chunkLen = RTL_FIELD_SIZE(IPv6Header, ip6_src_address);
-            sgBuff[1].chunkPtr = (PCHAR) GetIP6DstAddrForHash(dataBuffer, packetInfo, xEnabled);
+            sgBuff[1].chunkPtr = (PCHAR)GetIP6DstAddrForHash(dataBuffer, packetInfo, xEnabled);
             sgBuff[1].chunkLen = RTL_FIELD_SIZE(IPv6Header, ip6_dst_address);
 
             packetInfo->RSSHash.Value = ToeplitzHash(sgBuff, 2, RSSParameters->ActiveHashingSettings.HashSecretKey);
@@ -858,28 +839,24 @@ VOID RSSCalcHash_Unsafe(
     packetInfo->RSSHash.Function = 0;
 }
 
-VOID ParaNdis6_RSSAnalyzeReceivedPacket(
-    PARANDIS_RSS_PARAMS *RSSParameters,
-    PVOID dataBuffer,
-    PNET_PACKET_INFO packetInfo)
+VOID ParaNdis6_RSSAnalyzeReceivedPacket(PARANDIS_RSS_PARAMS *RSSParameters, PVOID dataBuffer,
+                                        PNET_PACKET_INFO packetInfo)
 {
     CNdisDispatchReadAutoLock autoLock(RSSParameters->rwLock);
 
-    if(RSSParameters->RSSMode != PARANDIS_RSS_MODE::PARANDIS_RSS_DISABLED)
+    if (RSSParameters->RSSMode != PARANDIS_RSS_MODE::PARANDIS_RSS_DISABLED)
     {
         RSSCalcHash_Unsafe(RSSParameters, dataBuffer, packetInfo);
     }
 }
 
-CCHAR ParaNdis6_RSSGetScalingDataForPacket(
-    PARANDIS_RSS_PARAMS *RSSParameters,
-    PNET_PACKET_INFO packetInfo,
-    PPROCESSOR_NUMBER targetProcessor)
+CCHAR ParaNdis6_RSSGetScalingDataForPacket(PARANDIS_RSS_PARAMS *RSSParameters, PNET_PACKET_INFO packetInfo,
+                                           PPROCESSOR_NUMBER targetProcessor)
 {
     CCHAR targetQueue;
     CNdisDispatchReadAutoLock autoLock(RSSParameters->rwLock);
 
-    if (RSSParameters->RSSMode != PARANDIS_RSS_MODE::PARANDIS_RSS_FULL || 
+    if (RSSParameters->RSSMode != PARANDIS_RSS_MODE::PARANDIS_RSS_FULL ||
         RSSParameters->ActiveRSSScalingSettings.FirstQueueIndirectionIndex == INVALID_INDIRECTION_INDEX)
     {
         targetQueue = PARANDIS_RECEIVE_UNCLASSIFIED_PACKET;
@@ -913,7 +890,7 @@ CCHAR ParaNdis6_RSSGetCurrentCpuReceiveQueue(PARANDIS_RSS_PARAMS *RSSParameters)
     CCHAR res;
     CNdisDispatchReadAutoLock autoLock(RSSParameters->rwLock);
 
-    if(RSSParameters->RSSMode != PARANDIS_RSS_MODE::PARANDIS_RSS_FULL)
+    if (RSSParameters->RSSMode != PARANDIS_RSS_MODE::PARANDIS_RSS_FULL)
     {
         res = PARANDIS_RECEIVE_NO_QUEUE;
     }
@@ -925,37 +902,38 @@ CCHAR ParaNdis6_RSSGetCurrentCpuReceiveQueue(PARANDIS_RSS_PARAMS *RSSParameters)
     return res;
 }
 
-static void PrintIndirectionTable(const NDIS_RECEIVE_SCALE_PARAMETERS* Params)
+static void PrintIndirectionTable(const NDIS_RECEIVE_SCALE_PARAMETERS *Params)
 {
     ULONG IndirectionTableEntries = Params->IndirectionTableSize / sizeof(PROCESSOR_NUMBER);
-    
-    DPrintf(RSS_PRINT_LEVEL, "Params: flags 0x%4.4x, hash information 0x%4.4lx\n",
-        Params->Flags, Params->HashInformation);
+
+    DPrintf(RSS_PRINT_LEVEL, "Params: flags 0x%4.4x, hash information 0x%4.4lx\n", Params->Flags,
+            Params->HashInformation);
 
     DPrintf(RSS_PRINT_LEVEL, "NDIS IndirectionTable[%lu]\n", IndirectionTableEntries);
-    ParaNdis_PrintTable<80, 20>(RSS_PRINT_LEVEL, (const PROCESSOR_NUMBER *)((char *)Params + Params->IndirectionTableOffset), IndirectionTableEntries,
-        "%u/%u", [](const PROCESSOR_NUMBER *proc) { return proc->Group; }, [](const PROCESSOR_NUMBER *proc) { return proc->Number; });
+    ParaNdis_PrintTable<80, 20>(
+        RSS_PRINT_LEVEL, (const PROCESSOR_NUMBER *)((char *)Params + Params->IndirectionTableOffset),
+        IndirectionTableEntries, "%u/%u", [](const PROCESSOR_NUMBER *proc) { return proc->Group; },
+        [](const PROCESSOR_NUMBER *proc) { return proc->Number; });
 }
 
 static void PrintIndirectionTable(const PARANDIS_SCALING_SETTINGS *RSSScalingSetting)
 {
-    ULONG IndirectionTableEntries = RSSScalingSetting->IndirectionTableSize/ sizeof(PROCESSOR_NUMBER);
+    ULONG IndirectionTableEntries = RSSScalingSetting->IndirectionTableSize / sizeof(PROCESSOR_NUMBER);
 
     DPrintf(RSS_PRINT_LEVEL, "Driver IndirectionTable[%lu]\n", IndirectionTableEntries);
-    ParaNdis_PrintTable<80, 20>(RSS_PRINT_LEVEL, RSSScalingSetting->IndirectionTable, IndirectionTableEntries,
-        "%u/%u", [](const PROCESSOR_NUMBER *proc) { return proc->Group; }, [](const PROCESSOR_NUMBER *proc) { return proc->Number; });
+    ParaNdis_PrintTable<80, 20>(
+        RSS_PRINT_LEVEL, RSSScalingSetting->IndirectionTable, IndirectionTableEntries, "%u/%u",
+        [](const PROCESSOR_NUMBER *proc) { return proc->Group; },
+        [](const PROCESSOR_NUMBER *proc) { return proc->Number; });
 }
-
 
 static void PrintRSSSettings(const PPARANDIS_RSS_PARAMS RSSParameters)
 {
     ULONG CPUNumber = KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
     PARANDIS_SCALING_SETTINGS *scaling = &RSSParameters->RSSScalingSettings;
 
-    DPrintf(RSS_PRINT_LEVEL, "%lu cpus, %d queues, first queue CPU index %ld, default queue %d\n",
-        CPUNumber, RSSParameters->ReceiveQueuesNumber,
-        scaling->FirstQueueIndirectionIndex,
-        scaling->DefaultQueue);
+    DPrintf(RSS_PRINT_LEVEL, "%lu cpus, %d queues, first queue CPU index %ld, default queue %d\n", CPUNumber,
+            RSSParameters->ReceiveQueuesNumber, scaling->FirstQueueIndirectionIndex, scaling->DefaultQueue);
 
     PrintIndirectionTable(scaling);
 
@@ -980,8 +958,8 @@ NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
 
     cpuNumbers = KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
 
-    cpuIndexTable = (USHORT *)NdisAllocateMemoryWithTagPriority(pContext->MiniportHandle, cpuNumbers * sizeof(*cpuIndexTable),
-        PARANDIS_MEMORY_TAG, NormalPoolPriority);
+    cpuIndexTable = (USHORT *)NdisAllocateMemoryWithTagPriority(
+        pContext->MiniportHandle, cpuNumbers * sizeof(*cpuIndexTable), PARANDIS_MEMORY_TAG, NormalPoolPriority);
     if (cpuIndexTable == nullptr)
     {
         DPrintf(0, "[%s] cpu index table allocation failed\n", __FUNCTION__);
@@ -1011,9 +989,9 @@ NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
         }
     }
 
-    DPrintf(0, "[%s] Entering, RSS table size = %lu, # of path bundles = %u. RSS2QueueLength = %u, RSS2QueueMap =0x%p\n",
-        __FUNCTION__, rssTableSize, pContext->nPathBundles,
-        pContext->RSS2QueueLength, pContext->RSS2QueueMap);
+    DPrintf(0,
+            "[%s] Entering, RSS table size = %lu, # of path bundles = %u. RSS2QueueLength = %u, RSS2QueueMap =0x%p\n",
+            __FUNCTION__, rssTableSize, pContext->nPathBundles, pContext->RSS2QueueLength, pContext->RSS2QueueMap);
 
     if (pContext->RSS2QueueLength && pContext->RSS2QueueLength < rssTableSize)
     {
@@ -1025,8 +1003,9 @@ NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
     if (!pContext->RSS2QueueLength)
     {
         pContext->RSS2QueueLength = USHORT(rssTableSize);
-        pContext->RSS2QueueMap = (CPUPathBundle **)NdisAllocateMemoryWithTagPriority(pContext->MiniportHandle, rssTableSize * sizeof(*pContext->RSS2QueueMap),
-            PARANDIS_MEMORY_TAG, NormalPoolPriority);
+        pContext->RSS2QueueMap = (CPUPathBundle **)NdisAllocateMemoryWithTagPriority(
+            pContext->MiniportHandle, rssTableSize * sizeof(*pContext->RSS2QueueMap), PARANDIS_MEMORY_TAG,
+            NormalPoolPriority);
         if (pContext->RSS2QueueMap == nullptr)
         {
             DPrintf(0, "[%s] - Allocating RSS to queue mapping failed\n", __FUNCTION__);
@@ -1047,12 +1026,13 @@ NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
         cpuIndex = NdisProcessorNumberToIndex(pContext->RSSParameters.RSSScalingSettings.IndirectionTable[rssIndex]);
         bundleIndex = cpuIndexTable[cpuIndex];
 
-        DPrintf(3, "[%s] filling the relationship, rssIndex = %u, bundleIndex = %u\n", __FUNCTION__, rssIndex, bundleIndex);
+        DPrintf(3, "[%s] filling the relationship, rssIndex = %u, bundleIndex = %u\n", __FUNCTION__, rssIndex,
+                bundleIndex);
         DPrintf(3, "[%s] RSS proc number %u/%u, bundle affinity %u/%llu\n", __FUNCTION__,
-            pContext->RSSParameters.RSSScalingSettings.IndirectionTable[rssIndex].Group,
-            pContext->RSSParameters.RSSScalingSettings.IndirectionTable[rssIndex].Number,
-            pContext->pPathBundles[bundleIndex].txPath.DPCAffinity.Group,
-            pContext->pPathBundles[bundleIndex].txPath.DPCAffinity.Mask);
+                pContext->RSSParameters.RSSScalingSettings.IndirectionTable[rssIndex].Group,
+                pContext->RSSParameters.RSSScalingSettings.IndirectionTable[rssIndex].Number,
+                pContext->pPathBundles[bundleIndex].txPath.DPCAffinity.Group,
+                pContext->pPathBundles[bundleIndex].txPath.DPCAffinity.Mask);
 
         pContext->RSS2QueueMap[rssIndex] = pContext->pPathBundles + bundleIndex;
     }

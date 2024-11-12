@@ -11,20 +11,19 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and / or other materials provided with the distribution.
- * 3. Neither the names of the copyright holders nor the names of their contributors
- *    may be used to endorse or promote products derived from this software
- *    without specific prior written permission.
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
+ * 3. Neither the names of the copyright holders nor the names of their
+ * contributors may be used to endorse or promote products derived from this
+ * software without specific prior written permission. THIS SOFTWARE IS PROVIDED
+ * BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ``AS IS'' AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.IN NO
+ * EVENT SHALL THE COPYRIGHT HOLDERS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #pragma once
@@ -33,69 +32,71 @@ extern "C" {
 
 #define __CPLUSPLUS
 
-    #include <stddef.h>
-    #include <string.h>
-    #include <stdarg.h>
-    #include <stdio.h>
-    #include <stdlib.h>
+#include <stdarg.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-    #include <initguid.h>
+#include <initguid.h>
 
-    #include <ntddk.h>
+#include <ntddk.h>
 
-    #ifndef FAR
-    #define FAR
-    #endif
+#ifndef FAR
+#define FAR
+#endif
 
-    #include <windef.h>
-    #include <winerror.h>
+#include <windef.h>
+#include <winerror.h>
 
-    #include <wingdi.h>
-    #include <stdarg.h>
+#include <stdarg.h>
+#include <wingdi.h>
 
-    #include <winddi.h>
-    #include <ntddvdeo.h>
+#include <ntddvdeo.h>
+#include <winddi.h>
 
-    #include <d3dkmddi.h>
-    #include <d3dkmthk.h>
+#include <d3dkmddi.h>
+#include <d3dkmthk.h>
 
-    #include <ntstrsafe.h>
-    #include <ntintsafe.h>
+#include <ntintsafe.h>
+#include <ntstrsafe.h>
 
-    #include <dispmprt.h>
+#include <dispmprt.h>
 
-    #include "trace.h"
+#include "trace.h"
 }
 
-#define MAX_CHILDREN               1
-#define MAX_VIEWS                  1
-#define BITS_PER_BYTE              8
+#define MAX_CHILDREN 1
+#define MAX_VIEWS 1
+#define BITS_PER_BYTE 8
 
-#define POINTER_SIZE               64
+#define POINTER_SIZE 64
 
-#define MIN_WIDTH_SIZE             640
-#define MIN_HEIGHT_SIZE            480
+#define MIN_WIDTH_SIZE 640
+#define MIN_HEIGHT_SIZE 480
 
-#define NOM_WIDTH_SIZE             1024
-#define NOM_HEIGHT_SIZE            768
+#define NOM_WIDTH_SIZE 1024
+#define NOM_HEIGHT_SIZE 768
 
-#define VIOGPUTAG                  'OIVg'
+#define VIOGPUTAG 'OIVg'
 
 #define VIOGPU_LOG_ASSERTION0(Msg) NT_ASSERT(FALSE)
-#define VIOGPU_LOG_ASSERTION1(Msg,Param1) NT_ASSERT(FALSE)
-#define VIOGPU_ASSERT(exp) {if (!(exp)) {VIOGPU_LOG_ASSERTION0(#exp);}}
-
+#define VIOGPU_LOG_ASSERTION1(Msg, Param1) NT_ASSERT(FALSE)
+#define VIOGPU_ASSERT(exp)                                                     \
+  {                                                                            \
+    if (!(exp)) {                                                              \
+      VIOGPU_LOG_ASSERTION0(#exp);                                             \
+    }                                                                          \
+  }
 
 #if DBG
 #define VIOGPU_ASSERT_CHK(exp) VIOGPU_ASSERT(exp)
 #else
-#define VIOGPU_ASSERT_CHK(exp) {}
+#define VIOGPU_ASSERT_CHK(exp)                                                 \
+  {}
 #endif
 
 #define PAGED_CODE_SEG __declspec(code_seg("PAGE"))
-#define PAGED_CODE_SEG_BEGIN \
-    __pragma(code_seg(push)) \
-    __pragma(code_seg("PAGE"))
+#define PAGED_CODE_SEG_BEGIN __pragma(code_seg(push)) __pragma(code_seg("PAGE"))
 
-#define PAGED_CODE_SEG_END \
-    __pragma(code_seg(pop))
+#define PAGED_CODE_SEG_END __pragma(code_seg(pop))

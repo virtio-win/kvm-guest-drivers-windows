@@ -1,6 +1,6 @@
-#include "ndis56common.h"
-#include "kdebugprint.h"
 #include "Trace.h"
+#include "kdebugprint.h"
+#include "ndis56common.h"
 #ifdef NETKVM_WPP_ENABLED
 #include "ParaNdis_Util.tmh"
 #endif
@@ -10,11 +10,7 @@ void NetKvmAssert(bool Statement, ULONG Code)
 {
     if (!Statement)
     {
-        KeBugCheckEx(0x0ABCDEF0,
-                     0x0ABCDEF0,
-                     Code,
-                     NDIS_MINIPORT_MAJOR_VERSION,
-                     NDIS_MINIPORT_MINOR_VERSION);
+        KeBugCheckEx(0x0ABCDEF0, 0x0ABCDEF0, Code, NDIS_MINIPORT_MAJOR_VERSION, NDIS_MINIPORT_MINOR_VERSION);
     }
 }
 #endif
@@ -29,15 +25,15 @@ bool CNdisSharedMemory::Allocate(ULONG Size, bool IsCached)
 
 CNdisSharedMemory::~CNdisSharedMemory()
 {
-    if(m_VA != nullptr)
+    if (m_VA != nullptr)
     {
         NdisMFreeSharedMemory(m_DrvHandle, m_Size, m_IsCached, m_VA, m_PA);
         m_VA = nullptr;
     }
 }
 
-//Generic delete operators
-//Must never be called
+// Generic delete operators
+// Must never be called
 void __CRTDECL operator delete(void *) throw()
 {
     NETKVM_ASSERT(FALSE);
@@ -50,7 +46,7 @@ void __CRTDECL operator delete(void *, UINT64) throw()
 {
     ASSERT(FALSE);
 #ifdef DBG
-   KeBugCheck(100);
+    KeBugCheck(100);
 #endif
 }
 
@@ -71,7 +67,8 @@ void __CRTDECL operator delete[](void *) throw()
 }
 
 #ifdef RW_LOCK_62
-bool CNdisRWLock::Create(NDIS_HANDLE miniportHandle) {
+bool CNdisRWLock::Create(NDIS_HANDLE miniportHandle)
+{
     m_pLock = NdisAllocateRWLock(miniportHandle);
     if (!m_pLock)
     {
@@ -80,7 +77,6 @@ bool CNdisRWLock::Create(NDIS_HANDLE miniportHandle) {
     return m_pLock != 0;
 }
 #endif
-
 
 ULONG ParaNdis_GetIndexFromAffinity(KAFFINITY affinity)
 {

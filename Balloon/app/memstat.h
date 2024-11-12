@@ -7,25 +7,28 @@
 #include "comutil.h"
 #include "public.h"
 
-class CMemStat {
-public:
+class CMemStat
+{
+  public:
     CMemStat();
     ~CMemStat();
     BOOL Init();
     BOOL Update();
 
-    PVOID GetBuffer() {
+    PVOID GetBuffer()
+    {
         return m_Stats;
     }
 
-    size_t GetSize() {
+    size_t GetSize()
+    {
         return sizeof(m_Stats);
     }
 
-private:
+  private:
     BOOL initialized;
-    CComPtr< IWbemLocator > locator;
-    CComPtr< IWbemServices > service;
+    CComPtr<IWbemLocator> locator;
+    CComPtr<IWbemServices> service;
     BALLOON_STAT m_Stats[VIRTIO_BALLOON_S_NR];
 };
 

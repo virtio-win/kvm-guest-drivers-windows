@@ -1,9 +1,8 @@
-#include "stdafx.h"
 #include "Exception.h"
+#include "stdafx.h"
 
 neTKVMException::neTKVMException()
 {
-
 }
 
 neTKVMException::neTKVMException(LPCTSTR lpzMessage)
@@ -26,7 +25,6 @@ neTKVMException::neTKVMException(const neTKVMException &Other)
 
 neTKVMException::~neTKVMException(void)
 {
-
 }
 
 const char *neTKVMException::what() const
@@ -41,24 +39,21 @@ LPCTSTR neTKVMException::twhat() const
 
 void neTKVMException::SetMessage(const tstring &Message)
 {
-    m_Message     = Message;
+    m_Message = Message;
     m_MBCSMessage = tstring2string(m_Message);
 }
 
 neTKVMNumErrorException::neTKVMNumErrorException(LPCTSTR lpzDescription, DWORD dwErrorCode)
     : neTKVMException(lpzDescription), m_dwErrorCode(dwErrorCode)
 {
-
 }
 
 neTKVMNumErrorException::neTKVMNumErrorException(const tstring &Description, DWORD dwErrorCode)
     : neTKVMException(Description), m_dwErrorCode(dwErrorCode)
 {
-
 }
 
-neTKVMNumErrorException::neTKVMNumErrorException(const neTKVMNumErrorException& Other)
-    : neTKVMException(Other)
+neTKVMNumErrorException::neTKVMNumErrorException(const neTKVMNumErrorException &Other) : neTKVMException(Other)
 {
     m_dwErrorCode = Other.m_dwErrorCode;
 }
@@ -66,25 +61,20 @@ neTKVMNumErrorException::neTKVMNumErrorException(const neTKVMNumErrorException& 
 neTKVMCRTErrorException::neTKVMCRTErrorException(int nErrorCode)
     : neTKVMNumErrorException(GetErrorString(nErrorCode), (DWORD)nErrorCode)
 {
-
 }
 
 neTKVMCRTErrorException::neTKVMCRTErrorException(LPCTSTR lpzDescription, int nErrorCode)
     : neTKVMNumErrorException(tstring(lpzDescription) + GetErrorString((DWORD)nErrorCode), (DWORD)nErrorCode)
 {
-
 }
 
 neTKVMCRTErrorException::neTKVMCRTErrorException(const tstring &Description, int nErrorCode)
-: neTKVMNumErrorException(Description + GetErrorString((DWORD)nErrorCode), (DWORD)nErrorCode)
+    : neTKVMNumErrorException(Description + GetErrorString((DWORD)nErrorCode), (DWORD)nErrorCode)
 {
-
 }
 
-neTKVMCRTErrorException::neTKVMCRTErrorException(const neTKVMCRTErrorException &Other)
-    : neTKVMNumErrorException(Other)
+neTKVMCRTErrorException::neTKVMCRTErrorException(const neTKVMCRTErrorException &Other) : neTKVMNumErrorException(Other)
 {
-
 }
 
 tstring neTKVMCRTErrorException::GetErrorString(DWORD dwErrorCode)
@@ -102,41 +92,30 @@ tstring neTKVMCRTErrorException::GetErrorString(DWORD dwErrorCode)
 neTKVMW32ErrorException::neTKVMW32ErrorException(DWORD dwErrorCode)
     : neTKVMNumErrorException(GetErrorString(m_dwErrorCode), dwErrorCode)
 {
-
 }
 
 neTKVMW32ErrorException::neTKVMW32ErrorException(LPCTSTR lpzDescription, DWORD dwErrorCode)
     : neTKVMNumErrorException(tstring(lpzDescription) + GetErrorString(dwErrorCode), dwErrorCode)
 {
-
 }
 
 neTKVMW32ErrorException::neTKVMW32ErrorException(const tstring &Description, DWORD dwErrorCode)
     : neTKVMNumErrorException(Description + GetErrorString(dwErrorCode), dwErrorCode)
 {
-
 }
 
-neTKVMW32ErrorException::neTKVMW32ErrorException(const neTKVMW32ErrorException &Other)
-    : neTKVMNumErrorException(Other)
+neTKVMW32ErrorException::neTKVMW32ErrorException(const neTKVMW32ErrorException &Other) : neTKVMNumErrorException(Other)
 {
-
 }
 
 tstring neTKVMW32ErrorException::GetErrorString(DWORD dwErrorCode)
 {
     LPVOID lpMsgBuf;
-    DWORD  msgLen = ::FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-                                    FORMAT_MESSAGE_FROM_SYSTEM |
-                                    FORMAT_MESSAGE_IGNORE_INSERTS|
-                                    FORMAT_MESSAGE_MAX_WIDTH_MASK,
-                                    NULL,
-                                    dwErrorCode,
-                                    MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US),
-                                    (LPTSTR) &lpMsgBuf,
-                                    0,
-                                    NULL);
-    if(msgLen == 0)
+    DWORD msgLen =
+        ::FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS |
+                            FORMAT_MESSAGE_MAX_WIDTH_MASK,
+                        NULL, dwErrorCode, MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US), (LPTSTR)&lpMsgBuf, 0, NULL);
+    if (msgLen == 0)
     {
         tstringstream strm;
         strm << TEXT("Failed to get error description for error code: 0x") << hex << dwErrorCode;
@@ -145,7 +124,7 @@ tstring neTKVMW32ErrorException::GetErrorString(DWORD dwErrorCode)
     else
     {
         tstring strResult((LPCTSTR)lpMsgBuf, msgLen);
-        ::LocalFree( lpMsgBuf );
+        ::LocalFree(lpMsgBuf);
         return strResult;
     }
 }

@@ -30,52 +30,43 @@
  * SUCH DAMAGE.
  */
 
+#include "Hid.h"
 #include "precomp.h"
 #include "vioinput.h"
-#include "Hid.h"
 
 #if defined(EVENT_TRACING)
 #include "Hid.tmh"
 #endif
 
-
 //
 // HID descriptor based on this structure is returned by the mini driver in response
 // to IOCTL_HID_GET_DEVICE_DESCRIPTOR.
 //
-static const HID_DESCRIPTOR G_DefaultHidDescriptor =
-{
-    0x09,   // length of HID descriptor
-    0x21,   // descriptor type == HID  0x21
-    0x0100, // hid spec release
-    0x00,   // country code == Not Specified
-    0x01,   // number of HID class descriptors
-    {              // DescriptorList[0]
-        0x22,      // report descriptor type 0x22
-        0x0000     // total length of report descriptor
-    }
-};
+static const HID_DESCRIPTOR G_DefaultHidDescriptor = {0x09,   // length of HID descriptor
+                                                      0x21,   // descriptor type == HID  0x21
+                                                      0x0100, // hid spec release
+                                                      0x00,   // country code == Not Specified
+                                                      0x01,   // number of HID class descriptors
+                                                      {
+                                                          // DescriptorList[0]
+                                                          0x22,  // report descriptor type 0x22
+                                                          0x0000 // total length of report descriptor
+                                                      }};
 
-VOID
-EvtIoDeviceControl(
-    WDFQUEUE   Queue,
-    WDFREQUEST Request,
-    size_t     OutputBufferLength,
-    size_t     InputBufferLength,
-    ULONG      IoControlCode)
+VOID EvtIoDeviceControl(WDFQUEUE Queue, WDFREQUEST Request, size_t OutputBufferLength, size_t InputBufferLength,
+                        ULONG IoControlCode)
 {
-    NTSTATUS        status;
-    BOOLEAN         completeRequest = TRUE;
-    WDFDEVICE       device = WdfIoQueueGetDevice(Queue);
-    PINPUT_DEVICE   pContext = GetDeviceContext(device);
-    ULONG           uReportSize;
+    NTSTATUS status;
+    BOOLEAN completeRequest = TRUE;
+    WDFDEVICE device = WdfIoQueueGetDevice(Queue);
+    PINPUT_DEVICE pContext = GetDeviceContext(device);
+    ULONG uReportSize;
     HID_XFER_PACKET Packet;
     WDF_REQUEST_PARAMETERS params;
     UNREFERENCED_PARAMETER(OutputBufferLength);
     UNREFERENCED_PARAMETER(InputBufferLength);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS,
-                "--> %s, code = %d\n", __FUNCTION__, IoControlCode);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s, code = %d\n", __FUNCTION__, IoControlCode);
 
     switch (IoControlCode)
     {
@@ -85,9 +76,7 @@ EvtIoDeviceControl(
         // Return the device's HID descriptor.
         //
         ASSERT(pContext->HidDescriptor.bLength != 0);
-        status = RequestCopyFromBuffer(Request,
-            &pContext->HidDescriptor,
-            pContext->HidDescriptor.bLength);
+        status = RequestCopyFromBuffer(Request, &pContext->HidDescriptor, pContext->HidDescriptor.bLength);
         break;
 
     case IOCTL_HID_GET_DEVICE_ATTRIBUTES:
@@ -95,9 +84,7 @@ EvtIoDeviceControl(
         //
         // Return the device's attributes in a HID_DEVICE_ATTRIBUTES structure.
         //
-        status = RequestCopyFromBuffer(Request,
-            &pContext->HidDeviceAttributes,
-            sizeof(HID_DEVICE_ATTRIBUTES));
+        status = RequestCopyFromBuffer(Request, &pContext->HidDeviceAttributes, sizeof(HID_DEVICE_ATTRIBUTES));
         break;
 
     case IOCTL_HID_GET_REPORT_DESCRIPTOR:
@@ -105,9 +92,8 @@ EvtIoDeviceControl(
         //
         // Return the report descriptor for the HID device.
         //
-        status = RequestCopyFromBuffer(Request,
-            pContext->HidReportDescriptor,
-            pContext->HidDescriptor.DescriptorList[0].wReportLength);
+        status = RequestCopyFromBuffer(Request, pContext->HidReportDescriptor,
+                                       pContext->HidDescriptor.DescriptorList[0].wReportLength);
         break;
 
     case IOCTL_HID_READ_REPORT:
@@ -117,17 +103,14 @@ EvtIoDeviceControl(
         // receive data from the device.
         //
 
-        status = WdfRequestForwardToIoQueue(
-            Request,
-            pContext->HidQueue);
+        status = WdfRequestForwardToIoQueue(Request, pContext->HidQueue);
         if (NT_SUCCESS(status))
         {
             completeRequest = FALSE;
         }
         else
         {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS,
-                        "WdfRequestForwardToIoQueue failed with 0x%x\n", status);
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "WdfRequestForwardToIoQueue failed with 0x%x\n", status);
         }
         break;
 
@@ -148,8 +131,7 @@ EvtIoDeviceControl(
         }
         else
         {
-            RtlCopyMemory(&Packet, WdfRequestWdmGetIrp(Request)->UserBuffer,
-                          sizeof(HID_XFER_PACKET));
+            RtlCopyMemory(&Packet, WdfRequestWdmGetIrp(Request)->UserBuffer, sizeof(HID_XFER_PACKET));
             WdfRequestSetInformation(Request, Packet.reportBufferLen);
 
             status = ProcessOutputReport(pContext, Request, &Packet);
@@ -169,14 +151,16 @@ EvtIoDeviceControl(
         if (params.Parameters.DeviceIoControl.OutputBufferLength < sizeof(HID_XFER_PACKET))
         {
             status = STATUS_BUFFER_TOO_SMALL;
-        } else
+        }
+        else
         {
             PHID_XFER_PACKET pFeaturePkt = (PHID_XFER_PACKET)WdfRequestWdmGetIrp(Request)->UserBuffer;
 
             if (pFeaturePkt == NULL)
             {
                 status = STATUS_INVALID_DEVICE_REQUEST;
-            } else
+            }
+            else
             {
                 ULONG i;
 
@@ -197,8 +181,7 @@ EvtIoDeviceControl(
         break;
 
     default:
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_IOCTLS,
-                    "Unrecognized IOCTL %d\n", IoControlCode);
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_IOCTLS, "Unrecognized IOCTL %d\n", IoControlCode);
         status = STATUS_NOT_IMPLEMENTED;
         break;
     }
@@ -211,10 +194,7 @@ EvtIoDeviceControl(
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s\n", __FUNCTION__);
 }
 
-static VOID
-CompleteHIDQueueRequest(
-    PINPUT_DEVICE pContext,
-    PINPUT_CLASS_COMMON pClass)
+static VOID CompleteHIDQueueRequest(PINPUT_DEVICE pContext, PINPUT_CLASS_COMMON pClass)
 {
     WDFREQUEST request;
     NTSTATUS status;
@@ -228,10 +208,7 @@ CompleteHIDQueueRequest(
     status = WdfIoQueueRetrieveNextRequest(pContext->HidQueue, &request);
     if (NT_SUCCESS(status))
     {
-        status = RequestCopyFromBuffer(
-            request,
-            pClass->pHidReport,
-            pClass->cbHidReportSize);
+        status = RequestCopyFromBuffer(request, pClass->pHidReport, pClass->cbHidReportSize);
         WdfRequestComplete(request, status);
         if (NT_SUCCESS(status))
         {
@@ -240,21 +217,12 @@ CompleteHIDQueueRequest(
     }
 }
 
-VOID
-ProcessInputEvent(
-    PINPUT_DEVICE pContext,
-    PVIRTIO_INPUT_EVENT pEvent)
+VOID ProcessInputEvent(PINPUT_DEVICE pContext, PVIRTIO_INPUT_EVENT pEvent)
 {
     ULONG i;
 
-    TraceEvents(
-        TRACE_LEVEL_VERBOSE,
-        DBG_READ,
-        "--> %s TYPE: %d, CODE: %d, VALUE: %d\n",
-        __FUNCTION__,
-        pEvent->type,
-        pEvent->code,
-        pEvent->value);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s TYPE: %d, CODE: %d, VALUE: %d\n", __FUNCTION__, pEvent->type,
+                pEvent->code, pEvent->value);
 
     if (pEvent->type == EV_SYN)
     {
@@ -264,9 +232,7 @@ ProcessInputEvent(
             // Ask each class if any collection needs before report
             if (pContext->InputClasses[i]->EventToCollectFunc)
             {
-                pContext->InputClasses[i]->EventToCollectFunc(
-                    pContext->InputClasses[i],
-                    pEvent);
+                pContext->InputClasses[i]->EventToCollectFunc(pContext->InputClasses[i], pEvent);
             }
             CompleteHIDQueueRequest(pContext, pContext->InputClasses[i]);
         }
@@ -275,19 +241,14 @@ ProcessInputEvent(
     // ask each class to translate the input event into a HID report
     for (i = 0; i < pContext->uNumOfClasses; i++)
     {
-        pContext->InputClasses[i]->EventToReportFunc(
-            pContext->InputClasses[i],
-            pEvent);
+        pContext->InputClasses[i]->EventToReportFunc(pContext->InputClasses[i], pEvent);
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
 }
 
 NTSTATUS
-ProcessOutputReport(
-    PINPUT_DEVICE pContext,
-    WDFREQUEST Request,
-    PHID_XFER_PACKET pPacket)
+ProcessOutputReport(PINPUT_DEVICE pContext, WDFREQUEST Request, PHID_XFER_PACKET pPacket)
 {
     NTSTATUS status = STATUS_NONE_MAPPED;
     ULONG i;
@@ -301,12 +262,8 @@ ProcessOutputReport(
         {
             if (pClass->ReportToEventFunc)
             {
-                status = pClass->ReportToEventFunc(
-                    pClass,
-                    pContext,
-                    Request,
-                    pPacket->reportBuffer,
-                    pPacket->reportBufferLen);
+                status = pClass->ReportToEventFunc(pClass, pContext, Request, pPacket->reportBuffer,
+                                                   pPacket->reportBufferLen);
             }
             break;
         }
@@ -362,31 +319,24 @@ static void DumpReportDescriptor(PHID_REPORT_DESCRIPTOR pDescriptor, SIZE_T cbSi
         CHAR buffer[20];
         switch (pDescriptor[i] & 0x03)
         {
-        case 0x00:
-        {
+        case 0x00: {
             sprintf_s(buffer, sizeof(buffer), "%02x", pDescriptor[i]);
             i++;
             break;
         }
-        case 0x01:
-        {
-            sprintf_s(buffer, sizeof(buffer), "%02x %02x",
-                      pDescriptor[i], pDescriptor[i + 1]);
+        case 0x01: {
+            sprintf_s(buffer, sizeof(buffer), "%02x %02x", pDescriptor[i], pDescriptor[i + 1]);
             i += 2;
             break;
         }
-        case 0x02:
-        {
-            sprintf_s(buffer, sizeof(buffer), "%02x %02x %02x",
-                      pDescriptor[i], pDescriptor[i + 1], pDescriptor[i + 2]);
+        case 0x02: {
+            sprintf_s(buffer, sizeof(buffer), "%02x %02x %02x", pDescriptor[i], pDescriptor[i + 1], pDescriptor[i + 2]);
             i += 3;
             break;
         }
-        case 0x03:
-        {
-            sprintf_s(buffer, sizeof(buffer), "%02x %02x %02x %02x %02x",
-                      pDescriptor[i], pDescriptor[i + 1], pDescriptor[i + 2],
-                      pDescriptor[i + 3], pDescriptor[i + 4]);
+        case 0x03: {
+            sprintf_s(buffer, sizeof(buffer), "%02x %02x %02x %02x %02x", pDescriptor[i], pDescriptor[i + 1],
+                      pDescriptor[i + 2], pDescriptor[i + 3], pDescriptor[i + 4]);
             i += 5;
             break;
         }
@@ -400,16 +350,10 @@ static u8 SelectInputConfig(PINPUT_DEVICE pContext, u8 cfgSelect, u8 cfgSubSel)
 {
     u8 size = 0;
 
-    VirtIOWdfDeviceSet(
-        &pContext->VDevice, offsetof(struct virtio_input_config, select),
-        &cfgSelect, sizeof(cfgSelect));
-    VirtIOWdfDeviceSet(
-        &pContext->VDevice, offsetof(struct virtio_input_config, subsel),
-        &cfgSubSel, sizeof(cfgSubSel));
+    VirtIOWdfDeviceSet(&pContext->VDevice, offsetof(struct virtio_input_config, select), &cfgSelect, sizeof(cfgSelect));
+    VirtIOWdfDeviceSet(&pContext->VDevice, offsetof(struct virtio_input_config, subsel), &cfgSubSel, sizeof(cfgSubSel));
 
-    VirtIOWdfDeviceGet(
-        &pContext->VDevice, offsetof(struct virtio_input_config, size),
-        &size, sizeof(size));
+    VirtIOWdfDeviceGet(&pContext->VDevice, offsetof(struct virtio_input_config, size), &size, sizeof(size));
     return size;
 }
 
@@ -456,7 +400,7 @@ static UINT64 ComputeHash(PUCHAR pData, SIZE_T Length)
 NTSTATUS
 VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
 {
-    DYNAMIC_ARRAY ReportDescriptor = { NULL };
+    DYNAMIC_ARRAY ReportDescriptor = {NULL};
     NTSTATUS status = STATUS_SUCCESS;
     VIRTIO_INPUT_CFG_DATA KeyData, RelData, AbsData, LedData, MscData;
     SIZE_T cbReportDescriptor;
@@ -469,9 +413,8 @@ VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Got EV_KEY bits size %d\n", KeyData.size);
     for (i = 0; i < KeyData.size; i++)
     {
-        VirtIOWdfDeviceGet(
-            &pContext->VDevice, offsetof(struct virtio_input_config, u.bitmap[i]),
-            &KeyData.u.bitmap[i], 1);
+        VirtIOWdfDeviceGet(&pContext->VDevice, offsetof(struct virtio_input_config, u.bitmap[i]), &KeyData.u.bitmap[i],
+                           1);
     }
 
     // relative axis config
@@ -479,9 +422,8 @@ VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Got EV_REL bits size %d\n", RelData.size);
     for (i = 0; i < RelData.size; i++)
     {
-        VirtIOWdfDeviceGet(
-            &pContext->VDevice, offsetof(struct virtio_input_config, u.bitmap[i]),
-            &RelData.u.bitmap[i], 1);
+        VirtIOWdfDeviceGet(&pContext->VDevice, offsetof(struct virtio_input_config, u.bitmap[i]), &RelData.u.bitmap[i],
+                           1);
     }
 
     // absolute axis config
@@ -489,9 +431,8 @@ VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Got EV_ABS bits size %d\n", AbsData.size);
     for (i = 0; i < AbsData.size; i++)
     {
-        VirtIOWdfDeviceGet(
-            &pContext->VDevice, offsetof(struct virtio_input_config, u.bitmap[i]),
-            &AbsData.u.bitmap[i], 1);
+        VirtIOWdfDeviceGet(&pContext->VDevice, offsetof(struct virtio_input_config, u.bitmap[i]), &AbsData.u.bitmap[i],
+                           1);
     }
 
     // Misc config
@@ -499,21 +440,15 @@ VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Got EV_MSC bits size %d\n", MscData.size);
     for (i = 0; i < MscData.size; i++)
     {
-        VirtIOWdfDeviceGet(
-            &pContext->VDevice, offsetof(struct virtio_input_config, u.bitmap[i]),
-            &MscData.u.bitmap[i], 1);
+        VirtIOWdfDeviceGet(&pContext->VDevice, offsetof(struct virtio_input_config, u.bitmap[i]), &MscData.u.bitmap[i],
+                           1);
     }
 
     // if we have any relative axes, we'll expose a mouse device
     // if we have any absolute axes, we may expose a mouse as well
     if (!InputCfgDataEmpty(&RelData) || !InputCfgDataEmpty(&AbsData))
     {
-        status = HIDMouseProbe(
-            pContext,
-            &ReportDescriptor,
-            &RelData,
-            &AbsData,
-            &KeyData);
+        status = HIDMouseProbe(pContext, &ReportDescriptor, &RelData, &AbsData, &KeyData);
         if (!NT_SUCCESS(status))
         {
             goto Exit;
@@ -523,11 +458,7 @@ VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
     // if we have any absolute axes left, we may expose a joystick
     if (!InputCfgDataEmpty(&AbsData))
     {
-        status = HIDJoystickProbe(
-            pContext,
-            &ReportDescriptor,
-            &AbsData,
-            &KeyData);
+        status = HIDJoystickProbe(pContext, &ReportDescriptor, &AbsData, &KeyData);
         if (!NT_SUCCESS(status))
         {
             goto Exit;
@@ -537,12 +468,7 @@ VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
     // if we have any absolute axes left, we'll expose a tablet device
     if (!InputCfgDataEmpty(&AbsData))
     {
-        status = HIDTabletProbe(
-            pContext,
-            &ReportDescriptor,
-            &AbsData,
-            &KeyData,
-            &MscData);
+        status = HIDTabletProbe(pContext, &ReportDescriptor, &AbsData, &KeyData, &MscData);
         if (!NT_SUCCESS(status))
         {
             goto Exit;
@@ -557,16 +483,11 @@ VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Got EV_LED bits size %d\n", LedData.size);
         for (i = 0; i < LedData.size; i++)
         {
-            VirtIOWdfDeviceGet(
-                &pContext->VDevice, offsetof(struct virtio_input_config, u.bitmap[i]),
-                &LedData.u.bitmap[i], 1);
+            VirtIOWdfDeviceGet(&pContext->VDevice, offsetof(struct virtio_input_config, u.bitmap[i]),
+                               &LedData.u.bitmap[i], 1);
         }
 
-        status = HIDKeyboardProbe(
-            pContext,
-            &ReportDescriptor,
-            &KeyData,
-            &LedData);
+        status = HIDKeyboardProbe(pContext, &ReportDescriptor, &KeyData, &LedData);
         if (!NT_SUCCESS(status))
         {
             goto Exit;
@@ -576,10 +497,7 @@ VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
     // if we still have any keys left, we'll check for a consumer device
     if (!InputCfgDataEmpty(&KeyData))
     {
-        status = HIDConsumerProbe(
-            pContext,
-            &ReportDescriptor,
-            &KeyData);
+        status = HIDConsumerProbe(pContext, &ReportDescriptor, &KeyData);
         if (!NT_SUCCESS(status))
         {
             goto Exit;
@@ -594,9 +512,7 @@ VIOInputBuildReportDescriptor(PINPUT_DEVICE pContext)
     else
     {
         // initialize the HID descriptor
-        pContext->HidReportDescriptor = (PHID_REPORT_DESCRIPTOR)DynamicArrayGet(
-            &ReportDescriptor,
-            &cbReportDescriptor);
+        pContext->HidReportDescriptor = (PHID_REPORT_DESCRIPTOR)DynamicArrayGet(&ReportDescriptor, &cbReportDescriptor);
         if (!pContext->HidReportDescriptor)
         {
             status = STATUS_INSUFFICIENT_RESOURCES;
@@ -617,11 +533,7 @@ Exit:
     return status;
 }
 
-VOID
-GetAbsAxisInfo(
-    PINPUT_DEVICE pContext,
-    ULONG uAbsAxis,
-    struct virtio_input_absinfo *pAbsInfo)
+VOID GetAbsAxisInfo(PINPUT_DEVICE pContext, ULONG uAbsAxis, struct virtio_input_absinfo *pAbsInfo)
 {
     UCHAR uSize, i;
 
@@ -632,17 +544,14 @@ GetAbsAxisInfo(
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Got abs axis %d info size %d\n", uAbsAxis, uSize);
         for (i = 0; i < uSize && i < sizeof(struct virtio_input_absinfo); i++)
         {
-            VirtIOWdfDeviceGet(
-                &pContext->VDevice, offsetof(struct virtio_input_config, u.bitmap[i]),
-                (PUCHAR)pAbsInfo + i, 1);
+            VirtIOWdfDeviceGet(&pContext->VDevice, offsetof(struct virtio_input_config, u.bitmap[i]),
+                               (PUCHAR)pAbsInfo + i, 1);
         }
     }
 }
 
 NTSTATUS
-RegisterClass(
-    PINPUT_DEVICE pContext,
-    PINPUT_CLASS_COMMON pClass)
+RegisterClass(PINPUT_DEVICE pContext, PINPUT_CLASS_COMMON pClass)
 {
     if (pContext->uNumOfClasses >= MAX_INPUT_CLASS_COUNT)
     {
@@ -665,14 +574,11 @@ RegisterClass(
 }
 
 NTSTATUS
-RequestCopyFromBuffer(
-    WDFREQUEST Request,
-    PVOID      SourceBuffer,
-    size_t     NumBytesToCopyFrom)
+RequestCopyFromBuffer(WDFREQUEST Request, PVOID SourceBuffer, size_t NumBytesToCopyFrom)
 {
-    NTSTATUS  status;
+    NTSTATUS status;
     WDFMEMORY memory;
-    size_t    outputBufferLength;
+    size_t outputBufferLength;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
 
@@ -687,20 +593,15 @@ RequestCopyFromBuffer(
     if (outputBufferLength < NumBytesToCopyFrom)
     {
         status = STATUS_INVALID_BUFFER_SIZE;
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ,
-                    "RequestCopyFromBuffer: buffer too small. Size %d, expect %d\n",
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "RequestCopyFromBuffer: buffer too small. Size %d, expect %d\n",
                     (int)outputBufferLength, (int)NumBytesToCopyFrom);
         return status;
     }
 
-    status = WdfMemoryCopyFromBuffer(memory,
-        0,
-        SourceBuffer,
-        NumBytesToCopyFrom);
+    status = WdfMemoryCopyFromBuffer(memory, 0, SourceBuffer, NumBytesToCopyFrom);
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ,
-                    "WdfMemoryCopyFromBuffer failed 0x%x\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "WdfMemoryCopyFromBuffer failed 0x%x\n", status);
         return status;
     }
 

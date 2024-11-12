@@ -2,7 +2,7 @@
 
 class CPipe
 {
-public:
+  public:
     CPipe(bool ForRead = true)
     {
         SECURITY_ATTRIBUTES a = {};
@@ -34,20 +34,19 @@ public:
             m_hWrite = NULL;
         }
     }
-protected:
+
+  protected:
     HANDLE m_hRead = NULL;
     HANDLE m_hWrite = NULL;
 };
 
 class CProcessRunner
 {
-public:
+  public:
     // WaitTime = 0 starts the process as orphan, without waiting for termination
     // WaitTime < INFINITE gives a possibility to do some action when the
     //     process is running and decide when to kill it
-    CProcessRunner(bool Redirect = true, ULONG WaitTime = INFINITE) :
-        m_Redirect(Redirect),
-        m_WaitTime(WaitTime)
+    CProcessRunner(bool Redirect = true, ULONG WaitTime = INFINITE) : m_Redirect(Redirect), m_WaitTime(WaitTime)
     {
         Clean();
         if (!m_WaitTime)
@@ -62,7 +61,7 @@ public:
             TerminateProcess(pi.hProcess, 0);
         }
     }
-    bool RunProcess(CString& CommandLine)
+    bool RunProcess(CString &CommandLine)
     {
         bool result;
         Clean();
@@ -76,7 +75,8 @@ public:
         }
 
         Log(" Running %S ...", CommandLine.GetString());
-        result = CreateProcess(NULL, CommandLine.GetBuffer(), NULL, NULL, m_Redirect, CREATE_SUSPENDED, NULL, _T("."), &si, &pi);
+        result = CreateProcess(NULL, CommandLine.GetBuffer(), NULL, NULL, m_Redirect, CREATE_SUSPENDED, NULL, _T("."),
+                               &si, &pi);
         if (result)
         {
             if (m_Redirect)
@@ -106,15 +106,27 @@ public:
             m_ExitCode = GetLastError();
             Log(" Running %S failed, error %d", CommandLine.GetString(), m_ExitCode);
         }
-        if (pi.hProcess) CloseHandle(pi.hProcess);
-        if (pi.hThread) CloseHandle(pi.hThread);
+        if (pi.hProcess)
+            CloseHandle(pi.hProcess);
+        if (pi.hThread)
+            CloseHandle(pi.hThread);
         Clean();
         return result;
     }
-    const CString& StdOutResult() const { return m_StdOutResult; }
-    const CString& StdErrResult() const { return m_StdErrResult; }
-    ULONG ExitCode() const { return m_ExitCode; }
-protected:
+    const CString &StdOutResult() const
+    {
+        return m_StdOutResult;
+    }
+    const CString &StdErrResult() const
+    {
+        return m_StdErrResult;
+    }
+    ULONG ExitCode() const
+    {
+        return m_ExitCode;
+    }
+
+  protected:
     STARTUPINFO si;
     PROCESS_INFORMATION pi;
     CPipe m_StdOut;
@@ -129,7 +141,7 @@ protected:
     }
     ULONG m_WaitTime;
     ULONG m_ExitCode = 0;
-    bool  m_Redirect;
+    bool m_Redirect;
     virtual bool ShouldTerminate()
     {
         return false;
@@ -148,7 +160,8 @@ protected:
             ULONG avail = 0;
             ULONG got = 0;
             bool b = PeekNamedPipe(h, buffer, sizeof(buffer), &got, &avail, NULL);
-            if (!b) {
+            if (!b)
+            {
                 err = GetLastError();
                 Sleep(10);
             }
@@ -181,14 +194,18 @@ protected:
 
 class CWmicQueryRunner : public CProcessRunner
 {
-public:
+  public:
     void Run()
     {
         CString cmd = TEXT("wmic /namespace:\\\\root\\wmi path NetKvm_Standby get /value");
         RunProcess(cmd);
     }
-    CAtlArray<CString>& Devices() { return m_Devices; }
-protected:
+    CAtlArray<CString> &Devices()
+    {
+        return m_Devices;
+    }
+
+  protected:
     CAtlArray<CString> m_Devices;
     void PostProcess(ULONG ExitCode) override
     {
@@ -230,7 +247,8 @@ protected:
                 }
             }
         }
-        if (!m_StdErrResult.IsEmpty()) {
+        if (!m_StdErrResult.IsEmpty())
+        {
             Log("STDERR:%S", m_StdErrResult.GetString());
         }
     }

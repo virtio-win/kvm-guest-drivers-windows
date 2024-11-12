@@ -1,7 +1,7 @@
-#include "ndis56common.h"
 #include "ParaNdis-VirtQueue.h"
-#include "kdebugprint.h"
 #include "Trace.h"
+#include "kdebugprint.h"
+#include "ndis56common.h"
 #ifdef NETKVM_WPP_ENABLED
 #include "ParaNdis_VirtQueue.tmh"
 #endif
@@ -16,12 +16,7 @@ bool CVirtQueue::AllocateQueueMemory()
         return false;
     }
 
-    NTSTATUS status = virtio_query_queue_allocation(
-        m_IODevice,
-        m_Index,
-        &NumEntries,
-        &RingSize,
-        &HeapSize);
+    NTSTATUS status = virtio_query_queue_allocation(m_IODevice, m_Index, &NumEntries, &RingSize, &HeapSize);
     if (!NT_SUCCESS(status))
     {
         DPrintf(0, "[%s] virtio_query_queue_allocation(%d) failed with error %x\n", __FUNCTION__, m_Index, status);
@@ -41,10 +36,7 @@ void CVirtQueue::Renew()
     }
 
     pContext->pPageAllocator = &m_SharedMemory;
-    NTSTATUS status = virtio_find_queue(
-        m_IODevice,
-        m_Index,
-        &m_VirtQueue);
+    NTSTATUS status = virtio_find_queue(m_IODevice, m_Index, &m_VirtQueue);
     pContext->pPageAllocator = nullptr;
 
     if (!NT_SUCCESS(status))
@@ -54,9 +46,7 @@ void CVirtQueue::Renew()
     }
 }
 
-bool CVirtQueue::Create(UINT Index,
-    VirtIODevice *IODevice,
-    NDIS_HANDLE DrvHandle)
+bool CVirtQueue::Create(UINT Index, VirtIODevice *IODevice, NDIS_HANDLE DrvHandle)
 {
     m_DrvHandle = DrvHandle;
     m_Index = Index;
@@ -115,12 +105,8 @@ bool CTXVirtQueue::PrepareBuffers()
             break;
         }
 
-        if (!TXDescr->Create(m_DrvHandle,
-            m_HeaderSize,
-            m_SGTable,
-            SGTableCapacity,
-            m_Context->bUseIndirect ? true : false,
-            m_Context->bAnyLayout ? true : false))
+        if (!TXDescr->Create(m_DrvHandle, m_HeaderSize, m_SGTable, SGTableCapacity,
+                             m_Context->bUseIndirect ? true : false, m_Context->bAnyLayout ? true : false))
         {
             CTXDescriptor::Destroy(TXDescr, m_Context->MiniportHandle);
             break;
@@ -132,7 +118,8 @@ bool CTXVirtQueue::PrepareBuffers()
     m_FreeHWBuffers = m_TotalHWBuffers = m_TotalDescriptors;
     DPrintf(0, "[%s] available %d Tx descriptors\n", __FUNCTION__, m_TotalDescriptors);
 
-    if (m_Context->extraStatistics.minFreeTxBuffers == 0 || m_Context->extraStatistics.minFreeTxBuffers > m_FreeHWBuffers)
+    if (m_Context->extraStatistics.minFreeTxBuffers == 0 ||
+        m_Context->extraStatistics.minFreeTxBuffers > m_FreeHWBuffers)
     {
         m_Context->extraStatistics.minFreeTxBuffers = m_FreeHWBuffers;
     }
@@ -141,20 +128,17 @@ bool CTXVirtQueue::PrepareBuffers()
 
 void CTXVirtQueue::FreeBuffers()
 {
-    m_Descriptors.ForEachDetached([this](CTXDescriptor* TXDescr)
-                                      { CTXDescriptor::Destroy(TXDescr, m_Context->MiniportHandle); });
+    m_Descriptors.ForEachDetached(
+        [this](CTXDescriptor *TXDescr) { CTXDescriptor::Destroy(TXDescr, m_Context->MiniportHandle); });
 
     m_TotalDescriptors = m_FreeHWBuffers = 0;
 }
 
-bool CTXVirtQueue::Create(UINT Index,
-    VirtIODevice *IODevice,
-    NDIS_HANDLE DrvHandle,
-    ULONG MaxBuffers,
-    ULONG HeaderSize,
-    PPARANDIS_ADAPTER Context)
+bool CTXVirtQueue::Create(UINT Index, VirtIODevice *IODevice, NDIS_HANDLE DrvHandle, ULONG MaxBuffers, ULONG HeaderSize,
+                          PPARANDIS_ADAPTER Context)
 {
-    if (!CVirtQueue::Create(Index, IODevice, DrvHandle)) {
+    if (!CVirtQueue::Create(Index, IODevice, DrvHandle))
+    {
         return false;
     }
 
@@ -178,7 +162,7 @@ bool CTXVirtQueue::Create(UINT Index,
 
 CTXVirtQueue::~CTXVirtQueue()
 {
-    if(m_SGTable != nullptr)
+    if (m_SGTable != nullptr)
     {
         NdisFreeMemory(m_SGTable, 0, 0);
         m_SGTable = nullptr;
@@ -203,7 +187,7 @@ void CTXVirtQueue::UpdateTXStats(const CNB &NB, CTXDescriptor &Descriptor)
     auto &HeadersArea = Descriptor.HeadersAreaAccessor();
     PVOID EthHeader = HeadersArea.EthHeader();
 
-    //TODO: Statistics must be atomic
+    // TODO: Statistics must be atomic
     auto BytesSent = NB.GetDataLength();
     auto NBL = NB.GetParentNBL();
 
@@ -258,56 +242,50 @@ SubmitTxPacketResult CTXVirtQueue::SubmitPacket(CNB &NB)
 
     switch (status)
     {
-        case NBMappingStatus::FAILURE:
-        {
-            NB.ReturnPages();
-            m_Descriptors.Push(TXDescriptor);
-            NB.Report(0, false);
-            return SubmitTxPacketResult::SUBMIT_FAILURE;
-        }
-        case NBMappingStatus::NO_RESOURCE:
-        {
-            m_Descriptors.Push(TXDescriptor);
-            return SubmitTxPacketResult::SUBMIT_NO_PLACE_IN_QUEUE;
-        }
-        case NBMappingStatus::SUCCESS:
-        {
-            //do nothing
-        }
+    case NBMappingStatus::FAILURE: {
+        NB.ReturnPages();
+        m_Descriptors.Push(TXDescriptor);
+        NB.Report(0, false);
+        return SubmitTxPacketResult::SUBMIT_FAILURE;
+    }
+    case NBMappingStatus::NO_RESOURCE: {
+        m_Descriptors.Push(TXDescriptor);
+        return SubmitTxPacketResult::SUBMIT_NO_PLACE_IN_QUEUE;
+    }
+    case NBMappingStatus::SUCCESS: {
+        // do nothing
+    }
     }
 
     auto res = TXDescriptor->Enqueue(this, m_TotalHWBuffers, m_FreeHWBuffers);
 
     switch (res)
     {
-        case SubmitTxPacketResult::SUBMIT_NO_PLACE_IN_QUEUE:
-        {
-            KickQueueOnOverflow();
-            //Fall-through
-            __fallthrough;
-        }
-        case SubmitTxPacketResult::SUBMIT_PACKET_TOO_LARGE:
-            __fallthrough;
-        case SubmitTxPacketResult::SUBMIT_FAILURE:
-        {
-            m_Descriptors.Push(TXDescriptor);
-            NB.Report(0, false);
-            break;
-        }
-        case SubmitTxPacketResult::SUBMIT_SUCCESS:
-        {
-            m_FreeHWBuffers -= TXDescriptor->GetUsedBuffersNum();
-            m_DescriptorsInUse.PushBack(TXDescriptor);
-            UpdateTXStats(NB, *TXDescriptor);
-            NB.Report(1, true);
-            break;
-        }
+    case SubmitTxPacketResult::SUBMIT_NO_PLACE_IN_QUEUE: {
+        KickQueueOnOverflow();
+        // Fall-through
+        __fallthrough;
+    }
+    case SubmitTxPacketResult::SUBMIT_PACKET_TOO_LARGE:
+        __fallthrough;
+    case SubmitTxPacketResult::SUBMIT_FAILURE: {
+        m_Descriptors.Push(TXDescriptor);
+        NB.Report(0, false);
+        break;
+    }
+    case SubmitTxPacketResult::SUBMIT_SUCCESS: {
+        m_FreeHWBuffers -= TXDescriptor->GetUsedBuffersNum();
+        m_DescriptorsInUse.PushBack(TXDescriptor);
+        UpdateTXStats(NB, *TXDescriptor);
+        NB.Report(1, true);
+        break;
+    }
     }
 
     return res;
 }
 
-void CTXVirtQueue::ReleaseOneBuffer(CTXDescriptor *TXDescriptor, CRawCNBList& listDone)
+void CTXVirtQueue::ReleaseOneBuffer(CTXDescriptor *TXDescriptor, CRawCNBList &listDone)
 {
     if (!TXDescriptor->GetUsedBuffersNum())
     {
@@ -320,14 +298,14 @@ void CTXVirtQueue::ReleaseOneBuffer(CTXDescriptor *TXDescriptor, CRawCNBList& li
     DPrintf(3, "[%s] Free Tx: desc %d, buff %d\n", __FUNCTION__, m_Descriptors.GetCount(), m_FreeHWBuffers);
 }
 
-UINT CTXVirtQueue::ReleaseTransmitBuffers(CRawCNBList& listDone)
+UINT CTXVirtQueue::ReleaseTransmitBuffers(CRawCNBList &listDone)
 {
     UINT len, i = 0;
     CTXDescriptor *TXDescriptor;
 
     DEBUG_ENTRY(4);
 
-    while(NULL != (TXDescriptor = (CTXDescriptor *) GetBuf(&len)))
+    while (NULL != (TXDescriptor = (CTXDescriptor *)GetBuf(&len)))
     {
         m_DescriptorsInUse.Remove(TXDescriptor);
         ReleaseOneBuffer(TXDescriptor, listDone);
@@ -342,8 +320,8 @@ UINT CTXVirtQueue::ReleaseTransmitBuffers(CRawCNBList& listDone)
     return i;
 }
 
-//TODO: Needs review
-void CTXVirtQueue::ProcessTXCompletions(CRawCNBList& listDone, bool bKill)
+// TODO: Needs review
+void CTXVirtQueue::ProcessTXCompletions(CRawCNBList &listDone, bool bKill)
 {
     if (m_Descriptors.GetCount() < m_TotalDescriptors)
     {
@@ -353,8 +331,7 @@ void CTXVirtQueue::ProcessTXCompletions(CRawCNBList& listDone, bool bKill)
         {
             LPCSTR func = __FUNCTION__;
             m_Killed = true;
-            m_DescriptorsInUse.ForEachDetached([&](CTXDescriptor *TXDescriptor)
-            {
+            m_DescriptorsInUse.ForEachDetached([&](CTXDescriptor *TXDescriptor) {
                 DPrintf(0, "[%s] kill: releasing buffer\n", func);
                 ReleaseOneBuffer(TXDescriptor, listDone);
             });
@@ -366,11 +343,10 @@ void CTXVirtQueue::Shutdown()
 {
     CVirtQueue::Shutdown();
 
-    m_DescriptorsInUse.ForEachDetached([this](CTXDescriptor *TXDescriptor)
-                                           {
-                                                m_Descriptors.Push(TXDescriptor);
-                                                m_FreeHWBuffers += TXDescriptor->GetUsedBuffersNum();
-                                           });
+    m_DescriptorsInUse.ForEachDetached([this](CTXDescriptor *TXDescriptor) {
+        m_Descriptors.Push(TXDescriptor);
+        m_FreeHWBuffers += TXDescriptor->GetUsedBuffersNum();
+    });
 }
 
 SubmitTxPacketResult CTXDescriptor::Enqueue(CTXVirtQueue *Queue, ULONG TotalDescriptors, ULONG FreeDescriptors)
@@ -387,11 +363,7 @@ SubmitTxPacketResult CTXDescriptor::Enqueue(CTXVirtQueue *Queue, ULONG TotalDesc
         return SubmitTxPacketResult::SUBMIT_NO_PLACE_IN_QUEUE;
     }
 
-    if (0 <= Queue->AddBuf(m_VirtioSGL,
-                           m_CurrVirtioSGLEntry,
-                           0,
-                           this,
-                           m_IndirectArea.GetVA(),
+    if (0 <= Queue->AddBuf(m_VirtioSGL, m_CurrVirtioSGLEntry, 0, this, m_IndirectArea.GetVA(),
                            m_IndirectArea.GetPA().QuadPart))
     {
         return SubmitTxPacketResult::SUBMIT_SUCCESS;
@@ -422,15 +394,13 @@ bool CTXDescriptor::SetupHeaders(ULONG ParsedHeadersLength)
     {
         if (m_AnyLayout)
         {
-            return AddDataChunk(m_Headers.VirtioHeaderPA(), m_Headers.VirtioHeaderLength() +
-                                ParsedHeadersLength);
+            return AddDataChunk(m_Headers.VirtioHeaderPA(), m_Headers.VirtioHeaderLength() + ParsedHeadersLength);
         }
         else
         {
             return AddDataChunk(m_Headers.VirtioHeaderPA(), m_Headers.VirtioHeaderLength()) &&
                    AddDataChunk(m_Headers.EthHeaderPA(), ParsedHeadersLength);
         }
-
     }
     else
     {
@@ -460,20 +430,20 @@ bool CTXHeaders::Allocate()
         auto PA = m_HeadersBuffer.GetPA();
         ULONG prioSize = ALIGN_UP(ETH_PRIORITY_HEADER_SIZE, ULONGLONG);
 
-        //Headers buffer layout:
-        //    Priority header
-        //    Virtio header
-        //    Ethernet headers
+        // Headers buffer layout:
+        //     Priority header
+        //     Virtio header
+        //     Ethernet headers
 
-        m_VlanHeaderVA   = VA;
+        m_VlanHeaderVA = VA;
         m_VirtioHeaderVA = RtlOffsetToPointer(m_VlanHeaderVA, prioSize);
-        m_EthHeaderVA    = RtlOffsetToPointer(m_VirtioHeaderVA, m_VirtioHdrSize);
-        m_IPHeadersVA    = RtlOffsetToPointer(m_EthHeaderVA, ETH_HEADER_SIZE);
+        m_EthHeaderVA = RtlOffsetToPointer(m_VirtioHeaderVA, m_VirtioHdrSize);
+        m_IPHeadersVA = RtlOffsetToPointer(m_EthHeaderVA, ETH_HEADER_SIZE);
 
         m_VirtioHeaderPA.QuadPart = PA.QuadPart + RtlPointerToOffset(VA, m_VirtioHeaderVA);
-        m_VlanHeaderPA.QuadPart   = PA.QuadPart + RtlPointerToOffset(VA, m_VlanHeaderVA);
-        m_EthHeaderPA.QuadPart    = PA.QuadPart + RtlPointerToOffset(VA, m_EthHeaderVA);
-        m_IPHeadersPA.QuadPart    = PA.QuadPart + RtlPointerToOffset(VA, m_IPHeadersVA);
+        m_VlanHeaderPA.QuadPart = PA.QuadPart + RtlPointerToOffset(VA, m_VlanHeaderVA);
+        m_EthHeaderPA.QuadPart = PA.QuadPart + RtlPointerToOffset(VA, m_EthHeaderVA);
+        m_IPHeadersPA.QuadPart = PA.QuadPart + RtlPointerToOffset(VA, m_IPHeadersVA);
 
         m_MaxEthHeadersSize = m_HeadersBuffer.GetSize() - prioSize - m_VirtioHdrSize;
 

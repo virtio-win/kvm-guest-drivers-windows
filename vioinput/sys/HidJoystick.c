@@ -30,9 +30,9 @@
  * SUCH DAMAGE.
  */
 
+#include "Hid.h"
 #include "precomp.h"
 #include "vioinput.h"
-#include "Hid.h"
 
 #if defined(EVENT_TRACING)
 #include "HidJoystick.tmh"
@@ -54,17 +54,14 @@ typedef struct _tagInputClassJoystick
     // * buttons; one bit per button followed by padding to the nearest whole byte
 
     // number of buttons supported by the HID report
-    ULONG  uNumOfButtons;
+    ULONG uNumOfButtons;
     // length of axis data
     SIZE_T cbAxisLen;
     // mapping from EVDEV axis codes to HID axis offsets
     PULONG pAxisMap;
 } INPUT_CLASS_JOYSTICK, *PINPUT_CLASS_JOYSTICK;
 
-static NTSTATUS
-HIDJoystickEventToReport(
-    PINPUT_CLASS_COMMON pClass,
-    PVIRTIO_INPUT_EVENT pEvent)
+static NTSTATUS HIDJoystickEventToReport(PINPUT_CLASS_COMMON pClass, PVIRTIO_INPUT_EVENT pEvent)
 {
     PUCHAR pReport = pClass->pHidReport;
     PINPUT_CLASS_JOYSTICK pJoystickDesc = (PINPUT_CLASS_JOYSTICK)pClass;
@@ -116,9 +113,7 @@ HIDJoystickEventToReport(
     return STATUS_SUCCESS;
 }
 
-static VOID
-HIDJoystickCleanup(
-    PINPUT_CLASS_COMMON pClass)
+static VOID HIDJoystickCleanup(PINPUT_CLASS_COMMON pClass)
 {
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
 
@@ -128,29 +123,22 @@ HIDJoystickCleanup(
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
 }
 
-static VOID
-HIDJoystickAxisMapAppend(
-    PDYNAMIC_ARRAY pAxisMap,
-    ULONG uCode,
-    SIZE_T uAxisIndex)
+static VOID HIDJoystickAxisMapAppend(PDYNAMIC_ARRAY pAxisMap, ULONG uCode, SIZE_T uAxisIndex)
 {
     DynamicArrayAppend(pAxisMap, &uCode, sizeof(ULONG));
     DynamicArrayAppend(pAxisMap, &uAxisIndex, sizeof(ULONG));
 }
 
 NTSTATUS
-HIDJoystickProbe(
-    PINPUT_DEVICE pContext,
-    PDYNAMIC_ARRAY pHidDesc,
-    PVIRTIO_INPUT_CFG_DATA pAxes,
-    PVIRTIO_INPUT_CFG_DATA pButtons)
+HIDJoystickProbe(PINPUT_DEVICE pContext, PDYNAMIC_ARRAY pHidDesc, PVIRTIO_INPUT_CFG_DATA pAxes,
+                 PVIRTIO_INPUT_CFG_DATA pButtons)
 {
     PINPUT_CLASS_JOYSTICK pJoystickDesc = NULL;
     NTSTATUS status = STATUS_SUCCESS;
     UCHAR i, uValue;
     SIZE_T cbButtonBytes;
     ULONG uNumOfAbsAxes = 0, uNumOfButtons = 0;
-    DYNAMIC_ARRAY AxisMap = { NULL };
+    DYNAMIC_ARRAY AxisMap = {NULL};
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
 
@@ -215,20 +203,53 @@ HIDJoystickProbe(
 
             switch (uAbsCode)
             {
-            case ABS_X: uAxisCode = HID_USAGE_GENERIC_X; break;
-            case ABS_Y: uAxisCode = HID_USAGE_GENERIC_Y; break;
-            case ABS_Z: uAxisCode = HID_USAGE_GENERIC_Z; break;
-            case ABS_RX: uAxisCode = HID_USAGE_GENERIC_RX; break;
-            case ABS_RY: uAxisCode = HID_USAGE_GENERIC_RY; break;
-            case ABS_RZ: uAxisCode = HID_USAGE_GENERIC_RZ; break;
-            case ABS_TILT_X: uAxisCode = HID_USAGE_GENERIC_VX; break;
-            case ABS_TILT_Y: uAxisCode = HID_USAGE_GENERIC_VY; break;
-            case ABS_MISC: uAxisCode = HID_USAGE_GENERIC_SLIDER; break;
-            case ABS_THROTTLE: bSimulationPage = TRUE; uAxisCode = HID_USAGE_SIMULATION_THROTTLE; break;
-            case ABS_RUDDER:   bSimulationPage = TRUE; uAxisCode = HID_USAGE_SIMULATION_RUDDER; break;
-            case ABS_BRAKE:    bSimulationPage = TRUE; uAxisCode = HID_USAGE_SIMULATION_BRAKE; break;
-            case ABS_WHEEL:    bSimulationPage = TRUE; uAxisCode = HID_USAGE_SIMULATION_STEERING; break;
-            case ABS_GAS:      bSimulationPage = TRUE; uAxisCode = HID_USAGE_SIMULATION_ACCELERATOR; break;
+            case ABS_X:
+                uAxisCode = HID_USAGE_GENERIC_X;
+                break;
+            case ABS_Y:
+                uAxisCode = HID_USAGE_GENERIC_Y;
+                break;
+            case ABS_Z:
+                uAxisCode = HID_USAGE_GENERIC_Z;
+                break;
+            case ABS_RX:
+                uAxisCode = HID_USAGE_GENERIC_RX;
+                break;
+            case ABS_RY:
+                uAxisCode = HID_USAGE_GENERIC_RY;
+                break;
+            case ABS_RZ:
+                uAxisCode = HID_USAGE_GENERIC_RZ;
+                break;
+            case ABS_TILT_X:
+                uAxisCode = HID_USAGE_GENERIC_VX;
+                break;
+            case ABS_TILT_Y:
+                uAxisCode = HID_USAGE_GENERIC_VY;
+                break;
+            case ABS_MISC:
+                uAxisCode = HID_USAGE_GENERIC_SLIDER;
+                break;
+            case ABS_THROTTLE:
+                bSimulationPage = TRUE;
+                uAxisCode = HID_USAGE_SIMULATION_THROTTLE;
+                break;
+            case ABS_RUDDER:
+                bSimulationPage = TRUE;
+                uAxisCode = HID_USAGE_SIMULATION_RUDDER;
+                break;
+            case ABS_BRAKE:
+                bSimulationPage = TRUE;
+                uAxisCode = HID_USAGE_SIMULATION_BRAKE;
+                break;
+            case ABS_WHEEL:
+                bSimulationPage = TRUE;
+                uAxisCode = HID_USAGE_SIMULATION_STEERING;
+                break;
+            case ABS_GAS:
+                bSimulationPage = TRUE;
+                uAxisCode = HID_USAGE_SIMULATION_ACCELERATOR;
+                break;
             }
 
             if (uAxisCode != 0)
@@ -236,8 +257,8 @@ HIDJoystickProbe(
                 struct virtio_input_absinfo AbsInfo;
                 GetAbsAxisInfo(pContext, uAbsCode, &AbsInfo);
 
-                TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Got joystick axis %d, min %d, max %d\n",
-                            uAxisCode, AbsInfo.min, AbsInfo.max);
+                TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Got joystick axis %d, min %d, max %d\n", uAxisCode,
+                            AbsInfo.min, AbsInfo.max);
 
                 // some of the supported axes are on the generic page, some on the simulation page
                 if (bSimulationPage)
@@ -302,15 +323,12 @@ HIDJoystickProbe(
     HIDAppend1(pHidDesc, HID_TAG_END_COLLECTION);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT,
-                "Created HID joystick report descriptor with %d axes and %d buttons\n",
-                uNumOfAbsAxes,
-                uNumOfButtons);
+                "Created HID joystick report descriptor with %d axes and %d buttons\n", uNumOfAbsAxes, uNumOfButtons);
 
     // calculate the joystick HID report size
-    pJoystickDesc->Common.cbHidReportSize =
-        1ll +                 // report ID
-        uNumOfAbsAxes * 4ll + // axes
-        cbButtonBytes;      // buttons
+    pJoystickDesc->Common.cbHidReportSize = 1ll +                 // report ID
+                                            uNumOfAbsAxes * 4ll + // axes
+                                            cbButtonBytes;        // buttons
 
     // register the joystick class
     status = RegisterClass(pContext, &pJoystickDesc->Common);

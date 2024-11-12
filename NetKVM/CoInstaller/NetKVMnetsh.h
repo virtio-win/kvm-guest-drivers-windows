@@ -13,20 +13,20 @@
 #endif
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
-DWORD NETCO_API InitHelperDll(__in DWORD dwNetshVersion,
-                                   PVOID pReserved);
+    DWORD NETCO_API InitHelperDll(__in DWORD dwNetshVersion, PVOID pReserved);
 
-//Register NetKVM NetSH helper in NetSH framework
-//Returns ERROR_SUCCESS or corresponding error value
-//WARNING: Uses DLL file pathname,
-//         must be called after DLL copied to its final location
-DWORD NETCO_API RegisterNetKVMNetShHelper(void);
-//Unregister RedHat NetSH helper
-//Returns ERROR_SUCCESS or corresponding error value
-DWORD NETCO_API UnregisterNetKVMNetShHelper(void);
+    // Register NetKVM NetSH helper in NetSH framework
+    // Returns ERROR_SUCCESS or corresponding error value
+    // WARNING: Uses DLL file pathname,
+    //          must be called after DLL copied to its final location
+    DWORD NETCO_API RegisterNetKVMNetShHelper(void);
+    // Unregister RedHat NetSH helper
+    // Returns ERROR_SUCCESS or corresponding error value
+    DWORD NETCO_API UnregisterNetKVMNetShHelper(void);
 
 #ifdef __cplusplus
 } // extern "C"

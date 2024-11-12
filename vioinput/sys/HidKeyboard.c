@@ -30,9 +30,9 @@
  * SUCH DAMAGE.
  */
 
+#include "Hid.h"
 #include "precomp.h"
 #include "vioinput.h"
-#include "Hid.h"
 
 #if defined(EVENT_TRACING)
 #include "HidKeyboard.tmh"
@@ -65,53 +65,67 @@ typedef struct _tagInputClassKeyboard
     PUCHAR pLastOutputReport;
 } INPUT_CLASS_KEYBOARD, *PINPUT_CLASS_KEYBOARD;
 
-static UCHAR
-HIDLEDEventCodeToUsageCode(
-    USHORT uEventCode)
+static UCHAR HIDLEDEventCodeToUsageCode(USHORT uEventCode)
 {
     switch (uEventCode)
     {
-    case LED_NUML:     return HID_USAGE_LED_NUM_LOCK;
-    case LED_CAPSL:    return HID_USAGE_LED_CAPS_LOCK;
-    case LED_SCROLLL:  return HID_USAGE_LED_SCROLL_LOCK;
-    case LED_COMPOSE:  return HID_USAGE_LED_COMPOSE;
-    case LED_KANA:     return HID_USAGE_LED_KANA;
-    case LED_SLEEP:    return HID_USAGE_LED_STAND_BY;
-    case LED_SUSPEND:  return HID_USAGE_LED_SYSTEM_SUSPEND;
-    case LED_MUTE:     return HID_USAGE_LED_MUTE;
-    case LED_MISC:     return HID_USAGE_LED_GENERIC_INDICATOR;
-    case LED_MAIL:     return HID_USAGE_LED_MESSAGE_WAITING;
-    case LED_CHARGING: return HID_USAGE_LED_EXTERNAL_POWER_CONNECTED;
+    case LED_NUML:
+        return HID_USAGE_LED_NUM_LOCK;
+    case LED_CAPSL:
+        return HID_USAGE_LED_CAPS_LOCK;
+    case LED_SCROLLL:
+        return HID_USAGE_LED_SCROLL_LOCK;
+    case LED_COMPOSE:
+        return HID_USAGE_LED_COMPOSE;
+    case LED_KANA:
+        return HID_USAGE_LED_KANA;
+    case LED_SLEEP:
+        return HID_USAGE_LED_STAND_BY;
+    case LED_SUSPEND:
+        return HID_USAGE_LED_SYSTEM_SUSPEND;
+    case LED_MUTE:
+        return HID_USAGE_LED_MUTE;
+    case LED_MISC:
+        return HID_USAGE_LED_GENERIC_INDICATOR;
+    case LED_MAIL:
+        return HID_USAGE_LED_MESSAGE_WAITING;
+    case LED_CHARGING:
+        return HID_USAGE_LED_EXTERNAL_POWER_CONNECTED;
     }
     return 0;
 }
 
-static USHORT
-HIDLEDUsageCodeToEventCode(
-    ULONG uCode)
+static USHORT HIDLEDUsageCodeToEventCode(ULONG uCode)
 {
     switch (uCode)
     {
-    case HID_USAGE_LED_NUM_LOCK:                 return LED_NUML;
-    case HID_USAGE_LED_CAPS_LOCK:                return LED_CAPSL;
-    case HID_USAGE_LED_SCROLL_LOCK:              return LED_SCROLLL;
-    case HID_USAGE_LED_COMPOSE:                  return LED_COMPOSE;
-    case HID_USAGE_LED_KANA:                     return LED_KANA;
-    case HID_USAGE_LED_STAND_BY:                 return LED_SLEEP;
-    case HID_USAGE_LED_SYSTEM_SUSPEND:           return LED_SUSPEND;
-    case HID_USAGE_LED_MUTE:                     return LED_MUTE;
-    case HID_USAGE_LED_GENERIC_INDICATOR:        return LED_MISC;
-    case HID_USAGE_LED_MESSAGE_WAITING:          return LED_MAIL;
-    case HID_USAGE_LED_EXTERNAL_POWER_CONNECTED: return LED_CHARGING;
+    case HID_USAGE_LED_NUM_LOCK:
+        return LED_NUML;
+    case HID_USAGE_LED_CAPS_LOCK:
+        return LED_CAPSL;
+    case HID_USAGE_LED_SCROLL_LOCK:
+        return LED_SCROLLL;
+    case HID_USAGE_LED_COMPOSE:
+        return LED_COMPOSE;
+    case HID_USAGE_LED_KANA:
+        return LED_KANA;
+    case HID_USAGE_LED_STAND_BY:
+        return LED_SLEEP;
+    case HID_USAGE_LED_SYSTEM_SUSPEND:
+        return LED_SUSPEND;
+    case HID_USAGE_LED_MUTE:
+        return LED_MUTE;
+    case HID_USAGE_LED_GENERIC_INDICATOR:
+        return LED_MISC;
+    case HID_USAGE_LED_MESSAGE_WAITING:
+        return LED_MAIL;
+    case HID_USAGE_LED_EXTERNAL_POWER_CONNECTED:
+        return LED_CHARGING;
     }
     return 0xFF;
 }
 
-static VOID
-HIDKeyboardEventKeyToReportKey(
-    PINPUT_CLASS_KEYBOARD pKeyboardDesc,
-    UCHAR uCode,
-    ULONG uValue)
+static VOID HIDKeyboardEventKeyToReportKey(PINPUT_CLASS_KEYBOARD pKeyboardDesc, UCHAR uCode, ULONG uValue)
 {
     PUCHAR pKeyArray = pKeyboardDesc->Common.pHidReport + HID_REPORT_DATA_OFFSET + 2;
     BOOLEAN bPressed = FALSE, bReleased = FALSE;
@@ -159,10 +173,10 @@ HIDKeyboardEventKeyToReportKey(
         else if (pKeyboardDesc->nKeysPressed == HID_KEYBOARD_KEY_SLOTS + 1)
         {
             // we just got into the "rolled over" state
-#pragma warning (push)
-#pragma warning (disable:28625) // C28625 heuristic triggered by "key" in the variable name
+#pragma warning(push)
+#pragma warning(disable : 28625) // C28625 heuristic triggered by "key" in the variable name
             RtlFillMemory(pKeyArray, HID_KEYBOARD_KEY_SLOTS, HID_USAGE_KEYBOARD_ROLLOVER);
-#pragma warning (pop)
+#pragma warning(pop)
         }
     }
     else if (bReleased)
@@ -198,10 +212,7 @@ HIDKeyboardEventKeyToReportKey(
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
 }
 
-static NTSTATUS
-HIDKeyboardEventToReport(
-    PINPUT_CLASS_COMMON pClass,
-    PVIRTIO_INPUT_EVENT pEvent)
+static NTSTATUS HIDKeyboardEventToReport(PINPUT_CLASS_COMMON pClass, PVIRTIO_INPUT_EVENT pEvent)
 {
     PUCHAR pReport = pClass->pHidReport;
     PINPUT_CLASS_KEYBOARD pKeyboardDesc = (PINPUT_CLASS_KEYBOARD)pClass;
@@ -237,13 +248,8 @@ HIDKeyboardEventToReport(
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS
-HIDKeyboardSendStatus(
-    PINPUT_DEVICE pContext,
-    USHORT uType,
-    USHORT uCode,
-    ULONG uValue,
-    WDFREQUEST Request)
+static NTSTATUS HIDKeyboardSendStatus(PINPUT_DEVICE pContext, USHORT uType, USHORT uCode, ULONG uValue,
+                                      WDFREQUEST Request)
 {
     PVIRTIO_INPUT_EVENT_WITH_REQUEST pEvent;
     NTSTATUS status;
@@ -276,13 +282,8 @@ HIDKeyboardSendStatus(
     return status;
 }
 
-static NTSTATUS
-HIDKeyboardReportToEvent(
-    PINPUT_CLASS_COMMON pClass,
-    PINPUT_DEVICE pContext,
-    WDFREQUEST Request,
-    PUCHAR pReport,
-    ULONG cbReport)
+static NTSTATUS HIDKeyboardReportToEvent(PINPUT_CLASS_COMMON pClass, PINPUT_DEVICE pContext, WDFREQUEST Request,
+                                         PUCHAR pReport, ULONG cbReport)
 {
     PINPUT_CLASS_KEYBOARD pKeyboardDesc = (PINPUT_CLASS_KEYBOARD)pClass;
     USHORT uPendingLedCode = 0xFF;
@@ -319,8 +320,7 @@ HIDKeyboardReportToEvent(
                 if (uPendingLedCode != 0xFF)
                 {
                     // send the pending LED change to the host
-                    status = HIDKeyboardSendStatus(pContext, EV_LED, uPendingLedCode,
-                                                   uShortPendingLedValue, NULL);
+                    status = HIDKeyboardSendStatus(pContext, EV_LED, uPendingLedCode, uShortPendingLedValue, NULL);
                     if (!NT_SUCCESS(status))
                     {
                         return status;
@@ -335,15 +335,13 @@ HIDKeyboardReportToEvent(
     // send the last pending LED change; this one will complete the request
     if (uPendingLedCode != 0xFF)
     {
-        status = HIDKeyboardSendStatus(pContext, EV_LED, uPendingLedCode,
-                                       uShortPendingLedValue, Request);
+        status = HIDKeyboardSendStatus(pContext, EV_LED, uPendingLedCode, uShortPendingLedValue, Request);
     }
 
     if (NT_SUCCESS(status))
     {
         // save this report
-        RtlCopyMemory(pKeyboardDesc->pLastOutputReport, pReport,
-                      pKeyboardDesc->cbOutputReport);
+        RtlCopyMemory(pKeyboardDesc->pLastOutputReport, pReport, pKeyboardDesc->cbOutputReport);
     }
     if (uPendingLedCode == 0xFF)
     {
@@ -355,9 +353,7 @@ HIDKeyboardReportToEvent(
     return status;
 }
 
-static VOID
-HIDKeyboardCleanup(
-    PINPUT_CLASS_COMMON pClass)
+static VOID HIDKeyboardCleanup(PINPUT_CLASS_COMMON pClass)
 {
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
 
@@ -369,11 +365,8 @@ HIDKeyboardCleanup(
 }
 
 NTSTATUS
-HIDKeyboardProbe(
-    PINPUT_DEVICE pContext,
-    PDYNAMIC_ARRAY pHidDesc,
-    PVIRTIO_INPUT_CFG_DATA pKeys,
-    PVIRTIO_INPUT_CFG_DATA pLeds)
+HIDKeyboardProbe(PINPUT_DEVICE pContext, PDYNAMIC_ARRAY pHidDesc, PVIRTIO_INPUT_CFG_DATA pKeys,
+                 PVIRTIO_INPUT_CFG_DATA pLeds)
 {
     PINPUT_CLASS_KEYBOARD pKeyboardDesc = NULL;
     NTSTATUS status = STATUS_SUCCESS;
@@ -482,16 +475,13 @@ HIDKeyboardProbe(
         if (uNumOfLEDs % 8)
         {
             HIDAppend2(pHidDesc, HID_TAG_REPORT_COUNT, 0x01);
-            HIDAppend2(pHidDesc, HID_TAG_REPORT_SIZE,
-                       (ULONG)(pKeyboardDesc->cbOutputReport * 8) - uNumOfLEDs);
+            HIDAppend2(pHidDesc, HID_TAG_REPORT_SIZE, (ULONG)(pKeyboardDesc->cbOutputReport * 8) - uNumOfLEDs);
             HIDAppend2(pHidDesc, HID_TAG_OUTPUT, HID_DATA_FLAG_CONSTANT);
         }
 
         // allocate and initialize a buffer holding the last seen output report
-        pKeyboardDesc->pLastOutputReport = ExAllocatePoolUninitialized(
-            NonPagedPool,
-            pKeyboardDesc->cbOutputReport,
-            VIOINPUT_DRIVER_MEMORY_TAG);
+        pKeyboardDesc->pLastOutputReport =
+            ExAllocatePoolUninitialized(NonPagedPool, pKeyboardDesc->cbOutputReport, VIOINPUT_DRIVER_MEMORY_TAG);
         if (pKeyboardDesc->pLastOutputReport == NULL)
         {
             return STATUS_INSUFFICIENT_RESOURCES;
@@ -520,16 +510,12 @@ HIDKeyboardProbe(
         goto Exit;
     }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT,
-                "Created HID keyboard report descriptor with %d keys and %d LEDs\n",
-                uMaxKey + 1,
-                bGotLed ? (uMaxLed + 1) : 0);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Created HID keyboard report descriptor with %d keys and %d LEDs\n",
+                uMaxKey + 1, bGotLed ? (uMaxLed + 1) : 0);
 
     // calculate the keyboard HID report size
-    pKeyboardDesc->Common.cbHidReportSize =
-        HID_REPORT_DATA_OFFSET +
-        2 + // modifiers and padding
-        HID_KEYBOARD_KEY_SLOTS;
+    pKeyboardDesc->Common.cbHidReportSize = HID_REPORT_DATA_OFFSET + 2 + // modifiers and padding
+                                            HID_KEYBOARD_KEY_SLOTS;
 
     // register the keyboard class
     status = RegisterClass(pContext, &pKeyboardDesc->Common);

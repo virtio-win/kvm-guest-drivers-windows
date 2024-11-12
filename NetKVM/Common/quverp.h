@@ -26,20 +26,20 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-#include <windows.h>
 #include <ntverp.h>
+#include <windows.h>
 
 #include "..\..\build\vendor.ver"
 
 #undef __BUILDMACHINE__
 
-#undef  VER_FILEDESCRIPTION_STR
-#undef  VER_INTERNALNAME_STR
+#undef VER_FILEDESCRIPTION_STR
+#undef VER_INTERNALNAME_STR
 
 #define VER_LANGNEUTRAL
 
-#define VENDOR_VIRTIO_PRODUCT       VENDOR_PRODUCT_PREFIX "VirtIO Ethernet Adapter"
-#define VER_FILEDESCRIPTION_STR     VENDOR_DESC_PREFIX "NDIS Miniport Driver" VENDOR_DESC_POSTFIX
-#define VER_INTERNALNAME_STR        "netkvm.sys"
+#define VENDOR_VIRTIO_PRODUCT VENDOR_PRODUCT_PREFIX "VirtIO Ethernet Adapter"
+#define VER_FILEDESCRIPTION_STR VENDOR_DESC_PREFIX "NDIS Miniport Driver" VENDOR_DESC_POSTFIX
+#define VER_INTERNALNAME_STR "netkvm.sys"
 
 #include "common.ver"

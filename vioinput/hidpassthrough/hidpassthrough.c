@@ -29,21 +29,19 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-#include <wdm.h>
-#include <hidport.h>
 #include "pdo.h"
+#include <hidport.h>
+#include <wdm.h>
 
 static DRIVER_ADD_DEVICE HidPassthroughAddDevice;
-static DRIVER_UNLOAD     HidPassthroughUnload;
+static DRIVER_UNLOAD HidPassthroughUnload;
 
 static _Dispatch_type_(IRP_MJ_POWER) DRIVER_DISPATCH HidPassthroughDispatchPower;
 static _Dispatch_type_(IRP_MJ_OTHER) DRIVER_DISPATCH HidPassthroughDispatch;
 
 DRIVER_INITIALIZE DriverEntry;
 
-static NTSTATUS
-HidPassthroughAddDevice(_In_ PDRIVER_OBJECT DriverObject,
-                        _In_ PDEVICE_OBJECT FunctionalDeviceObject)
+static NTSTATUS HidPassthroughAddDevice(_In_ PDRIVER_OBJECT DriverObject, _In_ PDEVICE_OBJECT FunctionalDeviceObject)
 {
     UNREFERENCED_PARAMETER(DriverObject);
     FunctionalDeviceObject->Flags &= ~DO_DEVICE_INITIALIZING;
@@ -51,15 +49,12 @@ HidPassthroughAddDevice(_In_ PDRIVER_OBJECT DriverObject,
     return STATUS_SUCCESS;
 }
 
-static void
-HidPassthroughUnload(_In_ PDRIVER_OBJECT DriverObject)
+static void HidPassthroughUnload(_In_ PDRIVER_OBJECT DriverObject)
 {
     UNREFERENCED_PARAMETER(DriverObject);
 }
 
-static NTSTATUS
-HidPassthroughDispatch(_In_    PDEVICE_OBJECT  DeviceObject,
-                       _Inout_ PIRP            Irp)
+static NTSTATUS HidPassthroughDispatch(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp)
 {
     PHID_DEVICE_EXTENSION ext = DeviceObject->DeviceExtension;
 
@@ -67,10 +62,7 @@ HidPassthroughDispatch(_In_    PDEVICE_OBJECT  DeviceObject,
     return IoCallDriver(ext->NextDeviceObject, Irp);
 }
 
-
-static NTSTATUS
-HidPassthroughDispatchPower(_In_    PDEVICE_OBJECT  DeviceObject,
-                            _Inout_ PIRP            Irp)
+static NTSTATUS HidPassthroughDispatchPower(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp)
 {
     PHID_DEVICE_EXTENSION ext = DeviceObject->DeviceExtension;
 
@@ -79,10 +71,8 @@ HidPassthroughDispatchPower(_In_    PDEVICE_OBJECT  DeviceObject,
     return PoCallDriver(ext->NextDeviceObject, Irp);
 }
 
-_Dispatch_type_(IRP_MJ_INTERNAL_DEVICE_CONTROL)
-static NTSTATUS
-HidPassthroughDispatchIoctl(_In_    PDEVICE_OBJECT  DeviceObject,
-                            _Inout_ PIRP            Irp)
+_Dispatch_type_(IRP_MJ_INTERNAL_DEVICE_CONTROL) static NTSTATUS
+    HidPassthroughDispatchIoctl(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp)
 {
     PHID_DEVICE_EXTENSION ext = DeviceObject->DeviceExtension;
     PPDO_EXTENSION ext_pdo = (PPDO_EXTENSION)ext->PhysicalDeviceObject->DeviceExtension;
@@ -92,8 +82,7 @@ HidPassthroughDispatchIoctl(_In_    PDEVICE_OBJECT  DeviceObject,
 }
 
 NTSTATUS
-DriverEntry (_In_ PDRIVER_OBJECT  DriverObject,
-             _In_ PUNICODE_STRING RegistryPath)
+DriverEntry(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING RegistryPath)
 {
     HID_MINIDRIVER_REGISTRATION hid;
     int i;
@@ -104,21 +93,27 @@ DriverEntry (_In_ PDRIVER_OBJECT  DriverObject,
      * IRP_MJ_INTERNAL_DEVICE_CONTROL is forwarded to the
      * parent device to handle HID IOCTLs.
      */
-    for (i = 0; i <= IRP_MJ_MAXIMUM_FUNCTION; i++) {
-        if (i == IRP_MJ_INTERNAL_DEVICE_CONTROL) {
-           DriverObject->MajorFunction[i] = HidPassthroughDispatchIoctl;
-        } else if (i == IRP_MJ_POWER) {
-           DriverObject->MajorFunction[i] = HidPassthroughDispatchPower;
-        } else {
-           DriverObject->MajorFunction[i] = HidPassthroughDispatch;
+    for (i = 0; i <= IRP_MJ_MAXIMUM_FUNCTION; i++)
+    {
+        if (i == IRP_MJ_INTERNAL_DEVICE_CONTROL)
+        {
+            DriverObject->MajorFunction[i] = HidPassthroughDispatchIoctl;
+        }
+        else if (i == IRP_MJ_POWER)
+        {
+            DriverObject->MajorFunction[i] = HidPassthroughDispatchPower;
+        }
+        else
+        {
+            DriverObject->MajorFunction[i] = HidPassthroughDispatch;
         }
     }
 
     DriverObject->DriverExtension->AddDevice = HidPassthroughAddDevice;
-    DriverObject->DriverUnload               = HidPassthroughUnload;
+    DriverObject->DriverUnload = HidPassthroughUnload;
 
     RtlZeroMemory(&hid, sizeof(HID_MINIDRIVER_REGISTRATION));
-    hid.Revision     = HID_REVISION;
+    hid.Revision = HID_REVISION;
     hid.DriverObject = DriverObject;
     hid.RegistryPath = RegistryPath;
 

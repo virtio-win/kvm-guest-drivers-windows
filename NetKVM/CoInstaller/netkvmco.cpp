@@ -27,20 +27,25 @@
  * SUCH DAMAGE.
  */
 
-#include "stdafx.h"
 #include "NetKVMCo.h"
-#define _ATL_CSTRING_EXPLICIT_CONSTRUCTORS      // some CString constructors will be explicit
-#include <atlstr.h>
+#include "stdafx.h"
+#define _ATL_CSTRING_EXPLICIT_CONSTRUCTORS // some CString constructors will be explicit
 #include <atlcoll.h>
+#include <atlstr.h>
 
-#define Log(fmt, ...) { CStringA _s_; _s_.Format(fmt "\n", __VA_ARGS__); OutputDebugStringA(_s_); }
+#define Log(fmt, ...)                                                                                                  \
+    {                                                                                                                  \
+        CStringA _s_;                                                                                                  \
+        _s_.Format(fmt "\n", __VA_ARGS__);                                                                             \
+        OutputDebugStringA(_s_);                                                                                       \
+    }
 
 static NS_CONTEXT_ATTRIBUTES Ctx;
 
 class CArguments : public CAtlArray<LPWSTR>
 {
-public:
-    CArguments(int argc, char** argv)
+  public:
+    CArguments(int argc, char **argv)
     {
         for (int i = 0; i < argc; ++i)
         {
@@ -58,9 +63,13 @@ public:
             delete[] (GetAt(i));
         }
     }
-    LPWSTR *GetCopy() { return m_Copy.GetData(); }
-protected:
-    void Add(const char* s)
+    LPWSTR *GetCopy()
+    {
+        return m_Copy.GetData();
+    }
+
+  protected:
+    void Add(const char *s)
     {
         size_t len = strlen(s) + 1;
         LPWSTR ws = new WCHAR[len];
@@ -71,10 +80,13 @@ protected:
         __super::Add(ws);
     }
     CAtlArray<LPWSTR> m_Copy;
-    LPWSTR* GetData() { return __super::GetData(); }
+    LPWSTR *GetData()
+    {
+        return __super::GetData();
+    }
 };
 
-static bool IsEqual(const char* Str, LPCWSTR Ws)
+static bool IsEqual(const char *Str, LPCWSTR Ws)
 {
     while (*Str && *Ws)
     {
@@ -86,16 +98,16 @@ static bool IsEqual(const char* Str, LPCWSTR Ws)
     return *Str == *Ws;
 }
 
-static bool FindToken(const char* Token, PCMD_ENTRY& Cmd, ULONG& Size)
+static bool FindToken(const char *Token, PCMD_ENTRY &Cmd, ULONG &Size)
 {
     if (Ctx.ulNumGroups)
     {
         for (ULONG i = 0; i < Ctx.ulNumGroups; ++i)
         {
-            auto& group = (*Ctx.pCmdGroups)[i];
+            auto &group = (*Ctx.pCmdGroups)[i];
             if (IsEqual(Token, group.pwszCmdGroupToken))
             {
-                Cmd  = group.pCmdGroup;
+                Cmd = group.pCmdGroup;
                 Size = group.ulCmdGroupSize;
                 return true;
             }
@@ -105,7 +117,7 @@ static bool FindToken(const char* Token, PCMD_ENTRY& Cmd, ULONG& Size)
     {
         for (ULONG i = 0; i < Ctx.ulNumTopCmds; ++i)
         {
-            auto& cmd = (*Ctx.pTopCmds)[i];
+            auto &cmd = (*Ctx.pTopCmds)[i];
             if (IsEqual(Token, cmd.pwszCmdToken))
             {
                 Cmd = &cmd;
@@ -139,7 +151,7 @@ void PrintMessageFromModule(HMODULE, UINT ResourceId)
 
 // example: prefix='Idx'
 // looks for 'Idx=' and shifts Str to remove it
-static bool FindRemovePrefix(LPWSTR& Str, LPCWSTR Prefix)
+static bool FindRemovePrefix(LPWSTR &Str, LPCWSTR Prefix)
 {
     CString s = Str, p = Prefix;
     p += '=';
@@ -153,9 +165,8 @@ static bool FindRemovePrefix(LPWSTR& Str, LPCWSTR Prefix)
     return false;
 }
 
-DWORD PreprocessCommand(HANDLE, LPWSTR* ppwcArguments, DWORD dwCurrentIndex,
-    DWORD dwArgCount, TAG_TYPE* pttTags, DWORD dwTagCount, DWORD dwMinArgs,
-    DWORD dwMaxArgs, DWORD* pdwTagType)
+DWORD PreprocessCommand(HANDLE, LPWSTR *ppwcArguments, DWORD dwCurrentIndex, DWORD dwArgCount, TAG_TYPE *pttTags,
+                        DWORD dwTagCount, DWORD dwMinArgs, DWORD dwMaxArgs, DWORD *pdwTagType)
 {
     Log("%s: idx %d, args %d, %d ... %d", __FUNCTION__, dwCurrentIndex, dwArgCount, dwMinArgs, dwMaxArgs);
     if ((dwArgCount - dwCurrentIndex) < dwMinArgs)
@@ -177,7 +188,7 @@ DWORD PreprocessCommand(HANDLE, LPWSTR* ppwcArguments, DWORD dwCurrentIndex,
     return ERROR_INVALID_PARAMETER;
 }
 
-DWORD RegisterContext(IN CONST NS_CONTEXT_ATTRIBUTES* pChildContext)
+DWORD RegisterContext(IN CONST NS_CONTEXT_ATTRIBUTES *pChildContext)
 {
     Ctx = *pChildContext;
     return NO_ERROR;
@@ -186,8 +197,10 @@ DWORD RegisterContext(IN CONST NS_CONTEXT_ATTRIBUTES* pChildContext)
 static void DoTab(int minTab, LPCWSTR Name)
 {
     CString s = Name;
-    if (s.GetLength() < 8) printf("\t");
-    while (minTab-- > 0) printf("\t");
+    if (s.GetLength() < 8)
+        printf("\t");
+    while (minTab-- > 0)
+        printf("\t");
 }
 
 static void Usage()
@@ -197,7 +210,7 @@ static void Usage()
         puts("Commands:");
         for (ULONG i = 0; i < Ctx.ulNumTopCmds; ++i)
         {
-            auto& cmd = (*Ctx.pTopCmds)[i];
+            auto &cmd = (*Ctx.pTopCmds)[i];
             printf("\t%S", cmd.pwszCmdToken);
             DoTab(1, cmd.pwszCmdToken);
             PrintMessageFromModule(NULL, cmd.dwShortCmdHelpToken);
@@ -208,7 +221,7 @@ static void Usage()
         puts("Command groups:");
         for (ULONG i = 0; i < Ctx.ulNumGroups; ++i)
         {
-            auto& group = (*Ctx.pCmdGroups)[i];
+            auto &group = (*Ctx.pCmdGroups)[i];
             printf("\t%S", group.pwszCmdGroupToken);
             DoTab(1, group.pwszCmdGroupToken);
             PrintMessageFromModule(NULL, group.dwShortCmdHelpToken);
@@ -217,7 +230,7 @@ static void Usage()
 }
 
 // argv[0] points on command name
-static int ProcessCommand(int argc, char** argv, PCMD_ENTRY Cmd)
+static int ProcessCommand(int argc, char **argv, PCMD_ENTRY Cmd)
 {
     CArguments a(argc, argv);
     BOOL done = false;
@@ -232,7 +245,7 @@ static int ProcessCommand(int argc, char** argv, PCMD_ENTRY Cmd)
     return res;
 }
 
-static void LogParameters(int argc, char** argv)
+static void LogParameters(int argc, char **argv)
 {
     CStringA s;
     while (argc)
@@ -244,7 +257,7 @@ static void LogParameters(int argc, char** argv)
     Log("cmd: %s", s.GetString());
 }
 
-static int ProcessNetkvmCommand(int argc, char** argv)
+static int ProcessNetkvmCommand(int argc, char **argv)
 {
     PCMD_ENTRY pCmd;
     ULONG size = 0;
@@ -276,7 +289,7 @@ static int ProcessNetkvmCommand(int argc, char** argv)
             // otherwise - print group help
             for (ULONG i = 0; argc > 1 && i < size; ++i)
             {
-                auto& cmd = pCmd[i];
+                auto &cmd = pCmd[i];
                 if (IsEqual(argv[1], cmd.pwszCmdToken))
                 {
                     // argc > 1, for ex. 'show devices'
@@ -294,7 +307,7 @@ static int ProcessNetkvmCommand(int argc, char** argv)
                 printf("%s <...>\tpossible values:\n", *argv);
                 for (ULONG i = 0; i < size; ++i)
                 {
-                    auto& cmd = pCmd[i];
+                    auto &cmd = pCmd[i];
                     printf("\t%S", cmd.pwszCmdToken);
                     DoTab(1, cmd.pwszCmdToken);
                     PrintMessageFromModule(NULL, cmd.dwShortCmdHelpToken);

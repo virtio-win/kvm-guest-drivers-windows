@@ -1,6 +1,6 @@
 typedef ULONGLONG uint64_t;
 #define unlink _unlink
-#define sleep(x) Sleep(x * 1000)
+#define sleep(x) Sleep (x * 1000)
 #define CLOCK_MONOTONIC 0
 #define socket(a, b, c) (-1)
 #define listen(a, b) (-1)

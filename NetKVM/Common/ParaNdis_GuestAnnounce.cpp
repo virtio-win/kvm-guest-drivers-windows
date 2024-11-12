@@ -1,8 +1,8 @@
-#include "ndis56common.h"
 #include "ParaNdis_GuestAnnounce.h"
 #include "ParaNdis6_Driver.h"
-#include "ethernetutils.h"
 #include "Trace.h"
+#include "ethernetutils.h"
+#include "ndis56common.h"
 #ifdef NETKVM_WPP_ENABLED
 #include "ParaNdis_GuestAnnounce.tmh"
 #endif
@@ -58,7 +58,7 @@ EthernetArpFrame *CGuestAnnouncePackets::CreateIPv4Packet(UINT32 IPV4)
     return packet;
 }
 
-EthernetNSMFrame *CGuestAnnouncePackets::CreateIPv6Packet(USHORT * IPV6)
+EthernetNSMFrame *CGuestAnnouncePackets::CreateIPv6Packet(USHORT *IPV6)
 {
     ICMPv6PseudoHeader pseudo_header;
     EthernetNSMFrame *packet = (EthernetNSMFrame *)ParaNdis_AllocateMemory(m_Context, sizeof(EthernetNSMFrame));
@@ -75,7 +75,7 @@ EthernetNSMFrame *CGuestAnnouncePackets::CreateIPv6Packet(USHORT * IPV6)
     }
     packet->data.version_trafficclass_flowlabel = _byteswap_ulong(ETH_IPV6_VERSION_TRAFFICCONTROL_FLOWLABEL);
     packet->data.payload_length = _byteswap_ushort(sizeof(packet->data.nsm));
-    pseudo_header.icmpv6_length = (UINT16) _byteswap_ushort(sizeof(packet->data.nsm));
+    pseudo_header.icmpv6_length = (UINT16)_byteswap_ushort(sizeof(packet->data.nsm));
     packet->data.next_header = pseudo_header.next_header = ETH_IPV6_ICMPV6_PROTOCOL;
     packet->data.hop_limit = 0xFF;
     for (UINT i = 0; i < ETH_IPV6_USHORT_ADDRESS_SIZE; i++)
@@ -91,7 +91,6 @@ EthernetNSMFrame *CGuestAnnouncePackets::CreateIPv6Packet(USHORT * IPV6)
     packet->data.nsm.checksum = (CheckSumCalculator(&pseudo_header, sizeof(pseudo_header)));
     return packet;
 }
-
 
 VOID CGuestAnnouncePackets::CreateNBL(PVOID packet, UINT size, bool isIPV4)
 {
@@ -111,7 +110,8 @@ VOID CGuestAnnouncePackets::CreateNBL(PVOID packet, UINT size, bool isIPV4)
         return;
     }
     nbl->SourceHandle = m_Context->MiniportHandle;
-    CGuestAnnouncePacketHolder *PacketHolder = new (m_Context->MiniportHandle) CGuestAnnouncePacketHolder(nbl, m_Context->MiniportHandle, isIPV4);
+    CGuestAnnouncePacketHolder *PacketHolder =
+        new (m_Context->MiniportHandle) CGuestAnnouncePacketHolder(nbl, m_Context->MiniportHandle, isIPV4);
     if (!PacketHolder)
     {
         DPrintf(0, "[%s] Packet holder allocation failed!\n", __FUNCTION__);
@@ -125,7 +125,7 @@ VOID CGuestAnnouncePackets::CreateNBL(PVOID packet, UINT size, bool isIPV4)
 
 VOID CGuestAnnouncePackets::CreateNBL(UINT32 IPV4)
 {
-    EthernetArpFrame * packet = CreateIPv4Packet(IPV4);
+    EthernetArpFrame *packet = CreateIPv4Packet(IPV4);
     if (packet)
     {
         CreateNBL(packet, sizeof(EthernetArpFrame), true);
@@ -134,7 +134,7 @@ VOID CGuestAnnouncePackets::CreateNBL(UINT32 IPV4)
 
 VOID CGuestAnnouncePackets::CreateNBL(USHORT *IPV6)
 {
-    EthernetNSMFrame * packet = CreateIPv6Packet(IPV6);
+    EthernetNSMFrame *packet = CreateIPv6Packet(IPV6);
     if (packet)
     {
         CreateNBL(packet, sizeof(EthernetNSMFrame), false);
@@ -143,8 +143,7 @@ VOID CGuestAnnouncePackets::CreateNBL(USHORT *IPV6)
 
 VOID CGuestAnnouncePackets::SendNBLs()
 {
-    m_packets.ForEach([this](CGuestAnnouncePacketHolder* GratARPPacket)
-    {
+    m_packets.ForEach([this](CGuestAnnouncePacketHolder *GratARPPacket) {
         auto OriginalNBL = GratARPPacket->GetNBL();
         auto NewNBL = NdisAllocateCloneNetBufferList(OriginalNBL, m_Context->BufferListsPool, NULL, cloneFlags);
         if (NewNBL)
@@ -168,13 +167,14 @@ void CGuestAnnouncePackets::NblCompletionCallback(PNET_BUFFER_LIST NBL)
         auto OriginalNBL = GratARPPacket->GetNBL();
         NETKVM_ASSERT(NBL->ParentNetBufferList == OriginalNBL);
         NdisInterlockedDecrement(&OriginalNBL->ChildRefCount);
-        DPrintf(1, "[%s] ChildRefCount %d, Child %s", __FUNCTION__, OriginalNBL->ChildRefCount, (NBL->ParentNetBufferList == OriginalNBL) ? "OK" : "Bad");
+        DPrintf(1, "[%s] ChildRefCount %d, Child %s", __FUNCTION__, OriginalNBL->ChildRefCount,
+                (NBL->ParentNetBufferList == OriginalNBL) ? "OK" : "Bad");
         NdisFreeCloneNetBufferList(NBL, cloneFlags);
         GratARPPacket->Release();
     }
 }
 
-bool CallCompletionForNBL(PARANDIS_ADAPTER * pContext, PNET_BUFFER_LIST NBL)
+bool CallCompletionForNBL(PARANDIS_ADAPTER *pContext, PNET_BUFFER_LIST NBL)
 {
     return !(NBL->SourceHandle == pContext->MiniportHandle);
 }

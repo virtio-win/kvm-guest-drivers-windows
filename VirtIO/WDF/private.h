@@ -14,58 +14,57 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and / or other materials provided with the distribution.
- * 3. Neither the names of the copyright holders nor the names of their contributors
- *    may be used to endorse or promote products derived from this software
- *    without specific prior written permission.
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.IN NO EVENT SHALL THE COPYRIGHT HOLDERS OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
+ * 3. Neither the names of the copyright holders nor the names of their
+ * contributors may be used to endorse or promote products derived from this
+ * software without specific prior written permission. THIS SOFTWARE IS PROVIDED
+ * BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ``AS IS'' AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.IN NO
+ * EVENT SHALL THE COPYRIGHT HOLDERS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+ * INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #pragma once
 
 #include <Ntddk.h>
 #include <wdf.h>
+
 #include "kdebugprint.h"
 
 typedef struct virtio_wdf_bar {
-    SINGLE_LIST_ENTRY ListEntry;
+  SINGLE_LIST_ENTRY ListEntry;
 
-    int               iBar;
-    PHYSICAL_ADDRESS  BasePA;
-    ULONG             uLength;
-    PVOID             pBase;
-    bool              bPortSpace;
+  int iBar;
+  PHYSICAL_ADDRESS BasePA;
+  ULONG uLength;
+  PVOID pBase;
+  bool bPortSpace;
 } VIRTIO_WDF_BAR, *PVIRTIO_WDF_BAR;
 
 typedef struct virtio_wdf_interrupt_context {
-    /* This is a workaround for a WDF bug where on resource rebalance
-     * it does not preserve the MessageNumber field of its internal
-     * data structures describing interrupts. As a result, we fail to
-     * report the right MSI message number to the virtio device when
-     * re-initializing it and it may stop working.
-     */
-    USHORT            uMessageNumber;
-    bool              bMessageNumberSet;
+  /* This is a workaround for a WDF bug where on resource rebalance
+   * it does not preserve the MessageNumber field of its internal
+   * data structures describing interrupts. As a result, we fail to
+   * report the right MSI message number to the virtio device when
+   * re-initializing it and it may stop working.
+   */
+  USHORT uMessageNumber;
+  bool bMessageNumberSet;
 } VIRTIO_WDF_INTERRUPT_CONTEXT, *PVIRTIO_WDF_INTERRUPT_CONTEXT;
 
-WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIRTIO_WDF_INTERRUPT_CONTEXT, GetInterruptContext)
+WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIRTIO_WDF_INTERRUPT_CONTEXT,
+                                   GetInterruptContext)
 
 NTSTATUS PCIAllocBars(WDFCMRESLIST ResourcesTranslated,
                       PVIRTIO_WDF_DRIVER pWdfDriver);
 
 void PCIFreeBars(PVIRTIO_WDF_DRIVER pWdfDriver);
 
-int PCIReadConfig(PVIRTIO_WDF_DRIVER pWdfDriver,
-                  int where,
-                  void *buffer,
+int PCIReadConfig(PVIRTIO_WDF_DRIVER pWdfDriver, int where, void *buffer,
                   size_t length);
 
 NTSTATUS PCIRegisterInterrupt(WDFINTERRUPT Interrupt);
@@ -73,23 +72,25 @@ NTSTATUS PCIRegisterInterrupt(WDFINTERRUPT Interrupt);
 u16 PCIGetMSIInterruptVector(WDFINTERRUPT Interrupt);
 
 typedef struct virtio_wdf_memory_block_context {
-    PVOID               pVirtualAddress;
-    PHYSICAL_ADDRESS    PhysicalAddress;
-    WDFCOMMONBUFFER     WdfBuffer;
-    size_t              Length;
-    ULONG               groupTag;
-    BOOLEAN             bToBeDeleted;
+  PVOID pVirtualAddress;
+  PHYSICAL_ADDRESS PhysicalAddress;
+  WDFCOMMONBUFFER WdfBuffer;
+  size_t Length;
+  ULONG groupTag;
+  BOOLEAN bToBeDeleted;
 } VIRTIO_WDF_MEMORY_BLOCK_CONTEXT, *PVIRTIO_WDF_MEMORY_BLOCK_CONTEXT;
 
-WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIRTIO_WDF_MEMORY_BLOCK_CONTEXT, GetMemoryBlockContext)
+WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIRTIO_WDF_MEMORY_BLOCK_CONTEXT,
+                                   GetMemoryBlockContext)
 
 typedef struct virtio_wdf_dma_transaction_context {
-    VIRTIO_DMA_TRANSACTION_PARAMS   parameters;
-    VirtIOWdfDmaTransactionCallback callback;
-    PMDL                            mdl;
-    PVOID                           buffer;
-    LONG                            refCount;
-    WDF_DMA_DIRECTION               direction;
+  VIRTIO_DMA_TRANSACTION_PARAMS parameters;
+  VirtIOWdfDmaTransactionCallback callback;
+  PMDL mdl;
+  PVOID buffer;
+  LONG refCount;
+  WDF_DMA_DIRECTION direction;
 } VIRTIO_WDF_DMA_TRANSACTION_CONTEXT, *PVIRTIO_WDF_DMA_TRANSACTION_CONTEXT;
 
-WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIRTIO_WDF_DMA_TRANSACTION_CONTEXT, GetDmaTransactionContext)
+WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIRTIO_WDF_DMA_TRANSACTION_CONTEXT,
+                                   GetDmaTransactionContext)

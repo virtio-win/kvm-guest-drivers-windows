@@ -1,9 +1,9 @@
 #ifndef UTILS_H
 #define UTILS_H
 
-#include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <windows.h>
 
 BOOL InstallService();
 BOOL UninstallService();

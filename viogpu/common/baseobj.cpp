@@ -1,68 +1,61 @@
 #include "baseobj.h"
 #include "viogpu.h"
 
-_When_((PoolType & NonPagedPoolMustSucceed) != 0,
+_When_(
+    (PoolType & NonPagedPoolMustSucceed) != 0,
     __drv_reportError("Must succeed pool allocations are forbidden. "
-        "Allocation failures cause a system crash"))
-    void* __cdecl operator new(size_t Size, POOL_TYPE PoolType)
-{
-    Size = (Size != 0) ? Size : 1;
+                      "Allocation failures cause a system crash")) void *__cdecl
+operator new(size_t Size, POOL_TYPE PoolType) {
+  Size = (Size != 0) ? Size : 1;
 
-    void* pObject = ExAllocatePoolUninitialized(PoolType, Size, VIOGPUTAG);
+  void *pObject = ExAllocatePoolUninitialized(PoolType, Size, VIOGPUTAG);
 
-    if (pObject != NULL)
-    {
+  if (pObject != NULL) {
 #if DBG
-        RtlFillMemory(pObject, Size, 0xCD);
+    RtlFillMemory(pObject, Size, 0xCD);
 #else
-        RtlZeroMemory(pObject, Size);
+    RtlZeroMemory(pObject, Size);
 #endif // DBG
-    }
-    return pObject;
+  }
+  return pObject;
 }
 
-_When_((PoolType & NonPagedPoolMustSucceed) != 0,
+_When_(
+    (PoolType & NonPagedPoolMustSucceed) != 0,
     __drv_reportError("Must succeed pool allocations are forbidden. "
-        "Allocation failures cause a system crash"))
-    void* __cdecl operator new[](size_t Size, POOL_TYPE PoolType)
-{
+                      "Allocation failures cause a system crash")) void *__cdecl
+operator new[](size_t Size, POOL_TYPE PoolType) {
 
-    Size = (Size != 0) ? Size : 1;
+  Size = (Size != 0) ? Size : 1;
 
-    void* pObject = ExAllocatePoolUninitialized(PoolType, Size, VIOGPUTAG);
+  void *pObject = ExAllocatePoolUninitialized(PoolType, Size, VIOGPUTAG);
 
-    if (pObject != NULL)
-    {
+  if (pObject != NULL) {
 #if DBG
-        RtlFillMemory(pObject, Size, 0xCD);
+    RtlFillMemory(pObject, Size, 0xCD);
 #else
-        RtlZeroMemory(pObject, Size);
+    RtlZeroMemory(pObject, Size);
 #endif
-    }
-    return pObject;
+  }
+  return pObject;
 }
 
-void __cdecl operator delete(void* pObject)
-{
+void __cdecl operator delete(void *pObject) {
 
-    if (pObject != NULL)
-    {
-        ExFreePoolWithTag(pObject, VIOGPUTAG);
-    }
+  if (pObject != NULL) {
+    ExFreePoolWithTag(pObject, VIOGPUTAG);
+  }
 }
 
-void __cdecl operator delete[](void* pObject)
-{
+void __cdecl operator delete[](void *pObject) {
 
-    if (pObject != NULL)
-    {
-        ExFreePoolWithTag(pObject, VIOGPUTAG);
-    }
+  if (pObject != NULL) {
+    ExFreePoolWithTag(pObject, VIOGPUTAG);
+  }
 }
 
-void __cdecl operator delete(void *pObject, size_t Size)
-{
+void __cdecl operator delete(void *pObject, size_t Size) {
 
-    UNREFERENCED_PARAMETER(Size);
-    ::operator delete (pObject);
+  UNREFERENCED_PARAMETER(Size);
+  ::operator delete(pObject);
 }

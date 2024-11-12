@@ -30,12 +30,12 @@
 #define _CRT_SECURE_NO_WARNINGS
 
 #include "stdafx.h"
-extern "C" {
+extern "C"
+{
 #include "ndis56common.h"
 }
 
 BYTE buf[0x10000];
-
 
 bool ProcessFile(FILE *f, ULONG flags, ULONG result[4])
 {
@@ -48,14 +48,15 @@ bool ProcessFile(FILE *f, ULONG flags, ULONG result[4])
         char s[3];
         if (fread(s, 1, 1, f) == 1)
         {
-            if (isxdigit(s[0]) && fread(s+1, 1, 1, f) == 1 && isxdigit(s[1]))
+            if (isxdigit(s[0]) && fread(s + 1, 1, 1, f) == 1 && isxdigit(s[1]))
             {
                 ULONG val;
                 s[2] = 0;
                 sscanf(s, "%x", &val);
                 buf[offset++] = (UCHAR)val;
             }
-            else if (isalpha(s[0])) bContinue = FALSE;
+            else if (isalpha(s[0]))
+                bContinue = FALSE;
         }
     }
     bContinue = false;
@@ -129,36 +130,35 @@ struct
     LPCSTR file;
     ULONG flags;
     ULONG result[4];
-}Jobs[] =
-{
+} Jobs[] = {
     // TCP packet with valid IPCS and PHCS, populate TCP CS
-    { "tcp-ph.txt",    pcrFixXxpChecksum, { 0x28140182, 0x2814019A, 0x2814099A, 0x281401AA } },
+    {"tcp-ph.txt", pcrFixXxpChecksum, {0x28140182, 0x2814019A, 0x2814099A, 0x281401AA}},
     // TCP packet with bad IPCS and valid TCPCS, fix IPCS
-    { "tcp-short.txt", pcrFixIPChecksum, { 0x28140182, 0x281401AE, 0x281405AE, 0x281401AA }  },
+    {"tcp-short.txt", pcrFixIPChecksum, {0x28140182, 0x281401AE, 0x281405AE, 0x281401AA}},
     // TCP packet with valid IPCS and TCPCS, populate PHCS
-    { "tcp-cs.txt",    pcrFixPHChecksum, { 0x28140182, 0x281401AA, 0x281409BA, 0x2814019A }  },
+    {"tcp-cs.txt", pcrFixPHChecksum, {0x28140182, 0x281401AA, 0x281409BA, 0x2814019A}},
     // TCP packet with valid IPCS and bad TCPCS, populate TCPCS
-    { "tcp-badcs.txt", pcrFixXxpChecksum, { 0x28140182, 0x281401BA, 0x281409BA, 0x281401AA }  },
+    {"tcp-badcs.txt", pcrFixXxpChecksum, {0x28140182, 0x281401BA, 0x281409BA, 0x281401AA}},
     // TCP packet with valid IPCS and bad TCPCS, populate PHCS
-    { "tcp-badcs.txt", pcrFixPHChecksum, { 0x28140182, 0x281401BA, 0x281409BA, 0x2814019A }  },
+    {"tcp-badcs.txt", pcrFixPHChecksum, {0x28140182, 0x281401BA, 0x281409BA, 0x2814019A}},
     // TCP packet with valid TCPCS, populate TCPCS
-    { "tcpv6-cs.txt",  pcrFixXxpChecksum, { 0x3C28018B, 0x3C2801AB, 0x3C2801AB, 0x3C2801AB }  },
+    {"tcpv6-cs.txt", pcrFixXxpChecksum, {0x3C28018B, 0x3C2801AB, 0x3C2801AB, 0x3C2801AB}},
     // TCP packet with valid TCPCS, populate PHCS
-    { "tcpv6-cs.txt",  pcrFixPHChecksum, { 0x3C28018B, 0x3C2801AB, 0x3C2809BB, 0x3C28019B }  },
+    {"tcpv6-cs.txt", pcrFixPHChecksum, {0x3C28018B, 0x3C2801AB, 0x3C2809BB, 0x3C28019B}},
     // TCP packet with valid UDPCS, populate UDPCS
-    { "udpv6-cs.txt",  pcrFixXxpChecksum, { 0x3028038B, 0x302803AB, 0x302803AB, 0x302803AB }  },
+    {"udpv6-cs.txt", pcrFixXxpChecksum, {0x3028038B, 0x302803AB, 0x302803AB, 0x302803AB}},
     // TCP packet with valid UDPCS, populate PHCS
-    { "udpv6-cs.txt",  pcrFixPHChecksum | pcrFixIPChecksum, { 0x3028038B, 0x302803AB, 0x30280BBB, 0x3028039B }  },
+    {"udpv6-cs.txt", pcrFixPHChecksum | pcrFixIPChecksum, {0x3028038B, 0x302803AB, 0x30280BBB, 0x3028039B}},
 };
 
-int _tmain(int argc, _TCHAR* argv[])
+int _tmain(int argc, _TCHAR *argv[])
 {
     bool bOK = true;
     int i;
     FILE *f;
-    for (i = 0; bOK && i < sizeof(Jobs)/sizeof(Jobs[0]); ++i)
+    for (i = 0; bOK && i < sizeof(Jobs) / sizeof(Jobs[0]); ++i)
     {
-        f = fopen(Jobs[i].file,"rt");
+        f = fopen(Jobs[i].file, "rt");
         if (f)
         {
             DPrintf(0, ("Processing file %s started", Jobs[i].file));
@@ -170,10 +170,8 @@ int _tmain(int argc, _TCHAR* argv[])
     }
 
     DPrintf(0, ("Unit test %s", bOK ? "PASSED" : "FAILED"));
-    
-    //getchar();
+
+    // getchar();
 
     return 0;
 }
-
-

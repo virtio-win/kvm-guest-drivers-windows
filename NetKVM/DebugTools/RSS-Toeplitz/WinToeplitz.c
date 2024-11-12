@@ -1,11 +1,12 @@
-#include "stdafx.h"
 #include "winToeplitz.h"
+#include "stdafx.h"
 
 uint8_t workingkey[WTEP_MAX_KEY_SIZE];
 
 void toeplitzw_initialize(uint8_t *key, int keysize)
 {
-    if (keysize > WTEP_MAX_KEY_SIZE) keysize = WTEP_MAX_KEY_SIZE;
+    if (keysize > WTEP_MAX_KEY_SIZE)
+        keysize = WTEP_MAX_KEY_SIZE;
     memcpy(workingkey, key, keysize);
 }
 
@@ -22,9 +23,9 @@ UINT32 ToeplitzHash(const PHASH_CALC_SG_BUF_ENTRY sgBuff, int sgEntriesNum, UINT
     UINT byte, bit;
     PHASH_CALC_SG_BUF_ENTRY sgEntry;
     UINT8 *next_key_byte = fullKey + sizeof(firstKeyWord);
-    firstKeyWord = RtlUlongByteSwap(*(UINT32*)fullKey);
+    firstKeyWord = RtlUlongByteSwap(*(UINT32 *)fullKey);
 
-    for(sgEntry = sgBuff; sgEntry < sgBuff + sgEntriesNum; ++sgEntry)
+    for (sgEntry = sgBuff; sgEntry < sgBuff + sgEntriesNum; ++sgEntry)
     {
         for (byte = 0; byte < sgEntry->chunkLen; ++byte)
         {
@@ -45,5 +46,3 @@ UINT32 ToeplitzHash(const PHASH_CALC_SG_BUF_ENTRY sgBuff, int sgEntriesNum, UINT
 #undef TOEPLITZ_BYTE_BIT_STATE
 #undef TOEPLITZ_MAX_BIT_NUM
 }
-
-

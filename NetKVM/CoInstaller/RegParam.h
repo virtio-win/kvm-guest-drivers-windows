@@ -1,7 +1,7 @@
 #pragma once
 
-#include "tstrings.h"
 #include "RegAccess.h"
+#include "tstrings.h"
 
 enum neTKVMRegParamType
 {
@@ -36,47 +36,59 @@ enum neTKVMRegParamExInfoIDType
     NETKVM_RPIID_LAST
 };
 
-typedef pair <neTKVMRegParamExInfoIDType, tstring> neTKVMRegParamExInfo;
+typedef pair<neTKVMRegParamExInfoIDType, tstring> neTKVMRegParamExInfo;
 
 typedef list<neTKVMRegParamExInfo> neTKVMRegParamExInfoList;
 
 class neTKVMRegParamBadNameException : public neTKVMException
 {
-public:
-    neTKVMRegParamBadNameException() :
-      neTKVMException(TEXT("Invalid Registry Parameter Name"))
-    { }
+  public:
+    neTKVMRegParamBadNameException() : neTKVMException(TEXT("Invalid Registry Parameter Name"))
+    {
+    }
 };
 
 class neTKVMRegParamBadTypeException : public neTKVMException
 {
-public:
-    neTKVMRegParamBadTypeException() :
-      neTKVMException(TEXT("Invalid Registry Parameter Type"))
-    { }
+  public:
+    neTKVMRegParamBadTypeException() : neTKVMException(TEXT("Invalid Registry Parameter Type"))
+    {
+    }
 };
 
 class neTKVMRegParamBadRegistryException : public neTKVMException
 {
-public:
-    neTKVMRegParamBadRegistryException() :
-      neTKVMException(TEXT("Invalid Registry Parameter Data"))
-    { }
+  public:
+    neTKVMRegParamBadRegistryException() : neTKVMException(TEXT("Invalid Registry Parameter Data"))
+    {
+    }
 };
 
 class neTKVMRegParam
 {
-public:
+  public:
     static neTKVMRegParamType GetType(neTKVMRegAccess &DevParamsRegKey, LPCTSTR pszName);
-    static neTKVMRegParam    *GetParam(neTKVMRegAccess &DevParamsRegKey, LPCTSTR pszName);
-    static neTKVMRegParam    *GetParam(neTKVMRegAccess &DevParamsRegKey, DWORD dwIndex);
+    static neTKVMRegParam *GetParam(neTKVMRegAccess &DevParamsRegKey, LPCTSTR pszName);
+    static neTKVMRegParam *GetParam(neTKVMRegAccess &DevParamsRegKey, DWORD dwIndex);
 
     virtual ~neTKVMRegParam(void);
 
-    const tstring &GetName(void) const { return m_Name; }
-    const tstring &GetValue(void) const { return m_Value; }
-    const tstring &GetDescription(void) const { return m_Description; }
-    bool           IsOptional(void) const { return m_bOptional; }
+    const tstring &GetName(void) const
+    {
+        return m_Name;
+    }
+    const tstring &GetValue(void) const
+    {
+        return m_Value;
+    }
+    const tstring &GetDescription(void) const
+    {
+        return m_Description;
+    }
+    bool IsOptional(void) const
+    {
+        return m_bOptional;
+    }
 
     bool ValidateAndSetValue(LPCTSTR pszValue)
     {
@@ -93,7 +105,7 @@ public:
 
     virtual void FillExInfo(neTKVMRegParamExInfoList &ExInfoList);
 
-protected:
+  protected:
     neTKVMRegParam(neTKVMRegAccess &DevParamsRegKey, LPCTSTR pszName);
 
     void SetValue(LPCTSTR pszValue)
@@ -107,24 +119,25 @@ protected:
     }
 
     virtual neTKVMRegParamType GetType(void) const = 0;
-    virtual bool            ValidateValue(LPCTSTR pszValue) = 0;
-    virtual void            Load(void);
+    virtual bool ValidateValue(LPCTSTR pszValue) = 0;
+    virtual void Load(void);
 
-    tstring       m_Name;
-    tstring       m_Description;
-    tstring       m_Value;
-    bool          m_bOptional;
-    tstring       m_ParamRegSubKey;
+    tstring m_Name;
+    tstring m_Description;
+    tstring m_Value;
+    bool m_bOptional;
+    tstring m_ParamRegSubKey;
     neTKVMRegAccess &m_DevParamsRegKey;
 };
 
 class neTKVMRegEnumParam : public neTKVMRegParam
 {
     friend static neTKVMRegParam *neTKVMRegParam::GetParam(neTKVMRegAccess &DevParamsRegKey, LPCTSTR pszName);
-public:
+
+  public:
     virtual void FillExInfo(neTKVMRegParamExInfoList &ExInfoList);
 
-protected:
+  protected:
     neTKVMRegEnumParam(neTKVMRegAccess &DevParamsRegKey, LPCTSTR pszName);
 
     virtual neTKVMRegParamType GetType(void) const
@@ -139,16 +152,16 @@ protected:
     neTKVMTStrList m_ValueDescs;
 };
 
-template <class INT_T>
-class neTKVMRegNumParam : public neTKVMRegParam
+template <class INT_T> class neTKVMRegNumParam : public neTKVMRegParam
 {
     friend static neTKVMRegParam *neTKVMRegParam::GetParam(neTKVMRegAccess &DevParamsRegKey, LPCTSTR pszName);
-public:
+
+  public:
     virtual ~neTKVMRegNumParam();
 
     virtual void FillExInfo(neTKVMRegParamExInfoList &ExInfoList);
 
-protected:
+  protected:
     neTKVMRegNumParam(neTKVMRegAccess &DevParamsRegKey, LPCTSTR pszName);
 
     virtual bool ValidateValue(LPCTSTR pszValue);
@@ -162,7 +175,8 @@ protected:
 class neTKVMRegIntParam : public neTKVMRegNumParam<unsigned int>
 {
     friend static neTKVMRegParam *neTKVMRegParam::GetParam(neTKVMRegAccess &DevParamsRegKey, LPCTSTR pszName);
-protected:
+
+  protected:
     neTKVMRegIntParam(neTKVMRegAccess &DevParamsRegKey, LPCTSTR pszName);
 
     virtual neTKVMRegParamType GetType(void) const
@@ -174,7 +188,8 @@ protected:
 class neTKVMRegLongParam : public neTKVMRegNumParam<unsigned long>
 {
     friend static neTKVMRegParam *neTKVMRegParam::GetParam(neTKVMRegAccess &DevParamsRegKey, LPCTSTR pszName);
-protected:
+
+  protected:
     neTKVMRegLongParam(neTKVMRegAccess &DevParamsRegKey, LPCTSTR pszName);
 
     virtual neTKVMRegParamType GetType(void) const
@@ -186,10 +201,11 @@ protected:
 class neTKVMRegEditParam : public neTKVMRegParam
 {
     friend static neTKVMRegParam *neTKVMRegParam::GetParam(neTKVMRegAccess &DevParamsRegKey, LPCTSTR pszName);
-public:
+
+  public:
     virtual void FillExInfo(neTKVMRegParamExInfoList &ExInfoList);
 
-protected:
+  protected:
     neTKVMRegEditParam(neTKVMRegAccess &DevParamsRegKey, LPCTSTR pszName);
 
     virtual neTKVMRegParamType GetType(void) const
@@ -201,6 +217,5 @@ protected:
     virtual void Load(void);
 
     DWORD m_nLimitText;
-    bool  m_bUpperCase;
+    bool m_bUpperCase;
 };
-

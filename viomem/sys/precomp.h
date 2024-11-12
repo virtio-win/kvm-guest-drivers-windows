@@ -26,27 +26,26 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-#include <stddef.h>
-#include <stdarg.h>
 #include <ntddk.h>
+#include <stdarg.h>
+#include <stddef.h>
 #include <wdf.h>
 #define NTSTRSAFE_LIB
-#include <ntstrsafe.h>
-#include <initguid.h>
-#include <wdmguid.h>
-#include <wmistr.h>
-#include <wmilib.h>
-#include <ntintsafe.h>
 #include "osdep.h"
+#include <initguid.h>
+#include <ntintsafe.h>
+#include <ntstrsafe.h>
+#include <wdmguid.h>
+#include <wmilib.h>
+#include <wmistr.h>
 
-#include "virtio_pci.h"
-#include "virtio.h"
 #include "VirtIOWdf.h"
+#include "virtio.h"
+#include "virtio_pci.h"
 
 #include "ProtoTypes.h"
 #include "trace.h"
 
 #ifndef min
-#define min(a,b)            (((a) < (b)) ? (a) : (b))
+#define min(a, b) (((a) < (b)) ? (a) : (b))
 #endif
-

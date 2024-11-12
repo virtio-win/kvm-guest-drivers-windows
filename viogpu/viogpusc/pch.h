@@ -3,12 +3,12 @@
 
 #include "targetver.h"
 
+#include "userenv.h"
 #include <windows.h>
 #include <wtsapi32.h>
-#include "userenv.h"
 
+#include "Service.h"
 #include "log.h"
 #include "utils.h"
-#include "Service.h"
 
-#endif //PCH_H
+#endif // PCH_H

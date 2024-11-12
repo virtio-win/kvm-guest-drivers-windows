@@ -12,44 +12,43 @@
 typedef enum class _tagPARANDIS_RSS_MODE
 {
     PARANDIS_RSS_DISABLED = 0,
-    PARANDIS_RSS_HASHING  = 1,
-    PARANDIS_RSS_FULL     = 2
+    PARANDIS_RSS_HASHING = 1,
+    PARANDIS_RSS_FULL = 2
 } PARANDIS_RSS_MODE, *PPARANDIS_RSS_MODE;
 
 typedef struct _tagPARANDIS_HASHING_SETTINGS
 {
-    ULONG  HashInformation;
-    CCHAR  HashSecretKey[NDIS_RSS_HASH_SECRET_KEY_MAX_SIZE_REVISION_2];
+    ULONG HashInformation;
+    CCHAR HashSecretKey[NDIS_RSS_HASH_SECRET_KEY_MAX_SIZE_REVISION_2];
     USHORT HashSecretKeySize;
 } PARANDIS_HASHING_SETTINGS;
-
 
 #define INVALID_INDIRECTION_INDEX (-1)
 
 typedef struct _tagPARANDIS_SCALING_SETTINGS
 {
     PROCESSOR_NUMBER IndirectionTable[NDIS_RSS_INDIRECTION_TABLE_MAX_SIZE_REVISION_2 / sizeof(PROCESSOR_NUMBER)];
-    USHORT           IndirectionTableSize;
-    CCHAR            QueueIndirectionTable[NDIS_RSS_INDIRECTION_TABLE_MAX_SIZE_REVISION_2 / sizeof(PROCESSOR_NUMBER)];
+    USHORT IndirectionTableSize;
+    CCHAR QueueIndirectionTable[NDIS_RSS_INDIRECTION_TABLE_MAX_SIZE_REVISION_2 / sizeof(PROCESSOR_NUMBER)];
 
-    ULONG            RSSHashMask;
+    ULONG RSSHashMask;
 
-    PCHAR          CPUIndexMapping;
-    ULONG          CPUIndexMappingSize;
+    PCHAR CPUIndexMapping;
+    ULONG CPUIndexMappingSize;
 
-    LONG           FirstQueueIndirectionIndex;
+    LONG FirstQueueIndirectionIndex;
 
     PROCESSOR_NUMBER DefaultProcessor;
-    CCHAR          DefaultQueue;
+    CCHAR DefaultQueue;
 } PARANDIS_SCALING_SETTINGS, *PPARANDIS_SCALING_SETTINGS;
 
 class PARANDIS_RSS_PARAMS
 {
-public:
+  public:
     PARANDIS_RSS_PARAMS(PARANDIS_ADAPTER *pContext);
     ~PARANDIS_RSS_PARAMS();
-    bool              FailedInitialization;
-    CCHAR             ReceiveQueuesNumber;
+    bool FailedInitialization;
+    CCHAR ReceiveQueuesNumber;
 
     PARANDIS_RSS_MODE RSSMode = PARANDIS_RSS_MODE::PARANDIS_RSS_DISABLED;
 
@@ -60,48 +59,41 @@ public:
     PARANDIS_HASHING_SETTINGS ActiveHashingSettings = {};
     PARANDIS_SCALING_SETTINGS ActiveRSSScalingSettings = {};
 
-    mutable CNdisRWLock                 rwLock;
+    mutable CNdisRWLock rwLock;
 
-private:
+  private:
     PARANDIS_ADAPTER *m_pContext;
 };
 typedef PARANDIS_RSS_PARAMS *PPARANDIS_RSS_PARAMS;
 
 typedef struct _tagRSS_HASH_KEY_PARAMETERS
 {
-    NDIS_RECEIVE_HASH_PARAMETERS        ReceiveHashParameters;
-    CCHAR                               HashSecretKey[NDIS_RSS_HASH_SECRET_KEY_MAX_SIZE_REVISION_2];
+    NDIS_RECEIVE_HASH_PARAMETERS ReceiveHashParameters;
+    CCHAR HashSecretKey[NDIS_RSS_HASH_SECRET_KEY_MAX_SIZE_REVISION_2];
 } RSS_HASH_KEY_PARAMETERS;
 
-ULONG ParaNdis6_QueryReceiveHash(const PARANDIS_RSS_PARAMS *RSSParameters, RSS_HASH_KEY_PARAMETERS *RSSHashKeyParameters);
+ULONG ParaNdis6_QueryReceiveHash(const PARANDIS_RSS_PARAMS *RSSParameters,
+                                 RSS_HASH_KEY_PARAMETERS *RSSHashKeyParameters);
 
-NDIS_STATUS ParaNdis6_RSSSetParameters( PARANDIS_ADAPTER *pContext,
-                                        const NDIS_RECEIVE_SCALE_PARAMETERS* Params,
-                                        UINT ParamsLength,
-                                        PUINT ParamsBytesRead);
+NDIS_STATUS ParaNdis6_RSSSetParameters(PARANDIS_ADAPTER *pContext, const NDIS_RECEIVE_SCALE_PARAMETERS *Params,
+                                       UINT ParamsLength, PUINT ParamsBytesRead);
 
-NDIS_STATUS ParaNdis6_RSSSetReceiveHash(PARANDIS_ADAPTER *pContext,
-                                        const NDIS_RECEIVE_HASH_PARAMETERS* Params,
-                                        UINT ParamsLength,
-                                        PUINT ParamsBytesRead);
+NDIS_STATUS ParaNdis6_RSSSetReceiveHash(PARANDIS_ADAPTER *pContext, const NDIS_RECEIVE_HASH_PARAMETERS *Params,
+                                        UINT ParamsLength, PUINT ParamsBytesRead);
 
-void ParaNdis6_CheckDeviceRSSCapabilities(PARANDIS_ADAPTER *pContext, bool& bRss, bool& bHash);
+void ParaNdis6_CheckDeviceRSSCapabilities(PARANDIS_ADAPTER *pContext, bool &bRss, bool &bHash);
 /* for engineering tests only */
 void ParaNdis6_EnableDeviceRssSupport(PARANDIS_ADAPTER *pContext, BOOLEAN b);
 
-NDIS_RECEIVE_SCALE_CAPABILITIES* ParaNdis6_RSSCreateConfiguration(PARANDIS_ADAPTER *pContext);
+NDIS_RECEIVE_SCALE_CAPABILITIES *ParaNdis6_RSSCreateConfiguration(PARANDIS_ADAPTER *pContext);
 
 struct _tagNET_PACKET_INFO;
 
-VOID ParaNdis6_RSSAnalyzeReceivedPacket(
-    PARANDIS_RSS_PARAMS *RSSParameters,
-    PVOID dataBuffer,
-    struct _tagNET_PACKET_INFO *packetInfo);
+VOID ParaNdis6_RSSAnalyzeReceivedPacket(PARANDIS_RSS_PARAMS *RSSParameters, PVOID dataBuffer,
+                                        struct _tagNET_PACKET_INFO *packetInfo);
 
-CCHAR ParaNdis6_RSSGetScalingDataForPacket(
-    PARANDIS_RSS_PARAMS *RSSParameters,
-    struct _tagNET_PACKET_INFO *packetInfo,
-    PPROCESSOR_NUMBER targetProcessor);
+CCHAR ParaNdis6_RSSGetScalingDataForPacket(PARANDIS_RSS_PARAMS *RSSParameters, struct _tagNET_PACKET_INFO *packetInfo,
+                                           PPROCESSOR_NUMBER targetProcessor);
 
 CCHAR ParaNdis6_RSSGetCurrentCpuReceiveQueue(PARANDIS_RSS_PARAMS *RSSParameters);
 
@@ -110,12 +102,13 @@ CCHAR ParaNdis6_RSSGetCurrentCpuReceiveQueue(PARANDIS_RSS_PARAMS *RSSParameters)
 #define PARANDIS_RSS_MAX_RECEIVE_QUEUES (0)
 class PARANDIS_RSS_PARAMS
 {
-public:
-    PARANDIS_RSS_PARAMS(PARANDIS_ADAPTER *pContext) { }
-    bool              FailedInitialization = false;
+  public:
+    PARANDIS_RSS_PARAMS(PARANDIS_ADAPTER *pContext)
+    {
+    }
+    bool FailedInitialization = false;
 };
 
 #endif
 
 #endif
-

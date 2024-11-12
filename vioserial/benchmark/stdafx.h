@@ -1,11 +1,11 @@
 #pragma once
 
-#include <windows.h>
-#include <stdio.h>
-#include <conio.h>
 #include <algorithm>
+#include <conio.h>
 #include <limits>
 #include <memory>
+#include <stdio.h>
+#include <windows.h>
 
 // interferes with numeric_limits<T>::max
 #undef max

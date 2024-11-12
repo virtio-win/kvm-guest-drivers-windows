@@ -26,18 +26,17 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-#include "ndis56common.h"
 #include "ParaNdis_DebugHistory.h"
 #include "Trace.h"
+#include "ndis56common.h"
 #ifdef NETKVM_WPP_ENABLED
 #include "ParaNdis_Debug.tmh"
 #endif
 
-
 extern "C"
 {
-#include "stdarg.h"
 #include "ntstrsafe.h"
+#include "stdarg.h"
 }
 
 int virtioDebugLevel = 0;
@@ -47,9 +46,9 @@ int bDebugPrint = 1;
  * of NDIS entry points and report them as 'Not applicable'
  * Leave it enabled for 8.1 and private builds without WPP
  */
-//#define ENABLE_CRASH_CALLBACK       1
+// #define ENABLE_CRASH_CALLBACK       1
 #if !NDIS_SUPPORT_NDIS680 || !defined(NETKVM_WPP_ENABLED)
-#define ENABLE_CRASH_CALLBACK       1
+#define ENABLE_CRASH_CALLBACK 1
 #endif
 
 static NDIS_SPIN_LOCK CrashLock;
@@ -57,30 +56,15 @@ static NDIS_SPIN_LOCK CrashLock;
 static KBUGCHECK_REASON_CALLBACK_ROUTINE ParaNdis_OnBugCheck;
 static VOID ParaNdis_PrepareBugCheckData();
 
-typedef BOOLEAN (*KeRegisterBugCheckReasonCallbackType) (
-    __out PKBUGCHECK_REASON_CALLBACK_RECORD CallbackRecord,
-    __in PKBUGCHECK_REASON_CALLBACK_ROUTINE CallbackRoutine,
-    __in KBUGCHECK_CALLBACK_REASON Reason,
-    __in PUCHAR Component
-    );
+typedef BOOLEAN (*KeRegisterBugCheckReasonCallbackType)(__out PKBUGCHECK_REASON_CALLBACK_RECORD CallbackRecord,
+                                                        __in PKBUGCHECK_REASON_CALLBACK_ROUTINE CallbackRoutine,
+                                                        __in KBUGCHECK_CALLBACK_REASON Reason, __in PUCHAR Component);
 
-typedef BOOLEAN (*KeDeregisterBugCheckReasonCallbackType) (
-    __inout PKBUGCHECK_REASON_CALLBACK_RECORD CallbackRecord
-    );
+typedef BOOLEAN (*KeDeregisterBugCheckReasonCallbackType)(__inout PKBUGCHECK_REASON_CALLBACK_RECORD CallbackRecord);
 
-typedef ULONG (*vDbgPrintExType)(
-    __in ULONG ComponentId,
-    __in ULONG Level,
-    __in PCCH Format,
-    __in va_list arglist
-    );
+typedef ULONG (*vDbgPrintExType)(__in ULONG ComponentId, __in ULONG Level, __in PCCH Format, __in va_list arglist);
 
-static ULONG DummyPrintProcedure(
-    __in ULONG ComponentId,
-    __in ULONG Level,
-    __in PCCH Format,
-    __in va_list arglist
-    )
+static ULONG DummyPrintProcedure(__in ULONG ComponentId, __in ULONG Level, __in PCCH Format, __in va_list arglist)
 {
     UNREFERENCED_PARAMETER(ComponentId);
     UNREFERENCED_PARAMETER(Level);
@@ -89,12 +73,9 @@ static ULONG DummyPrintProcedure(
 
     return 0;
 }
-static BOOLEAN KeRegisterBugCheckReasonCallbackDummyProc(
-    __out PKBUGCHECK_REASON_CALLBACK_RECORD CallbackRecord,
-    __in PKBUGCHECK_REASON_CALLBACK_ROUTINE CallbackRoutine,
-    __in KBUGCHECK_CALLBACK_REASON Reason,
-    __in PUCHAR Component
-    )
+static BOOLEAN KeRegisterBugCheckReasonCallbackDummyProc(__out PKBUGCHECK_REASON_CALLBACK_RECORD CallbackRecord,
+                                                         __in PKBUGCHECK_REASON_CALLBACK_ROUTINE CallbackRoutine,
+                                                         __in KBUGCHECK_CALLBACK_REASON Reason, __in PUCHAR Component)
 {
     UNREFERENCED_PARAMETER(CallbackRoutine);
     UNREFERENCED_PARAMETER(Reason);
@@ -104,9 +85,7 @@ static BOOLEAN KeRegisterBugCheckReasonCallbackDummyProc(
     return FALSE;
 }
 
-BOOLEAN KeDeregisterBugCheckReasonCallbackDummyProc(
-    __inout PKBUGCHECK_REASON_CALLBACK_RECORD CallbackRecord
-    )
+BOOLEAN KeDeregisterBugCheckReasonCallbackDummyProc(__inout PKBUGCHECK_REASON_CALLBACK_RECORD CallbackRecord)
 {
     UNREFERENCED_PARAMETER(CallbackRecord);
     return FALSE;
@@ -135,9 +114,15 @@ static void NetKVMDebugPrint(const char *fmt, ...)
             size_t len, i;
             buf[0] = 0;
             status = RtlStringCbVPrintfA(buf, sizeof(buf), fmt, list);
-            if (status == STATUS_SUCCESS) len = strlen(buf);
-            else if (status == STATUS_BUFFER_OVERFLOW) len = sizeof(buf);
-            else { memcpy(buf, "Can't print", 11); len = 11; }
+            if (status == STATUS_SUCCESS)
+                len = strlen(buf);
+            else if (status == STATUS_BUFFER_OVERFLOW)
+                len = sizeof(buf);
+            else
+            {
+                memcpy(buf, "Can't print", 11);
+                len = 11;
+            }
             NdisAcquireSpinLock(&CrashLock);
             for (i = 0; i < len; ++i)
             {
@@ -181,7 +166,8 @@ void ParaNdis_DebugInitialize()
     NdisInitUnicodeString(&usDeregister, L"KeDeregisterBugCheckReasonCallback");
 #ifndef NETKVM_WPP_ENABLED
     pd = MmGetSystemRoutineAddress(&usPrint);
-    if (pd) PrintProcedure = (vDbgPrintExType)pd;
+    if (pd)
+        PrintProcedure = (vDbgPrintExType)pd;
 #endif
     pr = MmGetSystemRoutineAddress(&usRegister);
     pd = MmGetSystemRoutineAddress(&usDeregister);
@@ -191,31 +177,31 @@ void ParaNdis_DebugInitialize()
         BugCheckDeregisterCallback = (KeDeregisterBugCheckReasonCallbackType)pd;
     }
 #if ENABLE_CRASH_CALLBACK
-    res = BugCheckRegisterCallback(&CallbackRecord, ParaNdis_OnBugCheck, KbCallbackSecondaryDumpData, (const PUCHAR)"NetKvm");
+    res = BugCheckRegisterCallback(&CallbackRecord, ParaNdis_OnBugCheck, KbCallbackSecondaryDumpData,
+                                   (const PUCHAR) "NetKvm");
 #endif
     DPrintf(0, "[%s] Crash callback %sregistered\n", __FUNCTION__, res ? "" : "NOT ");
 }
 
-void ParaNdis_DebugCleanup(PDRIVER_OBJECT  pDriverObject)
+void ParaNdis_DebugCleanup(PDRIVER_OBJECT pDriverObject)
 {
     UNREFERENCED_PARAMETER(pDriverObject);
 
     BugCheckDeregisterCallback(&CallbackRecord);
 }
 
-
-#define MAX_CONTEXTS    4
+#define MAX_CONTEXTS 4
 
 #if defined(ENABLE_HISTORY_LOG)
-#define MAX_HISTORY     0x40000
+#define MAX_HISTORY 0x40000
 #else
-#define MAX_HISTORY     2
+#define MAX_HISTORY 2
 #endif
 
 #if defined(KEEP_PENDING_NBL)
-#define MAX_KEEP_NBLS   1024
+#define MAX_KEEP_NBLS 1024
 #else
-#define MAX_KEEP_NBLS   1
+#define MAX_KEEP_NBLS 1
 #endif
 
 typedef struct _tagBugCheckStaticData
@@ -223,19 +209,18 @@ typedef struct _tagBugCheckStaticData
     tBugCheckStaticDataHeader Header;
     tBugCheckPerNicDataContent PerNicData[MAX_CONTEXTS];
     tBugCheckStaticDataContent Data;
-    tBugCheckHistoryDataEntry  History[MAX_HISTORY];
+    tBugCheckHistoryDataEntry History[MAX_HISTORY];
 
-    RTL_BITMAP          PendingNblsBitmap;
-    ULONG               PendingNblsBitmapBuffer[MAX_KEEP_NBLS/32 + !!(MAX_KEEP_NBLS%32)];
-    tPendingNBlEntry    PendingNbls[MAX_KEEP_NBLS];
-}tBugCheckStaticData;
-
+    RTL_BITMAP PendingNblsBitmap;
+    ULONG PendingNblsBitmapBuffer[MAX_KEEP_NBLS / 32 + !!(MAX_KEEP_NBLS % 32)];
+    tPendingNBlEntry PendingNbls[MAX_KEEP_NBLS];
+} tBugCheckStaticData;
 
 typedef struct _tagBugCheckData
 {
-    tBugCheckStaticData     StaticData;
-    tBugCheckDataLocation   Location;
-}tBugCheckData;
+    tBugCheckStaticData StaticData;
+    tBugCheckDataLocation Location;
+} tBugCheckData;
 
 static tBugCheckData BugCheckData;
 static BOOLEAN bNative = TRUE;
@@ -258,7 +243,8 @@ VOID ParaNdis_PrepareBugCheckData()
     BugCheckData.StaticData.Data.MaxPendingNbl = MAX_KEEP_NBLS;
     BugCheckData.Location.Address = (UINT64)&BugCheckData;
     BugCheckData.Location.Size = sizeof(BugCheckData);
-    RtlInitializeBitMap(&BugCheckData.StaticData.PendingNblsBitmap, BugCheckData.StaticData.PendingNblsBitmapBuffer, MAX_KEEP_NBLS);
+    RtlInitializeBitMap(&BugCheckData.StaticData.PendingNblsBitmap, BugCheckData.StaticData.PendingNblsBitmapBuffer,
+                        MAX_KEEP_NBLS);
 }
 
 void ParaNdis_DebugRegisterMiniport(PARANDIS_ADAPTER *pContext, BOOLEAN bRegister)
@@ -269,7 +255,8 @@ void ParaNdis_DebugRegisterMiniport(PARANDIS_ADAPTER *pContext, BOOLEAN bRegiste
     {
         UINT64 val1 = bRegister ? 0 : (UINT_PTR)pContext;
         UINT64 val2 = bRegister ? (UINT_PTR)pContext : 0;
-        if (BugCheckData.StaticData.PerNicData[i].Context != val1) continue;
+        if (BugCheckData.StaticData.PerNicData[i].Context != val1)
+            continue;
         BugCheckData.StaticData.PerNicData[i].Context = val2;
         break;
     }
@@ -285,7 +272,8 @@ static UINT FillDataOnBugCheck()
     {
         tBugCheckPerNicDataContent *pSave = &BugCheckData.StaticData.PerNicData[i];
         PARANDIS_ADAPTER *p = (PARANDIS_ADAPTER *)(UINT_PTR)pSave->Context;
-        if (!p) continue;
+        if (!p)
+            continue;
 
         pSave->nofReadyTxBuffers = 0;
         for (UINT j = 0; j < p->nPathBundles; j++)
@@ -301,12 +289,8 @@ static UINT FillDataOnBugCheck()
     return n;
 }
 
-VOID ParaNdis_OnBugCheck(
-    IN KBUGCHECK_CALLBACK_REASON Reason,
-    IN PKBUGCHECK_REASON_CALLBACK_RECORD Record,
-    IN OUT PVOID ReasonSpecificData,
-    IN ULONG ReasonSpecificDataLength
-    )
+VOID ParaNdis_OnBugCheck(IN KBUGCHECK_CALLBACK_REASON Reason, IN PKBUGCHECK_REASON_CALLBACK_RECORD Record,
+                         IN OUT PVOID ReasonSpecificData, IN ULONG ReasonSpecificDataLength)
 {
     KBUGCHECK_SECONDARY_DUMP_DATA *pDump = (KBUGCHECK_SECONDARY_DUMP_DATA *)ReasonSpecificData;
 
@@ -330,7 +314,8 @@ VOID ParaNdis_OnBugCheck(
                 pDump->OutBufferLength = dumpSize;
                 bNative = FALSE;
             }
-            DPrintf(0, "[%s] system buffer of %d, saving data for %d NIC\n", __FUNCTION__,pDump->InBufferLength, nSaved);
+            DPrintf(0, "[%s] system buffer of %d, saving data for %d NIC\n", __FUNCTION__, pDump->InBufferLength,
+                    nSaved);
             DPrintf(0, "[%s] using %s buffer\n", __FUNCTION__, bNative ? "native" : "own");
         }
         else if (pDump->OutBuffer == pDump->InBuffer)
@@ -338,7 +323,8 @@ VOID ParaNdis_OnBugCheck(
             RtlCopyMemory(&pDump->Guid, &ParaNdis_CrashGuid, sizeof(pDump->Guid));
             RtlCopyMemory(pDump->InBuffer, &BugCheckData.Location, dumpSize);
             pDump->OutBufferLength = dumpSize;
-            DPrintf(0, "[%s] written %d to 0x%llx\n", __FUNCTION__, (ULONG)BugCheckData.Location.Size, (UINT_PTR)BugCheckData.Location.Address );
+            DPrintf(0, "[%s] written %d to 0x%llx\n", __FUNCTION__, (ULONG)BugCheckData.Location.Size,
+                    (UINT_PTR)BugCheckData.Location.Address);
             DPrintf(0, "[%s] dump data (%d) at %p\n", __FUNCTION__, pDump->OutBufferLength, pDump->OutBuffer);
         }
     }
@@ -346,13 +332,8 @@ VOID ParaNdis_OnBugCheck(
 #endif
 
 #if defined(ENABLE_HISTORY_LOG)
-void ParaNdis_DebugHistory(
-    PARANDIS_ADAPTER *pContext,
-    eHistoryLogOperation op,
-    PVOID pParam1,
-    ULONG lParam2,
-    ULONG lParam3,
-    ULONG lParam4)
+void ParaNdis_DebugHistory(PARANDIS_ADAPTER *pContext, eHistoryLogOperation op, PVOID pParam1, ULONG lParam2,
+                           ULONG lParam3, ULONG lParam4)
 {
     tBugCheckHistoryDataEntry *phe;
     ULONG index = InterlockedIncrement(&BugCheckData.StaticData.Data.CurrentHistoryIndex);
@@ -375,7 +356,7 @@ void ParaNdis_DebugHistory(
 
 #if defined(KEEP_PENDING_NBL)
 
-void ParaNdis_DebugNBLIn(PNET_BUFFER_LIST nbl, ULONG& index)
+void ParaNdis_DebugNBLIn(PNET_BUFFER_LIST nbl, ULONG &index)
 {
     NdisAcquireSpinLock(&CrashLock);
     index = RtlFindClearBitsAndSet(&BugCheckData.StaticData.PendingNblsBitmap, 1, 0);

@@ -30,9 +30,9 @@
  * SUCH DAMAGE.
  */
 
+#include "Hid.h"
 #include "precomp.h"
 #include "vioinput.h"
-#include "Hid.h"
 
 #if defined(EVENT_TRACING)
 #include "HidConsumer.tmh"
@@ -50,7 +50,7 @@ typedef struct _tagInputClassConsumer
     //   to the nearest whole byte
 
     // number of controls supported by the HID report
-    ULONG  uNumOfControls;
+    ULONG uNumOfControls;
     // array of control bitmap indices indexed by EVDEV codes
     PULONG pControlMap;
     // length of the pControlMap array in bytes
@@ -58,9 +58,7 @@ typedef struct _tagInputClassConsumer
 } INPUT_CLASS_CONSUMER, *PINPUT_CLASS_CONSUMER;
 
 NTSTATUS
-HIDConsumerEventToReport(
-    PINPUT_CLASS_COMMON pClass,
-    PVIRTIO_INPUT_EVENT pEvent)
+HIDConsumerEventToReport(PINPUT_CLASS_COMMON pClass, PVIRTIO_INPUT_EVENT pEvent)
 {
     PUCHAR pReport = pClass->pHidReport;
     PINPUT_CLASS_CONSUMER pConsumerDesc = (PINPUT_CLASS_CONSUMER)pClass;
@@ -97,9 +95,7 @@ HIDConsumerEventToReport(
     return STATUS_SUCCESS;
 }
 
-static VOID
-HIDConsumerCleanup(
-    PINPUT_CLASS_COMMON pClass)
+static VOID HIDConsumerCleanup(PINPUT_CLASS_COMMON pClass)
 {
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
 
@@ -110,10 +106,7 @@ HIDConsumerCleanup(
 }
 
 NTSTATUS
-HIDConsumerProbe(
-    PINPUT_DEVICE pContext,
-    PDYNAMIC_ARRAY pHidDesc,
-    PVIRTIO_INPUT_CFG_DATA pKeys)
+HIDConsumerProbe(PINPUT_DEVICE pContext, PDYNAMIC_ARRAY pHidDesc, PVIRTIO_INPUT_CFG_DATA pKeys)
 {
     PINPUT_CLASS_CONSUMER pConsumerDesc = NULL;
     NTSTATUS status = STATUS_SUCCESS;
@@ -215,14 +208,11 @@ HIDConsumerProbe(
 
     HIDAppend1(pHidDesc, HID_TAG_END_COLLECTION);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT,
-                "Created HID consumer report descriptor with %d controls\n",
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Created HID consumer report descriptor with %d controls\n",
                 pConsumerDesc->uNumOfControls);
 
     // calculate the consumer HID report size
-    pConsumerDesc->Common.cbHidReportSize =
-        (SIZE_T)HID_REPORT_DATA_OFFSET +
-        (pConsumerDesc->uNumOfControls + 7) / 8;
+    pConsumerDesc->Common.cbHidReportSize = (SIZE_T)HID_REPORT_DATA_OFFSET + (pConsumerDesc->uNumOfControls + 7) / 8;
 
     // register the consumer class
     status = RegisterClass(pContext, &pConsumerDesc->Common);
