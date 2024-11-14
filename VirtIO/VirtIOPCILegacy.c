@@ -51,20 +51,20 @@ void vio_legacy_dump_registers(VirtIODevice *vdev)
 {
     DPrintf(5, ("%s\n", __FUNCTION__));
 
-    DPrintf(0, "[VIRTIO_PCI_HOST_FEATURES] = %x\n", ioread32(vdev, vdev->addr + VIRTIO_PCI_HOST_FEATURES));
-    DPrintf(0, "[VIRTIO_PCI_GUEST_FEATURES] = %x\n", ioread32(vdev, vdev->addr + VIRTIO_PCI_GUEST_FEATURES));
+    DPrintf(0, "[VIRTIO_PCI_HOST_FEATURES] = %x\n",
+            ioread32(vdev, vdev->addr + VIRTIO_PCI_HOST_FEATURES));
+    DPrintf(0, "[VIRTIO_PCI_GUEST_FEATURES] = %x\n",
+            ioread32(vdev, vdev->addr + VIRTIO_PCI_GUEST_FEATURES));
     DPrintf(0, "[VIRTIO_PCI_QUEUE_PFN] = %x\n", ioread32(vdev, vdev->addr + VIRTIO_PCI_QUEUE_PFN));
     DPrintf(0, "[VIRTIO_PCI_QUEUE_NUM] = %x\n", ioread32(vdev, vdev->addr + VIRTIO_PCI_QUEUE_NUM));
     DPrintf(0, "[VIRTIO_PCI_QUEUE_SEL] = %x\n", ioread32(vdev, vdev->addr + VIRTIO_PCI_QUEUE_SEL));
-    DPrintf(0, "[VIRTIO_PCI_QUEUE_NOTIFY] = %x\n", ioread32(vdev, vdev->addr + VIRTIO_PCI_QUEUE_NOTIFY));
+    DPrintf(0, "[VIRTIO_PCI_QUEUE_NOTIFY] = %x\n",
+            ioread32(vdev, vdev->addr + VIRTIO_PCI_QUEUE_NOTIFY));
     DPrintf(0, "[VIRTIO_PCI_STATUS] = %x\n", ioread32(vdev, vdev->addr + VIRTIO_PCI_STATUS));
     DPrintf(0, "[VIRTIO_PCI_ISR] = %x\n", ioread32(vdev, vdev->addr + VIRTIO_PCI_ISR));
 }
 
-static void vio_legacy_get_config(VirtIODevice * vdev,
-                                  unsigned offset,
-                                  void *buf,
-                                  unsigned len)
+static void vio_legacy_get_config(VirtIODevice *vdev, unsigned offset, void *buf, unsigned len)
 {
     ULONG_PTR ioaddr = vdev->addr + VIRTIO_PCI_CONFIG(vdev->msix_used) + offset;
     u8 *ptr = buf;
@@ -77,9 +77,7 @@ static void vio_legacy_get_config(VirtIODevice * vdev,
     }
 }
 
-static void vio_legacy_set_config(VirtIODevice *vdev,
-                                  unsigned offset,
-                                  const void *buf,
+static void vio_legacy_set_config(VirtIODevice *vdev, unsigned offset, const void *buf,
                                   unsigned len)
 {
     ULONG_PTR ioaddr = vdev->addr + VIRTIO_PCI_CONFIG(vdev->msix_used) + offset;
@@ -146,10 +144,8 @@ static u16 vio_legacy_set_queue_vector(struct virtqueue *vq, u16 vector)
     return ioread16(vdev, vdev->addr + VIRTIO_MSI_QUEUE_VECTOR);
 }
 
-static NTSTATUS vio_legacy_query_vq_alloc(VirtIODevice *vdev,
-                                          unsigned index,
-                                          unsigned short *pNumEntries,
-                                          unsigned long *pRingSize,
+static NTSTATUS vio_legacy_query_vq_alloc(VirtIODevice *vdev, unsigned index,
+                                          unsigned short *pNumEntries, unsigned long *pRingSize,
                                           unsigned long *pHeapSize)
 {
     unsigned long ring_size, data_size;
@@ -174,11 +170,8 @@ static NTSTATUS vio_legacy_query_vq_alloc(VirtIODevice *vdev,
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS vio_legacy_setup_vq(struct virtqueue **queue,
-                                    VirtIODevice *vdev,
-                                    VirtIOQueueInfo *info,
-                                    unsigned index,
-                                    u16 msix_vec)
+static NTSTATUS vio_legacy_setup_vq(struct virtqueue **queue, VirtIODevice *vdev,
+                                    VirtIOQueueInfo *info, unsigned index, u16 msix_vec)
 {
     struct virtqueue *vq;
     unsigned long ring_size, heap_size;
@@ -196,13 +189,13 @@ static NTSTATUS vio_legacy_setup_vq(struct virtqueue **queue,
     }
 
     /* activate the queue */
-    iowrite32(vdev, (u32)(mem_get_physical_address(vdev, info->queue) >> VIRTIO_PCI_QUEUE_ADDR_SHIFT),
-        vdev->addr + VIRTIO_PCI_QUEUE_PFN);
+    iowrite32(vdev,
+              (u32)(mem_get_physical_address(vdev, info->queue) >> VIRTIO_PCI_QUEUE_ADDR_SHIFT),
+              vdev->addr + VIRTIO_PCI_QUEUE_PFN);
 
     /* create the vring */
-    vq = vring_new_virtqueue_split(index, info->num,
-        VIRTIO_PCI_VRING_ALIGN, vdev,
-        info->queue, vp_notify,
+    vq = vring_new_virtqueue_split(
+        index, info->num, VIRTIO_PCI_VRING_ALIGN, vdev, info->queue, vp_notify,
         (u8 *)info->queue + ROUND_TO_PAGES(vring_size(info->num, VIRTIO_PCI_VRING_ALIGN, false)));
     if (!vq) {
         status = STATUS_INSUFFICIENT_RESOURCES;
@@ -237,8 +230,7 @@ static void vio_legacy_del_vq(VirtIOQueueInfo *info)
     iowrite16(vdev, (u16)vq->index, vdev->addr + VIRTIO_PCI_QUEUE_SEL);
 
     if (vdev->msix_used) {
-        iowrite16(vdev, VIRTIO_MSI_NO_VECTOR,
-            vdev->addr + VIRTIO_MSI_QUEUE_VECTOR);
+        iowrite16(vdev, VIRTIO_MSI_NO_VECTOR, vdev->addr + VIRTIO_MSI_QUEUE_VECTOR);
         /* Flush the write out to device */
         ioread8(vdev, vdev->addr + VIRTIO_PCI_ISR);
     }

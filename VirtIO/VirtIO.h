@@ -10,43 +10,38 @@ struct VirtIOBufferDescriptor {
     ULONG length;
 };
 
-typedef int (*proc_virtqueue_add_buf)(
-    struct virtqueue *vq,
-    struct scatterlist sg[],
-    unsigned int out_num,
-    unsigned int in_num,
-    void *opaque,
-    void *va_indirect,
-    ULONGLONG phys_indirect);
+typedef int (*proc_virtqueue_add_buf)(struct virtqueue *vq, struct scatterlist sg[],
+                                      unsigned int out_num, unsigned int in_num, void *opaque,
+                                      void *va_indirect, ULONGLONG phys_indirect);
 
-typedef bool(*proc_virtqueue_kick_prepare)(struct virtqueue *vq);
+typedef bool (*proc_virtqueue_kick_prepare)(struct virtqueue *vq);
 
-typedef void(*proc_virtqueue_kick_always)(struct virtqueue *vq);
+typedef void (*proc_virtqueue_kick_always)(struct virtqueue *vq);
 
-typedef void * (*proc_virtqueue_get_buf)(struct virtqueue *vq, unsigned int *len);
+typedef void *(*proc_virtqueue_get_buf)(struct virtqueue *vq, unsigned int *len);
 
-typedef void(*proc_virtqueue_disable_cb)(struct virtqueue *vq);
+typedef void (*proc_virtqueue_disable_cb)(struct virtqueue *vq);
 
-typedef bool(*proc_virtqueue_enable_cb)(struct virtqueue *vq);
+typedef bool (*proc_virtqueue_enable_cb)(struct virtqueue *vq);
 
-typedef bool(*proc_virtqueue_enable_cb_delayed)(struct virtqueue *vq);
+typedef bool (*proc_virtqueue_enable_cb_delayed)(struct virtqueue *vq);
 
-typedef void * (*proc_virtqueue_detach_unused_buf)(struct virtqueue *vq);
+typedef void *(*proc_virtqueue_detach_unused_buf)(struct virtqueue *vq);
 
-typedef BOOLEAN(*proc_virtqueue_is_interrupt_enabled)(struct virtqueue *vq);
+typedef BOOLEAN (*proc_virtqueue_is_interrupt_enabled)(struct virtqueue *vq);
 
-typedef BOOLEAN(*proc_virtqueue_has_buf)(struct virtqueue *vq);
+typedef BOOLEAN (*proc_virtqueue_has_buf)(struct virtqueue *vq);
 
-typedef void(*proc_virtqueue_shutdown)(struct virtqueue *vq);
+typedef void (*proc_virtqueue_shutdown)(struct virtqueue *vq);
 
 /* Represents one virtqueue; only data pointed to by the vring structure is exposed to the host */
 struct virtqueue {
     VirtIODevice *vdev;
     unsigned int index;
     void (*notification_cb)(struct virtqueue *vq);
-    void         *notification_addr;
-    void         *avail_va;
-    void         *used_va;
+    void *notification_addr;
+    void *avail_va;
+    void *used_va;
     proc_virtqueue_add_buf add_buf;
     proc_virtqueue_kick_prepare kick_prepare;
     proc_virtqueue_kick_always kick_always;
@@ -60,14 +55,9 @@ struct virtqueue {
     proc_virtqueue_shutdown shutdown;
 };
 
-static inline int virtqueue_add_buf(
-    struct virtqueue *vq,
-    struct scatterlist sg[],
-    unsigned int out_num,
-    unsigned int in_num,
-    void *opaque,
-    void *va_indirect,
-    ULONGLONG phys_indirect)
+static inline int virtqueue_add_buf(struct virtqueue *vq, struct scatterlist sg[],
+                                    unsigned int out_num, unsigned int in_num, void *opaque,
+                                    void *va_indirect, ULONGLONG phys_indirect)
 {
     return vq->add_buf(vq, sg, out_num, in_num, opaque, va_indirect, phys_indirect);
 }
