@@ -117,4 +117,3 @@ NTSTATUS
 UnmapFrameBuffer(
     _In_reads_bytes_(Length) VOID* VirtualAddress,
     _In_                ULONG Length);
-

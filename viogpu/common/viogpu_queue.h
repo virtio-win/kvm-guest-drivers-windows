@@ -126,7 +126,7 @@ public:
     VioGpuQueue();
     ~VioGpuQueue();
     BOOLEAN Init(
-        _In_ VirtIODevice* pVIODevice, 
+        _In_ VirtIODevice* pVIODevice,
         _In_ struct virtqueue* pVirtQueue,
         _In_ UINT index);
     void Close(void);
@@ -201,4 +201,3 @@ public:
     UINT QueueCursor(PGPU_VBUFFER buf);
     PGPU_VBUFFER DequeueCursor(_Out_ UINT* len);
 };
-

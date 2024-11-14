@@ -241,4 +241,3 @@ void SerialPort::handleEvent(const PnPControl& ref)
                           break;
     }
 }
-

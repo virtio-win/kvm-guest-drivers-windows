@@ -543,4 +543,3 @@ VOID neTKVMRegAccess::FormatFullRegPath(LPTSTR lpzFullPathBuff, DWORD_PTR dwNumb
         }
     }
 }
-

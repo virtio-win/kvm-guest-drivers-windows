@@ -119,4 +119,3 @@ else VirtioDebugPrintProc(message, __VA_ARGS__)
 #endif
 
 void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING RegistryPath);
-

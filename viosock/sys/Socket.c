@@ -1880,7 +1880,7 @@ VIOSockEventRegister(
     pSocket->EventsMask = lNetworkEvents;
     if (pSocket->EventObject)
         ObDereferenceObject(pSocket->EventObject);
- 
+
     pSocket->EventObject = pEvent;
     if (pSocket->EventObject && (pSocket->Events & pSocket->EventsMask) != 0)
         KeSetEvent(pSocket->EventObject, IO_NO_INCREMENT, FALSE);
@@ -2778,4 +2778,3 @@ VIOSockHandleTransportReset(
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
 }
-

@@ -81,6 +81,6 @@ EVT_WDF_INTERRUPT_ISR VioCryptInterruptIsr;
 EVT_WDF_INTERRUPT_DPC VioCryptInterruptDpc;
 EVT_WDF_INTERRUPT_ENABLE VioCryptInterruptEnable;
 EVT_WDF_INTERRUPT_DISABLE VioCryptInterruptDisable;
-    
+
 EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL VioCryptIoControl;
 EVT_WDF_IO_QUEUE_IO_STOP VioCryptIoStop;

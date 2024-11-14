@@ -31,7 +31,7 @@
 #pragma once
 #include "virtio.h"
 
-// 
+//
 // Types and defines taken directly from the Linux header file.
 //
 
@@ -173,4 +173,3 @@ typedef struct _virtio_mem_resp {
 #define VIRTIO_MEM_STATE_UNPLUGGED		1
 /* State of memory blocks is "mixed" */
 #define VIRTIO_MEM_STATE_MIXED			2
-

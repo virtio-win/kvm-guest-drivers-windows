@@ -161,7 +161,7 @@ _TestSocket(
     DEBUG_ENTER_FUNCTION("Socket=0x%p; Irp=0x%p; HashObject=0x%p; Server=%u; TestFlags=0x%x", Socket, Irp, HashObject, Server, TestFlags);
 
 	memset(&iosb, 0, sizeof(iosb));
-    KeInitializeEvent(&event, NotificationEvent, FALSE);	
+    KeInitializeEvent(&event, NotificationEvent, FALSE);
 	for (size_t i = 0; i < TEST_COUNT; ++i)
     {
         if (!NT_SUCCESS(iosb.Status))
@@ -204,7 +204,7 @@ _TestSocket(
 				if ((TestFlags & VIOWSK_TEST_FLAG_SENDEX) != 0)
 					WSK_SYNCHRONOUS_CALL(Irp, &event, ((PWSK_PROVIDER_CONNECTION_DISPATCH)Socket->Dispatch)->WskSendEx(Socket, &msg, 0, 0, NULL, Irp), &iosb);
 				else WSK_SYNCHRONOUS_CALL(Irp, &event, ((PWSK_PROVIDER_CONNECTION_DISPATCH)Socket->Dispatch)->WskSend(Socket, &msg, 0, Irp), &iosb);
-				
+
 				if (iosb.Status == STATUS_CANT_WAIT)
 				{
 					LARGE_INTEGER timeout;
@@ -214,7 +214,7 @@ _TestSocket(
 					KeDelayExecutionThread(KernelMode, FALSE, &timeout);
 					if (InterlockedCompareExchange(TerminationFlag, 1, 1))
 						break;
-					
+
 					iosb.Status = STATUS_SUCCESS;
 					continue;
 				}
@@ -235,8 +235,8 @@ _TestSocket(
 			if ((TestFlags & VIOWSK_TEST_FLAG_RECVEX) != 0)
 				WSK_SYNCHRONOUS_CALL(Irp, &event, ((PWSK_PROVIDER_CONNECTION_DISPATCH)Socket->Dispatch)->WskReceiveEx(Socket, &recvMsg, 0, NULL, NULL, NULL, Irp), &iosb);
 			else WSK_SYNCHRONOUS_CALL(Irp, &event, ((PWSK_PROVIDER_CONNECTION_DISPATCH)Socket->Dispatch)->WskReceive(Socket, &recvMsg, 0, Irp), &iosb);
-			
-			if (iosb.Status == STATUS_CANT_WAIT) 
+
+			if (iosb.Status == STATUS_CANT_WAIT)
 			{
 				LARGE_INTEGER timeout;
 
@@ -249,7 +249,7 @@ _TestSocket(
 				iosb.Status = STATUS_SUCCESS;
 				continue;
 			}
-			
+
 			if (!NT_SUCCESS(iosb.Status) || recvMsg.Length != iosb.Information)
 			{
 				DEBUG_ERROR("Unable to receive the tes message: 0x%x (%Iu bytes length, %Iu bytes received)", iosb.Status, recvMsg.Length, iosb.Information);
@@ -283,7 +283,7 @@ _TestSocket(
 				if ((TestFlags & VIOWSK_TEST_FLAG_SENDEX) != 0)
 					WSK_SYNCHRONOUS_CALL(Irp, &event, ((PWSK_PROVIDER_CONNECTION_DISPATCH)Socket->Dispatch)->WskSendEx(Socket, &msg, 0, 0, NULL, Irp), &iosb);
 				else WSK_SYNCHRONOUS_CALL(Irp, &event, ((PWSK_PROVIDER_CONNECTION_DISPATCH)Socket->Dispatch)->WskSend(Socket, &msg, 0, Irp), &iosb);
-				
+
 				if (iosb.Status == STATUS_CANT_WAIT)
 				{
 					LARGE_INTEGER timeout;
@@ -376,7 +376,7 @@ _TestThreadRoutine(
 		WSK_SYNCHRONOUS_CALL(ctx->Irp, &event, ((PWSK_PROVIDER_CONNECTION_DISPATCH)ctx->Socket->Dispatch)->WskDisconnect(ctx->Socket, &ctx->FarewellMsg, 0, ctx->Irp), &iosb);
 		if (iosb.Status == STATUS_CONNECTION_INVALID)
 			iosb.Status = STATUS_SUCCESS;
-		
+
 		if (!NT_SUCCESS(iosb.Status))
 		{
 			DEBUG_ERROR("Unable to disconnect the server socket: 0x%x", iosb.Status);
@@ -425,7 +425,7 @@ _ServerThreadRoutine(
 
 	if (InterlockedIncrement(&_readyThreads) == (CLIENT_THREAD_COUNT + SERVER_THREAD_COUNT))
 		KeSetEvent(&_initEvent, IO_NO_INCREMENT, FALSE);
-	
+
 	irp = IoAllocateIrp(1, FALSE);
 	if (!irp) {
 		iosb.Status = STATUS_INSUFFICIENT_RESOURCES;
@@ -490,12 +490,12 @@ _ServerThreadRoutine(
 			KeDelayExecutionThread(KernelMode, FALSE, &timeout);
 			continue;
 		}
-		
+
 		if (!NT_SUCCESS(iosb.Status)) {
 			DEBUG_ERROR("Unable to accept: 0x%x", iosb.Status);
 			break;
 		}
-		
+
 		clientSocket = (PWSK_SOCKET)iosb.Information;
 		WSK_SYNCHRONOUS_CALL(irp, &event, ((PWSK_PROVIDER_LISTEN_DISPATCH)clientSocket->Dispatch)->WskControlSocket(clientSocket, WskIoctl, FIONBIO, 0, sizeof(nonBlocking), &nonBlocking, 0, NULL, NULL, irp), &iosb);
 		if (!NT_SUCCESS(iosb.Status)) {
@@ -533,7 +533,7 @@ _ServerThreadRoutine(
 	while (!IsListEmpty(&threadListHead))
 	{
 		PTEST_THREAD_CONTEXT ctx = CONTAINING_RECORD(threadListHead.Flink, TEST_THREAD_CONTEXT, Entry);
-	
+
 		RemoveEntryList(&ctx->Entry);
 		InitializeListHead(&ctx->Entry);
 		KeReleaseSpinLock(&threadListLock, irql);
@@ -544,7 +544,7 @@ _ServerThreadRoutine(
 		IoFreeIrp(ctx->Irp);
 		if (ctx->FarewellMsgFlat)
 			VioWskMessageFree(&ctx->FarewellMsg, ctx->FarewellMsgFlat);
-		
+
 		VIoWskMessageDestroyHashObject(&ctx->Hash);
 		ExFreePoolWithTag(ctx, VIOWSK_TEST_TAG);
 		KeAcquireSpinLock(&threadListLock, &irql);
@@ -733,7 +733,7 @@ _ClientThreadRoutine(
 					testStatus = iosb.Status;
 					DEBUG_ERROR("Client socket disconnect failed: 0x%x", iosb.Status);
 				}
-			} else 
+			} else
 			{
 				testStatus = iosb.Status;
 				DEBUG_ERROR("Unable to connect to the server: 0x%x", iosb.Status);
@@ -752,7 +752,7 @@ _ClientThreadRoutine(
 
 		KeDelayExecutionThread(KernelMode, FALSE, &timeout);
 	}
-	
+
 	IoFreeIrp(irp);
 FreeHashObject:
 	VIoWskMessageDestroyHashObject(&ho);
@@ -900,7 +900,7 @@ FreeHashObject:
 	{
 		if (ctx->FarewellMsgFlat)
 			VioWskMessageFree(&ctx->FarewellMsg, ctx->FarewellMsgFlat);
-		
+
 		VIoWskMessageDestroyHashObject(&ctx->Hash);
 	}
 FreeCtx:

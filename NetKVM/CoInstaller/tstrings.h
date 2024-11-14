@@ -44,5 +44,3 @@ wstring __string2wstring(const string& str);
 typedef list<tstring, allocator<tstring>> neTKVMTStrList;
 
 #define TBUF_SIZEOF(a) ARRAY_SIZE(a)
-
-

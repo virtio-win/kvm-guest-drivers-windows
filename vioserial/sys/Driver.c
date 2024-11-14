@@ -117,4 +117,3 @@ VIOSerialEvtDriverContextCleanup(
 
     WPP_CLEANUP( WdfDriverWdmGetDriverObject((WDFDRIVER)Driver) );
 }
-

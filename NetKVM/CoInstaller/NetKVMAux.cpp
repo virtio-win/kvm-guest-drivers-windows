@@ -50,4 +50,3 @@ wstring NetKVMGetKeyPathFromKKEY(HKEY hKey)
     }
     return wstrKeyPath;
 }
-

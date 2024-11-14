@@ -218,4 +218,3 @@ VioGpuDodSystemDisplayWrite(
     _In_  UINT  SourceStride,
     _In_  UINT  PositionX,
     _In_  UINT  PositionY);
-

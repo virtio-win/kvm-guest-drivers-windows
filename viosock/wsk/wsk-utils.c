@@ -301,7 +301,7 @@ VioWskSocketBuildIOCTL(
         if (InputBufferLength != 0 || OutputBufferLength != 0)
         {
             IOCTLIrp->AssociatedIrp.SystemBuffer = ExAllocatePoolUninitialized(
-                NonPagedPool, 
+                NonPagedPool,
                 InputBufferLength > OutputBufferLength ? InputBufferLength : OutputBufferLength,
                 VIOSOCK_WSK_MEMORY_TAG);
 
@@ -446,7 +446,7 @@ VioWskSocketReadWrite(
     WskCompContextDereference(CompContext);
     if (NT_SUCCESS(Status))
         OpIrp = NULL;
-        
+
     Irp = NULL;
 
 FreeOpIrp:
@@ -582,7 +582,7 @@ WskBufferValidate(
 
                 if (mdl == Buffer->Mdl)
                     *FirstMdlLength = effectiveLength;
-                    
+
                 mdl = mdl->Next;
                 length -= effectiveLength;
                 if (length == 0 || mdl == NULL)
@@ -603,4 +603,3 @@ WskBufferValidate(
     DEBUG_EXIT_FUNCTION("0x%x, *FirstMdlLength=%u, *LastMdlLength=%u", status, *FirstMdlLength, *LastMdlLength);
     return status;
 }
-

@@ -319,4 +319,3 @@ private:
     NTSTATUS GetRegisterInfo(void);
     VOID BuildVideoSignalInfo(D3DKMDT_VIDEO_SIGNAL_INFO* pVideoSignalInfo, PVIDEO_MODE_INFORMATION pModeInfo);
 };
-

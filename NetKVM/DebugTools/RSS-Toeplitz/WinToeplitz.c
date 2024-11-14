@@ -45,5 +45,3 @@ UINT32 ToeplitzHash(const PHASH_CALC_SG_BUF_ENTRY sgBuff, int sgEntriesNum, UINT
 #undef TOEPLITZ_BYTE_BIT_STATE
 #undef TOEPLITZ_MAX_BIT_NUM
 }
-
-

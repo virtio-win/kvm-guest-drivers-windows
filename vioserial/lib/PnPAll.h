@@ -156,4 +156,3 @@ public:
     virtual void handleEvent(const PnPControl& ref);
     pair <VIOSERIALNOTIFYCALLBACK*, PVOID> NotificationPair;
 };
-
