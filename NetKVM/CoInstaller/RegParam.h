@@ -203,4 +203,3 @@ protected:
     DWORD m_nLimitText;
     bool  m_bUpperCase;
 };
-

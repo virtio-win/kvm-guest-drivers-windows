@@ -170,10 +170,8 @@ int _tmain(int argc, _TCHAR* argv[])
     }
 
     DPrintf(0, ("Unit test %s", bOK ? "PASSED" : "FAILED"));
-    
+
     //getchar();
 
     return 0;
 }
-
-

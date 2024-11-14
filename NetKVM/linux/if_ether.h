@@ -4,4 +4,3 @@
 #define ETH_ALEN    6
 
 #endif
-

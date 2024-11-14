@@ -50,4 +50,3 @@
 #define CLUSDISK                      L"CLUSDISK"
 #define HBA_ID                        1234567890987654321ULL
 #endif //___RESOURCES_H__
-

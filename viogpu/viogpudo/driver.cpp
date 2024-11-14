@@ -716,4 +716,3 @@ void DebugPrintFuncKdPrint(const char *format, ...)
 
 #endif
 #pragma code_seg(pop) // End Non-Paged Code
-

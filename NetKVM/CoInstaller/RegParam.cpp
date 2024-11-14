@@ -403,5 +403,3 @@ void neTKVMRegEditParam::FillExInfo(neTKVMRegParamExInfoList &ExInfoList)
         ExInfoList.push_back(neTKVMRegParamExInfo(NETKVM_RPIID_EDIT_TEXT_LIMIT, tss.str()));
     }
 }
-
-

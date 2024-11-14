@@ -199,4 +199,3 @@ VIOSerialDisableInterruptQueue(IN struct virtqueue *vq)
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s\n", __FUNCTION__);
 }
-

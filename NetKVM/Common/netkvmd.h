@@ -38,7 +38,7 @@ typedef struct _NETKVMD_ADAPTER
     UCHAR MacAddress[6];
     UCHAR Virtio;
     UCHAR IsStandby;
-    
+
     UCHAR VirtioLink;
     UCHAR SuppressLink;
     UCHAR Started;
@@ -60,4 +60,3 @@ typedef struct _NETKVMD_SET_LINK
 
 // input buffer = NETKVMD_SET_LINK
 #define IOCTL_NETKVMD_SET_LINK  CTL_CODE(FILE_DEVICE_NETWORK, 0x802, METHOD_BUFFERED, FILE_READ_ACCESS)
-

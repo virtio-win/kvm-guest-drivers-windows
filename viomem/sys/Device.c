@@ -124,7 +124,7 @@ ViomemDeviceAdd(
 
 	memset(&devCtx->MemoryConfiguration, 0, sizeof(devCtx->MemoryConfiguration));
     devCtx->finishProcessing = FALSE;
-    
+
     KeInitializeEvent(&devCtx->hostAcknowledge, SynchronizationEvent, FALSE);
 
     WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
@@ -192,7 +192,7 @@ ViomemEvtDevicePrepareHardware(
         ResourceListTranslated,
         NULL,
 		VIRTIO_MEM_POOL_TAG);
-    
+
 	if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "VirtIOWdfInitialize failed with %x\n", status);
@@ -234,8 +234,8 @@ ViomemEvtDevicePrepareHardware(
 		TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "Failed to allocate MemoryResponse block\n");
 		status = STATUS_INSUFFICIENT_RESOURCES;
 	}
-	
-	RtlFillMemory(&devCtx->memoryBitmapHandle, sizeof(RTL_BITMAP), 0);	
+
+	RtlFillMemory(&devCtx->memoryBitmapHandle, sizeof(RTL_BITMAP), 0);
 	devCtx->bitmapBuffer = NULL;
 
 	//
@@ -281,7 +281,7 @@ ViomemEvtDeviceReleaseHardware (
     return STATUS_SUCCESS;
 }
 
-NTSTATUS 
+NTSTATUS
 ViomemCreateWorkerThread(
     IN WDFDEVICE  Device
     )
@@ -296,7 +296,7 @@ ViomemCreateWorkerThread(
 
     if(devCtx->Thread == NULL)
     {
-        InitializeObjectAttributes(&oa, NULL, 
+        InitializeObjectAttributes(&oa, NULL,
             OBJ_KERNEL_HANDLE, NULL, NULL);
 
         status = PsCreateSystemThread(&hThread, THREAD_ALL_ACCESS, &oa, NULL, NULL,
@@ -379,14 +379,14 @@ ViomemEvtDeviceD0Entry(
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
            "ViomemCreateWorkerThread failed with status 0x%08x\n", status);
-    } 
+    }
 
 	TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "%s Return \n", __FUNCTION__);
 
     return status;
 }
 
-NTSTATUS 
+NTSTATUS
 ViomemEvtDeviceD0Exit(
     IN  WDFDEVICE Device,
     IN  WDF_POWER_DEVICE_STATE TargetState
@@ -401,13 +401,13 @@ ViomemEvtDeviceD0Exit(
     PAGED_CODE();
 
     ViomemTerminate(Device);
-	
+
 	TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "%s Return\n", __FUNCTION__);
 
     return STATUS_SUCCESS;
 }
 
-NTSTATUS 
+NTSTATUS
 ViomemEvtDeviceD0ExitPreInterruptsDisabled(
 	IN  WDFDEVICE Device,
     IN  WDF_POWER_DEVICE_STATE TargetState
@@ -429,7 +429,7 @@ ViomemEvtDeviceD0ExitPreInterruptsDisabled(
     return STATUS_SUCCESS;
 }
 
-BOOLEAN 
+BOOLEAN
 ViomemISR(
     IN WDFINTERRUPT WdfInterrupt,
     IN ULONG        MessageID
@@ -455,7 +455,7 @@ ViomemISR(
     return FALSE;
 }
 
-VOID 
+VOID
 ViomemDPC(
     IN WDFINTERRUPT WdfInterrupt,
     IN WDFOBJECT    WdfDevice
@@ -471,7 +471,7 @@ ViomemDPC(
 	TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "%s Entry\n", __FUNCTION__);
 
     WdfSpinLockAcquire(devCtx->infVirtQueueLock);
-    
+
 	if (virtqueue_has_buf(devCtx->infVirtQueue))
 	{
         bHostAck = TRUE;
@@ -491,7 +491,7 @@ ViomemDPC(
 	TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "%s Return\n", __FUNCTION__);
 }
 
-NTSTATUS 
+NTSTATUS
 ViomemEnableInterrupts(
     IN WDFINTERRUPT WdfInterrupt,
     IN WDFDEVICE    WdfDevice
@@ -509,7 +509,7 @@ ViomemEnableInterrupts(
     return STATUS_SUCCESS;
 }
 
-NTSTATUS 
+NTSTATUS
 ViomemDisableInterrupts(
     IN WDFINTERRUPT WdfInterrupt,
     IN WDFDEVICE    WdfDevice
@@ -526,4 +526,3 @@ ViomemDisableInterrupts(
 	TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "%s Return\n", __FUNCTION__);
     return STATUS_SUCCESS;
 }
-

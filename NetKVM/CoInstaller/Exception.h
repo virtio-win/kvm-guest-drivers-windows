@@ -62,4 +62,3 @@ protected:
     static tstring GetErrorString(DWORD dwErrorCode);
 };
 #endif
-
