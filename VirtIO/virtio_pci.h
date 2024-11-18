@@ -45,118 +45,117 @@
 #ifndef VIRTIO_PCI_NO_LEGACY
 
 /* A 32-bit r/o bitmask of the features supported by the host */
-#define VIRTIO_PCI_HOST_FEATURES    0
+#define VIRTIO_PCI_HOST_FEATURES            0
 
 /* A 32-bit r/w bitmask of features activated by the guest */
-#define VIRTIO_PCI_GUEST_FEATURES   4
+#define VIRTIO_PCI_GUEST_FEATURES           4
 
 /* A 32-bit r/w PFN for the currently selected queue */
-#define VIRTIO_PCI_QUEUE_PFN        8
+#define VIRTIO_PCI_QUEUE_PFN                8
 
 /* A 16-bit r/o queue size for the currently selected queue */
-#define VIRTIO_PCI_QUEUE_NUM        12
+#define VIRTIO_PCI_QUEUE_NUM                12
 
 /* A 16-bit r/w queue selector */
-#define VIRTIO_PCI_QUEUE_SEL        14
+#define VIRTIO_PCI_QUEUE_SEL                14
 
 /* A 16-bit r/w queue notifier */
-#define VIRTIO_PCI_QUEUE_NOTIFY     16
+#define VIRTIO_PCI_QUEUE_NOTIFY             16
 
 /* An 8-bit device status register.  */
-#define VIRTIO_PCI_STATUS           18
+#define VIRTIO_PCI_STATUS                   18
 
 /* An 8-bit r/o interrupt status register.  Reading the value will return the
 * current contents of the ISR and will also clear it.  This is effectively
 * a read-and-acknowledge. */
-#define VIRTIO_PCI_ISR              19
+#define VIRTIO_PCI_ISR                      19
 
 /* MSI-X registers: only enabled if MSI-X is enabled. */
 /* A 16-bit vector for configuration changes. */
-#define VIRTIO_MSI_CONFIG_VECTOR    20
+#define VIRTIO_MSI_CONFIG_VECTOR            20
 /* A 16-bit vector for selected queue notifications. */
-#define VIRTIO_MSI_QUEUE_VECTOR     22
+#define VIRTIO_MSI_QUEUE_VECTOR             22
 
 /* The remaining space is defined by each driver as the per-driver
 * configuration space */
 #define VIRTIO_PCI_CONFIG_OFF(msix_enabled) ((msix_enabled) ? 24 : 20)
 /* Deprecated: please use VIRTIO_PCI_CONFIG_OFF instead */
-#define VIRTIO_PCI_CONFIG(msix_enabled) VIRTIO_PCI_CONFIG_OFF(msix_enabled)
+#define VIRTIO_PCI_CONFIG(msix_enabled)     VIRTIO_PCI_CONFIG_OFF(msix_enabled)
 
 /* How many bits to shift physical queue address written to QUEUE_PFN.
 * 12 is historical, and due to x86 page size. */
-#define VIRTIO_PCI_QUEUE_ADDR_SHIFT 12
+#define VIRTIO_PCI_QUEUE_ADDR_SHIFT         12
 
 /* The alignment to use between consumer and producer parts of vring.
 * x86 pagesize again. */
-#define VIRTIO_PCI_VRING_ALIGN      4096
+#define VIRTIO_PCI_VRING_ALIGN              4096
 
 #endif /* VIRTIO_PCI_NO_LEGACY */
 
 /* The bit of the ISR which indicates a device configuration change. */
-#define VIRTIO_PCI_ISR_CONFIG       0x2
+#define VIRTIO_PCI_ISR_CONFIG     0x2
 /* Vector value used to disable MSI for queue */
-#define VIRTIO_MSI_NO_VECTOR        0xffff
+#define VIRTIO_MSI_NO_VECTOR      0xffff
 
 /* IDs for different capabilities.  Must all exist. */
 
 /* Common configuration */
-#define VIRTIO_PCI_CAP_COMMON_CFG   1
+#define VIRTIO_PCI_CAP_COMMON_CFG 1
 /* Notifications */
-#define VIRTIO_PCI_CAP_NOTIFY_CFG   2
+#define VIRTIO_PCI_CAP_NOTIFY_CFG 2
 /* ISR access */
-#define VIRTIO_PCI_CAP_ISR_CFG      3
+#define VIRTIO_PCI_CAP_ISR_CFG    3
 /* Device specific configuration */
-#define VIRTIO_PCI_CAP_DEVICE_CFG   4
+#define VIRTIO_PCI_CAP_DEVICE_CFG 4
 /* PCI configuration access */
-#define VIRTIO_PCI_CAP_PCI_CFG      5
+#define VIRTIO_PCI_CAP_PCI_CFG    5
 
 /* This is the PCI capability header: */
 struct virtio_pci_cap {
-    __u8 cap_vndr;      /* Generic PCI field: PCI_CAPABILITY_ID_VENDOR_SPECIFIC */
-    __u8 cap_next;      /* Generic PCI field: next ptr. */
-    __u8 cap_len;       /* Generic PCI field: capability length */
-    __u8 cfg_type;      /* Identifies the structure. */
-    __u8 bar;           /* Where to find it. */
-    __u8 padding[3];    /* Pad to full dword. */
-    __le32 offset;      /* Offset within bar. */
-    __le32 length;      /* Length of the structure, in bytes. */
+    __u8 cap_vndr;   /* Generic PCI field: PCI_CAPABILITY_ID_VENDOR_SPECIFIC */
+    __u8 cap_next;   /* Generic PCI field: next ptr. */
+    __u8 cap_len;    /* Generic PCI field: capability length */
+    __u8 cfg_type;   /* Identifies the structure. */
+    __u8 bar;        /* Where to find it. */
+    __u8 padding[3]; /* Pad to full dword. */
+    __le32 offset;   /* Offset within bar. */
+    __le32 length;   /* Length of the structure, in bytes. */
 };
 
 struct virtio_pci_notify_cap {
     struct virtio_pci_cap cap;
-    __le32 notify_off_multiplier;   /* Multiplier for queue_notify_off. */
+    __le32 notify_off_multiplier; /* Multiplier for queue_notify_off. */
 };
 
 /* Fields in VIRTIO_PCI_CAP_COMMON_CFG: */
 struct virtio_pci_common_cfg {
     /* About the whole device. */
-    __le32 device_feature_select;   /* read-write */
-    __le32 device_feature;          /* read-only */
-    __le32 guest_feature_select;    /* read-write */
-    __le32 guest_feature;           /* read-write */
-    __le16 msix_config;             /* read-write */
-    __le16 num_queues;              /* read-only */
-    __u8 device_status;             /* read-write */
-    __u8 config_generation;         /* read-only */
+    __le32 device_feature_select; /* read-write */
+    __le32 device_feature;        /* read-only */
+    __le32 guest_feature_select;  /* read-write */
+    __le32 guest_feature;         /* read-write */
+    __le16 msix_config;           /* read-write */
+    __le16 num_queues;            /* read-only */
+    __u8 device_status;           /* read-write */
+    __u8 config_generation;       /* read-only */
 
     /* About a specific virtqueue. */
-    __le16 queue_select;            /* read-write */
-    __le16 queue_size;              /* read-write, power of 2. */
-    __le16 queue_msix_vector;       /* read-write */
-    __le16 queue_enable;            /* read-write */
-    __le16 queue_notify_off;        /* read-only */
-    __le32 queue_desc_lo;           /* read-write */
-    __le32 queue_desc_hi;           /* read-write */
-    __le32 queue_avail_lo;          /* read-write */
-    __le32 queue_avail_hi;          /* read-write */
-    __le32 queue_used_lo;           /* read-write */
-    __le32 queue_used_hi;           /* read-write */
+    __le16 queue_select;      /* read-write */
+    __le16 queue_size;        /* read-write, power of 2. */
+    __le16 queue_msix_vector; /* read-write */
+    __le16 queue_enable;      /* read-write */
+    __le16 queue_notify_off;  /* read-only */
+    __le32 queue_desc_lo;     /* read-write */
+    __le32 queue_desc_hi;     /* read-write */
+    __le32 queue_avail_lo;    /* read-write */
+    __le32 queue_avail_hi;    /* read-write */
+    __le32 queue_used_lo;     /* read-write */
+    __le32 queue_used_hi;     /* read-write */
 };
 
 #define MAX_QUEUES_PER_DEVICE_DEFAULT 8
 
-typedef struct virtio_queue_info
-{
+typedef struct virtio_queue_info {
     /* the actual virtqueue */
     struct virtqueue *vq;
     /* the number of entries in the queue */
@@ -198,8 +197,7 @@ typedef struct virtio_system_ops {
 struct virtio_device;
 typedef struct virtio_device VirtIODevice;
 
-struct virtio_device_ops
-{
+struct virtio_device_ops {
     // read/write device config and read config generation counter
     void (*get_config)(VirtIODevice *vdev, unsigned offset, void *buf, unsigned len);
     void (*set_config)(VirtIODevice *vdev, unsigned offset, const void *buf, unsigned len);
@@ -219,22 +217,20 @@ struct virtio_device_ops
     u16 (*set_queue_vector)(struct virtqueue *vq, u16 vector);
 
     // query virtual queue size and memory requirements
-    NTSTATUS (*query_queue_alloc)(VirtIODevice *vdev,
-        unsigned index, unsigned short *pNumEntries,
-        unsigned long *pRingSize,
-        unsigned long *pHeapSize);
+    NTSTATUS(*query_queue_alloc)
+    (VirtIODevice *vdev, unsigned index, unsigned short *pNumEntries, unsigned long *pRingSize,
+     unsigned long *pHeapSize);
 
     // allocate and initialize a queue
-    NTSTATUS (*setup_queue)(struct virtqueue **queue,
-        VirtIODevice *vdev, VirtIOQueueInfo *info,
-        unsigned idx, u16 msix_vec);
+    NTSTATUS(*setup_queue)
+    (struct virtqueue **queue, VirtIODevice *vdev, VirtIOQueueInfo *info, unsigned idx,
+     u16 msix_vec);
 
     // tear down and deallocate a queue
     void (*delete_queue)(VirtIOQueueInfo *info);
 };
 
-struct virtio_device
-{
+struct virtio_device {
     // the I/O port BAR of the PCI device (legacy virtio devices only)
     ULONG_PTR addr;
 
@@ -284,10 +280,8 @@ struct virtio_device
  * its fields must be non-NULL. msix_used is true if and only if the device is
  * configured with MSI support.
  */
-NTSTATUS virtio_device_initialize(VirtIODevice *vdev,
-                                  const VirtIOSystemOps *pSystemOps,
-                                  void *DeviceContext,
-                                  bool msix_used);
+NTSTATUS virtio_device_initialize(VirtIODevice *vdev, const VirtIOSystemOps *pSystemOps,
+                                  void *DeviceContext, bool msix_used);
 void virtio_device_shutdown(VirtIODevice *vdev);
 
 /* Driver API: device status manipulation
@@ -308,9 +302,9 @@ void virtio_device_ready(VirtIODevice *vdev);
  * the device as returned from virtio_get_features. virtio_set_features sets the
  * VIRTIO_CONFIG_S_FEATURES_OK status bit if it is supported by the device.
  */
-#define virtio_is_feature_enabled(FeaturesList, Feature)  (!!((FeaturesList) & (1ULL << (Feature))))
-#define virtio_feature_enable(FeaturesList, Feature)      ((FeaturesList) |= (1ULL << (Feature)))
-#define virtio_feature_disable(FeaturesList, Feature)     ((FeaturesList) &= ~(1ULL << (Feature)))
+#define virtio_is_feature_enabled(FeaturesList, Feature) (!!((FeaturesList) & (1ULL << (Feature))))
+#define virtio_feature_enable(FeaturesList, Feature)     ((FeaturesList) |= (1ULL << (Feature)))
+#define virtio_feature_disable(FeaturesList, Feature)    ((FeaturesList) &= ~(1ULL << (Feature)))
 
 u64 virtio_get_features(VirtIODevice *dev);
 NTSTATUS virtio_set_features(VirtIODevice *vdev, u64 features);
@@ -321,10 +315,8 @@ NTSTATUS virtio_set_features(VirtIODevice *vdev, u64 features);
  * length 8 is broken down to two 4 bytes accesses, and any other length is read or
  * written byte by byte.
  */
-void virtio_get_config(VirtIODevice *vdev, unsigned offset,
-                       void *buf, unsigned len);
-void virtio_set_config(VirtIODevice *vdev, unsigned offset,
-                       void *buf, unsigned len);
+void virtio_get_config(VirtIODevice *vdev, unsigned offset, void *buf, unsigned len);
+void virtio_set_config(VirtIODevice *vdev, unsigned offset, void *buf, unsigned len);
 
 /* Driver API: virtqueue setup
  * virtio_reserve_queue_memory makes VirtioLib reserve memory for its virtqueue
@@ -336,16 +328,13 @@ void virtio_set_config(VirtIODevice *vdev, unsigned offset,
  * Drivers should treat the returned struct virtqueue pointers as opaque handles.
  */
 NTSTATUS virtio_query_queue_allocation(VirtIODevice *vdev, unsigned index,
-                                       unsigned short *pNumEntries,
-                                       unsigned long *pRingSize,
+                                       unsigned short *pNumEntries, unsigned long *pRingSize,
                                        unsigned long *pHeapSize);
 
 NTSTATUS virtio_reserve_queue_memory(VirtIODevice *vdev, unsigned nvqs);
 
-NTSTATUS virtio_find_queue(VirtIODevice *vdev, unsigned index,
-                           struct virtqueue **vq);
-NTSTATUS virtio_find_queues(VirtIODevice *vdev, unsigned nvqs,
-                            struct virtqueue *vqs[]);
+NTSTATUS virtio_find_queue(VirtIODevice *vdev, unsigned index, struct virtqueue **vq);
+NTSTATUS virtio_find_queues(VirtIODevice *vdev, unsigned nvqs, struct virtqueue *vqs[]);
 
 /* Driver API: virtqueue shutdown
  * The device must be reset and re-initialized to re-setup queues after they have

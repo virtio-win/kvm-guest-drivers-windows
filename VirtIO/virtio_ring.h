@@ -36,15 +36,15 @@
 #include "linux/virtio_types.h"
 
 /* We support indirect buffer descriptors */
-#define VIRTIO_RING_F_INDIRECT_DESC	28
+#define VIRTIO_RING_F_INDIRECT_DESC 28
 
 /* The Guest publishes the used index for which it expects an interrupt
 * at the end of the avail ring. Host should ignore the avail->flags field. */
 /* The Host publishes the avail index for which it expects a kick
 * at the end of the used ring. Guest should ignore the used->flags field. */
-#define VIRTIO_RING_F_EVENT_IDX		29
+#define VIRTIO_RING_F_EVENT_IDX     29
 
-#define VQ_ADD_BUFFER_SUCCESS 0
+#define VQ_ADD_BUFFER_SUCCESS       0
 
 void vring_transport_features(VirtIODevice *vdev, u64 *features);
 unsigned long vring_size(unsigned int num, unsigned long align, bool packed);
