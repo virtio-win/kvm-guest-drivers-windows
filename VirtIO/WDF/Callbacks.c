@@ -65,10 +65,7 @@ static void *mem_alloc_nonpaged_block(void *context, size_t size)
 {
     PVIRTIO_WDF_DRIVER pWdfDriver = (PVIRTIO_WDF_DRIVER)context;
 
-    PVOID addr = ExAllocatePoolUninitialized(
-        NonPagedPool,
-        size,
-        pWdfDriver->MemoryTag);
+    PVOID addr = ExAllocatePoolUninitialized(NonPagedPool, size, pWdfDriver->MemoryTag);
     if (addr) {
         RtlZeroMemory(addr, size);
     }
@@ -79,9 +76,7 @@ static void mem_free_nonpaged_block(void *context, void *addr)
 {
     PVIRTIO_WDF_DRIVER pWdfDriver = (PVIRTIO_WDF_DRIVER)context;
 
-    ExFreePoolWithTag(
-        addr,
-        pWdfDriver->MemoryTag);
+    ExFreePoolWithTag(addr, pWdfDriver->MemoryTag);
 }
 
 static int pci_read_config_byte(void *context, int where, u8 *bVal)
@@ -103,7 +98,7 @@ static PVIRTIO_WDF_BAR find_bar(void *context, int bar)
 {
     PVIRTIO_WDF_DRIVER pWdfDriver = (PVIRTIO_WDF_DRIVER)context;
     PSINGLE_LIST_ENTRY iter = &pWdfDriver->PCIBars;
-    
+
     while (iter->Next != NULL) {
         PVIRTIO_WDF_BAR pBar = CONTAINING_RECORD(iter->Next, VIRTIO_WDF_BAR, ListEntry);
         if (pBar->iBar == bar) {
@@ -127,10 +122,8 @@ static void *pci_map_address_range(void *context, int bar, size_t offset, size_t
         if (pBar->pBase == NULL) {
             ASSERT(!pBar->bPortSpace);
 #if defined(NTDDI_WINTHRESHOLD) && (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
-            pBar->pBase = MmMapIoSpaceEx(
-                pBar->BasePA,
-                pBar->uLength,
-                PAGE_READWRITE | PAGE_NOCACHE);
+            pBar->pBase =
+                MmMapIoSpaceEx(pBar->BasePA, pBar->uLength, PAGE_READWRITE | PAGE_NOCACHE);
 #else
             pBar->pBase = MmMapIoSpace(pBar->BasePA, pBar->uLength, MmNonCached);
 #endif
@@ -152,8 +145,7 @@ static u16 vdev_get_msix_vector(void *context, int queue)
         if (pWdfDriver->pQueueParams != NULL) {
             vector = PCIGetMSIInterruptVector(pWdfDriver->pQueueParams[queue].Interrupt);
         }
-    }
-    else {
+    } else {
         /* on-device-config-change interrupt */
         vector = PCIGetMSIInterruptVector(pWdfDriver->ConfigInterrupt);
     }

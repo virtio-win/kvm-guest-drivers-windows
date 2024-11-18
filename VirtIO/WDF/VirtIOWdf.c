@@ -37,27 +37,21 @@
 
 extern VirtIOSystemOps VirtIOWdfSystemOps;
 
-NTSTATUS VirtIOWdfInitialize(PVIRTIO_WDF_DRIVER pWdfDriver,
-                             WDFDEVICE Device,
-                             WDFCMRESLIST ResourcesTranslated,
-                             WDFINTERRUPT ConfigInterrupt,
+NTSTATUS VirtIOWdfInitialize(PVIRTIO_WDF_DRIVER pWdfDriver, WDFDEVICE Device,
+                             WDFCMRESLIST ResourcesTranslated, WDFINTERRUPT ConfigInterrupt,
                              ULONG MemoryTag)
 {
     NTSTATUS status = STATUS_SUCCESS;
     WDF_DMA_ENABLER_CONFIG dmaEnablerConfig;
-    WDF_OBJECT_ATTRIBUTES  attributes;
+    WDF_OBJECT_ATTRIBUTES attributes;
 
     RtlZeroMemory(pWdfDriver, sizeof(*pWdfDriver));
     pWdfDriver->MemoryTag = MemoryTag;
 
     /* get the PCI bus interface */
-    status = WdfFdoQueryForInterface(
-        Device,
-        &GUID_BUS_INTERFACE_STANDARD,
-        (PINTERFACE)&pWdfDriver->PCIBus,
-        sizeof(pWdfDriver->PCIBus),
-        1 /* version */,
-        NULL);
+    status = WdfFdoQueryForInterface(Device, &GUID_BUS_INTERFACE_STANDARD,
+                                     (PINTERFACE)&pWdfDriver->PCIBus, sizeof(pWdfDriver->PCIBus),
+                                     1 /* version */, NULL);
     if (!NT_SUCCESS(status)) {
         return status;
     }
@@ -77,11 +71,12 @@ NTSTATUS VirtIOWdfInitialize(PVIRTIO_WDF_DRIVER pWdfDriver,
     /* set max transfer size to 256M, should be enough for any purpose */
     /* number of SG fragments is unlimited */
     WDF_DMA_ENABLER_CONFIG_INIT(&dmaEnablerConfig, WdfDmaProfileScatterGather64Duplex, 0xFFFFFFF);
-    status = WdfDmaEnablerCreate(Device, &dmaEnablerConfig, WDF_NO_OBJECT_ATTRIBUTES, &pWdfDriver->DmaEnabler);
+    status = WdfDmaEnablerCreate(Device, &dmaEnablerConfig, WDF_NO_OBJECT_ATTRIBUTES,
+                                 &pWdfDriver->DmaEnabler);
     if (NT_SUCCESS(status)) {
         WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
         DPrintf(0, "%s DMA enabler ready (alignment %d), pWdfDriver %p\n", __FUNCTION__,
-            WdfDeviceGetAlignmentRequirement(Device) + 1, pWdfDriver);
+                WdfDeviceGetAlignmentRequirement(Device) + 1, pWdfDriver);
         attributes.ParentObject = Device;
         status = WdfCollectionCreate(&attributes, &pWdfDriver->MemoryBlockCollection);
     }
@@ -95,11 +90,8 @@ NTSTATUS VirtIOWdfInitialize(PVIRTIO_WDF_DRIVER pWdfDriver,
     }
 
     /* initialize the underlying VirtIODevice */
-    status = virtio_device_initialize(
-        &pWdfDriver->VIODevice,
-        &VirtIOWdfSystemOps,
-        pWdfDriver,
-        pWdfDriver->nMSIInterrupts > 0);
+    status = virtio_device_initialize(&pWdfDriver->VIODevice, &VirtIOWdfSystemOps, pWdfDriver,
+                                      pWdfDriver->nMSIInterrupts > 0);
     if (!NT_SUCCESS(status)) {
         PCIFreeBars(pWdfDriver);
     }
@@ -114,8 +106,7 @@ ULONGLONG VirtIOWdfGetDeviceFeatures(PVIRTIO_WDF_DRIVER pWdfDriver)
     return virtio_get_features(&pWdfDriver->VIODevice);
 }
 
-NTSTATUS VirtIOWdfSetDriverFeatures(PVIRTIO_WDF_DRIVER pWdfDriver,
-                                    ULONGLONG uPrivateFeaturesOn,
+NTSTATUS VirtIOWdfSetDriverFeatures(PVIRTIO_WDF_DRIVER pWdfDriver, ULONGLONG uPrivateFeaturesOn,
                                     ULONGLONG uFeaturesOff)
 {
     ULONGLONG uFeatures = 0, uDeviceFeatures = VirtIOWdfGetDeviceFeatures(pWdfDriver);
@@ -135,8 +126,8 @@ NTSTATUS VirtIOWdfSetDriverFeatures(PVIRTIO_WDF_DRIVER pWdfDriver,
     }
 
     if ((uDeviceFeatures & uPrivateFeaturesOn) != uPrivateFeaturesOn) {
-        DPrintf(0, "%s(%s) FAILED features %I64X != %I64X\n", __FUNCTION__,
-            drvTag, uPrivateFeaturesOn, (uDeviceFeatures & uPrivateFeaturesOn));
+        DPrintf(0, "%s(%s) FAILED features %I64X != %I64X\n", __FUNCTION__, drvTag,
+                uPrivateFeaturesOn, (uDeviceFeatures & uPrivateFeaturesOn));
         return STATUS_INVALID_PARAMETER;
     }
 
@@ -183,10 +174,8 @@ static NTSTATUS VirtIOWdfFinalizeFeatures(PVIRTIO_WDF_DRIVER pWdfDriver)
     return status;
 }
 
-NTSTATUS VirtIOWdfInitQueues(PVIRTIO_WDF_DRIVER pWdfDriver,
-                             ULONG nQueues,
-                             struct virtqueue **pQueues,
-                             PVIRTIO_WDF_QUEUE_PARAM pQueueParams)
+NTSTATUS VirtIOWdfInitQueues(PVIRTIO_WDF_DRIVER pWdfDriver, ULONG nQueues,
+                             struct virtqueue **pQueues, PVIRTIO_WDF_QUEUE_PARAM pQueueParams)
 {
     NTSTATUS status;
     ULONG i;
@@ -207,17 +196,13 @@ NTSTATUS VirtIOWdfInitQueues(PVIRTIO_WDF_DRIVER pWdfDriver,
 
     /* find and initialize queues */
     pWdfDriver->pQueueParams = pQueueParams;
-    status = virtio_find_queues(
-        &pWdfDriver->VIODevice,
-        nQueues,
-        pQueues);
+    status = virtio_find_queues(&pWdfDriver->VIODevice, nQueues, pQueues);
     pWdfDriver->pQueueParams = NULL;
 
     return status;
 }
 
-NTSTATUS VirtIOWdfInitQueuesCB(PVIRTIO_WDF_DRIVER pWdfDriver,
-                               ULONG nQueues,
+NTSTATUS VirtIOWdfInitQueuesCB(PVIRTIO_WDF_DRIVER pWdfDriver, ULONG nQueues,
                                VirtIOWdfGetQueueParamCallback pQueueParamFunc,
                                VirtIOWdfSetQueueCallback pSetQueueFunc)
 {
@@ -309,28 +294,14 @@ NTSTATUS VirtIOWdfDestroyQueues(PVIRTIO_WDF_DRIVER pWdfDriver)
     return STATUS_SUCCESS;
 }
 
-void VirtIOWdfDeviceGet(PVIRTIO_WDF_DRIVER pWdfDriver,
-                        ULONG offset,
-                        PVOID buf,
-                        ULONG len)
+void VirtIOWdfDeviceGet(PVIRTIO_WDF_DRIVER pWdfDriver, ULONG offset, PVOID buf, ULONG len)
 {
-    virtio_get_config(
-        &pWdfDriver->VIODevice,
-        offset,
-        buf,
-        len);
+    virtio_get_config(&pWdfDriver->VIODevice, offset, buf, len);
 }
 
-void VirtIOWdfDeviceSet(PVIRTIO_WDF_DRIVER pWdfDriver,
-                        ULONG offset,
-                        CONST PVOID buf,
-                        ULONG len)
+void VirtIOWdfDeviceSet(PVIRTIO_WDF_DRIVER pWdfDriver, ULONG offset, CONST PVOID buf, ULONG len)
 {
-    virtio_set_config(
-        &pWdfDriver->VIODevice,
-        offset,
-        buf,
-        len);
+    virtio_set_config(&pWdfDriver->VIODevice, offset, buf, len);
 }
 
 UCHAR VirtIOWdfGetISRStatus(PVIRTIO_WDF_DRIVER pWdfDriver)

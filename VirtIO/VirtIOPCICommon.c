@@ -41,10 +41,8 @@
 
 #include "virtio_pci_common.h"
 
-NTSTATUS virtio_device_initialize(VirtIODevice *vdev,
-                                  const VirtIOSystemOps *pSystemOps,
-                                  PVOID DeviceContext,
-                                  bool msix_used)
+NTSTATUS virtio_device_initialize(VirtIODevice *vdev, const VirtIOSystemOps *pSystemOps,
+                                  PVOID DeviceContext, bool msix_used)
 {
     NTSTATUS status;
 
@@ -76,8 +74,7 @@ NTSTATUS virtio_device_initialize(VirtIODevice *vdev,
 
 void virtio_device_shutdown(VirtIODevice *vdev)
 {
-    if (vdev->info &&
-        vdev->info != vdev->inline_info) {
+    if (vdev->info && vdev->info != vdev->inline_info) {
         mem_free_nonpaged_block(vdev, vdev->info);
         vdev->info = NULL;
     }
@@ -143,29 +140,26 @@ NTSTATUS virtio_set_features(VirtIODevice *vdev, u64 features)
 }
 
 /* Read @count fields, @bytes each. */
-static void virtio_cread_many(VirtIODevice *vdev,
-                              unsigned int offset,
-                              void *buf, size_t count, size_t bytes)
+static void virtio_cread_many(VirtIODevice *vdev, unsigned int offset, void *buf, size_t count,
+                              size_t bytes)
 {
-    u32 old, gen = vdev->device->get_config_generation ?
-        vdev->device->get_config_generation(vdev) : 0;
+    u32 old,
+        gen = vdev->device->get_config_generation ? vdev->device->get_config_generation(vdev) : 0;
     size_t i;
 
     do {
         old = gen;
 
         for (i = 0; i < count; i++) {
-            vdev->device->get_config(vdev, (unsigned)(offset + bytes * i),
-                (char *)buf + i * bytes, (unsigned)bytes);
+            vdev->device->get_config(vdev, (unsigned)(offset + bytes * i), (char *)buf + i * bytes,
+                                     (unsigned)bytes);
         }
 
-        gen = vdev->device->get_config_generation ?
-            vdev->device->get_config_generation(vdev) : 0;
+        gen = vdev->device->get_config_generation ? vdev->device->get_config_generation(vdev) : 0;
     } while (gen != old);
 }
 
-void virtio_get_config(VirtIODevice *vdev, unsigned offset,
-                       void *buf, unsigned len)
+void virtio_get_config(VirtIODevice *vdev, unsigned offset, void *buf, unsigned len)
 {
     switch (len) {
     case 1:
@@ -183,19 +177,17 @@ void virtio_get_config(VirtIODevice *vdev, unsigned offset,
 }
 
 /* Write @count fields, @bytes each. */
-static void virtio_cwrite_many(VirtIODevice *vdev,
-                               unsigned int offset,
-                               void *buf, size_t count, size_t bytes)
+static void virtio_cwrite_many(VirtIODevice *vdev, unsigned int offset, void *buf, size_t count,
+                               size_t bytes)
 {
     size_t i;
     for (i = 0; i < count; i++) {
-        vdev->device->set_config(vdev, (unsigned)(offset + bytes * i),
-            (char *)buf + i * bytes, (unsigned)bytes);
+        vdev->device->set_config(vdev, (unsigned)(offset + bytes * i), (char *)buf + i * bytes,
+                                 (unsigned)bytes);
     }
 }
 
-void virtio_set_config(VirtIODevice *vdev, unsigned offset,
-                       void *buf, unsigned len)
+void virtio_set_config(VirtIODevice *vdev, unsigned offset, void *buf, unsigned len)
 {
     switch (len) {
     case 1:
@@ -212,10 +204,8 @@ void virtio_set_config(VirtIODevice *vdev, unsigned offset,
     }
 }
 
-NTSTATUS virtio_query_queue_allocation(VirtIODevice *vdev,
-                                       unsigned index,
-                                       unsigned short *pNumEntries,
-                                       unsigned long *pRingSize,
+NTSTATUS virtio_query_queue_allocation(VirtIODevice *vdev, unsigned index,
+                                       unsigned short *pNumEntries, unsigned long *pRingSize,
                                        unsigned long *pHeapSize)
 {
     return vdev->device->query_queue_alloc(vdev, index, pNumEntries, pRingSize, pHeapSize);
@@ -239,8 +229,7 @@ NTSTATUS virtio_reserve_queue_memory(VirtIODevice *vdev, unsigned nvqs)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS vp_setup_vq(struct virtqueue **queue,
-                            VirtIODevice *vdev, unsigned index,
+static NTSTATUS vp_setup_vq(struct virtqueue **queue, VirtIODevice *vdev, unsigned index,
                             u16 msix_vec)
 {
     VirtIOQueueInfo *info = &vdev->info[index];
@@ -253,20 +242,13 @@ static NTSTATUS vp_setup_vq(struct virtqueue **queue,
     return status;
 }
 
-NTSTATUS virtio_find_queue(VirtIODevice *vdev, unsigned index,
-                           struct virtqueue **vq)
+NTSTATUS virtio_find_queue(VirtIODevice *vdev, unsigned index, struct virtqueue **vq)
 {
     u16 msix_vec = vdev_get_msix_vector(vdev, index);
-    return vp_setup_vq(
-        vq,
-        vdev,
-        index,
-        msix_vec);
+    return vp_setup_vq(vq, vdev, index, msix_vec);
 }
 
-NTSTATUS virtio_find_queues(VirtIODevice *vdev,
-                            unsigned nvqs,
-                            struct virtqueue *vqs[])
+NTSTATUS virtio_find_queues(VirtIODevice *vdev, unsigned nvqs, struct virtqueue *vqs[])
 {
     unsigned i;
     NTSTATUS status;
@@ -292,11 +274,7 @@ NTSTATUS virtio_find_queues(VirtIODevice *vdev,
     /* set up queue interrupts */
     for (i = 0; i < nvqs; i++) {
         msix_vec = vdev_get_msix_vector(vdev, i);
-        status = vp_setup_vq(
-            &vqs[i],
-            vdev,
-            i,
-            msix_vec);
+        status = vp_setup_vq(&vqs[i], vdev, i, msix_vec);
         if (!NT_SUCCESS(status)) {
             goto error_find;
         }
@@ -322,8 +300,9 @@ void virtio_delete_queues(VirtIODevice *vdev)
     struct virtqueue *vq;
     unsigned i;
 
-    if (vdev->info == NULL)
+    if (vdev->info == NULL) {
         return;
+    }
 
     for (i = 0; i < vdev->maxQueues; i++) {
         vq = vdev->info[i].vq;

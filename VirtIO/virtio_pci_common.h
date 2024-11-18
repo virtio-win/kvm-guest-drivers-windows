@@ -35,19 +35,13 @@
  * SUCH DAMAGE.
  */
 
-#define ioread8(vdev, addr) \
-    vdev->system->vdev_read_byte((ULONG_PTR)(addr))
-#define ioread16(vdev, addr) \
-    vdev->system->vdev_read_word((ULONG_PTR)(addr))
-#define ioread32(vdev, addr) \
-    vdev->system->vdev_read_dword((ULONG_PTR)(addr))
-#define iowrite8(vdev, val, addr) \
-    vdev->system->vdev_write_byte((ULONG_PTR)(addr), val)
-#define iowrite16(vdev, val, addr) \
-    vdev->system->vdev_write_word((ULONG_PTR)(addr), val)
-#define iowrite32(vdev, val, addr) \
-    vdev->system->vdev_write_dword((ULONG_PTR)(addr), val)
-#define iowrite64_twopart(vdev, val, lo_addr, hi_addr) \
+#define ioread8(vdev, addr)        vdev->system->vdev_read_byte((ULONG_PTR)(addr))
+#define ioread16(vdev, addr)       vdev->system->vdev_read_word((ULONG_PTR)(addr))
+#define ioread32(vdev, addr)       vdev->system->vdev_read_dword((ULONG_PTR)(addr))
+#define iowrite8(vdev, val, addr)  vdev->system->vdev_write_byte((ULONG_PTR)(addr), val)
+#define iowrite16(vdev, val, addr) vdev->system->vdev_write_word((ULONG_PTR)(addr), val)
+#define iowrite32(vdev, val, addr) vdev->system->vdev_write_dword((ULONG_PTR)(addr), val)
+#define iowrite64_twopart(vdev, val, lo_addr, hi_addr)                \
     vdev->system->vdev_write_dword((ULONG_PTR)(lo_addr), (u32)(val)); \
     vdev->system->vdev_write_dword((ULONG_PTR)(hi_addr), (val) >> 32)
 
@@ -69,15 +63,13 @@
 #define pci_read_config_dword(vdev, where, dwVal) \
     vdev->system->pci_read_config_dword(vdev->DeviceContext, where, dwVal)
 
-#define pci_get_resource_len(vdev, bar) \
-    vdev->system->pci_get_resource_len(vdev->DeviceContext, bar)
+#define pci_get_resource_len(vdev, bar) vdev->system->pci_get_resource_len(vdev->DeviceContext, bar)
 #define pci_map_address_range(vdev, bar, offset, maxlen) \
     vdev->system->pci_map_address_range(vdev->DeviceContext, bar, offset, maxlen)
 
 #define vdev_get_msix_vector(vdev, queue) \
     vdev->system->vdev_get_msix_vector(vdev->DeviceContext, queue)
-#define vdev_sleep(vdev, msecs) \
-    vdev->system->vdev_sleep(vdev->DeviceContext, msecs)
+#define vdev_sleep(vdev, msecs) vdev->system->vdev_sleep(vdev->DeviceContext, msecs)
 
 /* the notify function used when creating a virt queue */
 bool vp_notify(struct virtqueue *vq);
