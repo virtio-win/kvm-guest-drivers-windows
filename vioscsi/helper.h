@@ -171,28 +171,10 @@ VioScsiCompleteDpcRoutine(
 );
 
 VOID
-ProcessQueue(
+ProcessBuffer(
     IN PVOID DeviceExtension,
-    IN ULONG MessageID,
-    IN BOOLEAN isr
-    );
-
-VOID
-//FORCEINLINE
-VioScsiVQLock(
-    IN PVOID DeviceExtension,
-    IN ULONG MessageID,
-    IN OUT PSTOR_LOCK_HANDLE LockHandle,
-    IN BOOLEAN isr
-    );
-
-VOID
-//FORCEINLINE
-VioScsiVQUnlock(
-    IN PVOID DeviceExtension,
-    IN ULONG MessageID,
-    IN PSTOR_LOCK_HANDLE LockHandle,
-    IN BOOLEAN isr
+    IN ULONG MessageId,
+    IN STOR_SPINLOCK LockMode
     );
 
 VOID
