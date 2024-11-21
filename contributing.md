@@ -34,8 +34,8 @@ We use GitHub issues to track public bugs. Report a bug by [opening a new issue]
 
 - A quick summary and/or background
 - Steps to reproduce
-  - Be specific!
-  - Give sample code if you can.
+  - Be specific!
+  - Give sample code if you can.
 - Driver version or commit hash that was used to build the driver
 - QEMU command line
 - What you expected would happen
@@ -45,7 +45,36 @@ We use GitHub issues to track public bugs. Report a bug by [opening a new issue]
 People *love* thorough bug reports.
 
 ## Use a Consistent Coding Style
-* 4 spaces for indentation rather than tabs
+
+* We use clang-format tool to check code style.
+* In project we have two different code style:
+   - Style config file for Windows driver /.clang-format
+   - Style config file for VirtIO library /VirtIO/.clang-format
+* To run code style check locally on Linux or Windows (with MSYS or cygwin) use `Tools/clang-format-helper.sh` helper
+   - on Linux helper uses `clang-format` from PATH
+   - on Windows helper uses `clang-format` from EWDK 24H2
+   - CLI:
+      - For all Windows drivers
+      ```bash
+      bash Tools/clang-format-helper.sh '.' '' './VirtIO'
+      ```
+      - For VirtIO library
+      ```bash
+      bash Tools/clang-format-helper.sh 'VirtIO' '' ''
+      ```
+* Tools/clang-format-helper.sh uses positional arguments
+   1. Directory where needs to check format
+   1. Path to .clang-format file (default: `${1}/.clang-format`)
+   1. Exclude regexp (default: `^$`)
+   1. Include regexp (default: `^.*\.((((c|C)(c|pp|xx|\+\+)?$)|((h|H)h?(pp|xx|\+\+)?$)))$`)
+
+   - To use default just put '' as argument
+
+* **NOTE**
+
+   On Windows clang-format reports problem with several files but changes that needs to be done are not detected by git.
+
+   We are investigating this issue.
 
 ## HCK\HLK tests
 * The contributions should pass Microsoft certification tests. We are running CI to check that the changes in the pull request can pass. If you submit a lot of PRs, you can setup AutoHCK on your premises to test your code changes: [auto-hck setup](https://github.com/HCK-CI/HCK-CI-DOCS/blob/master/installing-hck-ci-from-scratch.txt)
