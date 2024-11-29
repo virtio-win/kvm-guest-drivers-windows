@@ -1199,6 +1199,10 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
     else
     {
         DEBUG_EXIT_STATUS(0, status);
+        if (DriverHandle)
+        {
+            NdisMDeregisterMiniportDriver(DriverHandle);
+        }
         ParaNdis_DebugCleanup(pDriverObject);
 #ifdef NETKVM_WPP_ENABLED
         WPP_CLEANUP(pDriverObject);
