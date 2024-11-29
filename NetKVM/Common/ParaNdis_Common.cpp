@@ -2151,7 +2151,7 @@ ParaNdis_UpdateMAC(PARANDIS_ADAPTER *pContext)
 NDIS_STATUS ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 {
     UINT i;
-
+    bool bRenewed = true;
     DEBUG_ENTRY(0);
     ParaNdis_DebugHistory(pContext, _etagHistoryLogOperation::hopPowerOn, NULL, 1, 0, 0);
 
@@ -2172,12 +2172,17 @@ NDIS_STATUS ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 
     for (i = 0; i < pContext->nPathBundles; i++)
     {
-        pContext->pPathBundles[i].txPath.Renew();
-        pContext->pPathBundles[i].rxPath.Renew();
+        bRenewed = bRenewed && pContext->pPathBundles[i].txPath.Renew();
+        bRenewed = bRenewed && pContext->pPathBundles[i].rxPath.Renew();
     }
     if (pContext->bCXPathCreated)
     {
-        pContext->CXPath.Renew();
+        bRenewed = bRenewed && pContext->CXPath.Renew();
+    }
+
+    if (!bRenewed) {
+        DPrintf(0, "[%s] one or more queues failed to renew\n", __FUNCTION__);
+        return NDIS_STATUS_RESOURCES;
     }
 
     ParaNdis_RestoreDeviceConfigurationAfterReset(pContext);
