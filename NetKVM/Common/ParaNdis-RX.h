@@ -39,14 +39,16 @@ public:
     void KickRXRing();
 
     PARANDIS_RECEIVE_QUEUE &UnclassifiedPacketsQueue() { return m_UnclassifiedPacketsQueue;  }
-
+    UINT GetFreeRxBuffers() const { return m_NetNofReceiveBuffers; }
 private:
     /* list of Rx buffers available for data (under VIRTIO management) */
     LIST_ENTRY              m_NetReceiveBuffers;
-    UINT                    m_NetNofReceiveBuffers;
+    UINT                    m_NetNofReceiveBuffers = 0;
+    UINT                    m_NetMaxReceiveBuffers = 0;
     UINT                    m_MinRxBufferLimit;
 
-    UINT m_nReusedRxBuffersCounter, m_nReusedRxBuffersLimit = 0;
+    UINT m_nReusedRxBuffersCounter = 0;
+    UINT m_nReusedRxBuffersLimit = 0;
 
     bool m_Reinsert = true;
 

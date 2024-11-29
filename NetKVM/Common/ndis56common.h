@@ -560,7 +560,7 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
     /* initial number of free Tx descriptor(from cfg) - max number of available Tx descriptors */
     UINT                    maxFreeTxDescriptors = 0;
     /* total of Rx buffer in turnaround */
-    UINT                    NetMaxReceiveBuffers = 0;
+    UINT                    maxRxBufferPerQueue = 0;
     UINT                    nPnpEventIndex = 0;
     NDIS_DEVICE_PNP_EVENT   PnpEvents[16] = {};
     tOffloadSettings        Offload = {};
