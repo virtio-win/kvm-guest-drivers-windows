@@ -1376,25 +1376,25 @@ NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext)
     DEBUG_ENTRY(0);
 
     status = ParaNdis_FinishSpecificInitialization(pContext);
-    DPrintf(0, "[%s] ParaNdis_FinishSpecificInitialization passed, status = %d\n", __FUNCTION__, status);
+    DPrintf(0, "[%s] ParaNdis_FinishSpecificInitialization passed, status = %X\n", __FUNCTION__, status);
 
 
     if (status == NDIS_STATUS_SUCCESS)
     {
         status = ParaNdis_VirtIONetInit(pContext);
-        DPrintf(0, "[%s] ParaNdis_VirtIONetInit passed, status = %d\n", __FUNCTION__, status);
+        DPrintf(0, "[%s] ParaNdis_VirtIONetInit passed, status = %X\n", __FUNCTION__, status);
     }
 
     if (status == NDIS_STATUS_SUCCESS && pContext->bUsingMSIX)
     {
         status = ParaNdis_ConfigureMSIXVectors(pContext);
-        DPrintf(0, "[%s] ParaNdis_ConfigureMSIXVectors passed, status = %d\n", __FUNCTION__, status);
+        DPrintf(0, "[%s] ParaNdis_ConfigureMSIXVectors passed, status = %X\n", __FUNCTION__, status);
     }
 
     if (status == NDIS_STATUS_SUCCESS)
     {
         status = SetupDPCTarget(pContext);
-        DPrintf(0, "[%s] SetupDPCTarget passed, status = %d\n", __FUNCTION__, status);
+        DPrintf(0, "[%s] SetupDPCTarget passed, status = %X\n", __FUNCTION__, status);
     }
 
     if (status == NDIS_STATUS_SUCCESS && pContext->bPollModeTry &&
