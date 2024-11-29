@@ -553,12 +553,19 @@ static NDIS_STATUS ParaNdis6_Reset(
         NDIS_HANDLE miniportAdapterContext,
         PBOOLEAN  pAddressingReset)
 {
+    NDIS_STATUS status;
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
     DEBUG_ENTRY(0);
     ParaNdis_PowerOff(pContext);
-    ParaNdis_PowerOn(pContext);
+    status = ParaNdis_PowerOn(pContext);
     *pAddressingReset = FALSE;
-    return NDIS_STATUS_SUCCESS;
+    // if ParaNdis_PowerOn fails, just returning error
+    // does not help, so request unload
+    if (!NT_SUCCESS(status)) {
+        DPrintf(0, "[%s] requesting removal\n", __FUNCTION__);
+        NdisMRemoveMiniport(pContext->MiniportHandle);
+    }
+    return status;
 }
 
 /***************************************************
