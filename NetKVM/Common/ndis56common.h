@@ -455,6 +455,8 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
         CXPath(this),
         RSSParameters(Handle)
     {
+        m_StateMachine.RegisterFlow(m_RxStateMachine);
+        m_StateMachine.RegisterFlow(m_CxStateMachine);
     }
     ~_PARANDIS_ADAPTER();
     NDIS_HANDLE             DriverHandle = NULL;

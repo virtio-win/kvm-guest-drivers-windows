@@ -189,9 +189,6 @@ static NDIS_STATUS ParaNdis6_Initialize(
         pContext->ulUniqueID = NdisInterlockedIncrement(&gID);
         pContext->DriverHandle = DriverHandle;
 
-        pContext->m_StateMachine.RegisterFlow(pContext->m_RxStateMachine);
-        pContext->m_StateMachine.RegisterFlow(pContext->m_CxStateMachine);
-
         NdisZeroMemory(&miniportAttributes, sizeof(miniportAttributes));
         miniportAttributes.RegistrationAttributes.Header.Type = NDIS_OBJECT_TYPE_MINIPORT_ADAPTER_REGISTRATION_ATTRIBUTES;
         miniportAttributes.RegistrationAttributes.Header.Revision = NDIS_MINIPORT_ADAPTER_REGISTRATION_ATTRIBUTES_REVISION_1;
