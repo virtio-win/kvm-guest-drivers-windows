@@ -307,26 +307,12 @@ static NDIS_STATUS ParaNdis6_Initialize(
         }
     }
 
-    if (pContext && status != NDIS_STATUS_SUCCESS && status != NDIS_STATUS_PENDING)
-    {
-        pContext->m_StateMachine.UnregisterFlow(pContext->m_RxStateMachine);
-        pContext->m_StateMachine.UnregisterFlow(pContext->m_CxStateMachine);
-        pContext->m_StateMachine.NotifyHalted();
-
-        pContext->Destroy(pContext, pContext->MiniportHandle);
-        pContext = NULL;
-    }
-
-    if (pContext && status == NDIS_STATUS_SUCCESS)
+    if (status == NDIS_STATUS_SUCCESS)
     {
         status = ParaNdis_FinishInitialization(pContext);
-        if (status != NDIS_STATUS_SUCCESS)
-        {
-            pContext->Destroy(pContext, pContext->MiniportHandle);
-            pContext = NULL;
-        }
     }
-    if (pContext && status == NDIS_STATUS_SUCCESS)
+
+    if (status == NDIS_STATUS_SUCCESS)
     {
         if (NDIS_STATUS_SUCCESS ==
             ParaNdis6_GetRegistrationOffloadInfo(pContext,
@@ -338,7 +324,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
             }
     }
 
-    if (pContext && status == NDIS_STATUS_SUCCESS)
+    if (status == NDIS_STATUS_SUCCESS)
     {
         pContext->m_StateMachine.NotifyInitialized(pContext);
         ParaNdis_DebugRegisterMiniport(pContext, TRUE);
@@ -346,6 +332,10 @@ static NDIS_STATUS ParaNdis6_Initialize(
     }
     else
     {
+        if (pContext)
+        {
+            pContext->Destroy(pContext, pContext->MiniportHandle);
+        }
         // In rare case of initialization failure we need to unregister the protocol.
         // Use dummy adapter context
         ParaNdis_ProtocolUnregisterAdapter();
