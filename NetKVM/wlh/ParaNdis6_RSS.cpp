@@ -1075,9 +1075,9 @@ void ParaNdis6_EnableDeviceRssSupport(PARANDIS_ADAPTER *pContext, BOOLEAN b)
     }
 }
 
-PARANDIS_RSS_PARAMS::PARANDIS_RSS_PARAMS(PARANDIS_ADAPTER *pContext) : m_pContext(pContext)
+PARANDIS_RSS_PARAMS::PARANDIS_RSS_PARAMS(NDIS_HANDLE MiniportHandle)
 {
-    FailedInitialization = !rwLock.Create(pContext->MiniportHandle);
+    FailedInitialization = !rwLock.Create(MiniportHandle);
 }
 
 PARANDIS_RSS_PARAMS::~PARANDIS_RSS_PARAMS()

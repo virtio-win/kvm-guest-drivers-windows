@@ -46,7 +46,7 @@ typedef struct _tagPARANDIS_SCALING_SETTINGS
 class PARANDIS_RSS_PARAMS
 {
 public:
-    PARANDIS_RSS_PARAMS(PARANDIS_ADAPTER *pContext);
+    PARANDIS_RSS_PARAMS(NDIS_HANDLE MiniportHandle);
     ~PARANDIS_RSS_PARAMS();
     bool              FailedInitialization;
     CCHAR             ReceiveQueuesNumber;
@@ -61,9 +61,6 @@ public:
     PARANDIS_SCALING_SETTINGS ActiveRSSScalingSettings = {};
 
     mutable CNdisRWLock                 rwLock;
-
-private:
-    PARANDIS_ADAPTER *m_pContext;
 };
 typedef PARANDIS_RSS_PARAMS *PPARANDIS_RSS_PARAMS;
 
