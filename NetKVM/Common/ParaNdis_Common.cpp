@@ -237,9 +237,10 @@ Parameters:
     context
     PUCHAR *ppNewMACAddress - pointer to hold MAC address if configured from host
 ***********************************************************/
-static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddress)
+static bool ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddress)
 {
     NDIS_HANDLE cfg;
+    bool ret = false;
     tConfigurationEntries *pConfiguration = (tConfigurationEntries *) ParaNdis_AllocateMemory(pContext, sizeof(tConfigurationEntries));
     if (pConfiguration)
     {
@@ -247,6 +248,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
         cfg = ParaNdis_OpenNICConfiguration(pContext);
         if (cfg)
         {
+            ret = true;
             GetConfigurationEntry(cfg, &pConfiguration->PhysicalMediaType);
             GetConfigurationEntry(cfg, &pConfiguration->isLogEnabled);
             GetConfigurationEntry(cfg, &pConfiguration->debugLevel);
@@ -384,6 +386,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
         }
         NdisFreeMemory(pConfiguration, 0, 0);
     }
+    return ret;
 }
 
 void ParaNdis_ResetOffloadSettings(PARANDIS_ADAPTER *pContext, tOffloadSettingsFlags *pDest, PULONG from)
@@ -799,7 +802,10 @@ NDIS_STATUS ParaNdis_InitializeContext(
         return NDIS_STATUS_RESOURCES;
     }
 
-    ReadNicConfiguration(pContext, CurrentMAC);
+    if (!ReadNicConfiguration(pContext, CurrentMAC))
+    {
+        return NDIS_STATUS_RESOURCES;
+    }
 
     pContext->fCurrentLinkState = MediaConnectStateUnknown;
 
