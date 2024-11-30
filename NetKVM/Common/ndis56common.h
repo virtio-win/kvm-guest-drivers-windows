@@ -449,7 +449,13 @@ struct _tagRxNetDescriptor {
 
 struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
 {
-    _PARANDIS_ADAPTER() : guestAnnouncePackets(this), CXPath(this), RSSParameters(this) {}
+    _PARANDIS_ADAPTER(NDIS_HANDLE Handle) :
+        MiniportHandle(Handle),
+        guestAnnouncePackets(this),
+        CXPath(this),
+        RSSParameters(Handle)
+    {
+    }
     ~_PARANDIS_ADAPTER();
     NDIS_HANDLE             DriverHandle = NULL;
     NDIS_HANDLE             MiniportHandle = NULL;

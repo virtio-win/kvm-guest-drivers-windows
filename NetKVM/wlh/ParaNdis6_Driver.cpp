@@ -172,7 +172,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
     UNREFERENCED_PARAMETER(miniportDriverContext);
     DEBUG_ENTRY(0);
 
-    pContext = new (miniportAdapterHandle) PARANDIS_ADAPTER;
+    pContext = new (miniportAdapterHandle) PARANDIS_ADAPTER(miniportAdapterHandle);
 
     if (!pContext)
     {
@@ -188,7 +188,6 @@ static NDIS_STATUS ParaNdis6_Initialize(
         /* set mandatory fields which Common use */
         pContext->ulUniqueID = NdisInterlockedIncrement(&gID);
         pContext->DriverHandle = DriverHandle;
-        pContext->MiniportHandle = miniportAdapterHandle;
 
         pContext->m_StateMachine.RegisterFlow(pContext->m_RxStateMachine);
         pContext->m_StateMachine.RegisterFlow(pContext->m_CxStateMachine);
