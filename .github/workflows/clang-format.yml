@@ -9,7 +9,7 @@ jobs:
       matrix:
         path:
           - check: '.'
-            exclude: './Balloon|./fwcfg64|./ivshmem|./NetKVM|./pciserial|./pvpanic|./viocrypt|./viofs|./viogpu|./vioinput|./viomem|./viorng|./vioscsi|./vioserial|./viosock|./viostor|./VirtIO'
+            exclude: './fwcfg64|./ivshmem|./NetKVM|./pciserial|./pvpanic|./viocrypt|./viofs|./viogpu|./vioinput|./viomem|./viorng|./vioscsi|./vioserial|./viosock|./viostor|./VirtIO'
           - check: 'VirtIO'
             exclude: ''
 

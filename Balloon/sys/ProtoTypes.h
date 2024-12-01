@@ -35,68 +35,69 @@
 #include "trace.h"
 
 /* The ID for virtio_balloon */
-#define VIRTIO_ID_BALLOON    5
+#define VIRTIO_ID_BALLOON 5
 
 /* The feature bitmap for virtio balloon */
-#define VIRTIO_BALLOON_F_MUST_TELL_HOST    0 /* Tell before reclaiming pages */
-#define VIRTIO_BALLOON_F_STATS_VQ    1 /* Memory status virtqueue */
+#define VIRTIO_BALLOON_F_MUST_TELL_HOST 0 /* Tell before reclaiming pages */
+#define VIRTIO_BALLOON_F_STATS_VQ       1 /* Memory status virtqueue */
 
 typedef struct _VIRTIO_BALLOON_CONFIG
 {
     u32 num_pages;
     u32 actual;
-}VIRTIO_BALLOON_CONFIG, *PVIRTIO_BALLOON_CONFIG;
-
+} VIRTIO_BALLOON_CONFIG, *PVIRTIO_BALLOON_CONFIG;
 
 typedef struct virtqueue VIOQUEUE, *PVIOQUEUE;
 typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
 #define __DRIVER_NAME "BALLOON: "
 
-typedef struct {
-    SINGLE_LIST_ENTRY       SingleListEntry;
-    PMDL                    PageMdl;
+typedef struct
+{
+    SINGLE_LIST_ENTRY SingleListEntry;
+    PMDL PageMdl;
 } PAGE_LIST_ENTRY, *PPAGE_LIST_ENTRY;
 
-typedef struct _DEVICE_CONTEXT {
-    WDFINTERRUPT            WdfInterrupt;
-    PUCHAR                  PortBase;
-    ULONG                   PortCount;
-    BOOLEAN                 PortMapped;
-    BOOLEAN                 SurpriseRemoval;
+typedef struct _DEVICE_CONTEXT
+{
+    WDFINTERRUPT WdfInterrupt;
+    PUCHAR PortBase;
+    ULONG PortCount;
+    BOOLEAN PortMapped;
+    BOOLEAN SurpriseRemoval;
 #ifndef BALLOON_INFLATE_IGNORE_LOWMEM
-    PKEVENT                 evLowMem;
-    HANDLE                  hLowMem;
+    PKEVENT evLowMem;
+    HANDLE hLowMem;
 #endif // !BALLOON_INFLATE_IGNORE_LOWMEM
-    VIRTIO_WDF_DRIVER       VDevice;
-    PVIOQUEUE               InfVirtQueue;
-    PVIOQUEUE               DefVirtQueue;
-    PVIOQUEUE               StatVirtQueue;
+    VIRTIO_WDF_DRIVER VDevice;
+    PVIOQUEUE InfVirtQueue;
+    PVIOQUEUE DefVirtQueue;
+    PVIOQUEUE StatVirtQueue;
 
-    WDFSPINLOCK             StatQueueLock;
-    WDFSPINLOCK             InfDefQueueLock;
+    WDFSPINLOCK StatQueueLock;
+    WDFSPINLOCK InfDefQueueLock;
 
-    KEVENT                  HostAckEvent;
+    KEVENT HostAckEvent;
 
-    volatile ULONG          num_pages;
-    ULONG                   num_pfns;
-    PPFN_NUMBER             pfns_table;
-    NPAGED_LOOKASIDE_LIST   LookAsideList;
-    BOOLEAN                 bListInitialized;
-    SINGLE_LIST_ENTRY       PageListHead;
-    PBALLOON_STAT           MemStats;
+    volatile ULONG num_pages;
+    ULONG num_pfns;
+    PPFN_NUMBER pfns_table;
+    NPAGED_LOOKASIDE_LIST LookAsideList;
+    BOOLEAN bListInitialized;
+    SINGLE_LIST_ENTRY PageListHead;
+    PBALLOON_STAT MemStats;
 
-    KEVENT                  WakeUpThread;
-    PKTHREAD                Thread;
-    BOOLEAN                 bShutDown;
+    KEVENT WakeUpThread;
+    PKTHREAD Thread;
+    BOOLEAN bShutDown;
 
 #ifdef USE_BALLOON_SERVICE
-    WDFREQUEST              PendingWriteRequest;
-    BOOLEAN                 HandleWriteRequest;
-#else // USE_BALLOON_SERVICE
-    WDFWORKITEM             StatWorkItem;
-    LONG                    WorkCount;
-#endif //USE_BALLOON_SERVICE
+    WDFREQUEST PendingWriteRequest;
+    BOOLEAN HandleWriteRequest;
+#else  // USE_BALLOON_SERVICE
+    WDFWORKITEM StatWorkItem;
+    LONG WorkCount;
+#endif // USE_BALLOON_SERVICE
 
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
@@ -109,94 +110,59 @@ WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext);
 #endif
 
 EVT_WDF_DRIVER_DEVICE_ADD BalloonDeviceAdd;
-KSTART_ROUTINE            BalloonRoutine;
+KSTART_ROUTINE BalloonRoutine;
 DRIVER_INITIALIZE DriverEntry;
 
 // Context cleanup callbacks generally run at IRQL <= DISPATCH_LEVEL but
 // WDFDRIVER and WDFDEVICE cleanup is guaranteed to run at PASSIVE_LEVEL.
 // Annotate the prototypes to make static analysis happy.
-EVT_WDF_OBJECT_CONTEXT_CLEANUP                 _IRQL_requires_(PASSIVE_LEVEL) EvtDriverContextCleanup;
-EVT_WDF_DEVICE_CONTEXT_CLEANUP                 _IRQL_requires_(PASSIVE_LEVEL) BalloonEvtDeviceContextCleanup;
+EVT_WDF_OBJECT_CONTEXT_CLEANUP _IRQL_requires_(PASSIVE_LEVEL) EvtDriverContextCleanup;
+EVT_WDF_DEVICE_CONTEXT_CLEANUP _IRQL_requires_(PASSIVE_LEVEL) BalloonEvtDeviceContextCleanup;
 
-EVT_WDF_DEVICE_PREPARE_HARDWARE                BalloonEvtDevicePrepareHardware;
-EVT_WDF_DEVICE_RELEASE_HARDWARE                BalloonEvtDeviceReleaseHardware;
-EVT_WDF_DEVICE_D0_ENTRY                        BalloonEvtDeviceD0Entry;
-EVT_WDF_DEVICE_D0_EXIT                         BalloonEvtDeviceD0Exit;
+EVT_WDF_DEVICE_PREPARE_HARDWARE BalloonEvtDevicePrepareHardware;
+EVT_WDF_DEVICE_RELEASE_HARDWARE BalloonEvtDeviceReleaseHardware;
+EVT_WDF_DEVICE_D0_ENTRY BalloonEvtDeviceD0Entry;
+EVT_WDF_DEVICE_D0_EXIT BalloonEvtDeviceD0Exit;
 EVT_WDF_DEVICE_D0_EXIT_PRE_INTERRUPTS_DISABLED BalloonEvtDeviceD0ExitPreInterruptsDisabled;
-EVT_WDF_DEVICE_SURPRISE_REMOVAL                BalloonEvtDeviceSurpriseRemoval;
-EVT_WDF_INTERRUPT_ISR                          BalloonInterruptIsr;
-EVT_WDF_INTERRUPT_DPC                          BalloonInterruptDpc;
-EVT_WDF_INTERRUPT_ENABLE                       BalloonInterruptEnable;
-EVT_WDF_INTERRUPT_DISABLE                      BalloonInterruptDisable;
+EVT_WDF_DEVICE_SURPRISE_REMOVAL BalloonEvtDeviceSurpriseRemoval;
+EVT_WDF_INTERRUPT_ISR BalloonInterruptIsr;
+EVT_WDF_INTERRUPT_DPC BalloonInterruptDpc;
+EVT_WDF_INTERRUPT_ENABLE BalloonInterruptEnable;
+EVT_WDF_INTERRUPT_DISABLE BalloonInterruptDisable;
 #ifdef USE_BALLOON_SERVICE
-EVT_WDF_FILE_CLOSE                             BalloonEvtFileClose;
-#else // USE_BALLOON_SERVICE
-EVT_WDF_WORKITEM                               StatWorkItemWorker;
+EVT_WDF_FILE_CLOSE BalloonEvtFileClose;
+#else  // USE_BALLOON_SERVICE
+EVT_WDF_WORKITEM StatWorkItemWorker;
 #endif // USE_BALLOON_SERVICE
 
-VOID
-BalloonInterruptDpc(
-    IN WDFINTERRUPT WdfInterrupt,
-    IN WDFOBJECT    WdfDevice
-    );
+VOID BalloonInterruptDpc(IN WDFINTERRUPT WdfInterrupt, IN WDFOBJECT WdfDevice);
 
 BOOLEAN
-BalloonInterruptIsr(
-    IN WDFINTERRUPT Interrupt,
-    IN ULONG        MessageID
-    );
+BalloonInterruptIsr(IN WDFINTERRUPT Interrupt, IN ULONG MessageID);
 
 NTSTATUS
-BalloonInterruptEnable(
-    IN WDFINTERRUPT WdfInterrupt,
-    IN WDFDEVICE    WdfDevice
-    );
+BalloonInterruptEnable(IN WDFINTERRUPT WdfInterrupt, IN WDFDEVICE WdfDevice);
 
 NTSTATUS
-BalloonInterruptDisable(
-    IN WDFINTERRUPT WdfInterrupt,
-    IN WDFDEVICE    WdfDevice
-    );
+BalloonInterruptDisable(IN WDFINTERRUPT WdfInterrupt, IN WDFDEVICE WdfDevice);
 
 NTSTATUS
-BalloonInit(
-    IN WDFOBJECT    WdfDevice
-    );
+BalloonInit(IN WDFOBJECT WdfDevice);
 
-VOID
-BalloonTerm(
-    IN WDFOBJECT    WdfDevice
-    );
+VOID BalloonTerm(IN WDFOBJECT WdfDevice);
 
 NTSTATUS
-BalloonFill(
-    IN WDFOBJECT WdfDevice,
-    IN size_t num
-    );
+BalloonFill(IN WDFOBJECT WdfDevice, IN size_t num);
 
 NTSTATUS
-BalloonLeak(
-    IN WDFOBJECT WdfDevice,
-    IN size_t num
-    );
+BalloonLeak(IN WDFOBJECT WdfDevice, IN size_t num);
 
-VOID
-BalloonMemStats(
-    IN WDFOBJECT WdfDevice
-    );
+VOID BalloonMemStats(IN WDFOBJECT WdfDevice);
 
 NTSTATUS
-BalloonTellHost(
-    IN WDFOBJECT WdfDevice,
-    IN PVIOQUEUE vq
-    );
+BalloonTellHost(IN WDFOBJECT WdfDevice, IN PVIOQUEUE vq);
 
-__inline
-VOID
-EnableInterrupt(
-    IN WDFINTERRUPT WdfInterrupt,
-    IN WDFCONTEXT Context
-    )
+__inline VOID EnableInterrupt(IN WDFINTERRUPT WdfInterrupt, IN WDFCONTEXT Context)
 {
     PDEVICE_CONTEXT devCtx = (PDEVICE_CONTEXT)Context;
     UNREFERENCED_PARAMETER(WdfInterrupt);
@@ -208,16 +174,12 @@ EnableInterrupt(
 
     if (devCtx->StatVirtQueue)
     {
-       virtqueue_enable_cb(devCtx->StatVirtQueue);
-       virtqueue_kick(devCtx->StatVirtQueue);
+        virtqueue_enable_cb(devCtx->StatVirtQueue);
+        virtqueue_kick(devCtx->StatVirtQueue);
     }
 }
 
-__inline
-VOID
-DisableInterrupt(
-    IN PDEVICE_CONTEXT devCtx
-    )
+__inline VOID DisableInterrupt(IN PDEVICE_CONTEXT devCtx)
 {
     virtqueue_disable_cb(devCtx->InfVirtQueue);
     virtqueue_disable_cb(devCtx->DefVirtQueue);
@@ -227,44 +189,25 @@ DisableInterrupt(
     }
 }
 
-VOID
-BalloonSetSize(
-    IN WDFOBJECT WdfDevice,
-    IN size_t    num
-    );
+VOID BalloonSetSize(IN WDFOBJECT WdfDevice, IN size_t num);
 
 LONGLONG
-BalloonGetSize(
-    IN WDFOBJECT WdfDevice
-    );
+BalloonGetSize(IN WDFOBJECT WdfDevice);
 
 NTSTATUS
-BalloonCloseWorkerThread(
-    IN WDFDEVICE  Device
-    );
+BalloonCloseWorkerThread(IN WDFDEVICE Device);
 
-VOID
-BalloonRoutine(
-    IN PVOID pContext
-    );
+VOID BalloonRoutine(IN PVOID pContext);
 
 #ifndef BALLOON_INFLATE_IGNORE_LOWMEM
-__inline BOOLEAN
-IsLowMemory(
-    IN WDFOBJECT    WdfDevice
-    )
+__inline BOOLEAN IsLowMemory(IN WDFOBJECT WdfDevice)
 {
-    LARGE_INTEGER       TimeOut = {0};
-    PDEVICE_CONTEXT     devCtx = GetDeviceContext(WdfDevice);
+    LARGE_INTEGER TimeOut = {0};
+    PDEVICE_CONTEXT devCtx = GetDeviceContext(WdfDevice);
 
-    if(devCtx->evLowMem)
+    if (devCtx->evLowMem)
     {
-        return (STATUS_WAIT_0 == KeWaitForSingleObject(
-                                 devCtx->evLowMem,
-                                 Executive,
-                                 KernelMode,
-                                 FALSE,
-                                 &TimeOut));
+        return (STATUS_WAIT_0 == KeWaitForSingleObject(devCtx->evLowMem, Executive, KernelMode, FALSE, &TimeOut));
     }
     return FALSE;
 }
@@ -272,14 +215,10 @@ IsLowMemory(
 
 #ifdef USE_BALLOON_SERVICE
 NTSTATUS
-BalloonQueueInitialize(
-    IN WDFDEVICE hDevice
-    );
-#else // USE_BALLOON_SERVICE
+BalloonQueueInitialize(IN WDFDEVICE hDevice);
+#else  // USE_BALLOON_SERVICE
 NTSTATUS
-StatInitializeWorkItem(
-    IN WDFDEVICE Device
-    );
+StatInitializeWorkItem(IN WDFDEVICE Device);
 #endif // USE_BALLOON_SERVICE
 
-#endif  // _PROTOTYPES_H_
+#endif // _PROTOTYPES_H_

@@ -34,11 +34,12 @@
 
 #pragma once
 
-#define SystemBasicInformation 0
+#define SystemBasicInformation       0
 #define SystemPerformanceInformation 2
 #define SystemFileCacheInformationEx 81
 
-typedef struct _SYSTEM_BASIC_INFORMATION {
+typedef struct _SYSTEM_BASIC_INFORMATION
+{
     ULONG Reserved;
     ULONG TimerResolution;
     ULONG PageSize;
@@ -132,11 +133,12 @@ typedef struct _SYSTEM_PERFORMANCE_INFORMATION
     ULONGLONG CcTotalDirtyPages;
     ULONGLONG CcDirtyPageThreshold;
     ULONGLONG MmResidentAvailablePages;
-    ULONGLONG MmSharedCommit; //is this Windows 8 or 8.1?
+    ULONGLONG MmSharedCommit; // is this Windows 8 or 8.1?
 #endif
 } SYSTEM_PERFORMANCE_INFORMATION, *PSYSTEM_PERFORMANCE_INFORMATION;
 
-typedef struct _SYSTEM_FILECACHE_INFORMATION {
+typedef struct _SYSTEM_FILECACHE_INFORMATION
+{
     ULONG_PTR CurrentSize;
     ULONG_PTR PeakSize;
     ULONG PageFaultCount;
@@ -151,8 +153,7 @@ typedef struct _SYSTEM_FILECACHE_INFORMATION {
 NTSYSAPI
 NTSTATUS
 NTAPI
-ZwQuerySystemInformation(
-        ULONG SystemInformationClass,
-        PVOID SystemInformation,
-        ULONG SystemInformationLength,
-        PULONG ReturnLength);
+ZwQuerySystemInformation(ULONG SystemInformationClass,
+                         PVOID SystemInformation,
+                         ULONG SystemInformationLength,
+                         PULONG ReturnLength);

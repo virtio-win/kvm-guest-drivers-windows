@@ -19,24 +19,25 @@ CService::~CService()
     m_Status = SERVICE_STOPPED;
 }
 
-DWORD __stdcall CService::HandlerExThunk(CService* service, DWORD ctlcode, DWORD evtype, PVOID evdata)
+DWORD __stdcall CService::HandlerExThunk(CService *service, DWORD ctlcode, DWORD evtype, PVOID evdata)
 {
-    switch (ctlcode) {
+    switch (ctlcode)
+    {
 
-    case SERVICE_CONTROL_DEVICEEVENT:
-    case SERVICE_CONTROL_HARDWAREPROFILECHANGE:
-        return service->ServiceHandleDeviceChange(evtype);
+        case SERVICE_CONTROL_DEVICEEVENT:
+        case SERVICE_CONTROL_HARDWAREPROFILECHANGE:
+            return service->ServiceHandleDeviceChange(evtype);
 
-    case SERVICE_CONTROL_POWEREVENT:
-        return service->ServiceHandlePowerEvent(evtype, (DWORD)((DWORD_PTR) evdata));
+        case SERVICE_CONTROL_POWEREVENT:
+            return service->ServiceHandlePowerEvent(evtype, (DWORD)((DWORD_PTR)evdata));
 
-    default:
-        service->ServiceCtrlHandler(ctlcode);
-        return NO_ERROR;
+        default:
+            service->ServiceCtrlHandler(ctlcode);
+            return NO_ERROR;
     }
 }
 
-void __stdcall CService::ServiceMainThunk(CService* service, DWORD argc, TCHAR* argv[])
+void __stdcall CService::ServiceMainThunk(CService *service, DWORD argc, TCHAR *argv[])
 {
     service->ServiceMain(argc, argv);
 }
@@ -48,7 +49,11 @@ BOOL CService::InitService()
     return TRUE;
 }
 
-BOOL CService::SendStatusToSCM(DWORD dwCurrentState, DWORD dwWin32ExitCode, DWORD dwServiceSpecificExitCode, DWORD dwCheckPoint, DWORD dwWaitHint)
+BOOL CService::SendStatusToSCM(DWORD dwCurrentState,
+                               DWORD dwWin32ExitCode,
+                               DWORD dwServiceSpecificExitCode,
+                               DWORD dwCheckPoint,
+                               DWORD dwWaitHint)
 {
     BOOL res;
     SERVICE_STATUS serviceStatus;
@@ -56,17 +61,21 @@ BOOL CService::SendStatusToSCM(DWORD dwCurrentState, DWORD dwWin32ExitCode, DWOR
     serviceStatus.dwServiceType = SERVICE_WIN32_OWN_PROCESS | SERVICE_INTERACTIVE_PROCESS;
     serviceStatus.dwCurrentState = dwCurrentState;
 
-    if (dwCurrentState == SERVICE_START_PENDING) {
+    if (dwCurrentState == SERVICE_START_PENDING)
+    {
         serviceStatus.dwControlsAccepted = 0;
-    } else {
-        serviceStatus.dwControlsAccepted =
-                SERVICE_ACCEPT_STOP |
-                SERVICE_ACCEPT_SHUTDOWN;
+    }
+    else
+    {
+        serviceStatus.dwControlsAccepted = SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SHUTDOWN;
     }
 
-    if (dwServiceSpecificExitCode == 0) {
+    if (dwServiceSpecificExitCode == 0)
+    {
         serviceStatus.dwWin32ExitCode = dwWin32ExitCode;
-    } else {
+    }
+    else
+    {
         serviceStatus.dwWin32ExitCode = ERROR_SERVICE_SPECIFIC_ERROR;
     }
 
@@ -74,8 +83,9 @@ BOOL CService::SendStatusToSCM(DWORD dwCurrentState, DWORD dwWin32ExitCode, DWOR
     serviceStatus.dwCheckPoint = dwCheckPoint;
     serviceStatus.dwWaitHint = dwWaitHint;
 
-    res = SetServiceStatus (m_StatusHandle, &serviceStatus);
-    if (!res) {
+    res = SetServiceStatus(m_StatusHandle, &serviceStatus);
+    if (!res)
+    {
         StopService();
     }
 
@@ -84,7 +94,8 @@ BOOL CService::SendStatusToSCM(DWORD dwCurrentState, DWORD dwWin32ExitCode, DWOR
 
 void CService::StopService()
 {
-    if (m_bRunningService && m_pDev) {
+    if (m_bRunningService && m_pDev)
+    {
         m_pDev->Stop();
         m_bRunningService = FALSE;
         m_Status = SERVICE_STOPPED;
@@ -96,12 +107,14 @@ void CService::terminate(DWORD error)
 {
     UnregisterNotification(m_hDevNotify);
 
-    if (m_evTerminate) {
+    if (m_evTerminate)
+    {
         CloseHandle(m_evTerminate);
         m_evTerminate = NULL;
     }
 
-    if (m_StatusHandle) {
+    if (m_StatusHandle)
+    {
         SendStatusToSCM(SERVICE_STOPPED, error, 0, 0, 0);
     }
 
@@ -110,18 +123,12 @@ void CService::terminate(DWORD error)
 
 void CService::ServiceCtrlHandler(DWORD controlCode)
 {
-    switch(controlCode)
+    switch (controlCode)
     {
         case SERVICE_CONTROL_STOP:
         case SERVICE_CONTROL_SHUTDOWN:
             m_Status = SERVICE_STOP_PENDING;
-            SendStatusToSCM(
-                             m_Status,
-                             NO_ERROR,
-                             0,
-                             1,
-                             5000
-                             );
+            SendStatusToSCM(m_Status, NO_ERROR, 0, 1, 5000);
             StopService();
             return;
 
@@ -165,43 +172,50 @@ void CService::ServiceMain(DWORD argc, LPTSTR *argv)
 {
     BOOL res;
 
-    if (!m_StatusHandle) {
+    if (!m_StatusHandle)
+    {
         terminate(GetLastError());
         return;
     }
 
-    res = SendStatusToSCM(SERVICE_START_PENDING, NO_ERROR, 0 , 1, 5000);
-    if (!res) {
+    res = SendStatusToSCM(SERVICE_START_PENDING, NO_ERROR, 0, 1, 5000);
+    if (!res)
+    {
         terminate(GetLastError());
         return;
     }
 
     m_pDev = new CDevice();
-    if (!m_pDev || !m_pDev->Init(this) || !m_pDev->Start()) {
+    if (!m_pDev || !m_pDev->Init(this) || !m_pDev->Start())
+    {
         terminate(GetLastError());
         return;
     }
 
     m_hDevNotify = RegisterDeviceInterfaceNotification();
-    if (m_hDevNotify == NULL) {
+    if (m_hDevNotify == NULL)
+    {
         terminate(GetLastError());
         return;
     }
 
     m_evTerminate = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (!m_evTerminate) {
+    if (!m_evTerminate)
+    {
         terminate(GetLastError());
         return;
     }
 
     res = InitService();
-    if (!res) {
+    if (!res)
+    {
         terminate(GetLastError());
         return;
     }
 
-    res = SendStatusToSCM(SERVICE_RUNNING, NO_ERROR, 0 , 0, 0);
-    if (!res) {
+    res = SendStatusToSCM(SERVICE_RUNNING, NO_ERROR, 0, 0, 0);
+    if (!res)
+    {
         terminate(GetLastError());
         return;
     }
@@ -210,18 +224,19 @@ void CService::ServiceMain(DWORD argc, LPTSTR *argv)
     terminate(0);
 }
 
-
 void CService::GetStatus(SC_HANDLE service)
 {
     SERVICE_STATUS status;
     DWORD CurrentState;
 
-    if (!QueryServiceStatus(service, &status)) {
+    if (!QueryServiceStatus(service, &status))
+    {
         printf("Failed to get service status.\n");
         return;
     }
 
-    switch(status.dwCurrentState) {
+    switch (status.dwCurrentState)
+    {
         case SERVICE_RUNNING:
             CurrentState = SERVICE_RUNNING;
             printf("Service RUNNING.\n");
@@ -249,8 +264,10 @@ void CService::GetStatus(SC_HANDLE service)
 }
 
 DWORD WINAPI CService::DeviceNotificationCallback(HCMNOTIFICATION Notify,
-    PVOID Context, CM_NOTIFY_ACTION Action, PCM_NOTIFY_EVENT_DATA EventData,
-    DWORD EventDataSize)
+                                                  PVOID Context,
+                                                  CM_NOTIFY_ACTION Action,
+                                                  PCM_NOTIFY_EVENT_DATA EventData,
+                                                  DWORD EventDataSize)
 {
     CService *pThis = reinterpret_cast<CService *>(Context);
     DWORD event = 0;
@@ -285,8 +302,7 @@ DWORD WINAPI CService::DeviceNotificationCallback(HCMNOTIFICATION Notify,
     return ERROR_SUCCESS;
 }
 
-VOID WINAPI UnregisterNotificationWork(PTP_CALLBACK_INSTANCE Instance,
-    PVOID Context, PTP_WORK Work)
+VOID WINAPI UnregisterNotificationWork(PTP_CALLBACK_INSTANCE Instance, PVOID Context, PTP_WORK Work)
 {
     HCMNOTIFICATION Handle = static_cast<HCMNOTIFICATION>(Context);
 
@@ -306,8 +322,7 @@ HCMNOTIFICATION CService::RegisterDeviceInterfaceNotification()
     filter.FilterType = CM_NOTIFY_FILTER_TYPE_DEVICEINTERFACE;
     filter.u.DeviceInterface.ClassGuid = GUID_DEVINTERFACE_BALLOON;
 
-    cr = CM_Register_Notification(&filter, this,
-        CService::DeviceNotificationCallback, &handle);
+    cr = CM_Register_Notification(&filter, this, CService::DeviceNotificationCallback, &handle);
 
     if (cr != CR_SUCCESS)
     {
@@ -329,8 +344,7 @@ HCMNOTIFICATION CService::RegisterDeviceHandleNotification(HANDLE DeviceHandle)
     filter.FilterType = CM_NOTIFY_FILTER_TYPE_DEVICEHANDLE;
     filter.u.DeviceHandle.hTarget = DeviceHandle;
 
-    cr = CM_Register_Notification(&filter, this,
-        CService::DeviceNotificationCallback, &handle);
+    cr = CM_Register_Notification(&filter, this, CService::DeviceNotificationCallback, &handle);
 
     if (cr != CR_SUCCESS)
     {
