@@ -472,7 +472,6 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
         m_StateMachine.RegisterFlow(m_CxStateMachine);
     }
     ~_PARANDIS_ADAPTER();
-    NDIS_HANDLE             DriverHandle = NULL;
     NDIS_HANDLE             MiniportHandle = NULL;
     NDIS_HANDLE             InterruptHandle = NULL;
     NDIS_HANDLE             BufferListsPool = NULL;
