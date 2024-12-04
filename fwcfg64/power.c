@@ -26,8 +26,7 @@ VOID PutKdbg(PDEVICE_CONTEXT ctx)
     }
 }
 
-NTSTATUS FwCfgEvtDeviceD0Exit(IN WDFDEVICE Device,
-                             IN WDF_POWER_DEVICE_STATE TargetState)
+NTSTATUS FwCfgEvtDeviceD0Exit(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE TargetState)
 {
     UNREFERENCED_PARAMETER(Device);
     UNREFERENCED_PARAMETER(TargetState);
@@ -37,8 +36,7 @@ NTSTATUS FwCfgEvtDeviceD0Exit(IN WDFDEVICE Device,
     return STATUS_SUCCESS;
 }
 
-NTSTATUS FwCfgEvtDeviceD0Entry(IN WDFDEVICE Device,
-                              IN WDF_POWER_DEVICE_STATE PreviousState)
+NTSTATUS FwCfgEvtDeviceD0Entry(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE PreviousState)
 {
     PDEVICE_CONTEXT ctx = GetDeviceContext(Device);
     NTSTATUS status;
@@ -77,32 +75,25 @@ NTSTATUS PrepareVMCoreInfo(PDEVICE_CONTEXT ctx)
 {
     NTSTATUS status;
 
-    if (FWCfgCheckSig(ctx->ioBase) ||
-        FWCfgCheckFeatures(ctx->ioBase, FW_CFG_VERSION_DMA) ||
-        FWCfgCheckDma(ctx->ioBase))
+    if (FWCfgCheckSig(ctx->ioBase) || FWCfgCheckFeatures(ctx->ioBase, FW_CFG_VERSION_DMA) || FWCfgCheckDma(ctx->ioBase))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
-            "FwCfg device is not suitable for VMCoreInfo");
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "FwCfg device is not suitable for VMCoreInfo");
         return STATUS_UNSUCCESSFUL;
     }
 
-    status = FWCfgFindEntry(ctx->ioBase, ENTRY_NAME, &ctx->index,
-        sizeof(VMCOREINFO));
+    status = FWCfgFindEntry(ctx->ioBase, ENTRY_NAME, &ctx->index, sizeof(VMCOREINFO));
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
-            "VMCoreInfo entry is not found");
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "VMCoreInfo entry is not found");
         return status;
     }
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP,
-        "VMCoreInfo entry index is 0x%x", ctx->index);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "VMCoreInfo entry index is 0x%x", ctx->index);
 
     status = GetKdbg(ctx);
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP,
-            "Failed to get KdDebuggerDataBlock");
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "Failed to get KdDebuggerDataBlock");
         return status;
     }
 
@@ -110,8 +101,8 @@ NTSTATUS PrepareVMCoreInfo(PDEVICE_CONTEXT ctx)
 }
 
 NTSTATUS FwCfgEvtDevicePrepareHardware(IN WDFDEVICE Device,
-                                      IN WDFCMRESLIST Resources,
-                                      IN WDFCMRESLIST ResourcesTranslated)
+                                       IN WDFCMRESLIST Resources,
+                                       IN WDFCMRESLIST ResourcesTranslated)
 {
     ULONG i;
     PCM_PARTIAL_RESOURCE_DESCRIPTOR desc;
@@ -127,14 +118,14 @@ NTSTATUS FwCfgEvtDevicePrepareHardware(IN WDFDEVICE Device,
     for (i = 0; i < WdfCmResourceListGetCount(ResourcesTranslated); i++)
     {
         desc = WdfCmResourceListGetDescriptor(ResourcesTranslated, i);
-        if (desc &&
-            (desc->Type == CmResourceTypePort) &&
-            (desc->Flags & CM_RESOURCE_PORT_IO))
+        if (desc && (desc->Type == CmResourceTypePort) && (desc->Flags & CM_RESOURCE_PORT_IO))
         {
             ctx->ioBase = (PVOID)(ULONG_PTR)desc->u.Port.Start.QuadPart;
             ctx->ioSize = desc->u.Port.Length;
-            TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP,
-                        "I/O ports: 0x%llx-0x%llx", (UINT64)ctx->ioBase,
+            TraceEvents(TRACE_LEVEL_VERBOSE,
+                        DBG_PNP,
+                        "I/O ports: 0x%llx-0x%llx",
+                        (UINT64)ctx->ioBase,
                         (UINT64)ctx->ioBase + ctx->ioSize);
             status = STATUS_SUCCESS;
         }
@@ -159,8 +150,7 @@ NTSTATUS FwCfgEvtDevicePrepareHardware(IN WDFDEVICE Device,
     return STATUS_SUCCESS;
 }
 
-NTSTATUS FwCfgEvtDeviceReleaseHardware(IN WDFDEVICE Device,
-                                      IN WDFCMRESLIST ResourcesTranslated)
+NTSTATUS FwCfgEvtDeviceReleaseHardware(IN WDFDEVICE Device, IN WDFCMRESLIST ResourcesTranslated)
 {
     PDEVICE_CONTEXT ctx;
 

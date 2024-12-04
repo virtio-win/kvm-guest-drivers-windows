@@ -19,12 +19,13 @@ NTSTATUS FWCfgCheckSig(PVOID ioBase)
     UCHAR signature[FW_CFG_SIG_SIZE];
 
     FWCfgReadBlob(ioBase, FW_CFG_SIGNATURE, signature, FW_CFG_SIG_SIZE);
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_ALL,
-                "Signature is [%.4s]", (PCHAR)signature);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_ALL, "Signature is [%.4s]", (PCHAR)signature);
     if (memcmp(signature, FW_CFG_QEMU, FW_CFG_SIG_SIZE))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_ALL, "Signature check failed, "
-                                                "["FW_CFG_QEMU"] expected");
+        TraceEvents(TRACE_LEVEL_ERROR,
+                    DBG_ALL,
+                    "Signature check failed, "
+                    "[" FW_CFG_QEMU "] expected");
         return STATUS_BAD_DATA;
     }
 
@@ -39,8 +40,11 @@ NTSTATUS FWCfgCheckFeatures(PVOID ioBase, UINT32 features)
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_ALL, "Features are 0x%lx", f_bitmap);
     if ((f_bitmap & features) != features)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_ALL, "Features check failed, "
-                                                " 0x%lx expected", features);
+        TraceEvents(TRACE_LEVEL_ERROR,
+                    DBG_ALL,
+                    "Features check failed, "
+                    " 0x%lx expected",
+                    features);
         return STATUS_BAD_DATA;
     }
 
@@ -89,8 +93,7 @@ UINT32 FWCfgGetEntriesNum(PVOID ioBase)
     return num;
 }
 
-NTSTATUS FWCfgFindEntry(PVOID ioBase, const char *name,
-                        PUSHORT index, ULONG size)
+NTSTATUS FWCfgFindEntry(PVOID ioBase, const char *name, PUSHORT index, ULONG size)
 {
     UINT32 i;
     UINT32 total = FWCfgGetEntriesNum(ioBase);
@@ -119,8 +122,12 @@ NTSTATUS FWCfgFindEntry(PVOID ioBase, const char *name,
     return STATUS_BAD_DATA;
 }
 
-NTSTATUS FWCfgDmaSend(PVOID ioBase, LONGLONG data_pa, USHORT index,
-                      UINT32 size, FWCfgDmaAccess *pDmaAccess, LONGLONG dmaAccess_pa)
+NTSTATUS FWCfgDmaSend(PVOID ioBase,
+                      LONGLONG data_pa,
+                      USHORT index,
+                      UINT32 size,
+                      FWCfgDmaAccess *pDmaAccess,
+                      LONGLONG dmaAccess_pa)
 {
     UINT16 ctrl = FW_CFG_DMA_CTL_SELECT | FW_CFG_DMA_CTL_WRITE;
     NTSTATUS status;
