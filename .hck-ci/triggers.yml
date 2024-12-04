@@ -122,6 +122,8 @@ viomem:
     - build/
     - VirtIO/
   exclude:
+    - .clang-format
+    - VirtIO/.clang-format
     - .github/
     - .hck-ci/triggers.yml
     - Tools/
