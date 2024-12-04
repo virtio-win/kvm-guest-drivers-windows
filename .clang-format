@@ -3,8 +3,8 @@ Language:        Cpp
 
 AlignConsecutiveMacros:
   Enabled:         true
-  AcrossEmptyLines: false
-  AcrossComments:  false
+  AcrossEmptyLines: true
+  AcrossComments:  true
   AlignCompound:   false
   AlignFunctionPointers: false
   PadOperators:    false
