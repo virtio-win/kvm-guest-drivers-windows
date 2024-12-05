@@ -1,6 +1,6 @@
 @echo off
 set _cln_tgt_=viomem
-set _cln_subdirs_=app sys
+set _cln_subdirs_=sys
 call ..\build\clean.bat
 call :subdir %_cln_subdirs_%
 goto :eof
