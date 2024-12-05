@@ -1,9 +1,39 @@
-for /d %%x in (objfre_*) do rmdir /S /Q %%x
-for /d %%x in (objchk_*) do rmdir /S /Q %%x
-rmdir /S /Q x64
+@echo off
+set _cln_tgt_=VirtIO
+set _cln_subdirs_=WDF
+call ..\build\clean.bat
+call :subdir %_cln_subdirs_%
+goto :eof
 
-del /F *.log *.wrn *.err
+:subdir
+if "%~1"=="" goto :eof
+call :do_clean %1
+shift
+goto :subdir
 
-cd WDF
-call clean.bat
-cd ..
+:do_clean
+echo Cleaning %_cln_tgt_% ^| %~1 ...
+if not exist "%~dp0%~1" (
+  echo The %_cln_tgt_%^\%~1 directory was not available for cleaning.
+  goto :eof
+)
+pushd "%~dp0%~1"
+if exist ".\cleanall.bat" (
+  call cleanall.bat
+) else (
+  if exist ".\clean.bat" (
+    call clean.bat
+  ) else (
+    if exist "..\..\build\clean.bat" (
+      call ..\..\build\clean.bat
+    ) else (
+      if exist "..\..\..\build\clean.bat" (
+        call ..\..\..\build\clean.bat
+      ) else (
+        echo A cleaner for the %_cln_tgt_%^\%~1 directory could not be found.
+      )
+    )
+  )
+)
+popd
+goto :eof

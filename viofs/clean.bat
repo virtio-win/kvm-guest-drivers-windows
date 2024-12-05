@@ -1,45 +1,39 @@
 @echo off
-
-call :rmdir Install
-call :rmdir Install_Debug
-call :rmdir Release
-call :rmdir pci\sdv
-call :rmfiles *.log
-call :rmfiles *.err
-call :cleandir
-del pci\smvbuild.log
-del pci\smvstats.txt
-del pci\viofs.DVL.XML
-del pci\viofs.DVL-compat.XML
-
-pushd pci
-call :cleandir
-for /D %%D IN (objchk_*) do call call :rmdir %%D
-for /D %%D IN (objfre_*) do call call :rmdir %%D
-popd
-
-pushd svc
-call :rmdir Release
-call :cleandir
-popd
-
-pushd "VirtFS Package"
-call :cleandir
-popd
-
+set _cln_tgt_=viofs
+set _cln_subdirs_=pci svc "VirtFS Package"
+call ..\build\clean.bat
+call :subdir %_cln_subdirs_%
 goto :eof
 
-:rmdir
-if exist "%~1" rmdir "%~1" /s /q
-goto :eof
-
-:rmfiles
+:subdir
 if "%~1"=="" goto :eof
-if exist "%~1" del /f "%~1"
+call :do_clean %1
 shift
-goto rmfiles
+goto :subdir
 
-:cleandir
-call :rmdir Win32
-call :rmdir x64
+:do_clean
+echo Cleaning %_cln_tgt_% ^| %~1 ...
+if not exist "%~dp0%~1" (
+  echo The %_cln_tgt_%^\%~1 directory was not available for cleaning.
+  goto :eof
+)
+pushd "%~dp0%~1"
+if exist ".\cleanall.bat" (
+  call cleanall.bat
+) else (
+  if exist ".\clean.bat" (
+    call clean.bat
+  ) else (
+    if exist "..\..\build\clean.bat" (
+      call ..\..\build\clean.bat
+    ) else (
+      if exist "..\..\..\build\clean.bat" (
+        call ..\..\..\build\clean.bat
+      ) else (
+        echo A cleaner for the %_cln_tgt_%^\%~1 directory could not be found.
+      )
+    )
+  )
+)
+popd
 goto :eof

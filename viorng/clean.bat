@@ -1,44 +1,39 @@
 @echo off
-
-call :rmdir Install
-call :rmdir Install_Debug
-call :rmfiles *.log
-call :rmfiles *.err
-call :cleandir
-
-pushd cng\um
-call :cleandir
-popd
-
-pushd coinstaller
-call :cleandir
-popd
-
-pushd test
-call :cleandir
-popd
-
-pushd viorng
-call ..\..\build\clean.bat
-popd
-
-pushd "VirtRNG Package"
-call :cleandir
-popd
-
+set _cln_tgt_=viorng
+set _cln_subdirs_=cng\um coinstaller test viorng "VirtRNG Package"
+call ..\build\clean.bat
+call :subdir %_cln_subdirs_%
 goto :eof
 
-:rmdir
-if exist "%~1" rmdir "%~1" /s /q
-goto :eof
-
-:rmfiles
+:subdir
 if "%~1"=="" goto :eof
-if exist "%~1" del /f "%~1"
+call :do_clean %1
 shift
-goto rmfiles
+goto :subdir
 
-:cleandir
-call :rmdir Win32
-call :rmdir x64
+:do_clean
+echo Cleaning %_cln_tgt_% ^| %~1 ...
+if not exist "%~dp0%~1" (
+  echo The %_cln_tgt_%^\%~1 directory was not available for cleaning.
+  goto :eof
+)
+pushd "%~dp0%~1"
+if exist ".\cleanall.bat" (
+  call cleanall.bat
+) else (
+  if exist ".\clean.bat" (
+    call clean.bat
+  ) else (
+    if exist "..\..\build\clean.bat" (
+      call ..\..\build\clean.bat
+    ) else (
+      if exist "..\..\..\build\clean.bat" (
+        call ..\..\..\build\clean.bat
+      ) else (
+        echo A cleaner for the %_cln_tgt_%^\%~1 directory could not be found.
+      )
+    )
+  )
+)
+popd
 goto :eof
