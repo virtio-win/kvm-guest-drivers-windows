@@ -1,6 +1,6 @@
 @echo off
 set _cln_tgt_=viorng
-set _cln_subdirs_=cng\um coinstaller test viorng "VirtRNG Package"
+set _cln_subdirs_=cng\um test viorng "VirtRNG Package"
 call ..\build\clean.bat
 call :subdir %_cln_subdirs_%
 goto :eof
