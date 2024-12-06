@@ -170,6 +170,14 @@ VioScsiCompleteDpcRoutine(
     IN PVOID SystemArgument2
 );
 
+BOOLEAN
+FORCEINLINE
+ProcessQueue(
+    IN PVOID DeviceExtension,
+    IN ULONG MessageId,
+    IN PVOID InlineFuncName
+    );
+
 VOID
 ProcessBuffer(
     IN PVOID DeviceExtension,
