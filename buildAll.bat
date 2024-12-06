@@ -42,24 +42,59 @@ if errorlevel 1 goto :fail
 
 :nosdv2022
 
+call :prepare_palette
+
 path %path%;C:\Program Files (x86)\Windows Kits\10\bin\x86\
-for %%D in (pciserial fwcfg packaging Q35) do (
-  echo building also %%D
+for %%D in (pciserial fwcfg Q35 packaging) do (
+  echo.
+  call :_color_echo %_c_Cyn% "Building : %%D"
   pushd %%D
   call buildAll.bat
   if errorlevel 1 goto :fail
+  call :_color_echo %_c_Grn% "Build for %%D succeeded."
   popd
 )
 
+echo.
+call :_color_echo %_c_Cyn% "Processing DVL xml files..."
 for /R %%f in (*.dvl.xml) do call :process_xml %%f
-
+call :_color_echo %_c_Cyn% "All processing completed."
+echo.
+call :_color_echo %_c_Grn% "BUILD COMPLETED SUCCESSFULLY."
 exit /B 0
 
 :fail
-
+call :_color_echo %_c_Red% "BUILD FAILED."
+set BUILD_FAILED=
 exit /B 1
 
 :process_xml
-echo creating "%~dpn1-compat%~x1"
+if not exist "%~dpn1-compat%~x1" (
+  call :fudge_xml %1
+) else (
+  rem NOTE: Here we retain the COMPAT version created by C:\DVL1903\dvl.exe
+  call :_color_echo %_c_Grn% "The file already exists : %~dpn1-compat%~x1"
+)
+goto :eof
+
+:fudge_xml
+call :_color_echo %_c_Yel% "Auto-magically creating : %~dpn1-compat%~x1"
+rem NOTE: Here we also have to remove the ..General.Checksum because we modded the file and changed it.
 findstr /v /c:"General.Checksum" "%~1" | findstr /v /c:".Semmle." > "%~dpn1-compat%~x1"
+goto :eof
+
+:_color_echo
+echo %z_esc%[%~1%~2%z_esc%[%~3%~4%z_esc%[%~5%~6%z_esc%[%~7%~8%z_esc%[0m
+goto :eof
+
+:prepare_palette
+rem Colour mods should work from ABRACADABRA_WIN10_TH2
+rem Get the ANSI ESC character [0x27]
+for /f "tokens=2 usebackq delims=#" %%i in (`"prompt #$H#$E# & echo on & for %%i in (1) do rem"`) do @set z_esc=%%i
+rem Prepare pallette
+set "_c_Red="40;91m""
+set "_c_Grn="40;92m""
+set "_c_Yel="40;93m""
+set "_c_Cyn="40;96m""
+set "_c_Wht="40;37m""
 goto :eof
