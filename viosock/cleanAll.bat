@@ -1,39 +1,39 @@
-@echo on
+@echo off
+set _cln_tgt_=viosock
+set _cln_subdirs_=lib sys wsk viosock-wsk-test viosock-test viosocklib-test ViosockPackage wspsvc
+call ..\build\clean.bat
+call :subdir %_cln_subdirs_%
+goto :eof
 
-rmdir /S /Q Install
-rmdir /S /Q Install_Debug
+:subdir
+if "%~1"=="" goto :eof
+call :do_clean %1
+shift
+goto :subdir
 
-del /F *.log *.wrn *.err
-
-pushd lib
-call cleanAll.bat
+:do_clean
+echo Cleaning %_cln_tgt_% ^| %~1 ...
+if not exist "%~dp0%~1" (
+  echo The %_cln_tgt_%^\%~1 directory was not available for cleaning.
+  goto :eof
+)
+pushd "%~dp0%~1"
+if exist ".\cleanall.bat" (
+  call cleanall.bat
+) else (
+  if exist ".\clean.bat" (
+    call clean.bat
+  ) else (
+    if exist "..\..\build\clean.bat" (
+      call ..\..\build\clean.bat
+    ) else (
+      if exist "..\..\..\build\clean.bat" (
+        call ..\..\..\build\clean.bat
+      ) else (
+        echo A cleaner for the %_cln_tgt_%^\%~1 directory could not be found.
+      )
+    )
+  )
+)
 popd
-
-pushd sys
-call cleanAll.bat
-popd
-
-pushd wsk
-call cleanAll.bat
-popd
-
-pushd viosock-wsk-test
-call cleanAll.bat
-popd
-
-pushd viosock-test
-call cleanAll.bat
-popd
-
-pushd viosocklib-test
-call cleanAll.bat
-popd
-
-
-pushd "ViosockPackage"
-call cleanAll.bat
-popd
-
-pushd wsk
-call cleanAll.bat
-popd
+goto :eof
