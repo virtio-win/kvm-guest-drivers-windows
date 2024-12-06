@@ -120,8 +120,9 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define VIRTIO_SCSI_QUEUE_LAST               VIRTIO_SCSI_REQUEST_QUEUE_0 + MAX_CPU
 
 /* MSI messages and virtqueue indices are offset by 1, MSI 0 is not used */
-#define QUEUE_TO_MESSAGE(QueueId)            ((QueueId) + 1)
-#define MESSAGE_TO_QUEUE(MessageId)          ((MessageId)-1)
+#define VIRTIO_SCSI_MSI_CONTROL_Q_OFFSET     1
+#define QUEUE_TO_MESSAGE(QueueId)            ((QueueId) + VIRTIO_SCSI_MSI_CONTROL_Q_OFFSET)
+#define MESSAGE_TO_QUEUE(MessageId)          ((MessageId)-VIRTIO_SCSI_MSI_CONTROL_Q_OFFSET)
 
 /* SCSI command request, followed by data-out */
 #pragma pack(1)
@@ -335,7 +336,7 @@ typedef struct _ADAPTER_EXTENSION
     ULONG perfFlags;
     PGROUP_AFFINITY pmsg_affinity;
     ULONG num_affinity;
-    BOOLEAN dpc_ok;
+    BOOLEAN dpc_ready;
     PSTOR_DPC dpc;
     ULONG max_physical_breaks;
     SCSI_WMILIB_CONTEXT WmiLibContext;

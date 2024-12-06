@@ -115,7 +115,9 @@ PreProcessRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb);
 
 VOID FORCEINLINE PostProcessRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb);
 
-VOID FORCEINLINE DispatchQueue(IN PVOID DeviceExtension, IN ULONG MessageId);
+BOOLEAN
+FORCEINLINE
+DispatchQueue(IN PVOID DeviceExtension, IN ULONG MessageId, IN PVOID InlineFuncName);
 
 BOOLEAN
 VioScsiInterrupt(IN PVOID DeviceExtension);
@@ -937,191 +939,99 @@ VOID HandleResponse(IN PVOID DeviceExtension, IN PVirtIOSCSICmd cmd)
 BOOLEAN
 VioScsiInterrupt(IN PVOID DeviceExtension)
 {
-    PVirtIOSCSICmd cmd = NULL;
-    PVirtIOSCSIEventNode evtNode = NULL;
-    unsigned int len = 0;
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    ENTER_FN_HP();
+#endif
     PADAPTER_EXTENSION adaptExt = NULL;
     BOOLEAN isInterruptServiced = FALSE;
-    PSRB_TYPE Srb = NULL;
-    ULONG intReason = 0;
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     if (adaptExt->bRemoved)
     {
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+        RhelDbgPrintHotPath(TRACE_LEVEL_INFORMATION,
+                            " Adapter has been removed. Returning without servicing interrupt.\n");
+        EXIT_FN_HP();
+#endif
         return FALSE;
     }
 
+#if !defined(RUN_UNCHECKED)
     // NOTE : SDV banned function
     // RhelDbgPrint(TRACE_LEVEL_VERBOSE, " IRQL (%d)\n", KeGetCurrentIrql());
+#endif
 
-    intReason = virtio_read_isr_status(&adaptExt->vdev);
-
-    if (intReason == 1 || adaptExt->dump_mode)
+    /* NOTE : Calling virtio_read_isr_status makes the device de-assert the interrupt */
+    if ((virtio_read_isr_status(&adaptExt->vdev) == 1) || adaptExt->dump_mode)
     {
-        isInterruptServiced = TRUE;
-
-        if (adaptExt->tmf_infly)
-        {
-            while ((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[VIRTIO_SCSI_CONTROL_QUEUE], &len)) != NULL)
-            {
-                VirtIOSCSICtrlTMFResp *resp;
-                Srb = (PSRB_TYPE)cmd->srb;
-                ASSERT(Srb == (PSRB_TYPE)&adaptExt->tmf_cmd.Srb);
-                resp = &cmd->resp.tmf;
-                switch (resp->response)
-                {
-                    case VIRTIO_SCSI_S_OK:
-                    case VIRTIO_SCSI_S_FUNCTION_SUCCEEDED:
-                        break;
-                    default:
-                        RhelDbgPrint(TRACE_LEVEL_ERROR, " unknown response %d\n", resp->response);
-                        ASSERT(0);
-                        break;
-                }
-                StorPortResume(DeviceExtension);
-            }
-            adaptExt->tmf_infly = FALSE;
-        }
-        while ((evtNode = (PVirtIOSCSIEventNode)virtqueue_get_buf(adaptExt->vq[VIRTIO_SCSI_EVENTS_QUEUE], &len)) !=
-               NULL)
-        {
-            PVirtIOSCSIEvent evt = &evtNode->event;
-            switch (evt->event)
-            {
-                case VIRTIO_SCSI_T_NO_EVENT:
-                    break;
-                case VIRTIO_SCSI_T_TRANSPORT_RESET:
-                    TransportReset(DeviceExtension, evt);
-                    break;
-                case VIRTIO_SCSI_T_PARAM_CHANGE:
-                    ParamChange(DeviceExtension, evt);
-                    break;
-                default:
-                    RhelDbgPrint(TRACE_LEVEL_ERROR, " Unsupport virtio scsi event %x\n", evt->event);
-                    break;
-            }
-            SynchronizedKickEventRoutine(DeviceExtension, evtNode);
-        }
-
-        if (!adaptExt->dump_mode && adaptExt->dpc_ok)
-        {
-            StorPortIssueDpc(DeviceExtension,
-                             &adaptExt->dpc[0],
-                             ULongToPtr(QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0)),
-                             ULongToPtr(QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0)));
-        }
-        else
-        {
-            ProcessBuffer(DeviceExtension, QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0), InterruptLock);
-        }
+        isInterruptServiced = ProcessQueue(DeviceExtension,
+                                           (VIRTIO_SCSI_REQUEST_QUEUE_0 + VIRTIO_SCSI_MSI_CONTROL_Q_OFFSET),
+                                           INTERRUPT_LINE,
+                                           idx_VioScsiInterrupt,
+                                           idx_ProcessQueue);
     }
 
-    RhelDbgPrint(TRACE_LEVEL_VERBOSE, " isInterruptServiced = %d\n", isInterruptServiced);
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    RhelDbgPrintHotPath(TRACE_LEVEL_INFORMATION,
+                        " Interrupt has been serviced : %s \n",
+                        (isInterruptServiced) ? "YES" : "NO");
+    EXIT_FN_HP();
+#endif
     return isInterruptServiced;
 }
 
-static BOOLEAN VioScsiMSInterruptWorker(IN PVOID DeviceExtension, IN ULONG MessageID)
-{
-    PVirtIOSCSICmd cmd;
-    PVirtIOSCSIEventNode evtNode;
-    unsigned int len;
-    PADAPTER_EXTENSION adaptExt;
-    PSRB_TYPE Srb = NULL;
-    ULONG intReason = 0;
-
-    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-
-    RhelDbgPrint(TRACE_LEVEL_VERBOSE, " MessageID 0x%x\n", MessageID);
-
-    if (MessageID >= QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0))
-    {
-        DispatchQueue(DeviceExtension, MessageID);
-        return TRUE;
-    }
-    if (MessageID == 0)
-    {
-        return TRUE;
-    }
-    if (MessageID == QUEUE_TO_MESSAGE(VIRTIO_SCSI_CONTROL_QUEUE))
-    {
-        if (adaptExt->tmf_infly)
-        {
-            while ((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[VIRTIO_SCSI_CONTROL_QUEUE], &len)) != NULL)
-            {
-                VirtIOSCSICtrlTMFResp *resp;
-                Srb = (PSRB_TYPE)(cmd->srb);
-                ASSERT(Srb == (PSRB_TYPE)&adaptExt->tmf_cmd.Srb);
-                resp = &cmd->resp.tmf;
-                switch (resp->response)
-                {
-                    case VIRTIO_SCSI_S_OK:
-                    case VIRTIO_SCSI_S_FUNCTION_SUCCEEDED:
-                        break;
-                    default:
-                        RhelDbgPrint(TRACE_LEVEL_ERROR, " Unknown response %d\n", resp->response);
-                        ASSERT(0);
-                        break;
-                }
-                StorPortResume(DeviceExtension);
-            }
-            adaptExt->tmf_infly = FALSE;
-        }
-        return TRUE;
-    }
-    if (MessageID == QUEUE_TO_MESSAGE(VIRTIO_SCSI_EVENTS_QUEUE))
-    {
-        while ((evtNode = (PVirtIOSCSIEventNode)virtqueue_get_buf(adaptExt->vq[VIRTIO_SCSI_EVENTS_QUEUE], &len)) !=
-               NULL)
-        {
-            PVirtIOSCSIEvent evt = &evtNode->event;
-            switch (evt->event)
-            {
-                case VIRTIO_SCSI_T_NO_EVENT:
-                    break;
-                case VIRTIO_SCSI_T_TRANSPORT_RESET:
-                    TransportReset(DeviceExtension, evt);
-                    break;
-                case VIRTIO_SCSI_T_PARAM_CHANGE:
-                    ParamChange(DeviceExtension, evt);
-                    break;
-                default:
-                    RhelDbgPrint(TRACE_LEVEL_ERROR, " Unsupport virtio scsi event %x\n", evt->event);
-                    break;
-            }
-            SynchronizedKickEventRoutine(DeviceExtension, evtNode);
-        }
-        return TRUE;
-    }
-    return FALSE;
-}
-
 BOOLEAN
-VioScsiMSInterrupt(IN PVOID DeviceExtension, IN ULONG MessageID)
+VioScsiMSInterrupt(IN PVOID DeviceExtension, IN ULONG MessageId)
 {
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    ENTER_FN_HP();
+#endif
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     BOOLEAN isInterruptServiced = FALSE;
     ULONG i;
 
     if (adaptExt->bRemoved)
     {
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+        RhelDbgPrintHotPath(TRACE_LEVEL_INFORMATION,
+                            " Adapter has been removed. Returning without servicing interrupt.\n");
+        EXIT_FN_HP();
+#endif
         return FALSE;
     }
 
     if (!adaptExt->msix_one_vector)
     {
         /* Each queue has its own vector, this is the fast and common case */
-        return VioScsiMSInterruptWorker(DeviceExtension, MessageID);
+        isInterruptServiced = ProcessQueue(DeviceExtension,
+                                           MessageId,
+                                           INTERRUPT_MSIX,
+                                           idx_VioScsiMSInterrupt,
+                                           idx_ProcessQueue);
     }
-
-    /* Fall back to checking all queues */
-    for (i = 0; i < adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0; i++)
+    else
     {
-        if (virtqueue_has_buf(adaptExt->vq[i]))
+        /* Fall back to checking all queues */
+        for (i = 0; i < adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0; i++)
         {
-            isInterruptServiced |= VioScsiMSInterruptWorker(DeviceExtension, i + 1);
+            if (virtqueue_has_buf(adaptExt->vq[i]))
+            {
+                isInterruptServiced |= ProcessQueue(DeviceExtension,
+                                                    (i + VIRTIO_SCSI_MSI_CONTROL_Q_OFFSET),
+                                                    INTERRUPT_MSIX,
+                                                    idx_VioScsiMSInterrupt,
+                                                    idx_ProcessQueue);
+            }
         }
     }
+
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    RhelDbgPrintHotPath(TRACE_LEVEL_INFORMATION,
+                        " Interrupt has been serviced : %s \n",
+                        (isInterruptServiced) ? "YES" : "NO");
+    EXIT_FN_HP();
+#endif
     return isInterruptServiced;
 }
 
@@ -1400,30 +1310,189 @@ VioScsiBuildIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
     return TRUE;
 }
 
-VOID FORCEINLINE DispatchQueue(IN PVOID DeviceExtension, IN ULONG MessageId)
+BOOLEAN
+FORCEINLINE
+ProcessQueue(IN PVOID DeviceExtension,
+             IN ULONG MessageId,
+             IN INTERRUPT_CATEGORY catInterrupt,
+             IN INL_FUNC_IDX idx_ICN,
+             IN INL_FUNC_IDX idx_IFN)
 {
+#if !defined(RUN_UNCHECKED)
+    PVOID ICN = inline_func_string_map[idx_ICN];
+    PVOID IFN = inline_func_string_map[idx_IFN];
+#if !defined(RUN_COLD_PATH_ONLY)
+    ENTER_INL_FN_HP();
+#endif
+#endif
+
+    PVirtIOSCSICmd cmd;
+    PVirtIOSCSIEventNode evtNode;
+    unsigned int len;
     PADAPTER_EXTENSION adaptExt;
-    ENTER_FN();
+    PSRB_TYPE Srb = NULL;
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
-    if (!adaptExt->dump_mode && adaptExt->dpc_ok)
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    RhelDbgPrintInlineHotPath(TRACE_LEVEL_VERBOSE, " Processing VirtIO Queue : %lu \n", MESSAGE_TO_QUEUE(MessageId));
+#endif
+
+    if ((MessageId == 0) && (VIRTIO_SCSI_MSI_CONTROL_Q_OFFSET != 0))
     {
-        NT_ASSERT(MessageId >= QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0));
-        StorPortIssueDpc(DeviceExtension,
-                         &adaptExt->dpc[MessageId - QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0)],
-                         ULongToPtr(MessageId),
-                         ULongToPtr(MessageId));
-        EXIT_FN();
-        return;
+#if !defined(RUN_UNCHECKED)
+        RhelDbgPrintInline(TRACE_LEVEL_VERBOSE,
+                           " MSI-X Vector 0 [MessageId = 0] is unused by HBA. Returning without further processing.\n");
+        EXIT_INL_FN();
+#endif
+        return TRUE;
     }
-    ProcessBuffer(DeviceExtension, MessageId, InterruptLock);
-    EXIT_FN();
+    if ((MessageId == QUEUE_TO_MESSAGE(VIRTIO_SCSI_CONTROL_QUEUE)) || (catInterrupt == INTERRUPT_LINE))
+    {
+#if !defined(RUN_UNCHECKED)
+        RhelDbgPrintInline(TRACE_LEVEL_VERBOSE, " Processing Control Queue...\n");
+#endif
+        if (adaptExt->tmf_infly)
+        {
+            while ((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[VIRTIO_SCSI_CONTROL_QUEUE], &len)) != NULL)
+            {
+                VirtIOSCSICtrlTMFResp *resp;
+                Srb = (PSRB_TYPE)(cmd->srb);
+                ASSERT(Srb == (PSRB_TYPE)&adaptExt->tmf_cmd.Srb);
+                resp = &cmd->resp.tmf;
+                switch (resp->response)
+                {
+                    case VIRTIO_SCSI_S_OK:
+                    case VIRTIO_SCSI_S_FUNCTION_SUCCEEDED:
+                        break;
+                    default:
+#if !defined(RUN_UNCHECKED)
+                        RhelDbgPrintInline(TRACE_LEVEL_ERROR, " Unknown ERROR response %d\n", resp->response);
+#endif
+                        ASSERT(0);
+                        break;
+                }
+                StorPortResume(DeviceExtension);
+            }
+            adaptExt->tmf_infly = FALSE;
+        }
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+        EXIT_INL_FN_HP();
+#endif
+        return TRUE;
+    }
+    if ((MessageId == QUEUE_TO_MESSAGE(VIRTIO_SCSI_EVENTS_QUEUE)) || (catInterrupt == INTERRUPT_LINE))
+    {
+#if !defined(RUN_UNCHECKED)
+        RhelDbgPrintInline(TRACE_LEVEL_VERBOSE, " Processing Events Queue...\n");
+#endif
+        while ((evtNode = (PVirtIOSCSIEventNode)virtqueue_get_buf(adaptExt->vq[VIRTIO_SCSI_EVENTS_QUEUE], &len)) !=
+               NULL)
+        {
+            PVirtIOSCSIEvent evt = &evtNode->event;
+            switch (evt->event)
+            {
+                case VIRTIO_SCSI_T_NO_EVENT:
+                    break;
+                case VIRTIO_SCSI_T_TRANSPORT_RESET:
+                    TransportReset(DeviceExtension, evt);
+                    break;
+                case VIRTIO_SCSI_T_PARAM_CHANGE:
+                    ParamChange(DeviceExtension, evt);
+                    break;
+                default:
+#if !defined(RUN_UNCHECKED)
+                    RhelDbgPrintInline(TRACE_LEVEL_ERROR, " Unsupport virtio scsi event %x\n", evt->event);
+#endif
+                    break;
+            }
+            SynchronizedKickEventRoutine(DeviceExtension, evtNode);
+        }
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+        EXIT_INL_FN_HP();
+#endif
+        return TRUE;
+    }
+    if (MessageId >= QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0))
+    {
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+        RhelDbgPrintInlineHotPath(TRACE_LEVEL_VERBOSE, " Dispatching to Request Queue...\n");
+#endif
+        BOOLEAN dispatch_q_status = DispatchQueue(DeviceExtension, MessageId, idx_ProcessQueue, idx_DispatchQueue);
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+        EXIT_INL_FN_HP();
+#endif
+        return dispatch_q_status;
+    }
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    EXIT_INL_FN_HP();
+#endif
+    return FALSE;
 }
 
-VOID ProcessBuffer(IN PVOID DeviceExtension, IN ULONG MessageId, IN STOR_SPINLOCK LockMode)
+BOOLEAN
+FORCEINLINE
+DispatchQueue(IN PVOID DeviceExtension, IN ULONG MessageId, IN INL_FUNC_IDX idx_ICN, IN INL_FUNC_IDX idx_IFN)
 {
-    PVirtIOSCSICmd cmd;
+#if !defined(RUN_UNCHECKED)
+    PVOID ICN = inline_func_string_map[idx_ICN];
+    PVOID IFN = inline_func_string_map[idx_IFN];
+#if !defined(RUN_COLD_PATH_ONLY)
+    ENTER_INL_FN_HP();
+#endif
+#endif
+
+    PADAPTER_EXTENSION adaptExt;
+    BOOLEAN bStatus = FALSE;
+
+    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+
+    if (!adaptExt->dump_mode && adaptExt->dpc_ready)
+    {
+        NT_ASSERT(MessageId >= QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0));
+        if (StorPortIssueDpc(DeviceExtension,
+                             &adaptExt->dpc[MessageId - QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0)],
+                             ULongToPtr(MessageId),
+                             ULongToPtr(MessageId)))
+        {
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+            RhelDbgPrintInlineHotPath(TRACE_DPC, " The request to queue a DPC was successful.\n");
+#endif
+            bStatus = TRUE;
+        }
+        else
+        {
+#if !defined(RUN_UNCHECKED)
+            RhelDbgPrintInline(TRACE_DPC,
+                               " The request to queue a DPC was NOT successful. It may already be queued elsewhere.\n");
+#endif
+            bStatus = FALSE;
+        }
+    }
+    else
+    {
+#if !defined(RUN_UNCHECKED)
+        RhelDbgPrintInline(TRACE_LEVEL_VERBOSE,
+                           " We are in Crash Dump Mode or DPC is unavailable. Calling ProcessBuffer() without"
+                           " spinlocks...\n");
+#endif
+        ProcessBuffer(DeviceExtension, MessageId, PROCESS_BUFFER_NO_SPINLOCKS);
+        bStatus = TRUE;
+    }
+
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    EXIT_INL_FN_HP();
+#endif
+    return bStatus;
+}
+
+VOID ProcessBuffer(IN PVOID DeviceExtension, IN ULONG MessageId, IN PROCESS_BUFFER_LOCKING_MODE LockMode)
+{
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    ENTER_FN_HP();
+#endif
+
+    ULONG_PTR srbId;
     unsigned int len;
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     ULONG QueueNumber = MESSAGE_TO_QUEUE(MessageId);
@@ -1433,14 +1502,13 @@ VOID ProcessBuffer(IN PVOID DeviceExtension, IN ULONG MessageId, IN STOR_SPINLOC
     PSRB_EXTENSION srbExt = NULL;
     PREQUEST_LIST element;
     ULONG vq_req_idx;
-    PVOID LockContext = NULL; // sanity check for LockMode = InterruptLock or StartIoLock
-
-    ENTER_FN();
 
     if (QueueNumber >= (adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0))
     {
-        RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+#if !defined(RUN_UNCHECKED)
+        RhelDbgPrint(TRACE_VQ,
                      " Modulo assignment required for QueueNumber as it exceeds the number of virtqueues available.\n");
+#endif
         QueueNumber %= adaptExt->num_queues;
     }
     vq_req_idx = QueueNumber - VIRTIO_SCSI_REQUEST_QUEUE_0;
@@ -1448,49 +1516,60 @@ VOID ProcessBuffer(IN PVOID DeviceExtension, IN ULONG MessageId, IN STOR_SPINLOC
 
     vq = adaptExt->vq[QueueNumber];
 
-    if (LockMode == DpcLock)
+    if (LockMode != PROCESS_BUFFER_NO_SPINLOCKS)
     {
-        LockContext = &adaptExt->dpc[vq_req_idx];
+        StorPortAcquireSpinLock(DeviceExtension, DpcLock, &adaptExt->dpc[vq_req_idx], &LockHandle);
     }
-    StorPortAcquireSpinLock(DeviceExtension, LockMode, LockContext, &LockHandle);
-
     do
     {
         virtqueue_disable_cb(vq);
-        while ((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(vq, &len)) != NULL)
+        while ((srbId = (ULONG_PTR)virtqueue_get_buf(vq, &len)) != 0)
         {
             PLIST_ENTRY le = NULL;
             BOOLEAN bFound = FALSE;
 
-            Srb = (PSRB_TYPE)(cmd->srb);
-            if (!Srb)
-            {
-                continue;
-            }
-            srbExt = SRB_EXTENSION(Srb);
             for (le = element->srb_list.Flink; le != &element->srb_list && !bFound; le = le->Flink)
             {
-                PSRB_EXTENSION currSrbExt = CONTAINING_RECORD(le, SRB_EXTENSION, list_entry);
-                PSCSI_REQUEST_BLOCK currSrb = currSrbExt->Srb;
+                srbExt = CONTAINING_RECORD(le, SRB_EXTENSION, list_entry);
+                Srb = (PSRB_TYPE)srbExt->Srb;
 
-                if (currSrbExt == srbExt && (PSRB_TYPE)currSrb == Srb)
+                if (srbExt)
                 {
-                    RemoveEntryList(le);
-                    bFound = TRUE;
-                    element->srb_cnt--;
-                    break;
+                    if (srbExt->id == srbId)
+                    {
+                        RemoveEntryList(le);
+                        bFound = TRUE;
+                        element->srb_cnt--;
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+                        RhelDbgPrintHotPath(TRACE_VQ,
+                                            " VQ Buffer Length : %lu | SRB DataTransferLength : %lu \n",
+                                            len,
+                                            Srb->DataTransferLength);
+#endif
+                        break;
+                    }
                 }
             }
             if (bFound)
             {
-                HandleResponse(DeviceExtension, cmd);
+                HandleResponse(DeviceExtension, &srbExt->cmd, idx_ProcessBuffer, idx_HandleResponse);
+            }
+            else
+            {
+#if !defined(RUN_UNCHECKED)
+                RhelDbgPrint(TRACE_LEVEL_WARNING, " No SRB found for ID 0x%p\n", (void *)srbId);
+#endif
             }
         }
     } while (!virtqueue_enable_cb(vq));
+    if (LockMode != PROCESS_BUFFER_NO_SPINLOCKS)
+    {
+        StorPortReleaseSpinLock(DeviceExtension, &LockHandle);
+    }
 
-    StorPortReleaseSpinLock(DeviceExtension, &LockHandle);
-
-    EXIT_FN();
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    EXIT_FN_HP();
+#endif
 }
 
 VOID VioScsiCompleteDpcRoutine(IN PSTOR_DPC Dpc, IN PVOID Context, IN PVOID SystemArgument1, IN PVOID SystemArgument2)

@@ -50,6 +50,32 @@
 
 #include <srbhelper.h>
 
+typedef enum _INTERRUPT_CATEGORY
+{
+    INTERRUPT_LINE = 0,
+    INTERRUPT_MSIX
+} INTERRUPT_CATEGORY;
+
+typedef enum _PROCESS_BUFFER_LOCKING_MODE
+{
+    PROCESS_BUFFER_NO_SPINLOCKS = 0,
+    PROCESS_BUFFER_DPC_SPINLOCKS
+} PROCESS_BUFFER_LOCKING_MODE;
+
+typedef enum _INL_FUNC_IDX
+{
+    idx_VioScsiStartIo = 0x0,
+    idx_VioScsiInterrupt,
+    idx_VioScsiMSInterrupt,
+    idx_ProcessQueue,
+    idx_DispatchQueue,
+    idx_ProcessBuffer,
+    idx_HandleResponse,
+    idx_CompleteRequest,
+    idx_PreProcessRequest,
+    idx_PostProcessRequest
+} INL_FUNC_IDX;
+
 // Note: SrbGetCdbLength is defined in srbhelper.h
 FORCEINLINE ULONG SrbGetCdbLength32(_In_ PVOID Srb)
 {
@@ -130,7 +156,15 @@ SynchronizedKickEventRoutine(IN PVOID DeviceExtension, IN PVOID Context);
 
 VOID VioScsiCompleteDpcRoutine(IN PSTOR_DPC Dpc, IN PVOID Context, IN PVOID SystemArgument1, IN PVOID SystemArgument2);
 
-VOID ProcessBuffer(IN PVOID DeviceExtension, IN ULONG MessageId, IN STOR_SPINLOCK LockMode);
+BOOLEAN
+FORCEINLINE
+ProcessQueue(IN PVOID DeviceExtension,
+             IN ULONG MessageId,
+             IN INTERRUPT_CATEGORY catInterrupt,
+             IN INL_FUNC_IDX IDN,
+             IN INL_FUNC_IDX IFN);
+
+VOID ProcessBuffer(IN PVOID DeviceExtension, IN ULONG MessageId, IN PROCESS_BUFFER_LOCKING_MODE LockMode);
 
 VOID
 // FORCEINLINE
