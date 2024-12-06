@@ -132,8 +132,30 @@
       <Command>
         copy /Y $(ProjectDir)vioscsi.DVL.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)
         copy /Y $(IntDir)vc.nativecodeanalysis.all.xml $(ProjectDir)
-        call "..\build\dvl1903.bat" "$(ProjectDir)\$(IntDir)" "$(TargetName)" "$(Configuration)" "$(Platform)"
-        copy /Y $(ProjectDir)vioscsi.DVL.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)\vioscsi.DVL-win10.XML
+        if "$(TargetOS)"=="Win10" (
+          if exist C:\DVL1903 (
+            call "..\build\dvl1903.bat" "$(ProjectDir)\$(IntDir)" "$(TargetName)" "$(Configuration)" "$(Platform)"
+            copy /Y $(ProjectDir)vioscsi.DVL.XML $(ProjectDir)vioscsi.DVL-compat.XML 
+            copy /Y $(ProjectDir)vioscsi.DVL.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)\vioscsi.DVL-compat.XML
+          )
+        )
+        if "$(TargetOS)"=="Win11" (
+          if exist $(ProjectDir)Install\Win10\$(TargetArch)\vioscsi.DVL.XML (
+            copy /Y $(ProjectDir)Install\Win10\$(TargetArch)\vioscsi.DVL.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)\vioscsi.DVL-win10.XML
+          ) else (
+            copy /Y $(ProjectDir)vioscsi.DVL.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)\vioscsi.DVL-win10.XML
+          )
+          if exist $(ProjectDir)Install\Win10\$(TargetArch)\vioscsi.DVL-compat.XML (
+            copy /Y $(ProjectDir)Install\Win10\$(TargetArch)\vioscsi.DVL-compat.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)\vioscsi.DVL-compat.XML
+          ) else (
+            if exist $(ProjectDir)vioscsi.DVL-compat.XML (
+              copy /Y $(ProjectDir)vioscsi.DVL-compat.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)\vioscsi.DVL-compat.XML
+            ) else (
+              findstr /v /c:"General.Checksum" "$(ProjectDir)vioscsi.DVL.XML" | findstr /v /c:".Semmle." > $(ProjectDir)vioscsi.DVL-compat.XML
+              copy /Y $(ProjectDir)vioscsi.DVL-compat.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)\vioscsi.DVL-compat.XML
+            )
+          )
+        )
       </Command>
       <Inputs>$(IntDir)vc.nativecodeanalysis.all.xml;$(ProjectDir)vioscsi.DVL.XML</Inputs>
       <Outputs>$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\vioscsi.DVL.XML;$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\vioscsi.DVL-win10.XML</Outputs>
