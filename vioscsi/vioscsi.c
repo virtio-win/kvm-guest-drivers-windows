@@ -350,6 +350,8 @@ DriverEntry(
 
     HW_INITIALIZATION_DATA hwInitData;
     ULONG                  initResult;
+    ANSI_STRING            aRegistryPath;
+    NTSTATUS               u2a_status;
 
 #ifdef EVENT_TRACING
     STORAGE_TRACE_INIT_INFO initInfo;
@@ -358,10 +360,20 @@ DriverEntry(
     InitializeDebugPrints((PDRIVER_OBJECT)DriverObject, (PUNICODE_STRING)RegistryPath);
 
     IsCrashDumpMode = FALSE;
-    RhelDbgPrint(TRACE_LEVEL_FATAL, " Vioscsi driver started...built on %s %s\n", __DATE__, __TIME__);
+    #if !defined(RUN_UNCHECKED) || defined(RUN_MIN_CHECKED)
+    RhelDbgPrint(TRACE_LEVEL_FATAL, " VIOSCSI driver started...built on %s %s\n", __DATE__, __TIME__);
+    #endif
     if (RegistryPath == NULL) {
         IsCrashDumpMode = TRUE;
+        #if !defined(RUN_UNCHECKED)
+        memset(&aRegistryPath, 0, sizeof(aRegistryPath));
+        u2a_status = RtlUnicodeStringToAnsiString(&aRegistryPath, RegistryPath, TRUE);
+        if (u2a_status == STATUS_SUCCESS) {
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " RegistryPath : %s \n", aRegistryPath.Buffer);
+            RtlFreeAnsiString(&aRegistryPath);
+        }
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Crash dump mode\n");
+        #endif
     }
 
     RtlZeroMemory(&hwInitData, sizeof(HW_INITIALIZATION_DATA));
@@ -394,7 +406,8 @@ DriverEntry(
     hwInitData.NumberOfAccessRanges     = PCI_TYPE0_ADDRESSES;
     hwInitData.MapBuffers               = STOR_MAP_NON_READ_WRITE_BUFFERS;
 
-    hwInitData.SrbTypeFlags = SRB_TYPE_FLAG_STORAGE_REQUEST_BLOCK;
+    hwInitData.SrbTypeFlags             = SRB_TYPE_FLAG_STORAGE_REQUEST_BLOCK;
+    hwInitData.AddressTypeFlags         = ADDRESS_TYPE_FLAG_BTL8;
 
     initResult = StorPortInitialize(DriverObject,
                                     RegistryPath,
@@ -418,11 +431,78 @@ DriverEntry(
     }
 #endif
 
-    RhelDbgPrint(TRACE_LEVEL_VERBOSE,
-                 " Initialize returned 0x%x\n", initResult);
+    #if !defined(RUN_UNCHECKED) || defined(RUN_MIN_CHECKED)
+    RhelDbgPrint(TRACE_LEVEL_NONE, " VIOSCSI driver starting...");
+    RhelDbgPrint(TRACE_LEVEL_NONE, " Built on %s at %s \n", __DATE__, __TIME__);
+    memset(&aRegistryPath, 0, sizeof(aRegistryPath));
+    u2a_status = RtlUnicodeStringToAnsiString(&aRegistryPath, RegistryPath, TRUE);
+    if (u2a_status == STATUS_SUCCESS) {
+        RhelDbgPrint(TRACE_LEVEL_VERBOSE, " RegistryPath : %s \n", aRegistryPath.Buffer);
+        RtlFreeAnsiString(&aRegistryPath);
+    }
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Crash dump mode : %s \n", (IsCrashDumpMode) ? "ACTIVATED" : "NOT ACTIVATED");
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE, " StorPortInitialize() returned : 0x%x (%lu) \n", initResult, initResult);    
+    #endif
 
+    #if !defined(RUN_UNCHECKED)    
+    switch (NTDDI_VERSION) {
+        case NTDDI_WIN10:
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_THRESHOLD | Windows 10.0.10240 | 1507 | Threshold 1 \n");
+            break;
+        case NTDDI_WIN10_TH2:
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN10_TH2 | Windows 10.0.10586 | 1511 | Threshold 2 \n");
+            break;
+        case NTDDI_WIN10_RS1:
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN10_RS1 | Windows 10.0.14393 | 1607 | Redstone 1 \n");
+            break;
+        case NTDDI_WIN10_RS2:
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN10_RS2 | Windows 10.0.15063 | 1703 | Redstone 2 \n");
+            break;
+        case NTDDI_WIN10_RS3:
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN10_RS3 | Windows 10.0.16299 | 1709 | Redstone 3 \n");
+            break;
+        case NTDDI_WIN10_RS4:
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN10_RS4 | Windows 10.0.17134 | 1803 | Redstone 4 \n");
+            break;
+        case NTDDI_WIN10_RS5:
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN10_RS5 | Windows 10.0.17763 | 1809 | Redstone 5 \n");
+            break;
+        case NTDDI_WIN10_19H1:
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN10_19H1 | Windows 10.0.18362 | 1903 | 19H1 Titanium \n");
+            break;
+        case NTDDI_WIN10_VB:
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN10_VB | Windows 10.0.19041 | 2004 | Vibranium \n");
+            break;
+        case NTDDI_WIN10_MN:
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN10_MN | Windows 10.0.19042 | 20H2 | Manganese \n");
+            break;
+        case NTDDI_WIN10_FE:
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN10_FE | Windows 10.0.19043 | 21H1 | Ferrum \n");
+            break;
+        case NTDDI_WIN10_CO:
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN10_CO | Windows 10.0.19044-22000 | 21H2 | Cobalt \n");
+            break;
+        case NTDDI_WIN10_NI:
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN10_NI | Windows 10.0.22449-22631 | 22H2-22H3 | Nickel \n");
+            break;
+        case NTDDI_WIN10_CU:
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN10_CU | Windows 10.0.25057-25236 | 22H2 | Copper \n");
+            break;
+        case NTDDI_WIN11_ZN:
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN11_ZN | Windows 10.0.25246-25398 | Zinc \n");
+            break;
+        case NTDDI_WIN11_GA:
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN11_GA | Windows 10.0.25905-25941 | Gallium \n");
+            break;
+        case NTDDI_WIN11_GE:
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN11_GE | Windows 10.0.25947-26100 | 24H2 | Germanium \n");
+            break;
+        default:
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : 0x%x \n", (NTDDI_VERSION));
+            break;
+    }
+    #endif
     return initResult;
-
 }
 
 ULONG
