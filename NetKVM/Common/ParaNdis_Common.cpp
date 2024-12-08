@@ -237,9 +237,10 @@ Parameters:
     context
     PUCHAR *ppNewMACAddress - pointer to hold MAC address if configured from host
 ***********************************************************/
-static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddress)
+static bool ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddress)
 {
     NDIS_HANDLE cfg;
+    bool ret = false;
     tConfigurationEntries *pConfiguration = (tConfigurationEntries *) ParaNdis_AllocateMemory(pContext, sizeof(tConfigurationEntries));
     if (pConfiguration)
     {
@@ -247,6 +248,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
         cfg = ParaNdis_OpenNICConfiguration(pContext);
         if (cfg)
         {
+            ret = true;
             GetConfigurationEntry(cfg, &pConfiguration->PhysicalMediaType);
             GetConfigurationEntry(cfg, &pConfiguration->isLogEnabled);
             GetConfigurationEntry(cfg, &pConfiguration->debugLevel);
@@ -287,7 +289,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
             virtioDebugLevel = pConfiguration->debugLevel.ulValue;
             pContext->physicalMediaType = (NDIS_PHYSICAL_MEDIUM)pConfiguration->PhysicalMediaType.ulValue;
             pContext->maxFreeTxDescriptors = pConfiguration->TxCapacity.ulValue;
-            pContext->NetMaxReceiveBuffers = pConfiguration->RxCapacity.ulValue;
+            pContext->maxRxBufferPerQueue = pConfiguration->RxCapacity.ulValue;
             pContext->uNumberOfHandledRXPacketsInDPC = pConfiguration->NumberOfHandledRXPacketsInDPC.ulValue;
             pContext->bDoSupportPriority = pConfiguration->PrioritySupport.ulValue != 0;
             pContext->Offload.flagsValue = 0;
@@ -384,6 +386,7 @@ static void ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
         }
         NdisFreeMemory(pConfiguration, 0, 0);
     }
+    return ret;
 }
 
 void ParaNdis_ResetOffloadSettings(PARANDIS_ADAPTER *pContext, tOffloadSettingsFlags *pDest, PULONG from)
@@ -799,7 +802,10 @@ NDIS_STATUS ParaNdis_InitializeContext(
         return NDIS_STATUS_RESOURCES;
     }
 
-    ReadNicConfiguration(pContext, CurrentMAC);
+    if (!ReadNicConfiguration(pContext, CurrentMAC))
+    {
+        return NDIS_STATUS_RESOURCES;
+    }
 
     pContext->fCurrentLinkState = MediaConnectStateUnknown;
 
@@ -1376,25 +1382,25 @@ NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext)
     DEBUG_ENTRY(0);
 
     status = ParaNdis_FinishSpecificInitialization(pContext);
-    DPrintf(0, "[%s] ParaNdis_FinishSpecificInitialization passed, status = %d\n", __FUNCTION__, status);
+    DPrintf(0, "[%s] ParaNdis_FinishSpecificInitialization passed, status = %X\n", __FUNCTION__, status);
 
 
     if (status == NDIS_STATUS_SUCCESS)
     {
         status = ParaNdis_VirtIONetInit(pContext);
-        DPrintf(0, "[%s] ParaNdis_VirtIONetInit passed, status = %d\n", __FUNCTION__, status);
+        DPrintf(0, "[%s] ParaNdis_VirtIONetInit passed, status = %X\n", __FUNCTION__, status);
     }
 
     if (status == NDIS_STATUS_SUCCESS && pContext->bUsingMSIX)
     {
         status = ParaNdis_ConfigureMSIXVectors(pContext);
-        DPrintf(0, "[%s] ParaNdis_ConfigureMSIXVectors passed, status = %d\n", __FUNCTION__, status);
+        DPrintf(0, "[%s] ParaNdis_ConfigureMSIXVectors passed, status = %X\n", __FUNCTION__, status);
     }
 
     if (status == NDIS_STATUS_SUCCESS)
     {
         status = SetupDPCTarget(pContext);
-        DPrintf(0, "[%s] SetupDPCTarget passed, status = %d\n", __FUNCTION__, status);
+        DPrintf(0, "[%s] SetupDPCTarget passed, status = %X\n", __FUNCTION__, status);
     }
 
     if (status == NDIS_STATUS_SUCCESS && pContext->bPollModeTry &&
@@ -2151,7 +2157,7 @@ ParaNdis_UpdateMAC(PARANDIS_ADAPTER *pContext)
 NDIS_STATUS ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 {
     UINT i;
-
+    bool bRenewed = true;
     DEBUG_ENTRY(0);
     ParaNdis_DebugHistory(pContext, _etagHistoryLogOperation::hopPowerOn, NULL, 1, 0, 0);
 
@@ -2172,12 +2178,17 @@ NDIS_STATUS ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
 
     for (i = 0; i < pContext->nPathBundles; i++)
     {
-        pContext->pPathBundles[i].txPath.Renew();
-        pContext->pPathBundles[i].rxPath.Renew();
+        bRenewed = bRenewed && pContext->pPathBundles[i].txPath.Renew();
+        bRenewed = bRenewed && pContext->pPathBundles[i].rxPath.Renew();
     }
     if (pContext->bCXPathCreated)
     {
-        pContext->CXPath.Renew();
+        bRenewed = bRenewed && pContext->CXPath.Renew();
+    }
+
+    if (!bRenewed) {
+        DPrintf(0, "[%s] one or more queues failed to renew\n", __FUNCTION__);
+        return NDIS_STATUS_RESOURCES;
     }
 
     ParaNdis_RestoreDeviceConfigurationAfterReset(pContext);

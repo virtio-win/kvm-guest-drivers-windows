@@ -499,7 +499,7 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
             pInfo = &u.WmiConfig;
             ulSize = sizeof(u.WmiConfig);
             u.WmiConfig.NumOfQueues = pContext->nPathBundles;
-            u.WmiConfig.RxQueueSize = pContext->NetMaxReceiveBuffers;
+            u.WmiConfig.RxQueueSize = pContext->maxRxBufferPerQueue;
             u.WmiConfig.TxQueueSize = pContext->pPathBundles[0].txPath.GetActualQueueSize();
             u.WmiConfig.RscEnabledv4 = pContext->ReportedOffloadConfiguration.Rsc.IPv4.Enabled;
             u.WmiConfig.RscEnabledv6 = pContext->ReportedOffloadConfiguration.Rsc.IPv6.Enabled;

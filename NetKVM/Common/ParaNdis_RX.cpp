@@ -84,7 +84,7 @@ static void ParaNdis_FreeRxBufferDescriptor(PARANDIS_ADAPTER *pContext, pRxNetDe
     NdisFreeMemory(p, 0, 0);
 }
 
-CParaNdisRX::CParaNdisRX() : m_nReusedRxBuffersCounter(0), m_NetNofReceiveBuffers(0)
+CParaNdisRX::CParaNdisRX()
 {
     InitializeListHead(&m_NetReceiveBuffers);
 }
@@ -97,6 +97,7 @@ bool CParaNdisRX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
 {
     m_Context = Context;
     m_queueIndex = (u16)DeviceQueueIndex;
+    m_NetMaxReceiveBuffers = Context->maxRxBufferPerQueue;
 
     if (!m_VirtQueue.Create(DeviceQueueIndex,
         &m_Context->IODevice,
@@ -108,7 +109,7 @@ bool CParaNdisRX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
 
     PrepareReceiveBuffers();
 
-    m_nReusedRxBuffersLimit = m_Context->NetMaxReceiveBuffers / 4 + 1;
+    m_nReusedRxBuffersLimit = m_NetMaxReceiveBuffers / 4 + 1;
 
     CreatePath();
 
@@ -121,7 +122,7 @@ int CParaNdisRX::PrepareReceiveBuffers()
     UINT i;
     DEBUG_ENTRY(4);
 
-    for (i = 0; i < m_Context->NetMaxReceiveBuffers; ++i)
+    for (i = 0; i < m_NetMaxReceiveBuffers; ++i)
     {
         pRxNetDescriptor pBuffersDescriptor = CreateRxDescriptorOnInit();
         if (!pBuffersDescriptor) break;
@@ -138,10 +139,9 @@ int CParaNdisRX::PrepareReceiveBuffers()
 
         m_NetNofReceiveBuffers++;
     }
-    /* TODO - NetMaxReceiveBuffers should take into account all queues */
-    m_Context->NetMaxReceiveBuffers = m_NetNofReceiveBuffers;
+    m_NetMaxReceiveBuffers = m_NetNofReceiveBuffers;
     m_MinRxBufferLimit = m_NetNofReceiveBuffers * m_Context->MinRxBufferPercent / 100;
-    DPrintf(0, "[%s] MaxReceiveBuffers %d, m_MinRxBufferLimit %u\n", __FUNCTION__, m_Context->NetMaxReceiveBuffers, m_MinRxBufferLimit);
+    DPrintf(0, "[%s] m_NetMaxReceiveBuffers %d, m_MinRxBufferLimit %u\n", __FUNCTION__, m_NetMaxReceiveBuffers, m_MinRxBufferLimit);
     if (m_Context->extraStatistics.minFreeRxBuffers == 0 || m_Context->extraStatistics.minFreeRxBuffers > m_NetNofReceiveBuffers)
     {
         m_Context->extraStatistics.minFreeRxBuffers = m_NetNofReceiveBuffers;
@@ -286,10 +286,10 @@ void CParaNdisRX::ReuseReceiveBufferNoLock(pRxNetDescriptor pBuffersDescriptor)
         InsertTailList(&m_NetReceiveBuffers, &pBuffersDescriptor->listEntry);
         m_NetNofReceiveBuffers++;
 
-        if (m_NetNofReceiveBuffers > m_Context->NetMaxReceiveBuffers)
+        if (m_NetNofReceiveBuffers > m_NetMaxReceiveBuffers)
         {
-            DPrintf(0, " Error: NetNofReceiveBuffers > NetMaxReceiveBuffers(%d>%d)\n",
-                m_NetNofReceiveBuffers, m_Context->NetMaxReceiveBuffers);
+            DPrintf(0, " Error: m_NetNofReceiveBuffers > m_NetMaxReceiveBuffers (%d>%d)\n",
+                m_NetNofReceiveBuffers, m_NetMaxReceiveBuffers);
         }
 
         /* TODO - nReusedRXBuffers per queue or per context ?*/
@@ -304,7 +304,7 @@ void CParaNdisRX::ReuseReceiveBufferNoLock(pRxNetDescriptor pBuffersDescriptor)
         /* TODO - NetMaxReceiveBuffers per queue or per context ?*/
         DPrintf(0, "FAILED TO REUSE THE BUFFER!!!!\n");
         ParaNdis_FreeRxBufferDescriptor(m_Context, pBuffersDescriptor);
-        m_Context->NetMaxReceiveBuffers--;
+        m_NetMaxReceiveBuffers--;
     }
 }
 
@@ -584,7 +584,7 @@ void CParaNdisRX::PopulateQueue()
             /* TODO - NetMaxReceiveBuffers should take into account all queues */
             DPrintf(0, "FAILED TO REUSE THE BUFFER!!!!\n");
             ParaNdis_FreeRxBufferDescriptor(m_Context, pBufferDescriptor);
-            m_Context->NetMaxReceiveBuffers--;
+            m_NetMaxReceiveBuffers--;
         }
     }
     m_Reinsert = true;

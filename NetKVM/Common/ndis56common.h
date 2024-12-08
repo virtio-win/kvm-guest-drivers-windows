@@ -462,9 +462,16 @@ struct _tagRxNetDescriptor {
 
 struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
 {
-    _PARANDIS_ADAPTER() : guestAnnouncePackets(this), CXPath(this), RSSParameters(this) {}
+    _PARANDIS_ADAPTER(NDIS_HANDLE Handle) :
+        MiniportHandle(Handle),
+        guestAnnouncePackets(this),
+        CXPath(this),
+        RSSParameters(Handle)
+    {
+        m_StateMachine.RegisterFlow(m_RxStateMachine);
+        m_StateMachine.RegisterFlow(m_CxStateMachine);
+    }
     ~_PARANDIS_ADAPTER();
-    NDIS_HANDLE             DriverHandle = NULL;
     NDIS_HANDLE             MiniportHandle = NULL;
     NDIS_HANDLE             InterruptHandle = NULL;
     NDIS_HANDLE             BufferListsPool = NULL;
@@ -560,7 +567,7 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
     /* initial number of free Tx descriptor(from cfg) - max number of available Tx descriptors */
     UINT                    maxFreeTxDescriptors = 0;
     /* total of Rx buffer in turnaround */
-    UINT                    NetMaxReceiveBuffers = 0;
+    UINT                    maxRxBufferPerQueue = 0;
     UINT                    nPnpEventIndex = 0;
     NDIS_DEVICE_PNP_EVENT   PnpEvents[16] = {};
     tOffloadSettings        Offload = {};

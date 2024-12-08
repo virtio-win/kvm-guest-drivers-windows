@@ -49,9 +49,10 @@ public:
         m_pVirtQueue->EnableInterrupts();
     }
 
-    void Renew()
+    bool Renew()
     {
         m_pVirtQueue->Renew();
+        return m_pVirtQueue->IsValid();
     }
 
     ULONG getCPUIndex();

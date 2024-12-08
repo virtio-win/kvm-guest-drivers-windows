@@ -273,8 +273,16 @@ NDIS_STATUS ParaNdis_OidQueryCommon(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
         break;
     }
     case OID_GEN_RECEIVE_BUFFER_SPACE:
-        SETINFO(ul, pContext->MaxPacketSize.nMaxFullSizeOsRx * pContext->NetMaxReceiveBuffers);
+    {
+        ULONG totalRxBuffer = 0;
+        for (UINT i = 0; i < pContext->nPathBundles; i++)
+        {
+            totalRxBuffer += pContext->pPathBundles[i].rxPath.GetFreeRxBuffers();
+        }
+
+        SETINFO(ul, pContext->MaxPacketSize.nMaxFullSizeOsRx * totalRxBuffer);
         break;
+    }
     case OID_GEN_RECEIVE_BLOCK_SIZE:
         SETINFO(ul, pContext->MaxPacketSize.nMaxFullSizeOsRx);
         break;

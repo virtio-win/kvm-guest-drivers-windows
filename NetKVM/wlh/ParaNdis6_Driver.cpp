@@ -172,7 +172,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
     UNREFERENCED_PARAMETER(miniportDriverContext);
     DEBUG_ENTRY(0);
 
-    pContext = new (miniportAdapterHandle) PARANDIS_ADAPTER;
+    pContext = new (miniportAdapterHandle) PARANDIS_ADAPTER(miniportAdapterHandle);
 
     if (!pContext)
     {
@@ -187,11 +187,6 @@ static NDIS_STATUS ParaNdis6_Initialize(
 
         /* set mandatory fields which Common use */
         pContext->ulUniqueID = NdisInterlockedIncrement(&gID);
-        pContext->DriverHandle = DriverHandle;
-        pContext->MiniportHandle = miniportAdapterHandle;
-
-        pContext->m_StateMachine.RegisterFlow(pContext->m_RxStateMachine);
-        pContext->m_StateMachine.RegisterFlow(pContext->m_CxStateMachine);
 
         NdisZeroMemory(&miniportAttributes, sizeof(miniportAttributes));
         miniportAttributes.RegistrationAttributes.Header.Type = NDIS_OBJECT_TYPE_MINIPORT_ADAPTER_REGISTRATION_ATTRIBUTES;
@@ -311,26 +306,12 @@ static NDIS_STATUS ParaNdis6_Initialize(
         }
     }
 
-    if (pContext && status != NDIS_STATUS_SUCCESS && status != NDIS_STATUS_PENDING)
-    {
-        pContext->m_StateMachine.UnregisterFlow(pContext->m_RxStateMachine);
-        pContext->m_StateMachine.UnregisterFlow(pContext->m_CxStateMachine);
-        pContext->m_StateMachine.NotifyHalted();
-
-        pContext->Destroy(pContext, pContext->MiniportHandle);
-        pContext = NULL;
-    }
-
-    if (pContext && status == NDIS_STATUS_SUCCESS)
+    if (status == NDIS_STATUS_SUCCESS)
     {
         status = ParaNdis_FinishInitialization(pContext);
-        if (status != NDIS_STATUS_SUCCESS)
-        {
-            pContext->Destroy(pContext, pContext->MiniportHandle);
-            pContext = NULL;
-        }
     }
-    if (pContext && status == NDIS_STATUS_SUCCESS)
+
+    if (status == NDIS_STATUS_SUCCESS)
     {
         if (NDIS_STATUS_SUCCESS ==
             ParaNdis6_GetRegistrationOffloadInfo(pContext,
@@ -342,7 +323,7 @@ static NDIS_STATUS ParaNdis6_Initialize(
             }
     }
 
-    if (pContext && status == NDIS_STATUS_SUCCESS)
+    if (status == NDIS_STATUS_SUCCESS)
     {
         pContext->m_StateMachine.NotifyInitialized(pContext);
         ParaNdis_DebugRegisterMiniport(pContext, TRUE);
@@ -350,6 +331,10 @@ static NDIS_STATUS ParaNdis6_Initialize(
     }
     else
     {
+        if (pContext)
+        {
+            pContext->Destroy(pContext, pContext->MiniportHandle);
+        }
         // In rare case of initialization failure we need to unregister the protocol.
         // Use dummy adapter context
         ParaNdis_ProtocolUnregisterAdapter();
@@ -553,12 +538,19 @@ static NDIS_STATUS ParaNdis6_Reset(
         NDIS_HANDLE miniportAdapterContext,
         PBOOLEAN  pAddressingReset)
 {
+    NDIS_STATUS status;
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)miniportAdapterContext;
     DEBUG_ENTRY(0);
     ParaNdis_PowerOff(pContext);
-    ParaNdis_PowerOn(pContext);
+    status = ParaNdis_PowerOn(pContext);
     *pAddressingReset = FALSE;
-    return NDIS_STATUS_SUCCESS;
+    // if ParaNdis_PowerOn fails, just returning error
+    // does not help, so request unload
+    if (!NT_SUCCESS(status)) {
+        DPrintf(0, "[%s] requesting removal\n", __FUNCTION__);
+        NdisMRemoveMiniport(pContext->MiniportHandle);
+    }
+    return status;
 }
 
 /***************************************************
@@ -1199,6 +1191,10 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
     else
     {
         DEBUG_EXIT_STATUS(0, status);
+        if (DriverHandle)
+        {
+            NdisMDeregisterMiniportDriver(DriverHandle);
+        }
         ParaNdis_DebugCleanup(pDriverObject);
 #ifdef NETKVM_WPP_ENABLED
         WPP_CLEANUP(pDriverObject);
