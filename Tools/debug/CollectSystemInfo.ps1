@@ -194,6 +194,28 @@ function Export-WindowsMemoryDump {
     Write-Host 'Windows memory dump collection completed.'
 }
 
+function Export-SetupAPILogs {
+    try {
+        $infPath = "$env:SystemRoot\INF"
+        $files = Get-ChildItem -Path $infPath -Filter 'setupapi*.log'
+
+        if (Test-Path "$env:SystemRoot\setupapi.log") {
+            $files += Get-Item "$env:SystemRoot\setupapi.log"
+        }
+
+        foreach ($file in $files) {
+            try {
+                Copy-Item -Path $file.FullName -Destination $logfolderPath -ErrorAction Stop
+            } catch {
+                Write-Warning "Failed to copy $($file.Name): $_"
+            }
+        }
+        Write-Host 'SetupAPI logs collection completed.'
+    } catch {
+        Write-Warning "Failed to collect SetupAPI logs: $_"
+    }
+}
+
 function Write-InformationToArchive {
     param (
         [string]$FolderPath,
@@ -265,6 +287,7 @@ try {
     Export-InstalledApplications
     Export-InstalledKBs
     Export-NetworkConfiguration
+    Export-SetupAPILogs 
 
     if ($IncludeSensitiveData) {
         Write-Output "Dump folder path: $dumpfolderPath"
