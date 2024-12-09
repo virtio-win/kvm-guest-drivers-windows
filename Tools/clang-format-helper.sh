@@ -15,7 +15,7 @@ CLANG_FORMAT_STYLE="$(realpath "${CLANG_FORMAT_STYLE}")"
 # Let's think that script will be used on Linux and Windows (msys or cygwin env only)
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     # Linux
-    clang_format="$(which clang-format)"
+    clang_format="$(which clang-format-16)"
 else
     # Windows
     # Load clang-format from the EWDK 24H2

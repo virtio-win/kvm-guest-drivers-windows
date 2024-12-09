@@ -36,7 +36,7 @@
 #include "virtio_ring.h"
 #include "windows\virtio_ring_allocation.h"
 
-#define DESC_INDEX(num, i)         ((i) & ((num) - 1))
+#define DESC_INDEX(num, i)         ((i) & ((num)-1))
 
 /* This marks a buffer as continuing via the next field. */
 #define VIRTQ_DESC_F_NEXT          1
