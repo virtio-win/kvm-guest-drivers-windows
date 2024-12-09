@@ -26,7 +26,7 @@
 
 #define MINIDUMP_BUFFER_SIZE 0x40000
 
-#define ROUND_UP(x, n)       (((x) + (n) - 1) & (-(n)))
+#define ROUND_UP(x, n)       (((x) + (n)-1) & (-(n)))
 
 #pragma pack(push, 1)
 typedef struct VMCOREINFO
