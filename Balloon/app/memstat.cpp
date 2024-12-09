@@ -196,5 +196,23 @@ BOOL CMemStat::Update()
         m_Stats[idx++].val = 0;
     }
 
+    while (true)
+    {
+        if (enumerator == NULL)
+            break;
+
+        if (FAILED(enumerator->Next(WBEM_INFINITE, 1L, &memory, &retcnt)))
+        {
+            PrintMessage("Cannot again enumerate results");
+            break;
+        }
+
+        if (retcnt == 0)
+        {
+            PrintMessage("No more results found");
+            break;
+        }
+    }
+
     return TRUE;
 }
