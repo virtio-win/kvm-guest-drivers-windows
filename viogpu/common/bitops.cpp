@@ -1,7 +1,7 @@
 #include "bitops.h"
 #include "viogpu.h"
 
-#if !DBG
+#if defined(EVENT_TRACING)
 #include "bitops.tmh"
 #endif
 
