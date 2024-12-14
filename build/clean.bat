@@ -24,7 +24,8 @@ call :rmdir .\obj
 call :rmdir .\sdv
 call :rmdir .\sdv.temp
 call :rmdir .\codeql_db
-call :rmfiles *.dvl.xml *.dvl-compat.xml
+call :rmfiles *.dvl.xml *.dvl-compat.xml *.dvl-win1*.xml
+call :rmfiles *.legacy_dvl_result.txt
 call :rmfiles sdv-map.h sdv-user.sdv SDV-default.xml
 call :rmfiles smvstats.txt smvbuild.log vc.nativecodeanalysis.all.xml
 call :rmfiles *.sarif codeql.build.bat
