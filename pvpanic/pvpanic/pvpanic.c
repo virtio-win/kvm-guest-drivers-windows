@@ -36,8 +36,7 @@
 #pragma alloc_text(PAGE, PVPanicEvtDriverContextCleanup)
 #endif
 
-NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject,
-                     IN PUNICODE_STRING RegistryPath)
+NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING RegistryPath)
 {
     NTSTATUS status;
     WDF_DRIVER_CONFIG config;
@@ -55,13 +54,11 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject,
 
     WDF_DRIVER_CONFIG_INIT(&config, PVPanicEvtDeviceAdd);
 
-    status = WdfDriverCreate(DriverObject, RegistryPath, &attributes,
-        &config, WDF_NO_HANDLE);
+    status = WdfDriverCreate(DriverObject, RegistryPath, &attributes, &config, WDF_NO_HANDLE);
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-            "WdfDriverCreate failed: %!STATUS!", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfDriverCreate failed: %!STATUS!", status);
         WPP_CLEANUP(DriverObject);
     }
     else
@@ -75,8 +72,7 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject,
     return status;
 }
 
-NTSTATUS PVPanicEvtDeviceAdd(IN WDFDRIVER Driver,
-                             IN PWDFDEVICE_INIT DeviceInit)
+NTSTATUS PVPanicEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
 {
     NTSTATUS status;
     WDFDEVICE device;
@@ -102,17 +98,14 @@ NTSTATUS PVPanicEvtDeviceAdd(IN WDFDRIVER Driver,
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, DEVICE_CONTEXT);
 
-    WDF_FILEOBJECT_CONFIG_INIT(&fileConfig, PVPanicEvtDeviceFileCreate,
-        WDF_NO_EVENT_CALLBACK, WDF_NO_EVENT_CALLBACK);
+    WDF_FILEOBJECT_CONFIG_INIT(&fileConfig, PVPanicEvtDeviceFileCreate, WDF_NO_EVENT_CALLBACK, WDF_NO_EVENT_CALLBACK);
 
-    WdfDeviceInitSetFileObjectConfig(DeviceInit, &fileConfig,
-        WDF_NO_OBJECT_ATTRIBUTES);
+    WdfDeviceInitSetFileObjectConfig(DeviceInit, &fileConfig, WDF_NO_OBJECT_ATTRIBUTES);
 
     status = WdfDeviceCreate(&DeviceInit, &attributes, &device);
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-            "WdfDeviceCreate failed: %!STATUS!", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfDeviceCreate failed: %!STATUS!", status);
         return status;
     }
 
@@ -137,9 +130,7 @@ VOID PVPanicEvtDriverContextCleanup(IN WDFOBJECT DriverObject)
     WPP_CLEANUP(WdfDriverWdmGetDriverObject((WDFDRIVER)DriverObject));
 }
 
-VOID PVPanicEvtDeviceFileCreate(IN WDFDEVICE Device,
-                                IN WDFREQUEST Request,
-                                IN WDFFILEOBJECT FileObject)
+VOID PVPanicEvtDeviceFileCreate(IN WDFDEVICE Device, IN WDFREQUEST Request, IN WDFFILEOBJECT FileObject)
 {
     UNREFERENCED_PARAMETER(Device);
     UNREFERENCED_PARAMETER(FileObject);

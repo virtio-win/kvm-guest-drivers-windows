@@ -47,8 +47,7 @@ NTSTATUS PVPanicEvtDevicePrepareHardware(IN WDFDEVICE Device,
 
     UNREFERENCED_PARAMETER(Resources);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "--> %!FUNC! Device: %p",
-        Device);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "--> %!FUNC! Device: %p", Device);
 
     PAGED_CODE();
     bEmitCrashLoadedEvent = FALSE;
@@ -62,10 +61,11 @@ NTSTATUS PVPanicEvtDevicePrepareHardware(IN WDFDEVICE Device,
         switch (desc->Type)
         {
             case CmResourceTypePort:
-            {
-                TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER,
-                    "I/O mapped CSR: (%lx) Length: (%lu)",
-                    desc->u.Port.Start.LowPart, desc->u.Port.Length);
+                TraceEvents(TRACE_LEVEL_VERBOSE,
+                            DBG_POWER,
+                            "I/O mapped CSR: (%lx) Length: (%lu)",
+                            desc->u.Port.Start.LowPart,
+                            desc->u.Port.Length);
 
                 context->MappedPort = !(desc->Flags & CM_RESOURCE_PORT_IO);
                 context->IoRange = desc->u.Port.Length;
@@ -74,62 +74,58 @@ NTSTATUS PVPanicEvtDevicePrepareHardware(IN WDFDEVICE Device,
                 {
 #if defined(NTDDI_WINTHRESHOLD) && (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
                     context->IoBaseAddress = MmMapIoSpaceEx(desc->u.Port.Start,
-                        desc->u.Port.Length, PAGE_READWRITE | PAGE_NOCACHE);
+                                                            desc->u.Port.Length,
+                                                            PAGE_READWRITE | PAGE_NOCACHE);
 #else
-                    context->IoBaseAddress = MmMapIoSpace(desc->u.Port.Start,
-                        desc->u.Port.Length, MmNonCached);
+                    context->IoBaseAddress = MmMapIoSpace(desc->u.Port.Start, desc->u.Port.Length, MmNonCached);
 #endif
                 }
                 else
                 {
-                    context->IoBaseAddress =
-                        (PVOID)(ULONG_PTR)desc->u.Port.Start.QuadPart;
+                    context->IoBaseAddress = (PVOID)(ULONG_PTR)desc->u.Port.Start.QuadPart;
                 }
                 if (BusType & PVPANIC_PCI)
                 {
-                    TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
-                        "The coexistence of ISA and PCI pvpanic device is not supported, so "
-                        "the ISA pvpanic driver fails to be loaded because the PCI pvpanic "
-                        "driver has been loaded");
+                    TraceEvents(TRACE_LEVEL_ERROR,
+                                DBG_POWER,
+                                "The coexistence of ISA and PCI pvpanic device is not supported, so "
+                                "the ISA pvpanic driver fails to be loaded because the PCI pvpanic "
+                                "driver has been loaded");
                     return STATUS_DEVICE_CONFIGURATION_ERROR;
                 }
                 else
                     PvPanicPortOrMemAddress = (PUCHAR)context->IoBaseAddress;
 
                 break;
-            }
 
             case CmResourceTypeMemory:
-            {
-                TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER,
-                    "Memory mapped CSR: (%lx) Length: (%lu)",
-                    desc->u.Memory.Start.LowPart, desc->u.Memory.Length);
+                TraceEvents(TRACE_LEVEL_VERBOSE,
+                            DBG_POWER,
+                            "Memory mapped CSR: (%lx) Length: (%lu)",
+                            desc->u.Memory.Start.LowPart,
+                            desc->u.Memory.Length);
 
                 context->MemRange = desc->u.Memory.Length;
 #if defined(NTDDI_WINTHRESHOLD) && (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
-                context->MemBaseAddress = MmMapIoSpaceEx(
-                    desc->u.Memory.Start,
-                    desc->u.Memory.Length,
-                    PAGE_READWRITE | PAGE_NOCACHE);
+                context->MemBaseAddress = MmMapIoSpaceEx(desc->u.Memory.Start,
+                                                         desc->u.Memory.Length,
+                                                         PAGE_READWRITE | PAGE_NOCACHE);
 #else
-                context->MemBaseAddress = MmMapIoSpace(
-                    desc->u.Memory.Start,
-                    desc->u.Memory.Length,
-                    MmNonCached);
+                context->MemBaseAddress = MmMapIoSpace(desc->u.Memory.Start, desc->u.Memory.Length, MmNonCached);
 #endif
                 if (BusType & PVPANIC_ISA)
                 {
-                    TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
-                        "The coexistence of ISA and PCI pvpanic device is not supported, so "
-                        "the PCI pvpanic driver fails to be loaded because the ISA pvpanic "
-                        "driver has been loaded");
+                    TraceEvents(TRACE_LEVEL_ERROR,
+                                DBG_POWER,
+                                "The coexistence of ISA and PCI pvpanic device is not supported, so "
+                                "the PCI pvpanic driver fails to be loaded because the ISA pvpanic "
+                                "driver has been loaded");
                     return STATUS_DEVICE_CONFIGURATION_ERROR;
                 }
                 else
                     PvPanicPortOrMemAddress = (PUCHAR)context->MemBaseAddress;
 
                 break;
-            }
             default:
                 break;
         }
@@ -145,31 +141,37 @@ NTSTATUS PVPanicEvtDevicePrepareHardware(IN WDFDEVICE Device,
     {
         BusType |= PVPANIC_ISA;
         SupportedFeature = READ_PORT_UCHAR((PUCHAR)(context->IoBaseAddress));
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_POWER,
-            "read feature from IoBaseAddress 0x%p SupportedFeature 0x%x \n",
-            context->IoBaseAddress, SupportedFeature);
+        TraceEvents(TRACE_LEVEL_INFORMATION,
+                    DBG_POWER,
+                    "read feature from IoBaseAddress 0x%p SupportedFeature 0x%x \n",
+                    context->IoBaseAddress,
+                    SupportedFeature);
     }
     else if (context->MemBaseAddress)
     {
         BusType |= PVPANIC_PCI;
         SupportedFeature = *(PUCHAR)(context->MemBaseAddress);
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_POWER,
-            "read feature 0x%p *MemBaseAddress 0x%x SupportedFeature 0x%x \n",
-            context->MemBaseAddress, *(PUSHORT)(context->MemBaseAddress), SupportedFeature);
+        TraceEvents(TRACE_LEVEL_INFORMATION,
+                    DBG_POWER,
+                    "read feature 0x%p *MemBaseAddress 0x%x SupportedFeature 0x%x \n",
+                    context->MemBaseAddress,
+                    *(PUSHORT)(context->MemBaseAddress),
+                    SupportedFeature);
     }
     if (SupportedFeature & (PVPANIC_PANICKED | PVPANIC_CRASHLOADED))
     {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_POWER,
-            "PVPANIC_PANICKED notification feature %s supported.",
-            (SupportedFeature & PVPANIC_PANICKED) ? "is" : "is not");
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_POWER,
-            "PVPANIC_CRASHLOADED notification feature %s supported.",
-            (SupportedFeature & PVPANIC_CRASHLOADED) ? "is" : "is not");
+        TraceEvents(TRACE_LEVEL_INFORMATION,
+                    DBG_POWER,
+                    "PVPANIC_PANICKED notification feature %s supported.",
+                    (SupportedFeature & PVPANIC_PANICKED) ? "is" : "is not");
+        TraceEvents(TRACE_LEVEL_INFORMATION,
+                    DBG_POWER,
+                    "PVPANIC_CRASHLOADED notification feature %s supported.",
+                    (SupportedFeature & PVPANIC_CRASHLOADED) ? "is" : "is not");
     }
     else
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
-            "Panic notification feature is not supported.");
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "Panic notification feature is not supported.");
         return STATUS_DEVICE_CONFIGURATION_ERROR;
     }
 
@@ -178,8 +180,7 @@ NTSTATUS PVPanicEvtDevicePrepareHardware(IN WDFDEVICE Device,
     return STATUS_SUCCESS;
 }
 
-NTSTATUS PVPanicEvtDeviceReleaseHardware(IN WDFDEVICE Device,
-                                         IN WDFCMRESLIST ResourcesTranslated)
+NTSTATUS PVPanicEvtDeviceReleaseHardware(IN WDFDEVICE Device, IN WDFCMRESLIST ResourcesTranslated)
 {
     PDEVICE_CONTEXT context = GetDeviceContext(Device);
 
@@ -205,15 +206,13 @@ NTSTATUS PVPanicEvtDeviceReleaseHardware(IN WDFDEVICE Device,
     return STATUS_SUCCESS;
 }
 
-NTSTATUS PVPanicEvtDeviceD0Entry(IN WDFDEVICE Device,
-                                 IN WDF_POWER_DEVICE_STATE PreviousState)
+NTSTATUS PVPanicEvtDeviceD0Entry(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE PreviousState)
 {
     PDEVICE_CONTEXT context = GetDeviceContext(Device);
 
     UNREFERENCED_PARAMETER(PreviousState);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "--> %!FUNC! Device: %p",
-        Device);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "--> %!FUNC! Device: %p", Device);
 
     PAGED_CODE();
 
@@ -227,14 +226,12 @@ NTSTATUS PVPanicEvtDeviceD0Entry(IN WDFDEVICE Device,
     return STATUS_SUCCESS;
 }
 
-NTSTATUS PVPanicEvtDeviceD0Exit(IN WDFDEVICE Device,
-                                IN WDF_POWER_DEVICE_STATE TargetState)
+NTSTATUS PVPanicEvtDeviceD0Exit(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE TargetState)
 {
     UNREFERENCED_PARAMETER(Device);
     UNREFERENCED_PARAMETER(TargetState);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "--> %!FUNC! Device: %p",
-        Device);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "--> %!FUNC! Device: %p", Device);
 
     PAGED_CODE();
 
