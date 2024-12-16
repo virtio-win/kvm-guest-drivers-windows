@@ -468,7 +468,7 @@ DriverEntry(
             RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN10_RS5 | Windows 10.0.17763 | 1809 | Redstone 5 \n");
             break;
         case NTDDI_WIN10_19H1:
-            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN10_19H1 | Windows 10.0.18362 | 1903 | 19H1 Titanium \n");
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN10_19H1 | Windows 10.0.18362 | 19H1 | Titanium \n");
             break;
         case NTDDI_WIN10_VB:
             RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN10_VB | Windows 10.0.19041 | 2004 | Vibranium \n");
@@ -477,25 +477,31 @@ DriverEntry(
             RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN10_MN | Windows 10.0.19042 | 20H2 | Manganese \n");
             break;
         case NTDDI_WIN10_FE:
-            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN10_FE | Windows 10.0.19043 | 21H1 | Ferrum \n");
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN10_FE | Windows 10.0.19043 | 21H1 | Iron \n");
             break;
         case NTDDI_WIN10_CO:
             RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN10_CO | Windows 10.0.19044-22000 | 21H2 | Cobalt \n");
             break;
         case NTDDI_WIN10_NI:
-            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN10_NI | Windows 10.0.22449-22631 | 22H2-22H3 | Nickel \n");
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN10_NI | Windows 10.0.22449-22631 | 22H2 | Nickel \n");
             break;
         case NTDDI_WIN10_CU:
-            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN10_CU | Windows 10.0.25057-25236 | 22H2 | Copper \n");
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN10_CU | Windows 10.0.25057-25236 | 23H1 | Copper \n");
             break;
         case NTDDI_WIN11_ZN:
-            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN11_ZN | Windows 10.0.25246-25398 | Zinc \n");
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN11_ZN | Windows 10.0.25246-25398 | 23H2 | Zinc \n");
             break;
         case NTDDI_WIN11_GA:
-            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN11_GA | Windows 10.0.25905-25941 | Gallium \n");
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN11_GA | Windows 10.0.25905-25941 | 24H1 | Gallium \n");
             break;
         case NTDDI_WIN11_GE:
             RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN11_GE | Windows 10.0.25947-26100 | 24H2 | Germanium \n");
+            break;
+        case NTDDI_WIN11_GE:
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN11_DT | Windows 10.0.27686-27691 | 25H1 | Dilithium \n");
+            break;
+        case NTDDI_WIN11_GE:
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN11_SE | Windows 10.0.27764 | 25H2 | Selenium \n");
             break;
         default:
             RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : 0x%x \n", (NTDDI_VERSION));

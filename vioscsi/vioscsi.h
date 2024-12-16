@@ -57,11 +57,16 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #ifndef NTDDI_WIN11
 #define NTDDI_WIN11             NTDDI_WIN10_CO
 #define NTDDI_WIN11_CO          NTDDI_WIN10_CO  // Windows 10.0.21277-22000  / Cobalt       / 21H2
-#define NTDDI_WIN11_NI          NTDDI_WIN10_NI  // Windows 10.0.22449-22631  / Nickel       / 22H2 23H2
-#define NTDDI_WIN11_CU          NTDDI_WIN10_CU  // Windows 10.0.25057-25236  / Copper
-#define NTDDI_WIN11_ZN          0x0A00000E      // Windows 10.0.25246-25398  / Zinc
-#define NTDDI_WIN11_GA          0x0A00000F      // Windows 10.0.25905-25941  / Gallium
+#define NTDDI_WIN11_NI          NTDDI_WIN10_NI  // Windows 10.0.22449-22631  / Nickel       / 22H2
+#define NTDDI_WIN11_CU          NTDDI_WIN10_CU  // Windows 10.0.25057-25236  / Copper       / 23H1
+#define NTDDI_WIN11_ZN          0x0A00000E      // Windows 10.0.25246-25398  / Zinc         / 23H2
+#define NTDDI_WIN11_GA          0x0A00000F      // Windows 10.0.25905-25941  / Gallium      / 24H1
 #define NTDDI_WIN11_GE          0x0A000010      // Windows 10.0.25947-26100  / Germanium    / 24H2
+#endif
+
+#ifndef NTDDI_WIN11_DT
+#define NTDDI_WIN11_DT          0x0A000011      // Windows 10.0.27686-27691  / Dilithium    / 25H1
+#define NTDDI_WIN11_SE          0x0A000012      // Windows 10.0.27764        / Selenium     / 25H2
 #endif
 
 #define NTDDI_THRESHOLD         NTDDI_WINTHRESHOLD
