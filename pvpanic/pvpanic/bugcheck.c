@@ -38,7 +38,7 @@ KBUGCHECK_REASON_CALLBACK_ROUTINE PVPanicOnDumpBugCheck;
 
 VOID PVPanicOnBugCheck(IN PVOID Buffer, IN ULONG Length)
 {
-    //Trigger the PVPANIC_PANICKED event if the crash dump isn't enabled,
+    // Trigger the PVPANIC_PANICKED event if the crash dump isn't enabled,
     if ((Buffer != NULL) && (Length == sizeof(PVOID)) && !bEmitCrashLoadedEvent)
     {
         if (BusType & PVPANIC_PCI)
@@ -48,16 +48,15 @@ VOID PVPanicOnBugCheck(IN PVOID Buffer, IN ULONG Length)
     }
 }
 
-VOID PVPanicOnDumpBugCheck(
-    KBUGCHECK_CALLBACK_REASON Reason,
-    PKBUGCHECK_REASON_CALLBACK_RECORD Record,
-    PVOID Data,
-    ULONG Length)
+VOID PVPanicOnDumpBugCheck(KBUGCHECK_CALLBACK_REASON Reason,
+                           PKBUGCHECK_REASON_CALLBACK_RECORD Record,
+                           PVOID Data,
+                           ULONG Length)
 {
     UNREFERENCED_PARAMETER(Data);
     UNREFERENCED_PARAMETER(Length);
 
-    //Trigger the PVPANIC_CRASHLOADED event before the crash dump.
+    // Trigger the PVPANIC_CRASHLOADED event before the crash dump.
     if ((PvPanicPortOrMemAddress != NULL) && (Reason == KbCallbackDumpIo) && !bEmitCrashLoadedEvent)
     {
         if (BusType & PVPANIC_PCI)
@@ -67,7 +66,7 @@ VOID PVPanicOnDumpBugCheck(
 
         bEmitCrashLoadedEvent = TRUE;
     }
-    //Deregister BugCheckReasonCallback after PVPANIC_CRASHLOADED is triggered.
+    // Deregister BugCheckReasonCallback after PVPANIC_CRASHLOADED is triggered.
     if (bEmitCrashLoadedEvent)
         KeDeregisterBugCheckReasonCallback(Record);
 }
@@ -81,23 +80,26 @@ VOID PVPanicRegisterBugCheckCallback(IN PVOID PortAddress, PUCHAR Component)
 
     if (SupportedFeature & PVPANIC_PANICKED)
     {
-        bBugCheck = KeRegisterBugCheckCallback(&CallbackRecord, PVPanicOnBugCheck,
-                    (PVOID)PortAddress, sizeof(PVOID), Component);
+        bBugCheck = KeRegisterBugCheckCallback(&CallbackRecord,
+                                               PVPanicOnBugCheck,
+                                               (PVOID)PortAddress,
+                                               sizeof(PVOID),
+                                               Component);
         if (!bBugCheck)
         {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
-                "Failed to register bug check callback function.");
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "Failed to register bug check callback function.");
         }
     }
 
     if (SupportedFeature & PVPANIC_CRASHLOADED)
     {
         bBugCheck = KeRegisterBugCheckReasonCallback(&DumpCallbackRecord,
-                    PVPanicOnDumpBugCheck, KbCallbackDumpIo, Component);
+                                                     PVPanicOnDumpBugCheck,
+                                                     KbCallbackDumpIo,
+                                                     Component);
         if (!bBugCheck)
         {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
-                "Failed to register bug check reason callback function.");
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "Failed to register bug check reason callback function.");
         }
     }
 }
@@ -111,8 +113,7 @@ VOID PVPanicDeregisterBugCheckCallback()
         bBugCheck = KeDeregisterBugCheckCallback(&CallbackRecord);
         if (!bBugCheck)
         {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
-                "Failed to unregister bug check callback function.");
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "Failed to unregister bug check callback function.");
         }
     }
 
@@ -121,8 +122,7 @@ VOID PVPanicDeregisterBugCheckCallback()
         bBugCheck = KeDeregisterBugCheckReasonCallback(&DumpCallbackRecord);
         if (!bBugCheck)
         {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
-                "Failed to unregister bug check reason callback function.");
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "Failed to unregister bug check reason callback function.");
         }
     }
 }

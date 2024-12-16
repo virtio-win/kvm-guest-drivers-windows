@@ -33,34 +33,35 @@
 #include "trace.h"
 
 // The bit of supported PV event.
-#define PVPANIC_F_PANICKED      0
-#define PVPANIC_F_CRASHLOADED   1
+#define PVPANIC_F_PANICKED    0
+#define PVPANIC_F_CRASHLOADED 1
 
 // The PV event value.
-#define PVPANIC_PANICKED        (1 << PVPANIC_F_PANICKED)
-#define PVPANIC_CRASHLOADED     (1 << PVPANIC_F_CRASHLOADED)
+#define PVPANIC_PANICKED      (1 << PVPANIC_F_PANICKED)
+#define PVPANIC_CRASHLOADED   (1 << PVPANIC_F_CRASHLOADED)
 
 // The bit of supported bus type.
-#define PVPANIC_F_ISA      0
-#define PVPANIC_F_PCI      1
+#define PVPANIC_F_ISA         0
+#define PVPANIC_F_PCI         1
 
 // The bus type value.
-#define PVPANIC_ISA        (1 << PVPANIC_F_ISA)
-#define PVPANIC_PCI        (1 << PVPANIC_F_PCI)
+#define PVPANIC_ISA           (1 << PVPANIC_F_ISA)
+#define PVPANIC_PCI           (1 << PVPANIC_F_PCI)
 
 PUCHAR PvPanicPortOrMemAddress;
 BOOLEAN bEmitCrashLoadedEvent;
-UCHAR   BusType;
-UCHAR   SupportedFeature;
+UCHAR BusType;
+UCHAR SupportedFeature;
 
-typedef struct _DEVICE_CONTEXT {
+typedef struct _DEVICE_CONTEXT
+{
 
     // HW Resources.
-    PVOID               IoBaseAddress;
-    ULONG               IoRange;
-    BOOLEAN             MappedPort;
-    PVOID               MemBaseAddress;
-    ULONG               MemRange;
+    PVOID IoBaseAddress;
+    ULONG IoRange;
+    BOOLEAN MappedPort;
+    PVOID MemBaseAddress;
+    ULONG MemRange;
 
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
