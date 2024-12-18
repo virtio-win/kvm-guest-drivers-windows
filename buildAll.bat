@@ -44,7 +44,7 @@ if errorlevel 1 goto :fail
 call :prepare_palette
 
 path %path%;C:\Program Files (x86)\Windows Kits\10\bin\x86\
-for %%D in (pciserial fwcfg Q35 packaging) do @(
+for %%D in (pciserial fwcfg Q35) do @(
   echo.
   call :_color_echo %_c_Cyn% "Building : %%D"
   pushd %%D
