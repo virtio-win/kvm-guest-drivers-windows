@@ -1,8 +1,6 @@
 @echo off
-set _cln_tgt_=NetKVM
-set _cln_subdirs_=CoInstaller Mof NotifyObject ProtocolService
-call clean_dvl_log.cmd
-call clean_inx.cmd
+set _cln_tgt_=viocrypt
+set _cln_subdirs_=dll sys test package
 call ..\build\clean.bat
 call :subdir %_cln_subdirs_%
 goto :eof
