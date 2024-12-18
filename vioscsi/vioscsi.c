@@ -395,6 +395,7 @@ DriverEntry(
     hwInitData.MapBuffers               = STOR_MAP_NON_READ_WRITE_BUFFERS;
 
     hwInitData.SrbTypeFlags = SRB_TYPE_FLAG_STORAGE_REQUEST_BLOCK;
+    hwInitData.AddressTypeFlags         = ADDRESS_TYPE_FLAG_BTL8;
 
     initResult = StorPortInitialize(DriverObject,
                                     RegistryPath,
