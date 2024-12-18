@@ -3,7 +3,7 @@ if "%~1"=="-quiet" (set loglevel=0)
 if "%~1"=="-debug" (set loglevel=2)
 if "%~1"=="" (set loglevel=1)
 set _cln_tgt_=Repo Root
-set _cln_subdirs_=NetKVM viostor vioscsi VirtIO Balloon vioserial viorng vioinput viofs pvpanic viosock viogpu viomem viocrypt ivshmem pciserial Q35 packaging fwcfg fwcfg64
+set _cln_subdirs_=NetKVM viostor vioscsi VirtIO Balloon vioserial viorng vioinput viofs pvpanic viosock viogpu viomem viocrypt ivshmem pciserial Q35 fwcfg fwcfg64
 echo Cleaning %_cln_tgt_% ...
 call .\build\clean.bat %*
 echo.
