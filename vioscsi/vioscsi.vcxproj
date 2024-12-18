@@ -155,7 +155,7 @@
         )
         if exist "$(ProjectDir)$(TargetName).DVL-win10-1607.XML" (
           echo Copying $(TargetName).DVL-win10-1607.XML to Install\$(TargetOS)\$(TargetArch)\$(TargetName).DVL-compat.XML
-          copy /Y $(ProjectDir)$(TargetName).DVL-win10-latest.XML^
+          copy /Y $(ProjectDir)$(TargetName).DVL-win10-1607.XML^
            $(ProjectDir)Install\$(TargetOS)\$(TargetArch)\$(TargetName).DVL-compat.XML
         ) else (
           echo Unable to copy COMPAT DVL $(ProjectDir)$(TargetName).DVL-win10-1607.XML - it does not exist.
