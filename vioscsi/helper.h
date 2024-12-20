@@ -35,6 +35,7 @@
 #include <ntddk.h>
 #include <storport.h>
 #include <ntddscsi.h>
+#include <stddef.h>
 
 #include "osdep.h"
 #include "virtio_pci.h"
@@ -132,9 +133,7 @@ VOID VioScsiCompleteDpcRoutine(IN PSTOR_DPC Dpc, IN PVOID Context, IN PVOID Syst
 
 VOID ProcessBuffer(IN PVOID DeviceExtension, IN ULONG MessageId, IN STOR_SPINLOCK LockMode);
 
-VOID
-// FORCEINLINE
-HandleResponse(IN PVOID DeviceExtension, IN PVirtIOSCSICmd cmd);
+VOID FORCEINLINE HandleResponse(IN PVOID DeviceExtension, IN PVirtIOSCSICmd cmd, IN PVOID InlineFuncName);
 
 PVOID
 VioScsiPoolAlloc(IN PVOID DeviceExtension, IN SIZE_T size);
