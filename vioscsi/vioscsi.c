@@ -1391,7 +1391,7 @@ ProcessQueue(
                     case VIRTIO_SCSI_S_FUNCTION_SUCCEEDED:
                         break;
                     default:
-                        #if !defined(RUN_UNCHECKED) || defined(RUN_MIN_CHECKED)
+                        #if !defined(RUN_UNCHECKED)
                         RhelDbgPrint(TRACE_LEVEL_ERROR, " Unknown ERROR response %d\n", resp->response);
                         #endif
                         ASSERT(0);
@@ -1422,7 +1422,7 @@ ProcessQueue(
                     ParamChange(DeviceExtension, evt);
                     break;
                 default:
-                    #if !defined(RUN_UNCHECKED) || defined(RUN_MIN_CHECKED)
+                    #if !defined(RUN_UNCHECKED)
                     RhelDbgPrint(TRACE_LEVEL_ERROR, " Unsupport virtio scsi event %x\n", evt->event);
                     #endif
                     break;
