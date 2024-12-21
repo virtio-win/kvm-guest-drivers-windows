@@ -496,10 +496,10 @@ DriverEntry(
         case NTDDI_WIN11_GE:
             RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN11_GE | Windows 10.0.25947-26100 | 24H2 | Germanium \n");
             break;
-        case NTDDI_WIN11_GE:
+        case NTDDI_WIN11_DT:
             RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN11_DT | Windows 10.0.27686-27691 | 25H1 | Dilithium \n");
             break;
-        case NTDDI_WIN11_GE:
+        case NTDDI_WIN11_SE:
             RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : ABRACADABRA_WIN11_SE | Windows 10.0.27764 | 25H2 | Selenium \n");
             break;
         default:
