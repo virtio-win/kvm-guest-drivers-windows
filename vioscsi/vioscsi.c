@@ -316,13 +316,13 @@ BOOLEAN VioScsiReadRegistryParameter(
     CHAR                hba_id_as_str[4] = { 0 };
     USHORT              shAdapterId = (USHORT)adaptExt->hba_id;
     #if !defined(RUN_UNCHECKED)
-    ULONG               value_as_ulong;
+    ULONG               value_as_ulong; // Only used in tracing.
     #endif
 
     /* Get a clean buffer to store the registry value... */              
     pBuffer = StorPortAllocateRegistryBuffer(DeviceExtension, &pBufferLength);
     if (pBuffer == NULL) {
-        #if !defined(RUN_UNCHECKED) || defined(RUN_MIN_CHECKED)
+        #if !defined(RUN_UNCHECKED)
         RhelDbgPrint(TRACE_LEVEL_WARNING, " StorPortAllocateRegistryBuffer failed to allocate buffer\n");
         #endif
         return FALSE;
@@ -636,13 +636,13 @@ ENTER_FN();
     RtlZeroMemory(adaptExt, sizeof(ADAPTER_EXTENSION));
 
     adaptExt->dump_mode  = IsCrashDumpMode;
-    #if !defined(RUN_UNCHECKED) || defined(RUN_MIN_CHECKED)
+    #if !defined(RUN_UNCHECKED)
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Crash dump mode : %s \n", (adaptExt->dump_mode == IsCrashDumpMode) ? "ACTIVATED" : "NOT ACTIVATED");
     #endif
 
     /* Set the hba_id to the StorPort supplied SlotNumber minus one. Used as an analogue for the system PortNumber. */
     adaptExt->hba_id = (CCHAR)ConfigInfo->SlotNumber - 1;
-    #if !defined(RUN_UNCHECKED) || defined(RUN_MIN_CHECKED)
+    #if !defined(RUN_UNCHECKED)
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " HBA ID [adaptExt->hba_id] : %I64d \n", adaptExt->hba_id);
     #endif
 
