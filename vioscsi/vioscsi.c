@@ -360,18 +360,18 @@ DriverEntry(
     InitializeDebugPrints((PDRIVER_OBJECT)DriverObject, (PUNICODE_STRING)RegistryPath);
 
     IsCrashDumpMode = FALSE;
-    #if !defined(RUN_UNCHECKED) || defined(RUN_MIN_CHECKED)
+    #if !defined(RUN_UNCHECKED)
     RhelDbgPrint(TRACE_LEVEL_FATAL, " VIOSCSI driver started...built on %s %s\n", __DATE__, __TIME__);
+    memset(&aRegistryPath, 0, sizeof(aRegistryPath));
+    u2a_status = RtlUnicodeStringToAnsiString(&aRegistryPath, RegistryPath, TRUE);
+    if (u2a_status == STATUS_SUCCESS) {
+        RhelDbgPrint(TRACE_LEVEL_VERBOSE, " RegistryPath : %s \n", aRegistryPath.Buffer);
+        RtlFreeAnsiString(&aRegistryPath);
+    }
     #endif
     if (RegistryPath == NULL) {
         IsCrashDumpMode = TRUE;
         #if !defined(RUN_UNCHECKED)
-        memset(&aRegistryPath, 0, sizeof(aRegistryPath));
-        u2a_status = RtlUnicodeStringToAnsiString(&aRegistryPath, RegistryPath, TRUE);
-        if (u2a_status == STATUS_SUCCESS) {
-            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " RegistryPath : %s \n", aRegistryPath.Buffer);
-            RtlFreeAnsiString(&aRegistryPath);
-        }
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Crash dump mode\n");
         #endif
     }
@@ -430,7 +430,7 @@ DriverEntry(
     }
 #endif
 
-    #if !defined(RUN_UNCHECKED) || defined(RUN_MIN_CHECKED)
+    #if !defined(RUN_UNCHECKED)
     RhelDbgPrint(TRACE_LEVEL_NONE, " VIOSCSI driver starting...");
     RhelDbgPrint(TRACE_LEVEL_NONE, " Built on %s at %s \n", __DATE__, __TIME__);
     memset(&aRegistryPath, 0, sizeof(aRegistryPath));
