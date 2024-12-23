@@ -463,7 +463,7 @@ bool CParaNdisTX::AllocateExtraPages()
         {
             return false;
         }
-        Page->Create(m_Context->MiniportHandle);
+        Page->Initialize(m_Context->MiniportHandle);
         if (Page->Allocate(PAGE_SIZE))
         {
             m_ExtraPages.Push(Page);
