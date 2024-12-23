@@ -28,7 +28,7 @@ You can also decode this ETL file to see a human-readable data. For that you nee
   They are usually under C:\Program Files (x86)\Windows Kits\10\bin\...\x64
   Place both utilities and the PDB file to the same "Desktop\trace" directory
 - From the same command line window type:
-  ParseTrace.bat <ETLFileName> <PDBFileName>
+  ParseTrace.bat <PDBFileName> <ETLFileName>
 
 For getting driver traces from the system boot, refer
 https://learn.microsoft.com/en-us/windows/win32/etw/configuring-and-starting-an-autologger-session
