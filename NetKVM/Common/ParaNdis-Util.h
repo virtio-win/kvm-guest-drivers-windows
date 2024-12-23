@@ -849,3 +849,17 @@ void ParaNdis_CompleteNBLChainWithStatus(NDIS_HANDLE MiniportHandle, PNET_BUFFER
 
     ParaNdis_CompleteNBLChain(MiniportHandle, NBL, Flags);
 }
+
+class CSystemThread
+{
+public:
+    bool Start(PVOID Context);
+    void Stop();
+    CMutexProtectedAccess& PowerMutex() { return m_PowerMutex; }
+private:
+    CNdisEvent m_Event;
+    CMutexProtectedAccess m_PowerMutex;
+    HANDLE m_hThread = NULL;
+    void ThreadProc();
+    PVOID m_Context = NULL;
+};
