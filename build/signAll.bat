@@ -9,7 +9,7 @@ endlocal
 
 setlocal
 echo Loading Windows 11 build env
-call "%~dp0\SetVsEnv.bat" Win10
+call "%~dp0\SetVsEnv.bat" Win11
 for /r "%~dp0\..\" %%i in (*.sys) do call :sign_if_win11 "%%i"
 for /r "%~dp0\..\" %%i in (*.cat) do call :sign_if_win11 "%%i"
 endlocal
