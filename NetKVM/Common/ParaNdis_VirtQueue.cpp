@@ -387,8 +387,8 @@ SubmitTxPacketResult CTXDescriptor::Enqueue(CTXVirtQueue *Queue, ULONG TotalDesc
                            m_CurrVirtioSGLEntry,
                            0,
                            this,
-                           m_IndirectArea.GetVA(),
-                           m_IndirectArea.GetPA().QuadPart))
+                           m_IndirectArea.Virtual,
+                           m_IndirectArea.Physical.QuadPart))
     {
         return SubmitTxPacketResult::SUBMIT_SUCCESS;
     }
@@ -448,33 +448,29 @@ bool CTXDescriptor::SetupHeaders(ULONG ParsedHeadersLength)
     }
 }
 
-bool CTXHeaders::Allocate()
+void CTXHeaders::Initialize(ULONG VirtioHdrSize, const tCompletePhysicalAddress& Buffer)
 {
-    if (m_HeadersBuffer.Allocate(PAGE_SIZE))
-    {
-        auto VA = m_HeadersBuffer.GetVA();
-        auto PA = m_HeadersBuffer.GetPA();
-        ULONG prioSize = ALIGN_UP(ETH_PRIORITY_HEADER_SIZE, ULONGLONG);
+    m_VirtioHdrSize = VirtioHdrSize;
+    m_HeadersBuffer = Buffer;
 
-        //Headers buffer layout:
-        //    Priority header
-        //    Virtio header
-        //    Ethernet headers
+    auto VA = m_HeadersBuffer.Virtual;
+    auto PA = m_HeadersBuffer.Physical;
+    ULONG prioSize = ALIGN_UP(ETH_PRIORITY_HEADER_SIZE, ULONGLONG);
 
-        m_VlanHeaderVA   = VA;
-        m_VirtioHeaderVA = RtlOffsetToPointer(m_VlanHeaderVA, prioSize);
-        m_EthHeaderVA    = RtlOffsetToPointer(m_VirtioHeaderVA, m_VirtioHdrSize);
-        m_IPHeadersVA    = RtlOffsetToPointer(m_EthHeaderVA, ETH_HEADER_SIZE);
+    //Headers buffer layout:
+    //    Priority header
+    //    Virtio header
+    //    Ethernet headers
 
-        m_VirtioHeaderPA.QuadPart = PA.QuadPart + RtlPointerToOffset(VA, m_VirtioHeaderVA);
-        m_VlanHeaderPA.QuadPart   = PA.QuadPart + RtlPointerToOffset(VA, m_VlanHeaderVA);
-        m_EthHeaderPA.QuadPart    = PA.QuadPart + RtlPointerToOffset(VA, m_EthHeaderVA);
-        m_IPHeadersPA.QuadPart    = PA.QuadPart + RtlPointerToOffset(VA, m_IPHeadersVA);
+    m_VlanHeaderVA   = VA;
+    m_VirtioHeaderVA = RtlOffsetToPointer(m_VlanHeaderVA, prioSize);
+    m_EthHeaderVA    = RtlOffsetToPointer(m_VirtioHeaderVA, m_VirtioHdrSize);
+    m_IPHeadersVA    = RtlOffsetToPointer(m_EthHeaderVA, ETH_HEADER_SIZE);
 
-        m_MaxEthHeadersSize = m_HeadersBuffer.GetSize() - prioSize - m_VirtioHdrSize;
+    m_VirtioHeaderPA.QuadPart = PA.QuadPart + RtlPointerToOffset(VA, m_VirtioHeaderVA);
+    m_VlanHeaderPA.QuadPart   = PA.QuadPart + RtlPointerToOffset(VA, m_VlanHeaderVA);
+    m_EthHeaderPA.QuadPart    = PA.QuadPart + RtlPointerToOffset(VA, m_EthHeaderVA);
+    m_IPHeadersPA.QuadPart    = PA.QuadPart + RtlPointerToOffset(VA, m_IPHeadersVA);
 
-        return true;
-    }
-
-    return false;
+    m_MaxEthHeadersSize = m_HeadersBuffer.size - prioSize - m_VirtioHdrSize;
 }

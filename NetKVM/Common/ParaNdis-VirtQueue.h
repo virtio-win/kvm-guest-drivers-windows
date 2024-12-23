@@ -31,13 +31,7 @@ public:
     CTXHeaders()
     {}
 
-    void Initialize(NDIS_HANDLE DrvHandle, ULONG VirtioHdrSize)
-    {
-        m_VirtioHdrSize = VirtioHdrSize;
-        m_HeadersBuffer.Initialize(DrvHandle);
-    }
-
-    bool Allocate();
+    void Initialize(ULONG VirtioHdrSize, const tCompletePhysicalAddress& Buffer);
 
     virtio_net_hdr *VirtioHeader() const
     { return static_cast<virtio_net_hdr*>(m_VirtioHeaderVA); }
@@ -67,7 +61,7 @@ public:
     { return m_IPHeadersPA; }
 
 private:
-    CNdisSharedMemory m_HeadersBuffer;
+    tCompletePhysicalAddress m_HeadersBuffer;
     ULONG m_VirtioHdrSize = 0;
 
     PVOID m_VlanHeaderVA = nullptr;
@@ -99,15 +93,30 @@ public:
                   bool Indirect,
                   bool AnyLayout)
     {
-        m_Headers.Initialize(DrvHandle, VirtioHeaderSize);
-        m_IndirectArea.Initialize(DrvHandle);
+        m_MemoryBuffer.Initialize(DrvHandle);
+        // allocate 8K buffer
+        if (!m_MemoryBuffer.Allocate(PAGE_SIZE * 2))
+        {
+            return false;
+        }
         m_VirtioSGL = VirtioSGL;
         m_VirtioSGLSize = VirtioSGLSize;
         m_Indirect = Indirect;
         m_AnyLayout = AnyLayout;
 
+        // first 4K is for headers area
+        tCompletePhysicalAddress headers;
+        headers.Physical = m_MemoryBuffer.GetPA();
+        headers.Virtual = m_MemoryBuffer.GetVA();
+        headers.size = PAGE_SIZE;
+        m_Headers.Initialize(VirtioHeaderSize, headers);
 
-        return m_Headers.Allocate() && (!m_Indirect || m_IndirectArea.Allocate(PAGE_SIZE));
+        // second 4K is for indirect area
+        m_IndirectArea.Physical = m_MemoryBuffer.GetPA();
+        m_IndirectArea.Physical.QuadPart += PAGE_SIZE;
+        m_IndirectArea.Virtual = RtlOffsetToPointer(m_MemoryBuffer.GetVA(), PAGE_SIZE);
+        m_IndirectArea.size = PAGE_SIZE;
+        return true;
     }
 
     SubmitTxPacketResult Enqueue(CTXVirtQueue *Queue, ULONG TotalDescriptors, ULONG FreeDescriptors);
@@ -131,7 +140,8 @@ public:
 
 private:
     CTXHeaders m_Headers;
-    CNdisSharedMemory m_IndirectArea;
+    CNdisSharedMemory m_MemoryBuffer;
+    tCompletePhysicalAddress m_IndirectArea;
     bool m_Indirect = false;
     bool m_AnyLayout = false;
 
