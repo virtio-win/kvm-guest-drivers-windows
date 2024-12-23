@@ -58,6 +58,7 @@ private:
 private:
     int PrepareReceiveBuffers();
     pRxNetDescriptor CreateRxDescriptorOnInit();
+    void RecalculateLimits();
 };
 
 #ifdef PARANDIS_SUPPORT_RSS
