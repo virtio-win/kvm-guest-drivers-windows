@@ -262,6 +262,46 @@ error_exit:
     return NULL;
 }
 
+/* must be called on PASSIVE from system thread */
+BOOLEAN CParaNdisRX::AllocateMore()
+{
+    BOOLEAN result = false;
+
+    // if the queue is not ready, try again later
+    if (!m_pVirtQueue->IsValid() || !m_Reinsert)
+    {
+        DPrintf(1, " Queue is not ready, try later\n");
+        return true;
+    }
+
+    if (m_NetMaxReceiveBuffers >= m_Context->maxRxBufferPerQueue || m_NetMaxReceiveBuffers >= m_pVirtQueue->GetRingSize())
+    {
+        return result;
+    }
+    pRxNetDescriptor pBuffersDescriptor = CreateRxDescriptorOnInit();
+
+    TPassiveSpinLocker autoLock(m_Lock);
+
+    if (pBuffersDescriptor)
+    {
+        pBuffersDescriptor->Queue = this;
+        if (m_pVirtQueue->CanTouchHardware() && AddRxBufferToQueue(pBuffersDescriptor))
+        {
+            InsertTailList(&m_NetReceiveBuffers, &pBuffersDescriptor->listEntry);
+            m_NetNofReceiveBuffers++;
+            m_NetMaxReceiveBuffers++;
+            RecalculateLimits();
+            KickRXRing();
+            result = true;
+        }
+        else
+        {
+            ParaNdis_FreeRxBufferDescriptor(m_Context, pBuffersDescriptor);
+        }
+    }
+    return result;
+}
+
 /* TODO - make it method in pRXNetDescriptor */
 BOOLEAN CParaNdisRX::AddRxBufferToQueue(pRxNetDescriptor pBufferDescriptor)
 {
