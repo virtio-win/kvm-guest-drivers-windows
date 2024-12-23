@@ -604,6 +604,7 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
     BOOLEAN                     bRSSSupportedByDevice = false;
     BOOLEAN                     bRSSSupportedByDevicePersistent = false;
     BOOLEAN                     bHashReportedByDevice = false;
+    CSystemThread               systemThread;
 
 #if PARANDIS_SUPPORT_RSS
     BOOLEAN                     bRSSOffloadSupported = false;
