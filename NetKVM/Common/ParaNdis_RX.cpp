@@ -6,6 +6,10 @@
 #include "ParaNdis_RX.tmh"
 #endif
 
+//define as 0 to allocate all the required buffer at once
+//#define INITIAL_RX_BUFFERS  0
+#define INITIAL_RX_BUFFERS  16
+
 static FORCEINLINE VOID ParaNdis_ReceiveQueueAddBuffer(PPARANDIS_RECEIVE_QUEUE pQueue, pRxNetDescriptor pBuffer)
 {
     NdisInterlockedInsertTailList(&pQueue->BuffersList,
@@ -110,7 +114,11 @@ bool CParaNdisRX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
 {
     m_Context = Context;
     m_queueIndex = (u16)DeviceQueueIndex;
-    m_NetMaxReceiveBuffers = Context->maxRxBufferPerQueue;
+    m_NetMaxReceiveBuffers = INITIAL_RX_BUFFERS;
+    if (!m_NetMaxReceiveBuffers || m_NetMaxReceiveBuffers > Context->maxRxBufferPerQueue)
+    {
+        m_NetMaxReceiveBuffers = Context->maxRxBufferPerQueue;
+    }
 
     if (!m_VirtQueue.Create(DeviceQueueIndex,
         &m_Context->IODevice,
