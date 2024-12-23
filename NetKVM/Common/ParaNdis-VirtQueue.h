@@ -31,10 +31,10 @@ public:
     CTXHeaders()
     {}
 
-    bool Create(NDIS_HANDLE DrvHandle, ULONG VirtioHdrSize) 
+    void Initialize(NDIS_HANDLE DrvHandle, ULONG VirtioHdrSize)
     {
         m_VirtioHdrSize = VirtioHdrSize;
-        return m_HeadersBuffer.Create(DrvHandle);
+        m_HeadersBuffer.Initialize(DrvHandle);
     }
 
     bool Allocate();
@@ -99,10 +99,8 @@ public:
                   bool Indirect,
                   bool AnyLayout)
     {
-        if (!m_Headers.Create(DrvHandle, VirtioHeaderSize))
-            return false;
-        if (!m_IndirectArea.Create(DrvHandle))
-            return false;
+        m_Headers.Initialize(DrvHandle, VirtioHeaderSize);
+        m_IndirectArea.Initialize(DrvHandle);
         m_VirtioSGL = VirtioSGL;
         m_VirtioSGLSize = VirtioSGLSize;
         m_Indirect = Indirect;

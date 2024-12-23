@@ -62,11 +62,7 @@ bool CVirtQueue::Create(UINT Index,
     m_Index = Index;
     m_IODevice = IODevice;
 
-    if (!m_SharedMemory.Create(DrvHandle))
-    {
-        DPrintf(0, "[%s] - shared memory creation failed\n", __FUNCTION__);
-        return false;
-    }
+    m_SharedMemory.Initialize(DrvHandle);
 
     NETKVM_ASSERT(m_VirtQueue == nullptr);
 

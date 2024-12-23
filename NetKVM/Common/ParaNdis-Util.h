@@ -562,10 +562,9 @@ public:
         : m_DrvHandle(NULL)
     {}
 
-    bool Create(NDIS_HANDLE DrvHandle)
+    void Initialize(NDIS_HANDLE DrvHandle)
     {
         m_DrvHandle = DrvHandle;
-        return true;
     }
 
     ~CNdisSharedMemory();
