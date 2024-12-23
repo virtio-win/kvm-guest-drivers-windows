@@ -93,6 +93,19 @@ CParaNdisRX::~CParaNdisRX()
 {
 }
 
+// called during initialization
+// also later during additional allocations under m_Lock
+// when we update m_NetMaxReceiveBuffers, we also update
+// m_nReusedRxBuffersLimit, set m_nReusedRxBuffersLimit to zero
+// and kick the rx queue
+void CParaNdisRX::RecalculateLimits()
+{
+    m_nReusedRxBuffersLimit = m_NetMaxReceiveBuffers / 4 + 1;
+    m_nReusedRxBuffersCounter = 0;
+    m_MinRxBufferLimit = m_NetMaxReceiveBuffers * m_Context->MinRxBufferPercent / 100;
+    DPrintf(0, "[%s] m_NetMaxReceiveBuffers %d, m_MinRxBufferLimit %u\n", __FUNCTION__, m_NetMaxReceiveBuffers, m_MinRxBufferLimit);
+}
+
 bool CParaNdisRX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
 {
     m_Context = Context;
@@ -108,8 +121,6 @@ bool CParaNdisRX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
     }
 
     PrepareReceiveBuffers();
-
-    m_nReusedRxBuffersLimit = m_NetMaxReceiveBuffers / 4 + 1;
 
     CreatePath();
 
@@ -140,8 +151,9 @@ int CParaNdisRX::PrepareReceiveBuffers()
         m_NetNofReceiveBuffers++;
     }
     m_NetMaxReceiveBuffers = m_NetNofReceiveBuffers;
-    m_MinRxBufferLimit = m_NetNofReceiveBuffers * m_Context->MinRxBufferPercent / 100;
-    DPrintf(0, "[%s] m_NetMaxReceiveBuffers %d, m_MinRxBufferLimit %u\n", __FUNCTION__, m_NetMaxReceiveBuffers, m_MinRxBufferLimit);
+
+    RecalculateLimits();
+
     if (m_Context->extraStatistics.minFreeRxBuffers == 0 || m_Context->extraStatistics.minFreeRxBuffers > m_NetNofReceiveBuffers)
     {
         m_Context->extraStatistics.minFreeRxBuffers = m_NetNofReceiveBuffers;
