@@ -124,3 +124,53 @@ void Parandis_UtilOnly_Trace(LONG level, LPCSTR s1, LPCSTR s2)
         TraceNoPrefix(level, "[%s] - format concatenation failed for %s", s1, s2);
     }
 }
+
+bool CSystemThread::Start(PVOID Context)
+{
+    m_Context = Context;
+    NTSTATUS status = PsCreateSystemThread(
+        &m_hThread, GENERIC_READ, NULL, NULL, NULL,
+        [](PVOID Ctx)
+        {
+            ((CSystemThread*)Ctx)->ThreadProc();
+        },
+        this);
+    if (!NT_SUCCESS(status))
+    {
+        DPrintf(0, "Failed to start, status %X", status);
+    }
+    return m_hThread != NULL && NT_SUCCESS(status);
+}
+
+void CSystemThread::Stop()
+{
+    DPrintf(0, "Waiting for thread termination");
+    m_Event.Notify();
+    while (m_hThread)
+    {
+        NdisMSleep(20000);
+    }
+    DPrintf(0, "Terminated");
+}
+
+void CSystemThread::ThreadProc()
+{
+    PARANDIS_ADAPTER* context = (PARANDIS_ADAPTER*)m_Context;
+    while (!m_Event.Wait(1))
+    {
+        UINT n = 0;
+
+        CMutexLockedContext sync(m_PowerMutex);
+
+        for (UINT i = 0; i < context->nPathBundles; ++i)
+        {
+            n += context->pPathBundles[i].rxPath.AllocateMore();
+        }
+        if (n == 0)
+        {
+            DPrintf(0, "All the memory allocations done");
+            m_Event.Notify();
+        }
+    }
+    m_hThread = NULL;
+}
