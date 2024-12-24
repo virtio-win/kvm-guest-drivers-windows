@@ -115,16 +115,16 @@ rem Assume that this is target OS version and split off the tag
 call :split_target_tag "%ARG%"
 
 rem Verify that this target OS is supported and valid
-for %%N in (%SUPPORTED_BUILD_SPECS%) do (
+for %%N in (%SUPPORTED_BUILD_SPECS%) do @(
   set T=%%N
   set CANDIDATE_SPEC=
   set FOUND_MATCH=
 
-  for %%A in ("!T:_=" "!") do (
+  for %%A in ("!T:_=" "!") do @(
     if /I %%A=="%TARGET%" (
       set CANDIDATE_SPEC=!T!!TAG!
     )
-    for %%B in (%BUILD_TARGETS%) do (
+    for %%B in (%BUILD_TARGETS%) do @(
       if /I %%B==%%~A!TAG! (
         set FOUND_MATCH=1
       )
@@ -154,12 +154,12 @@ goto :eof
 rem Figure out which targets we're building
 :argend
 if "%BUILD_SPEC%"=="" (
-  for %%B in (%BUILD_TARGETS%) do (
+  for %%B in (%BUILD_TARGETS%) do @(
     call :split_target_tag "%%B"
-    for %%N in (%SUPPORTED_BUILD_SPECS%) do (
+    for %%N in (%SUPPORTED_BUILD_SPECS%) do @(
       set T=%%N
       set BUILD_SPEC=
-      for %%A in ("!T:_=" "!") do (
+      for %%A in ("!T:_=" "!") do @(
         if /I %%A=="!TARGET!" (
           set BUILD_SPEC=!T!!TAG!
         )
@@ -189,15 +189,9 @@ rem Invoke Visual Studio and CodeQL as needed...
 setlocal
 set BUILD_ARCH=%2
 set TAG=
-for /f "tokens=1 delims=_" %%T in ("%1") do (
-  set TARGET_PROJ_CONFIG=%%T
-)
-for /f "tokens=2 delims=_" %%T in ("%1") do (
-  set TARGET_PLATFORM=%%T
-)
-for /f "tokens=3 delims=_" %%T in ("%1") do (
-  set TAG=%%T
-)
+for /f "tokens=1 delims=_" %%T in ("%1") do @set TARGET_PROJ_CONFIG=%%T
+for /f "tokens=2 delims=_" %%T in ("%1") do @set TARGET_PLATFORM=%%T
+for /f "tokens=3 delims=_" %%T in ("%1") do @set TAG=%%T
 
 if /I "!TAG!"=="SDV" (
   rem There is no 32-bit SDV build
@@ -266,7 +260,7 @@ if "%VIOSOCK_PREBUILD_X86_LIBS%" EQU "1" (
         pushd "%BUILD_DIR%viosock\lib"
       )
       if "%BUILD_FILE%"=="viosock.sln" (
-        pushd "%BUILD_DIR%\lib"
+        pushd "%BUILD_DIR%lib"
       )
       call ..\..\build\build.bat viosocklib.vcxproj %TARGET% x86
       if ERRORLEVEL 1 (
@@ -492,7 +486,7 @@ goto :eof
 set __TARGET__=%BUILD_COMMAND:/=%
 ::(n)ormal(d)etailed,(disg)nostic
 set __VERBOSITY__=n
-msbuild.exe -maxCpuCount %BUILD_FILE% /t:%__TARGET__% /p:Configuration="%~1" /P:Platform=%2 -fileLoggerParameters:Verbosity=%__VERBOSITY__%;LogFile=%BUILD_LOG_FILE%
+msbuild.exe -maxCpuCount %~dp1%BUILD_FILE% /t:%__TARGET__% /p:Configuration="%~1" /P:Platform=%2 -fileLoggerParameters:Verbosity=%__VERBOSITY__%;LogFile=%~dp1%BUILD_LOG_FILE%
 if ERRORLEVEL 1 (
   set BUILD_FAILED=1
 )
@@ -508,7 +502,7 @@ if exist sdv (
 
 if "!SDV_FAILED!" NEQ "1" (
   call :clr_print %_c_Cyn% "Build: Cleaning for %BUILD_FILE%..."
-  msbuild.exe -maxCpuCount %BUILD_FILE% /t:clean /p:Configuration="%~1" /P:Platform=%2
+  msbuild.exe -maxCpuCount %~dp1%BUILD_FILE% /t:clean /p:Configuration="%~1" /P:Platform=%2
   if ERRORLEVEL 1 (
     set SDV_FAILED=1
   )
@@ -516,7 +510,7 @@ if "!SDV_FAILED!" NEQ "1" (
 )
 if "!SDV_FAILED!" NEQ "1" (
   call :clr_print %_c_Cyn% "Build: Cleaning SDV for %BUILD_FILE%..."
-  msbuild.exe -maxCpuCount %BUILD_FILE% /t:sdv /p:inputs="/clean" /p:Configuration="%~1" /P:platform=%2
+  msbuild.exe -maxCpuCount %~dp1%BUILD_FILE% /t:sdv /p:inputs="/clean" /p:Configuration="%~1" /P:platform=%2
   if ERRORLEVEL 1 (
     set SDV_FAILED=1
   )
@@ -524,13 +518,13 @@ if "!SDV_FAILED!" NEQ "1" (
 )
 if "!SDV_FAILED!" NEQ "1" (
   call :clr_print %_c_Cyn% "Build: Performing SDV checks for %BUILD_FILE%..."
-  msbuild.exe -maxCpuCount %BUILD_FILE% /t:sdv /p:inputs="/check /devenv" /p:Configuration="%~1" /P:platform=%2
+  msbuild.exe -maxCpuCount %~dp1%BUILD_FILE% /t:sdv /p:inputs="/check /devenv" /p:Configuration="%~1" /P:platform=%2
   if ERRORLEVEL 1 (
     set SDV_FAILED=1
   )
   echo.
 )
-if "!SDV_BUILD_FAILED!" EQU "1" (
+if "!SDV_FAILED!" EQU "1" (
   set BUILD_FAILED=1
 )
 goto :eof
@@ -791,12 +785,8 @@ goto :eof
 :split_target_tag
 set TARGET=
 set TAG=
-for /f "tokens=1 delims=_" %%T in (%1) do (
-    set TARGET=%%T
-)
-for /f "tokens=2 delims=_" %%T in (%1) do (
-    set TAG=_%%T
-)
+for /f "tokens=1 delims=_" %%T in (%1) do @set TARGET=%%T
+for /f "tokens=2 delims=_" %%T in (%1) do @set TAG=_%%T
 goto :eof
 
 :clr_print
