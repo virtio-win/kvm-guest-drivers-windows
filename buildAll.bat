@@ -43,7 +43,7 @@ if errorlevel 1 goto :fail
 :nosdv2022
 
 path %path%;C:\Program Files (x86)\Windows Kits\10\bin\x86\
-for %%D in (pciserial fwcfg packaging Q35) do (
+for %%D in (pciserial fwcfg Q35) do @(
   echo building also %%D
   pushd %%D
   call buildAll.bat
@@ -51,15 +51,33 @@ for %%D in (pciserial fwcfg packaging Q35) do (
   popd
 )
 
-for /R %%f in (*.dvl.xml) do call :process_xml %%f
+echo.
+echo Processing DVL files to create Windows 10 COMPAT ^(WIN10_RS1 ^/ 1607^) version...
+for /R %%f in (*.dvl.xml) do @call :process_xml %%f
+if "%found_dvl_xml%"=="" (
+  echo WARNING ^: No DVL files were found.
+) else (
+  echo Processing of DVL files is complete.
+)
 
-exit /B 0
+:bld_success
+echo.
+echo BUILD COMPLETED SUCCESSFULLY.
+call :leave 0
+goto :eof
 
 :fail
-
-exit /B 1
+echo BUILD FAILED.
+set BUILD_FAILED=
+call :leave 1
+goto :eof
 
 :process_xml
-echo creating "%~dpn1-compat%~x1"
+set found_dvl_xml=Yes
+echo Creating %~dpn1-compat%~x1...
 findstr /v /c:"General.Checksum" "%~1" | findstr /v /c:".Semmle." > "%~dpn1-compat%~x1"
 goto :eof
+
+:leave
+exit /B %1
+goto :eof :: never hit
