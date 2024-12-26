@@ -12,8 +12,16 @@
 #include "queue.h"
 
 // using error levels to avoid the debug print filter
-#define DEBUG_ERROR(fmt, ...) do { KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "[E:IVSHMEM] " fmt "\n", ## __VA_ARGS__)); } while (0)
-#define DEBUG_INFO(fmt, ...) do { KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "[I:IVSHMEM] " fmt "\n", ## __VA_ARGS__)); } while (0)
+#define DEBUG_ERROR(fmt, ...)                                                                                          \
+    do                                                                                                                 \
+    {                                                                                                                  \
+        KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "[E:IVSHMEM] " fmt "\n", ##__VA_ARGS__));                  \
+    } while (0)
+#define DEBUG_INFO(fmt, ...)                                                                                           \
+    do                                                                                                                 \
+    {                                                                                                                  \
+        KdPrintEx((DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "[I:IVSHMEM] " fmt "\n", ##__VA_ARGS__));                  \
+    } while (0)
 
 EXTERN_C_START
 
