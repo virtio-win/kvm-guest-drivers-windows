@@ -1,9 +1,9 @@
 #include "driver.h"
 
 #ifdef ALLOC_PRAGMA
-#pragma alloc_text (INIT, DriverEntry)
-#pragma alloc_text (PAGE, IVSHMEMEvtDeviceAdd)
-#pragma alloc_text (PAGE, IVSHMEMEvtDriverContextCleanup)
+#pragma alloc_text(INIT, DriverEntry)
+#pragma alloc_text(PAGE, IVSHMEMEvtDeviceAdd)
+#pragma alloc_text(PAGE, IVSHMEMEvtDriverContextCleanup)
 #endif
 
 NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING RegistryPath)
