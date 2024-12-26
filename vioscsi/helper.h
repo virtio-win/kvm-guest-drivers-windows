@@ -36,7 +36,7 @@
 #include <ntddk.h>
 #include <storport.h>
 #include <ntddscsi.h>
-
+#include <stddef.h>
 
 #include "osdep.h"
 #include "virtio_pci.h"
@@ -168,7 +168,7 @@ VioScsiCompleteDpcRoutine(
     IN PVOID Context,
     IN PVOID SystemArgument1,
     IN PVOID SystemArgument2
-);
+    );
 
 VOID
 ProcessBuffer(
@@ -178,10 +178,11 @@ ProcessBuffer(
     );
 
 VOID
-//FORCEINLINE
+FORCEINLINE
 HandleResponse(
     IN PVOID DeviceExtension,
-    IN PVirtIOSCSICmd cmd
+    IN PVirtIOSCSICmd cmd,
+    IN PVOID InlineFuncName
     );
 
 PVOID
@@ -194,7 +195,7 @@ VOID
 CompleteRequest(
     IN PVOID DeviceExtension,
     IN PSRB_TYPE Srb
- );
+    );
 
 VOID FirmwareRequest(
     IN PVOID DeviceExtension,
