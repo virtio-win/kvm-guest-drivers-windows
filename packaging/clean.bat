@@ -1,4 +1,2 @@
-@echo on
-
-rmdir /S /Q .\Install
-
+@echo off
+call ..\build\clean.bat %*
