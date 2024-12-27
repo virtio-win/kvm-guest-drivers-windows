@@ -110,7 +110,9 @@ NTSTATUS IVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device,
         }
 
         if (descriptor->Type == CmResourceTypeInterrupt && descriptor->Flags & CM_RESOURCE_INTERRUPT_MESSAGE)
+        {
             ++deviceContext->interruptCount;
+        }
     }
 
     if (deviceContext->interruptCount > 0)
@@ -235,7 +237,9 @@ NTSTATUS IVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device,
             }
 
             if (++deviceContext->interruptsUsed == 65)
+            {
                 DEBUG_INFO("%s", "This driver does not support > 64 interrupts, they will be ignored in the ISR.");
+            }
 
             continue;
         }
@@ -338,13 +342,17 @@ BOOLEAN IVSHMEMInterruptISR(_In_ WDFINTERRUPT Interrupt, _In_ ULONG MessageID)
 
     // out of range. if you have this many you're doing it wrong anyway
     if (MessageID > 64)
+    {
         return TRUE;
+    }
 
     device = WdfInterruptGetDevice(Interrupt);
     deviceContext = DeviceGetContext(device);
 
     if (!InterlockedOr64(&deviceContext->pendingISR, 1ULL << MessageID))
+    {
         WdfInterruptQueueDpcForIsr(Interrupt);
+    }
 
     return TRUE;
 }
@@ -362,7 +370,9 @@ void IVSHMEMInterruptDPC(_In_ WDFINTERRUPT Interrupt, _In_ WDFOBJECT AssociatedO
 
     pending = InterlockedExchange64(&deviceContext->pendingISR, 0);
     if (!pending)
+    {
         return;
+    }
 
     KeAcquireSpinLockAtDpcLevel(&deviceContext->eventListLock);
     PLIST_ENTRY entry = deviceContext->eventList.Flink;

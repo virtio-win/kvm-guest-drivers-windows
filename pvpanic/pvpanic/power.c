@@ -94,7 +94,9 @@ NTSTATUS PVPanicEvtDevicePrepareHardware(IN WDFDEVICE Device,
                     return STATUS_DEVICE_CONFIGURATION_ERROR;
                 }
                 else
+                {
                     PvPanicPortOrMemAddress = (PUCHAR)context->IoBaseAddress;
+                }
 
                 break;
 
@@ -123,7 +125,9 @@ NTSTATUS PVPanicEvtDevicePrepareHardware(IN WDFDEVICE Device,
                     return STATUS_DEVICE_CONFIGURATION_ERROR;
                 }
                 else
+                {
                     PvPanicPortOrMemAddress = (PUCHAR)context->MemBaseAddress;
+                }
 
                 break;
             default:
@@ -217,9 +221,13 @@ NTSTATUS PVPanicEvtDeviceD0Entry(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE 
     PAGED_CODE();
 
     if (context->IoBaseAddress)
+    {
         PVPanicRegisterBugCheckCallback(context->IoBaseAddress, (PUCHAR)("PVPanic"));
+    }
     if (context->MemBaseAddress)
+    {
         PVPanicRegisterBugCheckCallback(context->MemBaseAddress, (PUCHAR)("PVPanic-PCI"));
+    }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "<-- %!FUNC!");
 

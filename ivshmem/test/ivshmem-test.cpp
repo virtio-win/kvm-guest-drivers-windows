@@ -255,14 +255,18 @@ int __cdecl main()
         bool fail = false;
         unsigned char *data = (unsigned char *)map.ptr;
         for (UINT64 i = 0; i < map.size; ++i)
+        {
             if (data[i] != 0xAA)
             {
                 TEST_FAIL("Invalid data read back");
                 fail = true;
                 break;
             }
+        }
         if (fail)
+        {
             break;
+        }
         TEST_PASS();
 
         if (map.vectors > 0)
@@ -305,10 +309,14 @@ int __cdecl main()
     }
 
     if (devHandle != INVALID_HANDLE_VALUE)
+    {
         CloseHandle(devHandle);
+    }
 
     if (infData)
+    {
         free(infData);
+    }
 
     SetupDiDestroyDeviceInfoList(deviceInfoSet);
 

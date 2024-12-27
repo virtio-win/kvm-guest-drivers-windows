@@ -199,7 +199,9 @@ BOOL CMemStat::Update()
     while (true)
     {
         if (enumerator == NULL)
+        {
             break;
+        }
 
         if (FAILED(enumerator->Next(WBEM_INFINITE, 1L, &memory, &retcnt)))
         {

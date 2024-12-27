@@ -48,7 +48,9 @@ NTSTATUS FwCfgEvtDeviceD0Entry(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE Pr
     PAGED_CODE();
 
     if (!ctx->kdbg)
+    {
         return STATUS_SUCCESS;
+    }
 
     note->n_namesz = sizeof(VMCI_ELF_NOTE_NAME);
     note->n_descsz = DUMP_HDR_SIZE;
