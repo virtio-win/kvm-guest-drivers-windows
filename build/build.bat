@@ -165,40 +165,11 @@ set TARGET_VS_CONFIG="%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%|%BUILD_ARCH%"
 pushd %BUILD_DIR%
 call "%~dp0\SetVsEnv.bat" %TARGET_PROJ_CONFIG%
 
-rem Check for x86 viosock libraries and build them if needed...
-if "%BUILD_FILE%"=="virtio-win.sln" (
-  set VIOSOCK_PREBUILD_X86_LIBS=1
-)
-if "%BUILD_FILE%"=="viosock.sln" (
-  set VIOSOCK_PREBUILD_X86_LIBS=1
-)
-if "%VIOSOCK_PREBUILD_X86_LIBS%" EQU "1" (
-  if %BUILD_ARCH%==x64 (
-    if not exist "%BUILD_DIR%viosock\lib\x86\%TARGET%%BUILD_FLAVOR%\viosocklib.dll" (
-      echo.
-      echo ATTENTION ^: Need to build x86 viosock libraries before building for amd64...
-      setlocal
-      set VIRTIO_WIN_NO_ARM=1
-      if "%BUILD_FILE%"=="virtio-win.sln" (
-        pushd "%BUILD_DIR%viosock\lib"
-      )
-      if "%BUILD_FILE%"=="viosock.sln" (
-        pushd "%BUILD_DIR%lib"
-      )
-      call ..\..\build\build.bat viosocklib.vcxproj %TARGET% x86
-      if ERRORLEVEL 1 (
-        set BUILD_FAILED=1
-      )
-      popd
-      if "%BUILD_FAILED%" EQU "1" (
-        goto :build_arch_done
-      )
-      echo Successfully built the x86 viosock libraries.
-      echo.
-      echo Continuing with amd64 build...
-      endlocal
-    )
-  )
+rem Check for any prerequisite x86 libraries and build them if needed...
+call "%~dp0prebuild_x86_libs.bat" %BUILD_FILE% %BUILD_ARCH% "%BUILD_DIR%" %TARGET% %BUILD_FLAVOUR%
+IF ERRORLEVEL 1 (
+  set BUILD_FAILED=1
+  goto :build_arch_done
 )
 
 if /I "!TAG!"=="SDV" (
