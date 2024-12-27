@@ -42,9 +42,13 @@ VOID PVPanicOnBugCheck(IN PVOID Buffer, IN ULONG Length)
     if ((Buffer != NULL) && (Length == sizeof(PVOID)) && !bEmitCrashLoadedEvent)
     {
         if (BusType & PVPANIC_PCI)
+        {
             *(PUCHAR)Buffer = (UCHAR)(PVPANIC_PANICKED);
+        }
         else
+        {
             WRITE_PORT_UCHAR((PUCHAR)Buffer, (UCHAR)(PVPANIC_PANICKED));
+        }
     }
 }
 
@@ -60,15 +64,21 @@ VOID PVPanicOnDumpBugCheck(KBUGCHECK_CALLBACK_REASON Reason,
     if ((PvPanicPortOrMemAddress != NULL) && (Reason == KbCallbackDumpIo) && !bEmitCrashLoadedEvent)
     {
         if (BusType & PVPANIC_PCI)
+        {
             *PvPanicPortOrMemAddress = (UCHAR)(PVPANIC_CRASHLOADED);
+        }
         else
+        {
             WRITE_PORT_UCHAR(PvPanicPortOrMemAddress, (UCHAR)(PVPANIC_CRASHLOADED));
+        }
 
         bEmitCrashLoadedEvent = TRUE;
     }
     // Deregister BugCheckReasonCallback after PVPANIC_CRASHLOADED is triggered.
     if (bEmitCrashLoadedEvent)
+    {
         KeDeregisterBugCheckReasonCallback(Record);
+    }
 }
 
 VOID PVPanicRegisterBugCheckCallback(IN PVOID PortAddress, PUCHAR Component)

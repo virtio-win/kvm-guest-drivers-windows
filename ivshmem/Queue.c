@@ -190,7 +190,9 @@ VOID IVSHMEMEvtDeviceFileCleanup(_In_ WDFFILEOBJECT FileObject)
     KeReleaseSpinLock(&deviceContext->eventListLock, oldIRQL);
 
     if (!fileContext->shmemMap)
+    {
         return;
+    }
 
     MmUnmapLockedPages(fileContext->shmemMap, deviceContext->shmemMDL);
     fileContext->shmemMap = NULL;
@@ -257,7 +259,9 @@ static NTSTATUS ioctl_request_mmap(const PDEVICE_CONTEXT DeviceContext,
     PFILE_CONTEXT fileContext = FileGetContext(fileObject);
     // only one mapping per driver handle is allowed
     if (fileContext->shmemMap)
+    {
         return STATUS_DEVICE_ALREADY_ATTACHED;
+    }
 
     if (InputBufferLength != sizeof(IVSHMEM_MMAP_CONFIG))
     {
@@ -481,7 +485,9 @@ static NTSTATUS ioctl_register_event(const PDEVICE_CONTEXT DeviceContext,
         {
             PIVSHMEMEventListEntry event = &DeviceContext->eventBuffer[i];
             if (event->event != NULL)
+            {
                 continue;
+            }
 
             // found one, assign the event to it and add it to the list
             event->owner = fileObject;
