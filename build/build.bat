@@ -38,9 +38,6 @@ set BUILD_SPEC=
 set BUILD_ARCH=
 set BUILD_FAILED=
 
-rem VSCMD_VER version specific buildtime vars
-set VIOSOCK_PREBUILD_X86_LIBS=
-
 rem Parse arguments
 :argloop
 shift /2
