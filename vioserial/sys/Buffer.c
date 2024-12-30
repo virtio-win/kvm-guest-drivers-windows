@@ -11,36 +11,42 @@
 static BOOLEAN DmaWriteCallback(PVIRTIO_DMA_TRANSACTION_PARAMS params);
 
 PPORT_BUFFER
-VIOSerialAllocateSinglePageBuffer(
-    IN VirtIODevice *vdev,
-    IN ULONG id
-)
+VIOSerialAllocateSinglePageBuffer(IN VirtIODevice *vdev, IN ULONG id)
 {
     PPORT_BUFFER buf;
     ULONG buf_size = PAGE_SIZE;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s\n", __FUNCTION__);
 
-    buf = ExAllocatePoolUninitialized(
-                                 NonPagedPool,
-                                 sizeof(PORT_BUFFER),
-                                 VIOSERIAL_DRIVER_MEMORY_TAG
-                                 );
+    buf = ExAllocatePoolUninitialized(NonPagedPool, sizeof(PORT_BUFFER), VIOSERIAL_DRIVER_MEMORY_TAG);
     if (buf == NULL)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_QUEUEING, "ExAllocatePoolUninitialized failed, %s::%d\n", __FUNCTION__, __LINE__);
+        TraceEvents(TRACE_LEVEL_ERROR,
+                    DBG_QUEUEING,
+                    "ExAllocatePoolUninitialized failed, %s::%d\n",
+                    __FUNCTION__,
+                    __LINE__);
         return NULL;
     }
     buf->va_buf = VirtIOWdfDeviceAllocDmaMemory(vdev, buf_size, id);
-    if(buf->va_buf == NULL)
+    if (buf->va_buf == NULL)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_QUEUEING, "VirtIOWdfDeviceAllocDmaMemory failed, %s::%d\n", __FUNCTION__, __LINE__);
+        TraceEvents(TRACE_LEVEL_ERROR,
+                    DBG_QUEUEING,
+                    "VirtIOWdfDeviceAllocDmaMemory failed, %s::%d\n",
+                    __FUNCTION__,
+                    __LINE__);
         ExFreePoolWithTag(buf, VIOSERIAL_DRIVER_MEMORY_TAG);
         return NULL;
     }
     buf->pa_buf = VirtIOWdfDeviceGetPhysicalAddress(vdev, buf->va_buf);
-    if (!buf->pa_buf.QuadPart) {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_QUEUEING, "VirtIOWdfDeviceGetPhysicalAddress failed, %s::%d\n", __FUNCTION__, __LINE__);
+    if (!buf->pa_buf.QuadPart)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR,
+                    DBG_QUEUEING,
+                    "VirtIOWdfDeviceGetPhysicalAddress failed, %s::%d\n",
+                    __FUNCTION__,
+                    __LINE__);
         VirtIOWdfDeviceFreeDmaMemory(vdev, buf->va_buf);
         ExFreePoolWithTag(buf, VIOSERIAL_DRIVER_MEMORY_TAG);
         return NULL;
@@ -55,8 +61,7 @@ VIOSerialAllocateSinglePageBuffer(
     return buf;
 }
 
-size_t VIOSerialSendBuffers(IN PVIOSERIAL_PORT Port,
-                            IN PWRITE_BUFFER_ENTRY Entry)
+size_t VIOSerialSendBuffers(IN PVIOSERIAL_PORT Port, IN PWRITE_BUFFER_ENTRY Entry)
 {
     struct virtqueue *vq = GetOutQueue(Port);
     VIRTIO_DMA_TRANSACTION_PARAMS params;
@@ -79,7 +84,8 @@ DmaWriteCallback(PVIRTIO_DMA_TRANSACTION_PARAMS params)
     struct VirtIOBufferDescriptor sg[QUEUE_DESCRIPTORS];
     int prepared = 0, ret;
     ULONG i = 0;
-    if (!params->sgList || params->sgList->NumberOfElements > QUEUE_DESCRIPTORS) {
+    if (!params->sgList || params->sgList->NumberOfElements > QUEUE_DESCRIPTORS)
+    {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "%s sgList problem\n", __FUNCTION__);
         goto error;
     }
@@ -101,8 +107,7 @@ DmaWriteCallback(PVIRTIO_DMA_TRANSACTION_PARAMS params)
     else
     {
         Port->OutVqFull = TRUE;
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE,
-            "Error adding buffer to queue (ret = %d)\n", ret);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "Error adding buffer to queue (ret = %d)\n", ret);
         WdfSpinLockRelease(Port->OutVqLock);
         goto error;
     }
@@ -126,13 +131,15 @@ error:
     return FALSE;
 }
 
-VOID
-VIOSerialFreeBuffer(
-    IN PPORT_BUFFER buf
-)
+VOID VIOSerialFreeBuffer(IN PPORT_BUFFER buf)
 {
     ASSERT(buf);
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s  buf = %p, buf->va_buf = %p\n", __FUNCTION__, buf, buf->va_buf);
+    TraceEvents(TRACE_LEVEL_VERBOSE,
+                DBG_QUEUEING,
+                "--> %s  buf = %p, buf->va_buf = %p\n",
+                __FUNCTION__,
+                buf,
+                buf->va_buf);
     if (buf->va_buf)
     {
         VirtIOWdfDeviceFreeDmaMemory(buf->vdev, buf->va_buf);
@@ -178,15 +185,16 @@ VOID VIOSerialProcessInputBuffers(IN PVIOSERIAL_PORT Port)
             }
             else
             {
-                TraceEvents(TRACE_LEVEL_ERROR, DBG_QUEUEING,
-                    "Failed to retrieve output buffer (Status: %x Request: %p).\n",
-                    status, Request);
+                TraceEvents(TRACE_LEVEL_ERROR,
+                            DBG_QUEUEING,
+                            "Failed to retrieve output buffer (Status: %x Request: %p).\n",
+                            status,
+                            Request);
             }
         }
         else
         {
-            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_QUEUEING,
-                "Request %p was cancelled.\n", Request);
+            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_QUEUEING, "Request %p was cancelled.\n", Request);
         }
     }
     WdfSpinLockRelease(Port->InBufLock);
@@ -203,7 +211,7 @@ VOID VIOSerialProcessInputBuffers(IN PVIOSERIAL_PORT Port)
 BOOLEAN VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
 {
     WDFREQUEST request;
-    SINGLE_LIST_ENTRY ReclaimedList = { NULL };
+    SINGLE_LIST_ENTRY ReclaimedList = {NULL};
     PSINGLE_LIST_ENTRY iter, last = &ReclaimedList;
     PVOID buffer;
     UINT len;
@@ -221,8 +229,7 @@ BOOLEAN VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
             iter = &Port->WriteBuffersList;
             while (iter->Next != NULL)
             {
-                PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter->Next,
-                    WRITE_BUFFER_ENTRY, ListEntry);
+                PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter->Next, WRITE_BUFFER_ENTRY, ListEntry);
 
                 if (buffer == entry)
                 {
@@ -250,42 +257,38 @@ BOOLEAN VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
     // no need to hold the lock to complete requests and free buffers
     while ((iter = PopEntryList(&ReclaimedList)) != NULL)
     {
-        PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter,
-            WRITE_BUFFER_ENTRY, ListEntry);
+        PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter, WRITE_BUFFER_ENTRY, ListEntry);
 
-        if (vq != NULL && entry->dmaTransaction) {
+        if (vq != NULL && entry->dmaTransaction)
+        {
             VirtIOWdfDeviceDmaTxComplete(vq->vdev, entry->dmaTransaction);
         }
         request = entry->Request;
         if (request != NULL)
         {
-            WdfRequestCompleteWithInformation(request, STATUS_SUCCESS,
-                WdfRequestGetInformation(request));
+            WdfRequestCompleteWithInformation(request, STATUS_SUCCESS, WdfRequestGetInformation(request));
         }
         WdfObjectDelete(entry->EntryHandle);
     };
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "<-- %s Full: %d\n",
-        __FUNCTION__, ret);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "<-- %s Full: %d\n", __FUNCTION__, ret);
 
     return ret;
 }
 
 // this procedure must be called with port InBuf spinlock held
 SSIZE_T
-VIOSerialFillReadBufLocked(
-    IN PVIOSERIAL_PORT port,
-    IN PVOID outbuf,
-    IN SIZE_T count
-)
+VIOSerialFillReadBufLocked(IN PVIOSERIAL_PORT port, IN PVOID outbuf, IN SIZE_T count)
 {
     PPORT_BUFFER buf;
-    NTSTATUS  status = STATUS_SUCCESS;
+    NTSTATUS status = STATUS_SUCCESS;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s\n", __FUNCTION__);
 
     if (!count || !VIOSerialPortHasDataLocked(port))
+    {
         return 0;
+    }
 
     buf = port->InBuf;
     count = min(count, buf->len - buf->offset);
@@ -301,20 +304,17 @@ VIOSerialFillReadBufLocked(
         status = VIOSerialAddInBuf(GetInQueue(port), buf);
         if (!NT_SUCCESS(status))
         {
-           TraceEvents(TRACE_LEVEL_ERROR, DBG_QUEUEING, "%s::%d  VIOSerialAddInBuf failed\n", __FUNCTION__, __LINE__);
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_QUEUEING, "%s::%d  VIOSerialAddInBuf failed\n", __FUNCTION__, __LINE__);
         }
     }
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "<-- %s\n", __FUNCTION__);
     return count;
 }
 
-
 NTSTATUS
-VIOSerialAddInBuf(
-    IN struct virtqueue *vq,
-    IN PPORT_BUFFER buf)
+VIOSerialAddInBuf(IN struct virtqueue *vq, IN PPORT_BUFFER buf)
 {
-    NTSTATUS  status = STATUS_SUCCESS;
+    NTSTATUS status = STATUS_SUCCESS;
     struct VirtIOBufferDescriptor sg;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s  buf = %p\n", __FUNCTION__, buf);
@@ -332,7 +332,7 @@ VIOSerialAddInBuf(
     sg.physAddr = buf->pa_buf;
     sg.length = buf->size;
 
-    if(0 > virtqueue_add_buf(vq, &sg, 0, 1, buf, NULL, 0))
+    if (0 > virtqueue_add_buf(vq, &sg, 0, 1, buf, NULL, 0))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_QUEUEING, "<-- %s cannot add_buf\n", __FUNCTION__);
         status = STATUS_INSUFFICIENT_RESOURCES;
@@ -343,11 +343,8 @@ VIOSerialAddInBuf(
     return status;
 }
 
-
 PVOID
-VIOSerialGetInBuf(
-    IN PVIOSERIAL_PORT port
-)
+VIOSerialGetInBuf(IN PVIOSERIAL_PORT port)
 {
     PPORT_BUFFER buf = NULL;
     struct virtqueue *vq = GetInQueue(port);
@@ -360,8 +357,8 @@ VIOSerialGetInBuf(
         buf = virtqueue_get_buf(vq, &len);
         if (buf)
         {
-           buf->len = len;
-           buf->offset = 0;
+            buf->len = len;
+            buf->offset = 0;
         }
     }
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "<-- %s\n", __FUNCTION__);
