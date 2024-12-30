@@ -505,6 +505,8 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
             u.WmiConfig.RscEnabledv6 = pContext->ReportedOffloadConfiguration.Rsc.IPv6.Enabled;
             u.WmiConfig.Standby = !!virtio_is_feature_enabled(pContext->u64GuestFeatures, VIRTIO_NET_F_STANDBY);
             u.WmiConfig.MemoryKB = pContext->extraStatistics.allocatedSharedMemory / 1024;
+            u.WmiConfig.InitTimeMs = pContext->extraStatistics.fastInitTime;
+            u.WmiConfig.LazyAllocTimeMs = pContext->extraStatistics.lazyAllocTime;
             break;
         case OID_VENDOR_3:
             pInfo = &u.WmiDiag;

@@ -128,6 +128,7 @@ void Parandis_UtilOnly_Trace(LONG level, LPCSTR s1, LPCSTR s2)
 bool CSystemThread::Start(PVOID Context)
 {
     m_Context = Context;
+    UpdateTimestamp(m_StartTime);
     NTSTATUS status = PsCreateSystemThread(
         &m_hThread, GENERIC_READ, NULL, NULL, NULL,
         [](PVOID Ctx)
@@ -156,6 +157,7 @@ void CSystemThread::Stop()
 void CSystemThread::ThreadProc()
 {
     PARANDIS_ADAPTER* context = (PARANDIS_ADAPTER*)m_Context;
+    context->extraStatistics.lazyAllocTime = -1;
     while (!m_Event.Wait(1))
     {
         UINT n = 0;
@@ -170,6 +172,9 @@ void CSystemThread::ThreadProc()
         {
             DPrintf(0, "All the memory allocations done");
             m_Event.Notify();
+            ULONGLONG endTimestamp;
+            UpdateTimestamp(endTimestamp);
+            context->extraStatistics.lazyAllocTime = (LONG)((endTimestamp - m_StartTime)/10000);
         }
     }
     m_hThread = NULL;

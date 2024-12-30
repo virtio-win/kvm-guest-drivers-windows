@@ -563,6 +563,8 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
         ULONG allocatedSharedMemory;
         LARGE_INTEGER totalRxIndicates;
         LARGE_INTEGER rxIndicatesWithResourcesFlag;
+        ULONG fastInitTime;
+        LONG lazyAllocTime;
     } extraStatistics = {};
 
     /* initial number of free Tx descriptor(from cfg) - max number of available Tx descriptors */

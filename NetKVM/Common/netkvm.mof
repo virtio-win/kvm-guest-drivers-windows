@@ -44,6 +44,8 @@ class NetKvm_Config : MSNdis
     [WmiDataId(5), read] boolean RscEnabledv6;
     [WmiDataId(6), read] boolean Standby;
     [WmiDataId(7), read] uint32 MemoryKB;
+    [WmiDataId(8), read] sint32 InitTimeMs;
+    [WmiDataId(9), read] sint32 LazyAllocTimeMs;
 };
 
 [WMI,
