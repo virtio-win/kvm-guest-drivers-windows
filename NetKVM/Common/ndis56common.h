@@ -501,6 +501,7 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
     BOOLEAN                 bGuestChecksumSupported = false;
     BOOLEAN                 bControlQueueSupported = false;
     BOOLEAN                 bUseMergedBuffers = false;
+    BOOLEAN                 bFastInit = false;
     BOOLEAN                 bSurprizeRemoved = false;
     BOOLEAN                 bUsingMSIX = false;
     BOOLEAN                 bUseIndirect = false;
