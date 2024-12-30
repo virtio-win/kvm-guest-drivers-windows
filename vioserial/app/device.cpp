@@ -21,22 +21,21 @@ BOOL CDevice::Init(BOOL ovrl, UINT index)
     if ((DevicePath = GetDevicePath(index, (LPGUID)&GUID_VIOSERIAL_PORT)) != NULL)
     {
         m_hDevice = CreateFile(DevicePath,
-                             GENERIC_WRITE | GENERIC_READ,
-                             0,
-                             NULL,
-                             OPEN_EXISTING,
-                             ovrl ? FILE_FLAG_OVERLAPPED : FILE_ATTRIBUTE_NORMAL,
-                             NULL );
+                               GENERIC_WRITE | GENERIC_READ,
+                               0,
+                               NULL,
+                               OPEN_EXISTING,
+                               ovrl ? FILE_FLAG_OVERLAPPED : FILE_ATTRIBUTE_NORMAL,
+                               NULL);
 
         if (m_hDevice != INVALID_HANDLE_VALUE)
         {
             printf("Open vioserial device  %S.\n", DevicePath);
             return TRUE;
         }
-
     }
     DWORD err = GetLastError();
-    printf("Cannot find vioserial device. %S , error = %d\n", DevicePath, err );
+    printf("Cannot find vioserial device. %S , error = %d\n", DevicePath, err);
     return FALSE;
 }
 
@@ -46,19 +45,17 @@ BOOL CDevice::Write(PVOID buf, size_t *size)
     ULONG ret = 0;
     DWORD bytes = *size;
 
-    if (!buf) return FALSE;
+    if (!buf)
+    {
+        return FALSE;
+    }
 
-    res = WriteFile ( m_hDevice,
-                      buf,
-                      bytes,
-                      &ret,
-                      NULL
-                     );
+    res = WriteFile(m_hDevice, buf, bytes, &ret, NULL);
     if (!res)
     {
         printf("Cannot write vioserial device.\n");
     }
-    else if ( ret != bytes)
+    else if (ret != bytes)
     {
         printf("Write vioserial device error. written = 0x%x, expected = 0x%x\n", ret, bytes);
         *size = ret;
@@ -72,9 +69,9 @@ BOOL CDevice::WriteEx(PVOID buf, size_t *size)
     BOOL res = FALSE;
     ULONG ret = 0;
     DWORD bytes = *size;
-    OVERLAPPED  ol = {0};
+    OVERLAPPED ol = {0};
 
-    assert( buf );
+    assert(buf);
 
     ol.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
     if (!ol.hEvent)
@@ -83,30 +80,25 @@ BOOL CDevice::WriteEx(PVOID buf, size_t *size)
         return FALSE;
     }
 
-    res = WriteFile ( m_hDevice,
-                      buf,
-                      bytes,
-                      &ret,
-                      &ol
-                     );
+    res = WriteFile(m_hDevice, buf, bytes, &ret, &ol);
     if (!res)
     {
         if (GetLastError() != ERROR_IO_PENDING)
         {
-           printf("Write failed but isn't delayed.\n");
-           res = FALSE;
+            printf("Write failed but isn't delayed.\n");
+            res = FALSE;
         }
         else
         {
-           if (!GetOverlappedResult(m_hDevice, &ol, &ret, TRUE))
-           {
-              res = FALSE;
-           }
-           else
-           {
-              *size = ret;
-              res = TRUE;
-           }
+            if (!GetOverlappedResult(m_hDevice, &ol, &ret, TRUE))
+            {
+                res = FALSE;
+            }
+            else
+            {
+                *size = ret;
+                res = TRUE;
+            }
         }
     }
     else
@@ -115,7 +107,7 @@ BOOL CDevice::WriteEx(PVOID buf, size_t *size)
         res = TRUE;
     }
 
-    CloseHandle( ol.hEvent );
+    CloseHandle(ol.hEvent);
     return res;
 }
 
@@ -125,23 +117,22 @@ BOOL CDevice::Read(PVOID buf, size_t *size)
     DWORD ret;
     DWORD bytes = *size;
 
-    if (!buf) return FALSE;
+    if (!buf)
+    {
+        return FALSE;
+    }
 
     memset(buf, '\0', bytes);
 
-    res = ReadFile ( m_hDevice,
-                    buf,
-                    bytes,
-                    &ret,
-                    NULL
-                   );
+    res = ReadFile(m_hDevice, buf, bytes, &ret, NULL);
     if (!res)
     {
 
-        printf ("PerformReadTest: ReadFile failed: "
-                "Error %d\n", GetLastError());
+        printf("PerformReadTest: ReadFile failed: "
+               "Error %d\n",
+               GetLastError());
     }
-    else if ( ret != bytes)
+    else if (ret != bytes)
     {
         printf("Read vioserial device error. get = 0x%x, expected = 0x%x\n", ret, bytes);
         *size = ret;
@@ -156,7 +147,7 @@ BOOL CDevice::ReadEx(PVOID buf, size_t *size)
     BOOL res = FALSE;
     DWORD ret;
     DWORD bytes = *size;
-    OVERLAPPED  ol = {0};
+    OVERLAPPED ol = {0};
 
     assert(buf);
 
@@ -169,30 +160,25 @@ BOOL CDevice::ReadEx(PVOID buf, size_t *size)
         return FALSE;
     }
 
-    res = ReadFile ( m_hDevice,
-                    buf,
-                    bytes,
-                    &ret,
-                    &ol
-                   );
+    res = ReadFile(m_hDevice, buf, bytes, &ret, &ol);
     if (!res)
     {
         if (GetLastError() != ERROR_IO_PENDING)
         {
-           printf("Write failed but isn't delayed.\n");
-           res = FALSE;
+            printf("Write failed but isn't delayed.\n");
+            res = FALSE;
         }
         else
         {
-           if (!GetOverlappedResult(m_hDevice, &ol, &ret, TRUE))
-           {
-              res = FALSE;
-           }
-           else
-           {
-              *size = ret;
-              res = TRUE;
-           }
+            if (!GetOverlappedResult(m_hDevice, &ol, &ret, TRUE))
+            {
+                res = FALSE;
+            }
+            else
+            {
+                *size = ret;
+                res = TRUE;
+            }
         }
     }
     else
@@ -201,28 +187,17 @@ BOOL CDevice::ReadEx(PVOID buf, size_t *size)
         res = TRUE;
     }
 
-    CloseHandle( ol.hEvent );
+    CloseHandle(ol.hEvent);
     return res;
-
-
-
-
-
-
-
-
-
-
-
-
 
     if (!res)
     {
 
-        printf ("PerformReadTest: ReadFile failed: "
-                "Error %d\n", GetLastError());
+        printf("PerformReadTest: ReadFile failed: "
+               "Error %d\n",
+               GetLastError());
     }
-    else if ( ret != bytes)
+    else if (ret != bytes)
     {
         printf("Read vioserial device error. get = 0x%x, expected = 0x%x\n", ret, bytes);
         *size = ret;
@@ -234,36 +209,28 @@ BOOL CDevice::ReadEx(PVOID buf, size_t *size)
 
 BOOL CDevice::GetInfo(PVOID buf, size_t *size)
 {
-    BOOL    res = FALSE;
-    DWORD   ulOutLength = *size;
-    ULONG   ulReturnedLength = 0;
-    PVOID   pBuffer = NULL;
-    DWORD   err;
+    BOOL res = FALSE;
+    DWORD ulOutLength = *size;
+    ULONG ulReturnedLength = 0;
+    PVOID pBuffer = NULL;
+    DWORD err;
 
-    printf ("%s, buf = %p, size = %zd\n", __FUNCTION__, buf, *size);
-    res = DeviceIoControl(
-                             m_hDevice,
-                             IOCTL_GET_INFORMATION,
-                             NULL,
-                             0,
-                             buf,
-                             ulOutLength,
-                             &ulReturnedLength,
-                             NULL
-                             );
+    printf("%s, buf = %p, size = %zd\n", __FUNCTION__, buf, *size);
+    res = DeviceIoControl(m_hDevice, IOCTL_GET_INFORMATION, NULL, 0, buf, ulOutLength, &ulReturnedLength, NULL);
 
-    if ( !res )
-    {   err = GetLastError();
+    if (!res)
+    {
+        err = GetLastError();
         if (err != ERROR_MORE_DATA)
         {
-           printf("Ioctl failed with code %d\n", err );
+            printf("Ioctl failed with code %d\n", err);
         }
     }
     *size = ulReturnedLength;
     return res;
 }
 
-PTCHAR CDevice::GetDevicePath(UINT index, IN  LPGUID InterfaceGuid )
+PTCHAR CDevice::GetDevicePath(UINT index, IN LPGUID InterfaceGuid)
 {
     HDEVINFO HardwareDeviceInfo;
     SP_DEVICE_INTERFACE_DATA DeviceInterfaceData;
@@ -271,12 +238,7 @@ PTCHAR CDevice::GetDevicePath(UINT index, IN  LPGUID InterfaceGuid )
     ULONG Length, RequiredLength = 0;
     BOOL bResult;
 
-    HardwareDeviceInfo = SetupDiGetClassDevs(
-                             InterfaceGuid,
-                             NULL,
-                             NULL,
-                             (DIGCF_PRESENT | DIGCF_DEVICEINTERFACE)
-                             );
+    HardwareDeviceInfo = SetupDiGetClassDevs(InterfaceGuid, NULL, NULL, (DIGCF_PRESENT | DIGCF_DEVICEINTERFACE));
 
     if (HardwareDeviceInfo == INVALID_HANDLE_VALUE)
     {
@@ -286,29 +248,18 @@ PTCHAR CDevice::GetDevicePath(UINT index, IN  LPGUID InterfaceGuid )
 
     DeviceInterfaceData.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
 
-    bResult = SetupDiEnumDeviceInterfaces(HardwareDeviceInfo,
-                             0,
-                             InterfaceGuid,
-                             index,
-                             &DeviceInterfaceData
-                             );
+    bResult = SetupDiEnumDeviceInterfaces(HardwareDeviceInfo, 0, InterfaceGuid, index, &DeviceInterfaceData);
 
-    if (bResult == FALSE) {
+    if (bResult == FALSE)
+    {
         printf("Cannot get enumerate device interfaces.\n");
         SetupDiDestroyDeviceInfoList(HardwareDeviceInfo);
         return NULL;
     }
 
-    SetupDiGetDeviceInterfaceDetail(
-        HardwareDeviceInfo,
-        &DeviceInterfaceData,
-        NULL,
-        0,
-        &RequiredLength,
-        NULL
-        );
+    SetupDiGetDeviceInterfaceDetail(HardwareDeviceInfo, &DeviceInterfaceData, NULL, 0, &RequiredLength, NULL);
 
-    DeviceInterfaceDetailData = (PSP_DEVICE_INTERFACE_DETAIL_DATA) LocalAlloc(LMEM_FIXED, RequiredLength);
+    DeviceInterfaceDetailData = (PSP_DEVICE_INTERFACE_DETAIL_DATA)LocalAlloc(LMEM_FIXED, RequiredLength);
 
     if (DeviceInterfaceDetailData == NULL)
     {
@@ -321,14 +272,12 @@ PTCHAR CDevice::GetDevicePath(UINT index, IN  LPGUID InterfaceGuid )
 
     Length = RequiredLength;
 
-    bResult = SetupDiGetDeviceInterfaceDetail(
-                             HardwareDeviceInfo,
-                             &DeviceInterfaceData,
-                             DeviceInterfaceDetailData,
-                             Length,
-                             &RequiredLength,
-                             NULL
-                             );
+    bResult = SetupDiGetDeviceInterfaceDetail(HardwareDeviceInfo,
+                                              &DeviceInterfaceData,
+                                              DeviceInterfaceDetailData,
+                                              Length,
+                                              &RequiredLength,
+                                              NULL);
 
     if (bResult == FALSE)
     {

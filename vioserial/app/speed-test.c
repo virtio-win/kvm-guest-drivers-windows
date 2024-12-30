@@ -16,7 +16,9 @@ static int write_splitted(int sockfd, char *buf, int size)
     while (size)
     {
         if (size < chunk)
+        {
             chunk = size;
+        }
         res = write(sockfd, buf, chunk);
         if (res <= 0)
         {
@@ -34,7 +36,9 @@ static uint64_t time_ms()
     struct timespec ts;
     uint64_t res;
     if (clock_gettime(CLOCK_MONOTONIC, &ts))
+    {
         return 0;
+    }
     res = ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
     return res;
 }
@@ -105,7 +109,9 @@ static int do_server_job(int sockfd)
             return 1;
         }
         if (r.size == 0)
+        {
             break;
+        }
         if (r.size > max_size)
         {
             printf("too large block\n");
@@ -151,12 +157,16 @@ int speed_test(int client)
     int sockfd = 0, ret;
     int type = SOCK_STREAM;
     char *devname = DEVNAME;
-    struct  sockaddr_un unix_addr = { AF_UNIX, "/tmp/foo" };
+    struct sockaddr_un unix_addr = {AF_UNIX, "/tmp/foo"};
 
     if (!client)
+    {
         sockfd = socket(AF_UNIX, type, 0);
+    }
     else
+    {
         sockfd = open(devname, O_RDWR);
+    }
 
     if (sockfd <= 0)
     {
@@ -167,13 +177,13 @@ int speed_test(int client)
     if (!client)
     {
         unlink(unix_addr.sun_path);
-        ret = bind(sockfd, (struct sockaddr*)&unix_addr, sizeof(unix_addr));
+        ret = bind(sockfd, (struct sockaddr *)&unix_addr, sizeof(unix_addr));
         if (ret < 0)
         {
             printf("error %d on bind\n", errno);
             return 1;
         }
-        
+
         ret = listen(sockfd, 10);
         if (ret < 0)
         {
@@ -197,7 +207,8 @@ int speed_test(int client)
     }
     else
     {
-        while (!do_server_job(sockfd));
+        while (!do_server_job(sockfd))
+            ;
     }
 
     close(sockfd);

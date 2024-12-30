@@ -9,28 +9,28 @@
 #include <string.h>
 #include <conio.h>
 #include "..\sys\public.h"
-#pragma warning(disable:4201)
+#pragma warning(disable : 4201)
 
 #include <setupapi.h>
 #include <winioctl.h>
 
-#pragma warning(default:4201)
+#pragma warning(default : 4201)
 
-
-
-class CDevice {
-public:
+class CDevice
+{
+  public:
     CDevice();
     ~CDevice();
-    BOOL     Init(BOOL ovrl, UINT index);
-    BOOL     Write(PVOID buf, size_t* size);
-    BOOL     WriteEx(PVOID buf, size_t* size);
-    BOOL     Read(PVOID buf, size_t* size);
-    BOOL     ReadEx(PVOID buf, size_t* size);
-    BOOL     GetInfo(PVOID buf, size_t* size);
-protected:
-    HANDLE   m_hDevice;
-    PTCHAR   GetDevicePath(UINT index, IN  LPGUID InterfaceGuid );
+    BOOL Init(BOOL ovrl, UINT index);
+    BOOL Write(PVOID buf, size_t *size);
+    BOOL WriteEx(PVOID buf, size_t *size);
+    BOOL Read(PVOID buf, size_t *size);
+    BOOL ReadEx(PVOID buf, size_t *size);
+    BOOL GetInfo(PVOID buf, size_t *size);
+
+  protected:
+    HANDLE m_hDevice;
+    PTCHAR GetDevicePath(UINT index, IN LPGUID InterfaceGuid);
 };
 
 #endif

@@ -6,9 +6,7 @@
 #endif
 
 BOOLEAN
-VIOSerialInterruptIsr(
-    IN WDFINTERRUPT Interrupt,
-    IN ULONG MessageID)
+VIOSerialInterruptIsr(IN WDFINTERRUPT Interrupt, IN ULONG MessageID)
 {
     PPORTS_DEVICE pContext = GetPortsDevice(WdfInterruptGetDevice(Interrupt));
     WDF_INTERRUPT_INFO info;
@@ -31,16 +29,12 @@ VIOSerialInterruptIsr(
         serviced = FALSE;
     }
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT,
-        "<-- %s Serviced: %d\n", __FUNCTION__, serviced);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "<-- %s Serviced: %d\n", __FUNCTION__, serviced);
 
     return serviced;
 }
 
-VOID
-VIOSerialInterruptDpc(
-    IN WDFINTERRUPT Interrupt,
-    IN WDFOBJECT AssociatedObject)
+VOID VIOSerialInterruptDpc(IN WDFINTERRUPT Interrupt, IN WDFOBJECT AssociatedObject)
 {
     WDFDEVICE Device = WdfInterruptGetDevice(Interrupt);
     PPORTS_DEVICE Context = GetPortsDevice(Device);
@@ -62,8 +56,7 @@ VIOSerialInterruptDpc(
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "<-- %s\n", __FUNCTION__);
 }
 
-VOID VIOSerialQueuesInterruptDpc(IN WDFINTERRUPT Interrupt,
-                                 IN WDFOBJECT AssociatedObject)
+VOID VIOSerialQueuesInterruptDpc(IN WDFINTERRUPT Interrupt, IN WDFOBJECT AssociatedObject)
 {
     NTSTATUS status;
     WDFCHILDLIST PortList;
@@ -84,11 +77,9 @@ VOID VIOSerialQueuesInterruptDpc(IN WDFINTERRUPT Interrupt,
     for (;;)
     {
         WDF_CHILD_RETRIEVE_INFO_INIT(&PortInfo, &VirtPort.Header);
-        WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER_INIT(&VirtPort.Header,
-            sizeof(VirtPort));
+        WDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER_INIT(&VirtPort.Header, sizeof(VirtPort));
 
-        status = WdfChildListRetrieveNextDevice(PortList, &iterator, &Device,
-            &PortInfo);
+        status = WdfChildListRetrieveNextDevice(PortList, &iterator, &Device, &PortInfo);
 
         if (!NT_SUCCESS(status) || status == STATUS_NO_MORE_ENTRIES)
         {
@@ -108,17 +99,17 @@ VOID VIOSerialQueuesInterruptDpc(IN WDFINTERRUPT Interrupt,
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "<-- %s\n", __FUNCTION__);
 }
 
-static
-VOID
-VIOSerialEnableInterrupt(PPORTS_DEVICE pContext)
+static VOID VIOSerialEnableInterrupt(PPORTS_DEVICE pContext)
 {
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "--> %s enable\n", __FUNCTION__);
 
-    if(!pContext)
+    if (!pContext)
+    {
         return;
+    }
 
-    if(pContext->c_ivq)
+    if (pContext->c_ivq)
     {
         virtqueue_enable_cb(pContext->c_ivq);
         virtqueue_kick(pContext->c_ivq);
@@ -127,17 +118,17 @@ VIOSerialEnableInterrupt(PPORTS_DEVICE pContext)
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s enable\n", __FUNCTION__);
 }
 
-static
-VOID
-VIOSerialDisableInterrupt(PPORTS_DEVICE pContext)
+static VOID VIOSerialDisableInterrupt(PPORTS_DEVICE pContext)
 {
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "--> %s disable\n", __FUNCTION__);
 
-    if(!pContext)
+    if (!pContext)
+    {
         return;
+    }
 
-    if(pContext->c_ivq)
+    if (pContext->c_ivq)
     {
         virtqueue_disable_cb(pContext->c_ivq);
     }
@@ -145,11 +136,8 @@ VIOSerialDisableInterrupt(PPORTS_DEVICE pContext)
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s disable\n", __FUNCTION__);
 }
 
-
 NTSTATUS
-VIOSerialInterruptEnable(
-    IN WDFINTERRUPT Interrupt,
-    IN WDFDEVICE AssociatedDevice)
+VIOSerialInterruptEnable(IN WDFINTERRUPT Interrupt, IN WDFDEVICE AssociatedDevice)
 {
     UNREFERENCED_PARAMETER(AssociatedDevice);
 
@@ -161,9 +149,7 @@ VIOSerialInterruptEnable(
 }
 
 NTSTATUS
-VIOSerialInterruptDisable(
-    IN WDFINTERRUPT Interrupt,
-    IN WDFDEVICE AssociatedDevice)
+VIOSerialInterruptDisable(IN WDFINTERRUPT Interrupt, IN WDFDEVICE AssociatedDevice)
 {
     UNREFERENCED_PARAMETER(AssociatedDevice);
 
@@ -173,13 +159,14 @@ VIOSerialInterruptDisable(
     return STATUS_SUCCESS;
 }
 
-VOID
-VIOSerialEnableInterruptQueue(IN struct virtqueue *vq)
+VOID VIOSerialEnableInterruptQueue(IN struct virtqueue *vq)
 {
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "--> %s enable\n", __FUNCTION__);
 
-    if(!vq)
+    if (!vq)
+    {
         return;
+    }
 
     virtqueue_enable_cb(vq);
     virtqueue_kick(vq);
@@ -187,13 +174,14 @@ VIOSerialEnableInterruptQueue(IN struct virtqueue *vq)
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s\n", __FUNCTION__);
 }
 
-VOID
-VIOSerialDisableInterruptQueue(IN struct virtqueue *vq)
+VOID VIOSerialDisableInterruptQueue(IN struct virtqueue *vq)
 {
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "--> %s disable\n", __FUNCTION__);
 
-    if(!vq)
+    if (!vq)
+    {
         return;
+    }
 
     virtqueue_disable_cb(vq);
 
