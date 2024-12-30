@@ -6,13 +6,6 @@
 #include "ParaNdis_TX.tmh"
 #endif
 
-static FORCEINLINE void UpdateTimestamp(ULONGLONG& Variable)
-{
-    LARGE_INTEGER li;
-    NdisGetCurrentSystemTime(&li);
-    Variable = li.QuadPart;
-}
-
 CNBL::CNBL(PNET_BUFFER_LIST NBL, PPARANDIS_ADAPTER Context, CParaNdisTX &ParentTXPath, CAllocationHelper<CNBL> *NBLAllocator, CAllocationHelper<CNB> *NBAllocator)
     : m_NBL(NBL)
     , m_Context(Context)
