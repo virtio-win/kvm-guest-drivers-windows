@@ -2161,6 +2161,8 @@ NDIS_STATUS ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
     DEBUG_ENTRY(0);
     ParaNdis_DebugHistory(pContext, _etagHistoryLogOperation::hopPowerOn, NULL, 1, 0, 0);
 
+    CMutexLockedContext sync(pContext->systemThread.PowerMutex());
+
     pContext->m_StateMachine.NotifyPowerOn();
 
     ParaNdis_ResetVirtIONetDevice(pContext);
@@ -2212,6 +2214,8 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
 {
     DEBUG_ENTRY(0);
     ParaNdis_DebugHistory(pContext, _etagHistoryLogOperation::hopPowerOff, NULL, 1, 0, 0);
+
+    CMutexLockedContext sync(pContext->systemThread.PowerMutex());
 
     pContext->m_StateMachine.NotifySuspended();
 
