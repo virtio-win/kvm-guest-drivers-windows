@@ -849,6 +849,13 @@ void ParaNdis_CompleteNBLChainWithStatus(NDIS_HANDLE MiniportHandle, PNET_BUFFER
     ParaNdis_CompleteNBLChain(MiniportHandle, NBL, Flags);
 }
 
+static FORCEINLINE void UpdateTimestamp(ULONGLONG& Variable)
+{
+    LARGE_INTEGER li;
+    NdisGetCurrentSystemTime(&li);
+    Variable = li.QuadPart;
+}
+
 class CSystemThread
 {
 public:
