@@ -168,6 +168,8 @@ static NDIS_STATUS ParaNdis6_Initialize(
     NDIS_MINIPORT_ADAPTER_ATTRIBUTES        miniportAttributes = {};
     NDIS_STATUS  status = NDIS_STATUS_SUCCESS;
     PARANDIS_ADAPTER *pContext;
+    ULONGLONG startTimestamp;
+    UpdateTimestamp(startTimestamp);
 
     UNREFERENCED_PARAMETER(miniportDriverContext);
     DEBUG_ENTRY(0);
@@ -329,6 +331,9 @@ static NDIS_STATUS ParaNdis6_Initialize(
         ParaNdis_DebugRegisterMiniport(pContext, TRUE);
         ParaNdis_ProtocolRegisterAdapter(pContext);
         pContext->systemThread.Start(pContext);
+        ULONGLONG initDoneTimestamp;
+        UpdateTimestamp(initDoneTimestamp);
+        pContext->extraStatistics.fastInitTime = (ULONG)((initDoneTimestamp - startTimestamp) / 10000);
     }
     else
     {
