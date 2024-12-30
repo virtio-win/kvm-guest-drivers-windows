@@ -162,6 +162,13 @@ set TARGET_VS_CONFIG="%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%|%BUILD_ARCH%"
 pushd %BUILD_DIR%
 call "%~dp0\SetVsEnv.bat" %TARGET_PROJ_CONFIG%
 
+rem Check for any prerequisite x86 libraries and build them if needed...
+call "%~dp0prebuild_x86_libs.bat" %BUILD_FILE% %BUILD_ARCH% "%BUILD_DIR%" %TARGET% %BUILD_FLAVOUR%
+IF ERRORLEVEL 1 (
+  set BUILD_FAILED=1
+  goto :build_arch_done
+)
+
 if /I "!TAG!"=="SDV" (
   echo Running SDV for %BUILD_FILE%, configuration %TARGET_VS_CONFIG%
   call :runsdv "%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%" %BUILD_ARCH%
@@ -177,6 +184,7 @@ if /I "!TAG!"=="SDV" (
   echo Building %BUILD_FILE%, configuration %TARGET_VS_CONFIG%, command %BUILD_COMMAND%
   call :runbuild "%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%" %BUILD_ARCH%
 )
+:build_arch_done
 popd
 endlocal
 
