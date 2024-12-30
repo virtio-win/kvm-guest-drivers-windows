@@ -868,4 +868,5 @@ private:
     HANDLE m_hThread = NULL;
     void ThreadProc();
     PVOID m_Context = NULL;
+    ULONGLONG m_StartTime = 0;
 };
