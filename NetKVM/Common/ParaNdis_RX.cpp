@@ -114,7 +114,7 @@ bool CParaNdisRX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
 {
     m_Context = Context;
     m_queueIndex = (u16)DeviceQueueIndex;
-    m_NetMaxReceiveBuffers = INITIAL_RX_BUFFERS;
+    m_NetMaxReceiveBuffers = Context->bFastInit ? INITIAL_RX_BUFFERS : 0;
     if (!m_NetMaxReceiveBuffers || m_NetMaxReceiveBuffers > Context->maxRxBufferPerQueue)
     {
         m_NetMaxReceiveBuffers = Context->maxRxBufferPerQueue;

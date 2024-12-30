@@ -94,6 +94,7 @@ typedef struct _tagConfigurationEntries
     tConfigurationEntry VlanId;
     tConfigurationEntry JumboPacket;
     tConfigurationEntry NumberOfHandledRXPacketsInDPC;
+    tConfigurationEntry FastInit;
 #if PARANDIS_SUPPORT_RSS
     tConfigurationEntry RSSOffloadSupported;
     tConfigurationEntry NumRSSQueues;
@@ -133,6 +134,7 @@ static const tConfigurationEntries defaultConfiguration =
     { "VlanId", 0, 0, MAX_VLAN_ID},
     { "*JumboPacket", 1514, 590, 65500},
     { "NumberOfHandledRXPacketsInDPC", MAX_RX_LOOPS, 1, 10000},
+    { "FastInit", 1, 0, 1},
 #if PARANDIS_SUPPORT_RSS
     { "*RSS", 1, 0, 1},
     { "*NumRssQueues", 16, 1, PARANDIS_RSS_MAX_RECEIVE_QUEUES},
@@ -270,6 +272,7 @@ static bool ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
             GetConfigurationEntry(cfg, &pConfiguration->VlanId);
             GetConfigurationEntry(cfg, &pConfiguration->JumboPacket);
             GetConfigurationEntry(cfg, &pConfiguration->NumberOfHandledRXPacketsInDPC);
+            GetConfigurationEntry(cfg, &pConfiguration->FastInit);
 #if PARANDIS_SUPPORT_RSS
             GetConfigurationEntry(cfg, &pConfiguration->RSSOffloadSupported);
             GetConfigurationEntry(cfg, &pConfiguration->NumRSSQueues);
@@ -287,6 +290,7 @@ static bool ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
 
             bDebugPrint = pConfiguration->isLogEnabled.ulValue;
             virtioDebugLevel = pConfiguration->debugLevel.ulValue;
+            pContext->bFastInit = pConfiguration->FastInit.ulValue != 0;
             pContext->physicalMediaType = (NDIS_PHYSICAL_MEDIUM)pConfiguration->PhysicalMediaType.ulValue;
             pContext->maxFreeTxDescriptors = pConfiguration->TxCapacity.ulValue;
             pContext->maxRxBufferPerQueue = pConfiguration->RxCapacity.ulValue;
