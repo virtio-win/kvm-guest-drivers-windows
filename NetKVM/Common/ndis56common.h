@@ -501,6 +501,7 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
     BOOLEAN                 bGuestChecksumSupported = false;
     BOOLEAN                 bControlQueueSupported = false;
     BOOLEAN                 bUseMergedBuffers = false;
+    BOOLEAN                 bFastInit = false;
     BOOLEAN                 bSurprizeRemoved = false;
     BOOLEAN                 bUsingMSIX = false;
     BOOLEAN                 bUseIndirect = false;
@@ -562,6 +563,8 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
         ULONG allocatedSharedMemory;
         LARGE_INTEGER totalRxIndicates;
         LARGE_INTEGER rxIndicatesWithResourcesFlag;
+        ULONG fastInitTime;
+        LONG lazyAllocTime;
     } extraStatistics = {};
 
     /* initial number of free Tx descriptor(from cfg) - max number of available Tx descriptors */
@@ -604,6 +607,7 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
     BOOLEAN                     bRSSSupportedByDevice = false;
     BOOLEAN                     bRSSSupportedByDevicePersistent = false;
     BOOLEAN                     bHashReportedByDevice = false;
+    CSystemThread               systemThread;
 
 #if PARANDIS_SUPPORT_RSS
     BOOLEAN                     bRSSOffloadSupported = false;

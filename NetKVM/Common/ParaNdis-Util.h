@@ -562,10 +562,9 @@ public:
         : m_DrvHandle(NULL)
     {}
 
-    bool Create(NDIS_HANDLE DrvHandle)
+    void Initialize(NDIS_HANDLE DrvHandle)
     {
         m_DrvHandle = DrvHandle;
-        return true;
     }
 
     ~CNdisSharedMemory();
@@ -849,3 +848,25 @@ void ParaNdis_CompleteNBLChainWithStatus(NDIS_HANDLE MiniportHandle, PNET_BUFFER
 
     ParaNdis_CompleteNBLChain(MiniportHandle, NBL, Flags);
 }
+
+static FORCEINLINE void UpdateTimestamp(ULONGLONG& Variable)
+{
+    LARGE_INTEGER li;
+    NdisGetCurrentSystemTime(&li);
+    Variable = li.QuadPart;
+}
+
+class CSystemThread
+{
+public:
+    bool Start(PVOID Context);
+    void Stop();
+    CMutexProtectedAccess& PowerMutex() { return m_PowerMutex; }
+private:
+    CNdisEvent m_Event;
+    CMutexProtectedAccess m_PowerMutex;
+    HANDLE m_hThread = NULL;
+    void ThreadProc();
+    PVOID m_Context = NULL;
+    ULONGLONG m_StartTime = 0;
+};

@@ -6,6 +6,10 @@
 #include "ParaNdis_RX.tmh"
 #endif
 
+//define as 0 to allocate all the required buffer at once
+//#define INITIAL_RX_BUFFERS  0
+#define INITIAL_RX_BUFFERS  16
+
 static FORCEINLINE VOID ParaNdis_ReceiveQueueAddBuffer(PPARANDIS_RECEIVE_QUEUE pQueue, pRxNetDescriptor pBuffer)
 {
     NdisInterlockedInsertTailList(&pQueue->BuffersList,
@@ -93,11 +97,28 @@ CParaNdisRX::~CParaNdisRX()
 {
 }
 
+// called during initialization
+// also later during additional allocations under m_Lock
+// when we update m_NetMaxReceiveBuffers, we also update
+// m_nReusedRxBuffersLimit, set m_nReusedRxBuffersLimit to zero
+// and kick the rx queue
+void CParaNdisRX::RecalculateLimits()
+{
+    m_nReusedRxBuffersLimit = m_NetMaxReceiveBuffers / 4 + 1;
+    m_nReusedRxBuffersCounter = 0;
+    m_MinRxBufferLimit = m_NetMaxReceiveBuffers * m_Context->MinRxBufferPercent / 100;
+    DPrintf(0, "[%s] m_NetMaxReceiveBuffers %d, m_MinRxBufferLimit %u\n", __FUNCTION__, m_NetMaxReceiveBuffers, m_MinRxBufferLimit);
+}
+
 bool CParaNdisRX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
 {
     m_Context = Context;
     m_queueIndex = (u16)DeviceQueueIndex;
-    m_NetMaxReceiveBuffers = Context->maxRxBufferPerQueue;
+    m_NetMaxReceiveBuffers = Context->bFastInit ? INITIAL_RX_BUFFERS : 0;
+    if (!m_NetMaxReceiveBuffers || m_NetMaxReceiveBuffers > Context->maxRxBufferPerQueue)
+    {
+        m_NetMaxReceiveBuffers = Context->maxRxBufferPerQueue;
+    }
 
     if (!m_VirtQueue.Create(DeviceQueueIndex,
         &m_Context->IODevice,
@@ -108,8 +129,6 @@ bool CParaNdisRX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
     }
 
     PrepareReceiveBuffers();
-
-    m_nReusedRxBuffersLimit = m_NetMaxReceiveBuffers / 4 + 1;
 
     CreatePath();
 
@@ -140,8 +159,9 @@ int CParaNdisRX::PrepareReceiveBuffers()
         m_NetNofReceiveBuffers++;
     }
     m_NetMaxReceiveBuffers = m_NetNofReceiveBuffers;
-    m_MinRxBufferLimit = m_NetNofReceiveBuffers * m_Context->MinRxBufferPercent / 100;
-    DPrintf(0, "[%s] m_NetMaxReceiveBuffers %d, m_MinRxBufferLimit %u\n", __FUNCTION__, m_NetMaxReceiveBuffers, m_MinRxBufferLimit);
+
+    RecalculateLimits();
+
     if (m_Context->extraStatistics.minFreeRxBuffers == 0 || m_Context->extraStatistics.minFreeRxBuffers > m_NetNofReceiveBuffers)
     {
         m_Context->extraStatistics.minFreeRxBuffers = m_NetNofReceiveBuffers;
@@ -248,6 +268,46 @@ pRxNetDescriptor CParaNdisRX::CreateRxDescriptorOnInit()
 error_exit:
     ParaNdis_FreeRxBufferDescriptor(m_Context, p);
     return NULL;
+}
+
+/* must be called on PASSIVE from system thread */
+BOOLEAN CParaNdisRX::AllocateMore()
+{
+    BOOLEAN result = false;
+
+    // if the queue is not ready, try again later
+    if (!m_pVirtQueue->IsValid() || !m_Reinsert)
+    {
+        DPrintf(1, " Queue is not ready, try later\n");
+        return true;
+    }
+
+    if (m_NetMaxReceiveBuffers >= m_Context->maxRxBufferPerQueue || m_NetMaxReceiveBuffers >= m_pVirtQueue->GetRingSize())
+    {
+        return result;
+    }
+    pRxNetDescriptor pBuffersDescriptor = CreateRxDescriptorOnInit();
+
+    TPassiveSpinLocker autoLock(m_Lock);
+
+    if (pBuffersDescriptor)
+    {
+        pBuffersDescriptor->Queue = this;
+        if (m_pVirtQueue->CanTouchHardware() && AddRxBufferToQueue(pBuffersDescriptor))
+        {
+            InsertTailList(&m_NetReceiveBuffers, &pBuffersDescriptor->listEntry);
+            m_NetNofReceiveBuffers++;
+            m_NetMaxReceiveBuffers++;
+            RecalculateLimits();
+            KickRXRing();
+            result = true;
+        }
+        else
+        {
+            ParaNdis_FreeRxBufferDescriptor(m_Context, pBuffersDescriptor);
+        }
+    }
+    return result;
 }
 
 /* TODO - make it method in pRXNetDescriptor */
