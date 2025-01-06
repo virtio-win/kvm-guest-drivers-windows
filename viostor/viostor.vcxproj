@@ -152,13 +152,39 @@
   <ItemDefinitionGroup>
     <CustomBuildStep>
       <Command>
-        copy /Y $(ProjectDir)viostor.DVL.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)
+        echo Copying $(TargetName).DVL.XML to Install\$(TargetOS)\$(TargetArch)\$(TargetName).DVL.XML
+        copy /Y $(ProjectDir)$(TargetName).DVL.XML^
+         $(ProjectDir)Install\$(TargetOS)\$(TargetArch)
+        echo Copying $(IntDir)vc.nativecodeanalysis.all.xml to $(ProjectDir)
         copy /Y $(IntDir)vc.nativecodeanalysis.all.xml $(ProjectDir)
-        call "..\build\dvl1903.bat" "$(ProjectDir)\$(IntDir)" "$(TargetName)" "$(Configuration)" "$(Platform)"
-        copy /Y $(ProjectDir)viostor.DVL.XML $(ProjectDir)Install\$(TargetOS)\$(TargetArch)\viostor.DVL-win10.XML
+        if "$(TargetOS)"=="Win10" (
+          echo Copying $(TargetName).DVL.XML to $(ProjectDir)$(TargetName).DVL-win10-latest.XML
+          copy /Y $(ProjectDir)$(TargetName).DVL.XML^
+           $(ProjectDir)$(TargetName).DVL-win10-latest.XML
+        )
+        if "$(TargetOS)"=="Win11" (
+          echo Copying $(TargetName).DVL.XML to $(ProjectDir)$(TargetName).DVL-win11-latest.XML
+          copy /Y $(ProjectDir)$(TargetName).DVL.XML^
+           $(ProjectDir)$(TargetName).DVL-win11-latest.XML
+        )
+        call "..\build\makeLegacyDVLs.bat" "$(ProjectDir)" "$(IntDir)" "$(TargetName)" "$(Configuration)" "$(Platform)"
+        if exist "$(ProjectDir)$(TargetName).DVL-win10-1903.XML" (
+          echo Copying $(TargetName).DVL-win10-1903.XML to Install\$(TargetOS)\$(TargetArch)\$(TargetName).DVL-win10.XML
+          copy /Y $(ProjectDir)$(TargetName).DVL-win10-1903.XML^
+           $(ProjectDir)Install\$(TargetOS)\$(TargetArch)\$(TargetName).DVL-win10.XML
+        ) else (
+          echo Unable to copy Win10 DVL $(ProjectDir)$(TargetName).DVL-win10-1903.XML - it does not exist.
+        )
+        if exist "$(ProjectDir)$(TargetName).DVL-win10-1607.XML" (
+          echo Copying $(TargetName).DVL-win10-1607.XML to Install\$(TargetOS)\$(TargetArch)\$(TargetName).DVL-compat.XML
+          copy /Y $(ProjectDir)$(TargetName).DVL-win10-1607.XML^
+           $(ProjectDir)Install\$(TargetOS)\$(TargetArch)\$(TargetName).DVL-compat.XML
+        ) else (
+          echo Unable to copy COMPAT DVL $(ProjectDir)$(TargetName).DVL-win10-1607.XML - it does not exist.
+        )
       </Command>
-      <Inputs>$(IntDir)vc.nativecodeanalysis.all.xml;$(ProjectDir)viostor.DVL.XML</Inputs>
-      <Outputs>$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\viostor.DVL.XML;$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\viostor.DVL-win10.XML</Outputs>
+      <Inputs>$(IntDir)vc.nativecodeanalysis.all.xml;$(ProjectDir)$(TargetName).DVL.XML</Inputs>
+      <Outputs>$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\$(TargetName).DVL.XML;$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\$(TargetName).DVL-win10.XML</Outputs>
     </CustomBuildStep>
     <ClCompile>
       <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">true</WppEnabled>
