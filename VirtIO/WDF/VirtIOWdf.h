@@ -35,7 +35,8 @@
 #include "virtio_pci.h"
 
 /* Configures a virtqueue, see VirtIOWdfInitQueues. */
-typedef struct virtio_wdf_queue_param {
+typedef struct virtio_wdf_queue_param
+{
     /* interrupt associated with the queue */
     WDFINTERRUPT Interrupt;
 } VIRTIO_WDF_QUEUE_PARAM, *PVIRTIO_WDF_QUEUE_PARAM;
@@ -43,7 +44,8 @@ typedef struct virtio_wdf_queue_param {
 /* Data associated with a WDF virtio driver, usually declared as
  * a field in the driver's context structure and treated opaque.
  */
-typedef struct virtio_wdf_driver {
+typedef struct virtio_wdf_driver
+{
     VirtIODevice VIODevice;
 
     ULONG MemoryTag;
@@ -65,16 +67,18 @@ typedef struct virtio_wdf_driver {
 } VIRTIO_WDF_DRIVER, *PVIRTIO_WDF_DRIVER;
 
 /* Queue discovery callbacks used by VirtIOWdfInitQueuesCB. */
-typedef void (*VirtIOWdfGetQueueParamCallback)(PVIRTIO_WDF_DRIVER pWdfDriver, ULONG uQueueIndex,
+typedef void (*VirtIOWdfGetQueueParamCallback)(PVIRTIO_WDF_DRIVER pWdfDriver,
+                                               ULONG uQueueIndex,
                                                PVIRTIO_WDF_QUEUE_PARAM pQueueParam);
-typedef void (*VirtIOWdfSetQueueCallback)(PVIRTIO_WDF_DRIVER pWdfDriver, ULONG uQueueIndex,
-                                          struct virtqueue *pQueue);
+typedef void (*VirtIOWdfSetQueueCallback)(PVIRTIO_WDF_DRIVER pWdfDriver, ULONG uQueueIndex, struct virtqueue *pQueue);
 
 /* Initializes the VIRTIO_WDF_DRIVER context, called from driver's
  * EvtDevicePrepareHardware callback.
  */
-NTSTATUS VirtIOWdfInitialize(PVIRTIO_WDF_DRIVER pWdfDriver, WDFDEVICE Device,
-                             WDFCMRESLIST ResourcesTranslated, WDFINTERRUPT ConfigInterrupt,
+NTSTATUS VirtIOWdfInitialize(PVIRTIO_WDF_DRIVER pWdfDriver,
+                             WDFDEVICE Device,
+                             WDFCMRESLIST ResourcesTranslated,
+                             WDFINTERRUPT ConfigInterrupt,
                              ULONG MemoryTag);
 
 /* Device/driver feature negotiation routines. These can be called from
@@ -89,7 +93,8 @@ NTSTATUS VirtIOWdfInitialize(PVIRTIO_WDF_DRIVER pWdfDriver, WDFDEVICE Device,
  * call to VirtIOWdfInitQueues or VirtIOWdfInitQueuesCB
  */
 ULONGLONG VirtIOWdfGetDeviceFeatures(PVIRTIO_WDF_DRIVER pWdfDriver);
-NTSTATUS VirtIOWdfSetDriverFeatures(PVIRTIO_WDF_DRIVER pWdfDriver, ULONGLONG uPrivateFeaturesOn,
+NTSTATUS VirtIOWdfSetDriverFeatures(PVIRTIO_WDF_DRIVER pWdfDriver,
+                                    ULONGLONG uPrivateFeaturesOn,
                                     ULONGLONG uFeaturesOff);
 
 /* Queue discovery entry points. Must be called after each device reset as
@@ -98,9 +103,12 @@ NTSTATUS VirtIOWdfSetDriverFeatures(PVIRTIO_WDF_DRIVER pWdfDriver, ULONGLONG uPr
  * The regular version uses caller-allocated arrays for the same. They are
  * functionally equivalent.
  */
-NTSTATUS VirtIOWdfInitQueues(PVIRTIO_WDF_DRIVER pWdfDriver, ULONG nQueues,
-                             struct virtqueue **pQueues, PVIRTIO_WDF_QUEUE_PARAM pQueueParams);
-NTSTATUS VirtIOWdfInitQueuesCB(PVIRTIO_WDF_DRIVER pWdfDriver, ULONG nQueues,
+NTSTATUS VirtIOWdfInitQueues(PVIRTIO_WDF_DRIVER pWdfDriver,
+                             ULONG nQueues,
+                             struct virtqueue **pQueues,
+                             PVIRTIO_WDF_QUEUE_PARAM pQueueParams);
+NTSTATUS VirtIOWdfInitQueuesCB(PVIRTIO_WDF_DRIVER pWdfDriver,
+                               ULONG nQueues,
                                VirtIOWdfGetQueueParamCallback pQueueParamFunc,
                                VirtIOWdfSetQueueCallback pSetQueueFunc);
 
@@ -149,7 +157,8 @@ void VirtIOWdfDeviceFreeDmaMemory(VirtIODevice *vdev, void *va);
 /* PASSIVE, suitable for D0 exit */
 void VirtIOWdfDeviceFreeDmaMemoryByTag(VirtIODevice *vdev, ULONG groupTag);
 
-typedef struct virtio_dma_transaction_params {
+typedef struct virtio_dma_transaction_params
+{
     /* IN */
     PVOID param1; /* scratch field to be used by the callback */
     PVOID param2;
@@ -179,9 +188,11 @@ typedef BOOLEAN (*VirtIOWdfDmaTransactionCallback)(PVIRTIO_DMA_TRANSACTION_PARAM
  *      with cancelled request which SG is enqueued in TX virtq
  * IRQL: <= DISPATCH, callback is called on DISPATCH
  */
-BOOLEAN VirtIOWdfDeviceDmaTxAsync(VirtIODevice *vdev, PVIRTIO_DMA_TRANSACTION_PARAMS params,
+BOOLEAN VirtIOWdfDeviceDmaTxAsync(VirtIODevice *vdev,
+                                  PVIRTIO_DMA_TRANSACTION_PARAMS params,
                                   VirtIOWdfDmaTransactionCallback);
-BOOLEAN VirtIOWdfDeviceDmaRxAsync(VirtIODevice *vdev, PVIRTIO_DMA_TRANSACTION_PARAMS params,
+BOOLEAN VirtIOWdfDeviceDmaRxAsync(VirtIODevice *vdev,
+                                  PVIRTIO_DMA_TRANSACTION_PARAMS params,
                                   VirtIOWdfDmaTransactionCallback);
 
 /* <= DISPATCH transaction = VIRTIO_DMA_TRANSACTION_PARAMS.transaction */
@@ -189,7 +200,8 @@ void VirtIOWdfDeviceDmaTxComplete(VirtIODevice *vdev, WDFDMATRANSACTION transact
 /* <= DISPATCH transaction = VIRTIO_DMA_TRANSACTION_PARAMS.transaction */
 void VirtIOWdfDeviceDmaRxComplete(VirtIODevice *vdev, WDFDMATRANSACTION transaction, ULONG length);
 
-typedef struct virtio_dma_memory_sliced {
+typedef struct virtio_dma_memory_sliced
+{
     PVOID (*get_slice)(struct virtio_dma_memory_sliced *, PHYSICAL_ADDRESS *ppa);
     void (*return_slice)(struct virtio_dma_memory_sliced *, PVOID va);
     void (*destroy)(struct virtio_dma_memory_sliced *);
@@ -202,5 +214,4 @@ typedef struct virtio_dma_memory_sliced {
     ULONG bitmap_buffer[1];
 } VIRTIO_DMA_MEMORY_SLICED, *PVIRTIO_DMA_MEMORY_SLICED;
 
-PVIRTIO_DMA_MEMORY_SLICED VirtIOWdfDeviceAllocDmaMemorySliced(VirtIODevice *vdev, size_t blockSize,
-                                                              ULONG sliceSize);
+PVIRTIO_DMA_MEMORY_SLICED VirtIOWdfDeviceAllocDmaMemorySliced(VirtIODevice *vdev, size_t blockSize, ULONG sliceSize);

@@ -35,7 +35,8 @@
 #include <wdf.h>
 #include "kdebugprint.h"
 
-typedef struct virtio_wdf_bar {
+typedef struct virtio_wdf_bar
+{
     SINGLE_LIST_ENTRY ListEntry;
 
     int iBar;
@@ -45,7 +46,8 @@ typedef struct virtio_wdf_bar {
     bool bPortSpace;
 } VIRTIO_WDF_BAR, *PVIRTIO_WDF_BAR;
 
-typedef struct virtio_wdf_interrupt_context {
+typedef struct virtio_wdf_interrupt_context
+{
     /* This is a workaround for a WDF bug where on resource rebalance
      * it does not preserve the MessageNumber field of its internal
      * data structures describing interrupts. As a result, we fail to
@@ -68,7 +70,8 @@ NTSTATUS PCIRegisterInterrupt(WDFINTERRUPT Interrupt);
 
 u16 PCIGetMSIInterruptVector(WDFINTERRUPT Interrupt);
 
-typedef struct virtio_wdf_memory_block_context {
+typedef struct virtio_wdf_memory_block_context
+{
     PVOID pVirtualAddress;
     PHYSICAL_ADDRESS PhysicalAddress;
     WDFCOMMONBUFFER WdfBuffer;
@@ -79,7 +82,8 @@ typedef struct virtio_wdf_memory_block_context {
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIRTIO_WDF_MEMORY_BLOCK_CONTEXT, GetMemoryBlockContext)
 
-typedef struct virtio_wdf_dma_transaction_context {
+typedef struct virtio_wdf_dma_transaction_context
+{
     VIRTIO_DMA_TRANSACTION_PARAMS parameters;
     VirtIOWdfDmaTransactionCallback callback;
     PMDL mdl;

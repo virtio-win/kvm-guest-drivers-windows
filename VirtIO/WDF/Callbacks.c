@@ -55,7 +55,8 @@ static ULONGLONG mem_get_physical_address(void *context, void *virt)
 
     pa = VirtIOWdfDeviceGetPhysicalAddress(&pWdfDriver->VIODevice, virt);
 
-    if (!pa.QuadPart) {
+    if (!pa.QuadPart)
+    {
         DPrintf(0, "%s WARNING: got zero physical address\n", __FUNCTION__);
     }
     return pa.QuadPart;
@@ -66,7 +67,8 @@ static void *mem_alloc_nonpaged_block(void *context, size_t size)
     PVIRTIO_WDF_DRIVER pWdfDriver = (PVIRTIO_WDF_DRIVER)context;
 
     PVOID addr = ExAllocatePoolUninitialized(NonPagedPool, size, pWdfDriver->MemoryTag);
-    if (addr) {
+    if (addr)
+    {
         RtlZeroMemory(addr, size);
     }
     return addr;
@@ -99,9 +101,11 @@ static PVIRTIO_WDF_BAR find_bar(void *context, int bar)
     PVIRTIO_WDF_DRIVER pWdfDriver = (PVIRTIO_WDF_DRIVER)context;
     PSINGLE_LIST_ENTRY iter = &pWdfDriver->PCIBars;
 
-    while (iter->Next != NULL) {
+    while (iter->Next != NULL)
+    {
         PVIRTIO_WDF_BAR pBar = CONTAINING_RECORD(iter->Next, VIRTIO_WDF_BAR, ListEntry);
-        if (pBar->iBar == bar) {
+        if (pBar->iBar == bar)
+        {
             return pBar;
         }
         iter = iter->Next;
@@ -118,17 +122,19 @@ static size_t pci_get_resource_len(void *context, int bar)
 static void *pci_map_address_range(void *context, int bar, size_t offset, size_t maxlen)
 {
     PVIRTIO_WDF_BAR pBar = find_bar(context, bar);
-    if (pBar) {
-        if (pBar->pBase == NULL) {
+    if (pBar)
+    {
+        if (pBar->pBase == NULL)
+        {
             ASSERT(!pBar->bPortSpace);
 #if defined(NTDDI_WINTHRESHOLD) && (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
-            pBar->pBase =
-                MmMapIoSpaceEx(pBar->BasePA, pBar->uLength, PAGE_READWRITE | PAGE_NOCACHE);
+            pBar->pBase = MmMapIoSpaceEx(pBar->BasePA, pBar->uLength, PAGE_READWRITE | PAGE_NOCACHE);
 #else
             pBar->pBase = MmMapIoSpace(pBar->BasePA, pBar->uLength, MmNonCached);
 #endif
         }
-        if (pBar->pBase != NULL && offset < pBar->uLength) {
+        if (pBar->pBase != NULL && offset < pBar->uLength)
+        {
             return (char *)pBar->pBase + offset;
         }
     }
@@ -140,12 +146,16 @@ static u16 vdev_get_msix_vector(void *context, int queue)
     PVIRTIO_WDF_DRIVER pWdfDriver = (PVIRTIO_WDF_DRIVER)context;
     u16 vector = VIRTIO_MSI_NO_VECTOR;
 
-    if (queue >= 0) {
+    if (queue >= 0)
+    {
         /* queue interrupt */
-        if (pWdfDriver->pQueueParams != NULL) {
+        if (pWdfDriver->pQueueParams != NULL)
+        {
             vector = PCIGetMSIInterruptVector(pWdfDriver->pQueueParams[queue].Interrupt);
         }
-    } else {
+    }
+    else
+    {
         /* on-device-config-change interrupt */
         vector = PCIGetMSIInterruptVector(pWdfDriver->ConfigInterrupt);
     }
@@ -159,13 +169,15 @@ static void vdev_sleep(void *context, unsigned int msecs)
 
     UNREFERENCED_PARAMETER(context);
 
-    if (KeGetCurrentIrql() <= APC_LEVEL) {
+    if (KeGetCurrentIrql() <= APC_LEVEL)
+    {
         LARGE_INTEGER delay;
         delay.QuadPart = Int32x32To64(msecs, -10000);
         status = KeDelayExecutionThread(KernelMode, FALSE, &delay);
     }
 
-    if (!NT_SUCCESS(status)) {
+    if (!NT_SUCCESS(status))
+    {
         /* fall back to busy wait if we're not allowed to sleep */
         KeStallExecutionProcessor(1000 * msecs);
     }
@@ -179,22 +191,22 @@ extern u16 ReadVirtIODeviceWord(ULONG_PTR ulRegister);
 extern void WriteVirtIODeviceWord(ULONG_PTR ulRegister, u16 bValue);
 
 VirtIOSystemOps VirtIOWdfSystemOps = {
-    .vdev_read_byte = ReadVirtIODeviceByte,
-    .vdev_read_word = ReadVirtIODeviceWord,
-    .vdev_read_dword = ReadVirtIODeviceRegister,
-    .vdev_write_byte = WriteVirtIODeviceByte,
-    .vdev_write_word = WriteVirtIODeviceWord,
-    .vdev_write_dword = WriteVirtIODeviceRegister,
-    .mem_alloc_contiguous_pages = mem_alloc_contiguous_pages,
-    .mem_free_contiguous_pages = mem_free_contiguous_pages,
-    .mem_get_physical_address = mem_get_physical_address,
-    .mem_alloc_nonpaged_block = mem_alloc_nonpaged_block,
-    .mem_free_nonpaged_block = mem_free_nonpaged_block,
-    .pci_read_config_byte = pci_read_config_byte,
-    .pci_read_config_word = pci_read_config_word,
-    .pci_read_config_dword = pci_read_config_dword,
-    .pci_get_resource_len = pci_get_resource_len,
-    .pci_map_address_range = pci_map_address_range,
-    .vdev_get_msix_vector = vdev_get_msix_vector,
-    .vdev_sleep = vdev_sleep,
+                                                                                                    .vdev_read_byte = ReadVirtIODeviceByte,
+                                                                                                    .vdev_read_word = ReadVirtIODeviceWord,
+                                                                                                    .vdev_read_dword = ReadVirtIODeviceRegister,
+                                                                                                    .vdev_write_byte = WriteVirtIODeviceByte,
+                                                                                                    .vdev_write_word = WriteVirtIODeviceWord,
+                                                                                                    .vdev_write_dword = WriteVirtIODeviceRegister,
+                                                                                                    .mem_alloc_contiguous_pages = mem_alloc_contiguous_pages,
+                                                                                                    .mem_free_contiguous_pages = mem_free_contiguous_pages,
+                                                                                                    .mem_get_physical_address = mem_get_physical_address,
+                                                                                                    .mem_alloc_nonpaged_block = mem_alloc_nonpaged_block,
+                                                                                                    .mem_free_nonpaged_block = mem_free_nonpaged_block,
+                                                                                                    .pci_read_config_byte = pci_read_config_byte,
+                                                                                                    .pci_read_config_word = pci_read_config_word,
+                                                                                                    .pci_read_config_dword = pci_read_config_dword,
+                                                                                                    .pci_get_resource_len = pci_get_resource_len,
+                                                                                                    .pci_map_address_range = pci_map_address_range,
+                                                                                                    .vdev_get_msix_vector = vdev_get_msix_vector,
+                                                                                                    .vdev_sleep = vdev_sleep,
 };

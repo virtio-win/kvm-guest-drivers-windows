@@ -1,40 +1,40 @@
 /*
-* Virtio PCI driver
-*
-* This module allows virtio devices to be used over a virtual PCI device.
-* This can be used with QEMU based VMMs like KVM or Xen.
-*
-* Copyright IBM Corp. 2007
-*
-* Authors:
-*  Anthony Liguori  <aliguori@us.ibm.com>
-*
-* This header is BSD licensed so anyone can use the definitions to implement
-* compatible drivers/servers.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions
-* are met:
-* 1. Redistributions of source code must retain the above copyright
-*    notice, this list of conditions and the following disclaimer.
-* 2. Redistributions in binary form must reproduce the above copyright
-*    notice, this list of conditions and the following disclaimer in the
-*    documentation and/or other materials provided with the distribution.
-* 3. Neither the name of IBM nor the names of its contributors
-*    may be used to endorse or promote products derived from this software
-*    without specific prior written permission.
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ``AS IS'' AND
-* ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-* IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
-* ARE DISCLAIMED.  IN NO EVENT SHALL IBM OR CONTRIBUTORS BE LIABLE
-* FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-* DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
-* OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
-* HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-* LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
-* OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
-* SUCH DAMAGE.
-*/
+ * Virtio PCI driver
+ *
+ * This module allows virtio devices to be used over a virtual PCI device.
+ * This can be used with QEMU based VMMs like KVM or Xen.
+ *
+ * Copyright IBM Corp. 2007
+ *
+ * Authors:
+ *  Anthony Liguori  <aliguori@us.ibm.com>
+ *
+ * This header is BSD licensed so anyone can use the definitions to implement
+ * compatible drivers/servers.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. Neither the name of IBM nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL IBM OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ */
 
 #ifndef _LINUX_VIRTIO_PCI_H
 #define _LINUX_VIRTIO_PCI_H
@@ -66,8 +66,8 @@
 #define VIRTIO_PCI_STATUS                   18
 
 /* An 8-bit r/o interrupt status register.  Reading the value will return the
-* current contents of the ISR and will also clear it.  This is effectively
-* a read-and-acknowledge. */
+ * current contents of the ISR and will also clear it.  This is effectively
+ * a read-and-acknowledge. */
 #define VIRTIO_PCI_ISR                      19
 
 /* MSI-X registers: only enabled if MSI-X is enabled. */
@@ -77,17 +77,17 @@
 #define VIRTIO_MSI_QUEUE_VECTOR             22
 
 /* The remaining space is defined by each driver as the per-driver
-* configuration space */
+ * configuration space */
 #define VIRTIO_PCI_CONFIG_OFF(msix_enabled) ((msix_enabled) ? 24 : 20)
 /* Deprecated: please use VIRTIO_PCI_CONFIG_OFF instead */
 #define VIRTIO_PCI_CONFIG(msix_enabled)     VIRTIO_PCI_CONFIG_OFF(msix_enabled)
 
 /* How many bits to shift physical queue address written to QUEUE_PFN.
-* 12 is historical, and due to x86 page size. */
+ * 12 is historical, and due to x86 page size. */
 #define VIRTIO_PCI_QUEUE_ADDR_SHIFT         12
 
 /* The alignment to use between consumer and producer parts of vring.
-* x86 pagesize again. */
+ * x86 pagesize again. */
 #define VIRTIO_PCI_VRING_ALIGN              4096
 
 #endif /* VIRTIO_PCI_NO_LEGACY */
@@ -111,7 +111,8 @@
 #define VIRTIO_PCI_CAP_PCI_CFG    5
 
 /* This is the PCI capability header: */
-struct virtio_pci_cap {
+struct virtio_pci_cap
+{
     __u8 cap_vndr;   /* Generic PCI field: PCI_CAPABILITY_ID_VENDOR_SPECIFIC */
     __u8 cap_next;   /* Generic PCI field: next ptr. */
     __u8 cap_len;    /* Generic PCI field: capability length */
@@ -122,13 +123,15 @@ struct virtio_pci_cap {
     __le32 length;   /* Length of the structure, in bytes. */
 };
 
-struct virtio_pci_notify_cap {
+struct virtio_pci_notify_cap
+{
     struct virtio_pci_cap cap;
     __le32 notify_off_multiplier; /* Multiplier for queue_notify_off. */
 };
 
 /* Fields in VIRTIO_PCI_CAP_COMMON_CFG: */
-struct virtio_pci_common_cfg {
+struct virtio_pci_common_cfg
+{
     /* About the whole device. */
     __le32 device_feature_select; /* read-write */
     __le32 device_feature;        /* read-only */
@@ -155,7 +158,8 @@ struct virtio_pci_common_cfg {
 
 #define MAX_QUEUES_PER_DEVICE_DEFAULT 8
 
-typedef struct virtio_queue_info {
+typedef struct virtio_queue_info
+{
     /* the actual virtqueue */
     struct virtqueue *vq;
     /* the number of entries in the queue */
@@ -164,7 +168,8 @@ typedef struct virtio_queue_info {
     void *queue;
 } VirtIOQueueInfo;
 
-typedef struct virtio_system_ops {
+typedef struct virtio_system_ops
+{
     // device register access
     u8 (*vdev_read_byte)(ULONG_PTR ulRegister);
     u16 (*vdev_read_word)(ULONG_PTR ulRegister);
@@ -197,7 +202,8 @@ typedef struct virtio_system_ops {
 struct virtio_device;
 typedef struct virtio_device VirtIODevice;
 
-struct virtio_device_ops {
+struct virtio_device_ops
+{
     // read/write device config and read config generation counter
     void (*get_config)(VirtIODevice *vdev, unsigned offset, void *buf, unsigned len);
     void (*set_config)(VirtIODevice *vdev, unsigned offset, const void *buf, unsigned len);
@@ -218,19 +224,22 @@ struct virtio_device_ops {
 
     // query virtual queue size and memory requirements
     NTSTATUS(*query_queue_alloc)
-    (VirtIODevice *vdev, unsigned index, unsigned short *pNumEntries, unsigned long *pRingSize,
+    (VirtIODevice *vdev,
+     unsigned index,
+     unsigned short *pNumEntries,
+     unsigned long *pRingSize,
      unsigned long *pHeapSize);
 
     // allocate and initialize a queue
     NTSTATUS(*setup_queue)
-    (struct virtqueue **queue, VirtIODevice *vdev, VirtIOQueueInfo *info, unsigned idx,
-     u16 msix_vec);
+    (struct virtqueue **queue, VirtIODevice *vdev, VirtIOQueueInfo *info, unsigned idx, u16 msix_vec);
 
     // tear down and deallocate a queue
     void (*delete_queue)(VirtIOQueueInfo *info);
 };
 
-struct virtio_device {
+struct virtio_device
+{
     // the I/O port BAR of the PCI device (legacy virtio devices only)
     ULONG_PTR addr;
 
@@ -280,8 +289,10 @@ struct virtio_device {
  * its fields must be non-NULL. msix_used is true if and only if the device is
  * configured with MSI support.
  */
-NTSTATUS virtio_device_initialize(VirtIODevice *vdev, const VirtIOSystemOps *pSystemOps,
-                                  void *DeviceContext, bool msix_used);
+NTSTATUS virtio_device_initialize(VirtIODevice *vdev,
+                                  const VirtIOSystemOps *pSystemOps,
+                                  void *DeviceContext,
+                                  bool msix_used);
 void virtio_device_shutdown(VirtIODevice *vdev);
 
 /* Driver API: device status manipulation
@@ -327,8 +338,10 @@ void virtio_set_config(VirtIODevice *vdev, unsigned offset, void *buf, unsigned 
  * up the device config vector as a convenience.
  * Drivers should treat the returned struct virtqueue pointers as opaque handles.
  */
-NTSTATUS virtio_query_queue_allocation(VirtIODevice *vdev, unsigned index,
-                                       unsigned short *pNumEntries, unsigned long *pRingSize,
+NTSTATUS virtio_query_queue_allocation(VirtIODevice *vdev,
+                                       unsigned index,
+                                       unsigned short *pNumEntries,
+                                       unsigned long *pRingSize,
                                        unsigned long *pHeapSize);
 
 NTSTATUS virtio_reserve_queue_memory(VirtIODevice *vdev, unsigned nvqs);
