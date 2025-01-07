@@ -37,18 +37,16 @@
 int nDebugLevel = 0;
 int bDebugPrint = 0;
 
-#define     TEMP_BUFFER_SIZE        256
+#define TEMP_BUFFER_SIZE 256
 
 // Global debug printout level and enable\disable flag
 int virtioDebugLevel;
 int driverDebugLevel;
 ULONG driverDebugFlags;
 
-
-
 #if defined(COM_DEBUG)
 
-#define RHEL_DEBUG_PORT     ((PUCHAR)0x3F8)
+#define RHEL_DEBUG_PORT ((PUCHAR)0x3F8)
 
 static void DebugPrintFuncSerial(const char *format, ...)
 {
@@ -109,15 +107,14 @@ static void NoDebugPrintFunc(const char *format, ...)
     UNREFERENCED_PARAMETER(format);
 }
 
-
-void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING RegistryPath)
+void InitializeDebugPrints(IN PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 {
-    //TBD - Read nDebugLevel and bDebugPrint from the registry
+    // TBD - Read nDebugLevel and bDebugPrint from the registry
     WPP_INIT_TRACING(DriverObject, RegistryPath);
     bDebugPrint = 1;
     virtioDebugLevel = 0;
 #if defined(EVENT_TRACING)
-	VirtioDebugPrintProc = DebugPrintFunc;
+    VirtioDebugPrintProc = DebugPrintFunc;
 #elif defined(PRINT_DEBUG)
     VirtioDebugPrintProc = DebugPrintFunc;
 #elif defined(COM_DEBUG)
@@ -127,7 +124,7 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING Regi
 #endif
     driverDebugFlags = 0xffffffff;
     driverDebugLevel = TRACE_LEVEL_NONE;
-    //virtioDebugLevel = 4;
+    // virtioDebugLevel = 4;
 }
 
 tDebugPrintFunc VirtioDebugPrintProc;
