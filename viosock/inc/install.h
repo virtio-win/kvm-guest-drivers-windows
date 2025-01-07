@@ -30,10 +30,8 @@
 #ifndef INSTALL_H
 #define INSTALL_H
 
-BOOL
-InstallProtocol();
+BOOL InstallProtocol();
 
-BOOL
-DeinstallProtocol();
+BOOL DeinstallProtocol();
 
-#endif //INSTALL_H
+#endif // INSTALL_H

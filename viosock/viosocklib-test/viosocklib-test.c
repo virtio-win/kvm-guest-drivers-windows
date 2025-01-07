@@ -4,12 +4,9 @@
 #include "pch.h"
 #include "..\inc\install.h"
 
-#define DEST_PORT   1025
+#define DEST_PORT 1025
 
-VOID
-PrintProtocolInfo(
-    LPWSAPROTOCOL_INFO pProtocolInfo
-)
+VOID PrintProtocolInfo(LPWSAPROTOCOL_INFO pProtocolInfo)
 {
     _tprintf(_T("szProtocol: %s\n\
 \tdwServiceFlags1: 0x%x\n\
@@ -31,42 +28,40 @@ PrintProtocolInfo(
 \tiSecurityScheme: %d\n\
 \tdwMessageSize: %u\n\
 \tdwProviderReserved: %u\n\n"),
-pProtocolInfo->szProtocol,
-pProtocolInfo->dwServiceFlags1,
-pProtocolInfo->dwServiceFlags2,
-pProtocolInfo->dwServiceFlags3,
-pProtocolInfo->dwServiceFlags4,
-pProtocolInfo->dwProviderFlags,
-pProtocolInfo->ProviderId.Data1,
-pProtocolInfo->ProviderId.Data2,
-pProtocolInfo->ProviderId.Data3,
-pProtocolInfo->ProviderId.Data4[0],
-pProtocolInfo->ProviderId.Data4[1],
-pProtocolInfo->ProviderId.Data4[2],
-pProtocolInfo->ProviderId.Data4[3],
-pProtocolInfo->ProviderId.Data4[4],
-pProtocolInfo->ProviderId.Data4[5],
-pProtocolInfo->ProviderId.Data4[6],
-pProtocolInfo->ProviderId.Data4[7],
-pProtocolInfo->dwCatalogEntryId,
-pProtocolInfo->ProtocolChain.ChainLen,
-pProtocolInfo->iVersion,
-pProtocolInfo->iAddressFamily,
-pProtocolInfo->iMaxSockAddr,
-pProtocolInfo->iMinSockAddr,
-pProtocolInfo->iSocketType,
-pProtocolInfo->iProtocol,
-pProtocolInfo->iProtocolMaxOffset,
-pProtocolInfo->iNetworkByteOrder,
-pProtocolInfo->iSecurityScheme,
-pProtocolInfo->dwMessageSize,
-pProtocolInfo->dwProviderReserved
-);
+             pProtocolInfo->szProtocol,
+             pProtocolInfo->dwServiceFlags1,
+             pProtocolInfo->dwServiceFlags2,
+             pProtocolInfo->dwServiceFlags3,
+             pProtocolInfo->dwServiceFlags4,
+             pProtocolInfo->dwProviderFlags,
+             pProtocolInfo->ProviderId.Data1,
+             pProtocolInfo->ProviderId.Data2,
+             pProtocolInfo->ProviderId.Data3,
+             pProtocolInfo->ProviderId.Data4[0],
+             pProtocolInfo->ProviderId.Data4[1],
+             pProtocolInfo->ProviderId.Data4[2],
+             pProtocolInfo->ProviderId.Data4[3],
+             pProtocolInfo->ProviderId.Data4[4],
+             pProtocolInfo->ProviderId.Data4[5],
+             pProtocolInfo->ProviderId.Data4[6],
+             pProtocolInfo->ProviderId.Data4[7],
+             pProtocolInfo->dwCatalogEntryId,
+             pProtocolInfo->ProtocolChain.ChainLen,
+             pProtocolInfo->iVersion,
+             pProtocolInfo->iAddressFamily,
+             pProtocolInfo->iMaxSockAddr,
+             pProtocolInfo->iMinSockAddr,
+             pProtocolInfo->iSocketType,
+             pProtocolInfo->iProtocol,
+             pProtocolInfo->iProtocolMaxOffset,
+             pProtocolInfo->iNetworkByteOrder,
+             pProtocolInfo->iSecurityScheme,
+             pProtocolInfo->dwMessageSize,
+             pProtocolInfo->dwProviderReserved);
 }
 
 #ifdef AMD64
-BOOL
-EnumProtocols32()
+BOOL EnumProtocols32()
 {
     BOOL bRes = FALSE;
     DWORD lpdwBufferLength = 0;
@@ -95,7 +90,9 @@ EnumProtocols32()
 
                 _tprintf(_T("--------WOW Protocol list:--------\n"));
                 for (i = 0; i < iProtos; ++i)
+                {
                     PrintProtocolInfo(&pProtocolList[i]);
+                }
 
                 bRes = TRUE;
             }
@@ -108,10 +105,9 @@ EnumProtocols32()
     }
     return bRes;
 }
-#endif //AMD64
+#endif // AMD64
 
-BOOL
-EnumProtocols()
+BOOL EnumProtocols()
 {
     BOOL bRes = FALSE;
     DWORD lpdwBufferLength = 0;
@@ -140,12 +136,14 @@ EnumProtocols()
 
                 _tprintf(_T("Protocol list:\n"));
                 for (i = 0; i < iProtos; ++i)
+                {
                     PrintProtocolInfo(&pProtocolList[i]);
+                }
 #ifdef AMD64
                 bRes = EnumProtocols32();
-#else //AMD64
+#else  // AMD64
                 bRes = TRUE;
-#endif //AMD64
+#endif // AMD64
             }
         }
         else
@@ -156,8 +154,7 @@ EnumProtocols()
     return bRes;
 }
 
-VOID
-Usage()
+VOID Usage()
 {
     _tprintf(_T("Usage:\tviosocklib-test.exe /[i|d|e]\n\
 \tviosocklib-test.exe /[c|l] [cid:]port filepath\n\
@@ -173,16 +170,16 @@ Usage()
 "));
 }
 
-BOOL
-ReadBufferFromFile(
-    PTCHAR sFileName,
-    PVOID *Buffer,
-    PULONG BufferLen
-)
+BOOL ReadBufferFromFile(PTCHAR sFileName, PVOID *Buffer, PULONG BufferLen)
 {
     BOOL bRes = FALSE;
-    HANDLE hFile = CreateFile(sFileName, GENERIC_READ,
-        FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    HANDLE hFile = CreateFile(sFileName,
+                              GENERIC_READ,
+                              FILE_SHARE_READ,
+                              NULL,
+                              OPEN_EXISTING,
+                              FILE_ATTRIBUTE_NORMAL,
+                              NULL);
     if (hFile != INVALID_HANDLE_VALUE)
     {
         DWORD dwSize = GetFileSize(hFile, NULL);
@@ -193,7 +190,7 @@ ReadBufferFromFile(
             {
                 if (ReadFile(hFile, *Buffer, dwSize, BufferLen, NULL))
                 {
-                    _tprintf(_T("read %d bytes from %s\n"),*BufferLen, sFileName);
+                    _tprintf(_T("read %d bytes from %s\n"), *BufferLen, sFileName);
                     bRes = TRUE;
                 }
                 else
@@ -206,7 +203,7 @@ ReadBufferFromFile(
             {
                 _tprintf(_T("malloc failed: %d\n"), GetLastError());
             }
-       }
+        }
         else
         {
             _tprintf(_T("Empty file specified\n"));
@@ -220,16 +217,10 @@ ReadBufferFromFile(
     return bRes;
 }
 
-BOOL
-AddBufferToFile(
-    PTCHAR sFileName,
-    PVOID Buffer,
-    ULONG BufferLen
-)
+BOOL AddBufferToFile(PTCHAR sFileName, PVOID Buffer, ULONG BufferLen)
 {
     BOOL bRes = FALSE;
-    HANDLE hFile = CreateFile(sFileName, GENERIC_WRITE,
-        0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    HANDLE hFile = CreateFile(sFileName, GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     if (hFile != INVALID_HANDLE_VALUE)
     {
         DWORD dwSize = SetFilePointer(hFile, 0, NULL, FILE_END);
@@ -260,16 +251,11 @@ AddBufferToFile(
     return bRes;
 }
 
-BOOL
-Send(
-    SOCKET sock,
-    PCHAR Buffer,
-    DWORD *BufferLen
-)
+BOOL Send(SOCKET sock, PCHAR Buffer, DWORD *BufferLen)
 {
     while (BufferLen)
     {
-        int len = send(sock, (char*)Buffer, *BufferLen, 0);
+        int len = send(sock, (char *)Buffer, *BufferLen, 0);
         if (len == SOCKET_ERROR)
         {
             _tprintf(_T("send failed: %d\n"), WSAGetLastError());
@@ -290,12 +276,7 @@ Send(
     return TRUE;
 }
 
-BOOL
-Recv(
-    SOCKET sock,
-    PCHAR Buffer,
-    DWORD *BufferLen
-)
+BOOL Recv(SOCKET sock, PCHAR Buffer, DWORD *BufferLen)
 {
     int len = recv(sock, Buffer, *BufferLen, 0);
 
@@ -319,14 +300,10 @@ Recv(
     return TRUE;
 }
 
-int
-SocketConnectTest(
-    PSOCKADDR_VM    addr,
-    PTCHAR          sFileName
-)
+int SocketConnectTest(PSOCKADDR_VM addr, PTCHAR sFileName)
 {
     SOCKET sock = INVALID_SOCKET;
-    WSADATA wsaData = { 0 };
+    WSADATA wsaData = {0};
     ADDRESS_FAMILY AF;
 
     int iRes = WSAStartup(MAKEWORD(2, 2), &wsaData);
@@ -349,10 +326,12 @@ SocketConnectTest(
     if (sock != INVALID_SOCKET)
     {
         if (addr->svm_cid == VMADDR_CID_ANY)
+        {
             addr->svm_cid = VMADDR_CID_HOST;
+        }
 
         addr->svm_family = AF;
-        if (ERROR_SUCCESS == connect(sock, (struct sockaddr*)addr, sizeof(*addr)))
+        if (ERROR_SUCCESS == connect(sock, (struct sockaddr *)addr, sizeof(*addr)))
         {
             PVOID Buffer;
             DWORD BufferLen;
@@ -370,7 +349,9 @@ SocketConnectTest(
                     if (Recv(sock, ackBuffer, &BufferLen) && BufferLen)
                     {
                         if (BufferLen == sizeof(ackBuffer))
+                        {
                             BufferLen--;
+                        }
 
                         ackBuffer[BufferLen] = 0;
                         printf("Ack: %s\n", ackBuffer);
@@ -380,26 +361,26 @@ SocketConnectTest(
             }
         }
         else
+        {
             _tprintf(_T("connect failed: %d\n"), WSAGetLastError());
+        }
 
         shutdown(sock, SD_BOTH);
         closesocket(sock);
     }
     else
+    {
         _tprintf(_T("socket failed: %d\n"), WSAGetLastError());
+    }
 
     WSACleanup();
     return 0;
 }
 
-int
-SocketListenTest(
-    PSOCKADDR_VM    addr,
-    PTCHAR          sFileName
-)
+int SocketListenTest(PSOCKADDR_VM addr, PTCHAR sFileName)
 {
     SOCKET sock = INVALID_SOCKET;
-    WSADATA wsaData = { 0 };
+    WSADATA wsaData = {0};
     ADDRESS_FAMILY AF;
 
     int iRes = WSAStartup(MAKEWORD(2, 2), &wsaData);
@@ -429,17 +410,17 @@ SocketListenTest(
     {
         addr->svm_family = AF;
 
-        if (ERROR_SUCCESS == bind(sock, (struct sockaddr*)addr, sizeof(*addr)))
+        if (ERROR_SUCCESS == bind(sock, (struct sockaddr *)addr, sizeof(*addr)))
         {
             if (ERROR_SUCCESS == listen(sock, 10))
             {
-                SOCKADDR_VM rAddr = { 0 };
+                SOCKADDR_VM rAddr = {0};
                 int len = sizeof(rAddr);
-                SOCKET  aSock;
+                SOCKET aSock;
 
                 _tprintf(_T("listen success\n"));
 
-                aSock = accept(sock, (struct sockaddr*)&rAddr, &len);
+                aSock = accept(sock, (struct sockaddr *)&rAddr, &len);
                 if (aSock == INVALID_SOCKET)
                 {
                     _tprintf(_T("accept failed: %d\n"), WSAGetLastError());
@@ -467,25 +448,27 @@ SocketListenTest(
                 }
             }
             else
+            {
                 _tprintf(_T("listen failed: %d\n"), WSAGetLastError());
+            }
         }
         else
+        {
             _tprintf(_T("bind failed: %d\n"), WSAGetLastError());
+        }
 
         closesocket(sock);
     }
     else
+    {
         _tprintf(_T("socket failed: %d\n"), WSAGetLastError());
+    }
 
     WSACleanup();
     return 0;
 }
 
-BOOL
-ParseAddr(
-    PTCHAR  AddrString,
-    PSOCKADDR_VM addr
-)
+BOOL ParseAddr(PTCHAR AddrString, PSOCKADDR_VM addr)
 {
     addr->svm_cid = VMADDR_CID_ANY;
     addr->svm_port = VMADDR_PORT_ANY;
@@ -524,13 +507,13 @@ ParseAddr(
     return TRUE;
 }
 
-int __cdecl _tmain(int argc, _TCHAR* argv[])
+int __cdecl _tmain(int argc, _TCHAR *argv[])
 {
     BOOL bUsage = FALSE;
     int iRes = 0;
-    SOCKADDR_VM addr = { 0 };
+    SOCKADDR_VM addr = {0};
 
-    if (argc < 2 || argv[1][0]!=_T('/'))
+    if (argc < 2 || argv[1][0] != _T('/'))
     {
         Usage();
         return 1;
@@ -538,95 +521,105 @@ int __cdecl _tmain(int argc, _TCHAR* argv[])
 
     switch (argv[1][1])
     {
-    case _T('i'):
-        if (!InstallProtocol())
-        {
-            switch (GetLastError())
+        case _T('i'):
+            if (!InstallProtocol())
             {
-            case WSAEACCES:
-                _tprintf(_T("Access denied. Protocol not registered, administrative rights required.\n"));
-                break;
-            case ERROR_NOT_SUPPORTED:
-                _tprintf(_T("Protocol not registered, use x64 app to register both x86 and x64 protocol libraries\n"));
-                break;
-            default:
-                _tprintf(_T("InstallProtocol failed: %d\n"), GetLastError());
-            }
-            iRes = 2;
-        }
-        else
-        {
-            _tprintf(_T("Protocol registered.\n"));
-        }
-        break;
-
-    case _T('d'):
-        if (!DeinstallProtocol())
-        {
-            switch (GetLastError())
-            {
-            case WSAEACCES:
-                _tprintf(_T("Access denied. Protocol not unregistered, administrative rights required.\n"));
-                break;
-            case ERROR_NOT_SUPPORTED:
-                _tprintf(_T("Protocol not unregistered, use x64 app to unregister both x86 and x64 protocol libraries\n"));
-                break;
-            default:
-                _tprintf(_T("DeinstallProtocol failed: %d\n"), GetLastError());
-            }
-
-            iRes = 3;
-        }
-        else
-        {
-            _tprintf(_T("Protocol unregistered.\n"));
-        }
-        break;
-
-    case _T('e'):
-        if (!EnumProtocols())
-            iRes = 4;
-        break;
-
-    case _T('c'):
-        if (argc >= 4)
-        {
-            if (ParseAddr(argv[2], &addr))
-            {
-                iRes = SocketConnectTest(&addr, argv[3]);
+                switch (GetLastError())
+                {
+                    case WSAEACCES:
+                        _tprintf(_T("Access denied. Protocol not registered, administrative rights required.\n"));
+                        break;
+                    case ERROR_NOT_SUPPORTED:
+                        _tprintf(_T("Protocol not registered, use x64 app to register both x86 and x64 protocol ")
+                                 _T("libraries\n"));
+                        break;
+                    default:
+                        _tprintf(_T("InstallProtocol failed: %d\n"), GetLastError());
+                }
+                iRes = 2;
             }
             else
-                iRes = 5;
-        }
-        else
-        {
-            Usage();
-        }
-        break;
-    case _T('l'):
-        if (argc >= 4)
-        {
-            if (ParseAddr(argv[2], &addr))
             {
-                iRes = SocketListenTest(&addr, argv[3]);
+                _tprintf(_T("Protocol registered.\n"));
+            }
+            break;
+
+        case _T('d'):
+            if (!DeinstallProtocol())
+            {
+                switch (GetLastError())
+                {
+                    case WSAEACCES:
+                        _tprintf(_T("Access denied. Protocol not unregistered, administrative rights required.\n"));
+                        break;
+                    case ERROR_NOT_SUPPORTED:
+                        _tprintf(_T("Protocol not unregistered, use x64 app to unregister both x86 and x64 protocol ")
+                                 _T("libraries\n"));
+                        break;
+                    default:
+                        _tprintf(_T("DeinstallProtocol failed: %d\n"), GetLastError());
+                }
+
+                iRes = 3;
             }
             else
-                iRes = 5;
-        }
-        else
-        {
-            Usage();
-        }
-        break;
+            {
+                _tprintf(_T("Protocol unregistered.\n"));
+            }
+            break;
 
-    case _T('?'):
-    default:
-        bUsage = TRUE;
-        break;
+        case _T('e'):
+            if (!EnumProtocols())
+            {
+                iRes = 4;
+            }
+            break;
+
+        case _T('c'):
+            if (argc >= 4)
+            {
+                if (ParseAddr(argv[2], &addr))
+                {
+                    iRes = SocketConnectTest(&addr, argv[3]);
+                }
+                else
+                {
+                    iRes = 5;
+                }
+            }
+            else
+            {
+                Usage();
+            }
+            break;
+        case _T('l'):
+            if (argc >= 4)
+            {
+                if (ParseAddr(argv[2], &addr))
+                {
+                    iRes = SocketListenTest(&addr, argv[3]);
+                }
+                else
+                {
+                    iRes = 5;
+                }
+            }
+            else
+            {
+                Usage();
+            }
+            break;
+
+        case _T('?'):
+        default:
+            bUsage = TRUE;
+            break;
     }
 
     if (bUsage)
+    {
         Usage();
+    }
 
     return iRes;
 }

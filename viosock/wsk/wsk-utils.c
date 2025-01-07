@@ -41,15 +41,7 @@
 #ifdef ALLOC_PRAGMA
 #endif
 
-
-
-
-_Must_inspect_result_
-NTSTATUS
-VioWskIrpAcquire(
-    _In_opt_ PVIOWSK_SOCKET Socket,
-	_Inout_ PIRP            Irp
-)
+_Must_inspect_result_ NTSTATUS VioWskIrpAcquire(_In_opt_ PVIOWSK_SOCKET Socket, _Inout_ PIRP Irp)
 {
     LONG reqCount = 0;
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
@@ -61,22 +53,21 @@ VioWskIrpAcquire(
     {
         Status = IoAcquireRemoveLock(&Socket->CloseRemoveLock, Irp);
         if (NT_SUCCESS(Status))
+        {
             reqCount = InterlockedIncrement(&Socket->RequestCount);
+        }
 
         if (!NT_SUCCESS(Status))
+        {
             Status = STATUS_FILE_FORCED_CLOSED;
+        }
     }
 
     DEBUG_EXIT_FUNCTION("0x%x, reqCount=%i", Status, reqCount);
     return Status;
 }
 
-
-void
-VioWskIrpRelease(
-    _In_opt_ PVIOWSK_SOCKET Socket,
-	_In_ PIRP               Irp
-)
+void VioWskIrpRelease(_In_opt_ PVIOWSK_SOCKET Socket, _In_ PIRP Irp)
 {
     LONG reqCount = 0;
     DEBUG_ENTER_FUNCTION("Socket=0x%p; Irp=0x%p", Socket, Irp);
@@ -91,21 +82,20 @@ VioWskIrpRelease(
     return;
 }
 
-
-
 NTSTATUS
-VioWskIrpComplete(
-	_Inout_opt_ PVIOWSK_SOCKET Socket,
-	_In_ PIRP                  Irp,
-	_In_ NTSTATUS              Status,
-	_In_ ULONG_PTR             Information
-)
+VioWskIrpComplete(_Inout_opt_ PVIOWSK_SOCKET Socket, _In_ PIRP Irp, _In_ NTSTATUS Status, _In_ ULONG_PTR Information)
 {
-    DEBUG_ENTER_FUNCTION("Socket=0x%p; Irp=0x%p; Status=0x%x; Information=%Iu", Socket, Irp, Status, (ULONG64)Information);
+    DEBUG_ENTER_FUNCTION("Socket=0x%p; Irp=0x%p; Status=0x%x; Information=%Iu",
+                         Socket,
+                         Irp,
+                         Status,
+                         (ULONG64)Information);
 
     IoSetCancelRoutine(Irp, NULL);
     if (Socket)
+    {
         VioWskIrpRelease(Socket, Irp);
+    }
 
     Irp->IoStatus.Information = Information;
     Irp->IoStatus.Status = Status;
@@ -116,13 +106,7 @@ VioWskIrpComplete(
     return Status;
 }
 
-
-void
-VioWskIrpFree(
-    _Inout_ PIRP            Irp,
-    _In_opt_ PDEVICE_OBJECT DeviceObject,
-    _In_ BOOLEAN            Completion
-)
+void VioWskIrpFree(_Inout_ PIRP Irp, _In_opt_ PDEVICE_OBJECT DeviceObject, _In_ BOOLEAN Completion)
 {
     DEBUG_ENTER_FUNCTION("Irp=0x%p; DeviceObject=0x%p; Completion=%u", Irp, DeviceObject, Completion);
 
@@ -133,8 +117,7 @@ VioWskIrpFree(
         Irp->MdlAddress = NULL;
     }
 
-    if ((Irp->Flags & IRP_BUFFERED_IO) != 0 &&
-        (Irp->Flags & IRP_DEALLOCATE_BUFFER) != 0)
+    if ((Irp->Flags & IRP_BUFFERED_IO) != 0 && (Irp->Flags & IRP_DEALLOCATE_BUFFER) != 0)
     {
         Irp->Flags &= ~(IRP_BUFFERED_IO | IRP_DEALLOCATE_BUFFER);
         ExFreePoolWithTag(Irp->AssociatedIrp.SystemBuffer, VIOSOCK_WSK_MEMORY_TAG);
@@ -147,13 +130,7 @@ VioWskIrpFree(
     return;
 }
 
-
-_Must_inspect_result_
-NTSTATUS
-VioWskAddressPartToString(
-    _In_ ULONG            Value,
-    _Out_ PUNICODE_STRING String
-)
+_Must_inspect_result_ NTSTATUS VioWskAddressPartToString(_In_ ULONG Value, _Out_ PUNICODE_STRING String)
 {
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
     DEBUG_ENTER_FUNCTION("Value=%u; String=0x%p", Value, String);
@@ -161,9 +138,12 @@ VioWskAddressPartToString(
     String->Length = 0;
     Status = RtlIntegerToUnicodeString(Value, 0, String);
     if (!NT_SUCCESS(Status))
+    {
         goto Exit;
+    }
 
-    if (String->Length == String->MaximumLength) {
+    if (String->Length == String->MaximumLength)
+    {
         Status = STATUS_BUFFER_OVERFLOW;
         goto Exit;
     }
@@ -175,26 +155,25 @@ Exit:
     return Status;
 }
 
-_Must_inspect_result_
-NTSTATUS
-VioWskStringToAddressPart(
-    _In_ PUNICODE_STRING String,
-    _Out_ PULONG         Value
-)
+_Must_inspect_result_ NTSTATUS VioWskStringToAddressPart(_In_ PUNICODE_STRING String, _Out_ PULONG Value)
 {
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
     DEBUG_ENTER_FUNCTION("String=\"%wZ\"; Value=0x%p", String, Value);
 
     *Value = 0;
-    if (String->Length > 0) {
-        if (String->Buffer[0] < L'0' || String->Buffer[0] > '9') {
+    if (String->Length > 0)
+    {
+        if (String->Buffer[0] < L'0' || String->Buffer[0] > '9')
+        {
             Status = STATUS_INVALID_PARAMETER;
             goto Exit;
         }
 
         Status = RtlUnicodeStringToInteger(String, 0, Value);
         if (!NT_SUCCESS(Status))
+        {
             goto Exit;
+        }
     }
 
 Exit:
@@ -202,71 +181,83 @@ Exit:
     return Status;
 }
 
-
-
-_Must_inspect_result_
-NTSTATUS
-VioWskSocketIOCTL(
-    _In_ PVIOWSK_SOCKET        Socket,
-    _In_ ULONG                 ControlCode,
-    _In_opt_ PVOID             InputBuffer,
-    _In_ ULONG                 InputBufferLength,
-    _Out_opt_ PVOID            OutputBuffer,
-    _In_ ULONG                 OutputBufferLength,
-    _Inout_opt_ PIRP           Irp,
-    _Out_opt_ PIO_STATUS_BLOCK IoStatusBlock
-)
+_Must_inspect_result_ NTSTATUS VioWskSocketIOCTL(_In_ PVIOWSK_SOCKET Socket,
+                                                 _In_ ULONG ControlCode,
+                                                 _In_opt_ PVOID InputBuffer,
+                                                 _In_ ULONG InputBufferLength,
+                                                 _Out_opt_ PVOID OutputBuffer,
+                                                 _In_ ULONG OutputBufferLength,
+                                                 _Inout_opt_ PIRP Irp,
+                                                 _Out_opt_ PIO_STATUS_BLOCK IoStatusBlock)
 {
-	PIRP IOCTLIrp = NULL;
-	PVIOWSK_REG_CONTEXT pContext = NULL;
-	PWSK_REGISTRATION Registraction = NULL;
-	NTSTATUS Status = STATUS_UNSUCCESSFUL;
-	PVIOSOCKET_COMPLETION_CONTEXT CompContext = NULL;
-    DEBUG_ENTER_FUNCTION("Socket=0x%p; ControlCode=0x%x; InputBuffer=0x%p; InputBufferLength=%u; OutputBuffer=0x%p; OutputBufferLength=%u; Irp=0x%p; IoStatusBLock=0x%p", Socket, ControlCode, InputBuffer, InputBufferLength, OutputBuffer, OutputBufferLength, Irp, IoStatusBlock);
+    PIRP IOCTLIrp = NULL;
+    PVIOWSK_REG_CONTEXT pContext = NULL;
+    PWSK_REGISTRATION Registraction = NULL;
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
+    PVIOSOCKET_COMPLETION_CONTEXT CompContext = NULL;
+    DEBUG_ENTER_FUNCTION("Socket=0x%p; ControlCode=0x%x; InputBuffer=0x%p; InputBufferLength=%u; OutputBuffer=0x%p; "
+                         "OutputBufferLength=%u; Irp=0x%p; IoStatusBLock=0x%p",
+                         Socket,
+                         ControlCode,
+                         InputBuffer,
+                         InputBufferLength,
+                         OutputBuffer,
+                         OutputBufferLength,
+                         Irp,
+                         IoStatusBlock);
 
     Registraction = (PWSK_REGISTRATION)Socket->Client;
     pContext = (PVIOWSK_REG_CONTEXT)Registraction->ReservedRegistrationContext;
-    Status = VioWskSocketBuildIOCTL(Socket, ControlCode, InputBuffer, InputBufferLength, OutputBuffer, OutputBufferLength, &IOCTLIrp);
+    Status = VioWskSocketBuildIOCTL(Socket,
+                                    ControlCode,
+                                    InputBuffer,
+                                    InputBufferLength,
+                                    OutputBuffer,
+                                    OutputBufferLength,
+                                    &IOCTLIrp);
     if (!NT_SUCCESS(Status))
+    {
         goto Complete;
+    }
 
     CompContext = WskCompContextAlloc(wsksSingleIOCTL, Socket, Irp, IoStatusBlock);
     if (CompContext == NULL)
     {
         Status = STATUS_INSUFFICIENT_RESOURCES;
         goto FreeIOCTL;
-	}
+    }
 
-	Status = WskCompContextSendIrp(CompContext, IOCTLIrp);
+    Status = WskCompContextSendIrp(CompContext, IOCTLIrp);
     WskCompContextDereference(CompContext);
     if (NT_SUCCESS(Status))
+    {
         IOCTLIrp = NULL;
+    }
 
     Irp = NULL;
 
 FreeIOCTL:
     if (IOCTLIrp)
+    {
         VioWskIrpFree(IOCTLIrp, NULL, FALSE);
+    }
 Complete:
     if (Irp)
+    {
         VioWskIrpComplete(Socket, Irp, Status, 0);
+    }
 
-	DEBUG_EXIT_FUNCTION("0x%x", Status);
-	return Status;
+    DEBUG_EXIT_FUNCTION("0x%x", Status);
+    return Status;
 }
 
-
-_Must_inspect_result_
-NTSTATUS
-VioWskSocketBuildIOCTL(
-    _In_ PVIOWSK_SOCKET  Socket,
-    _In_ ULONG           ControlCode,
-    _In_opt_ PVOID       InputBuffer,
-    _In_ ULONG           InputBufferLength,
-    _In_opt_ PVOID       OutputBuffer,
-    _In_ ULONG           OutputBufferLength,
-    _Out_ PIRP          *Irp
-)
+_Must_inspect_result_ NTSTATUS VioWskSocketBuildIOCTL(_In_ PVIOWSK_SOCKET Socket,
+                                                      _In_ ULONG ControlCode,
+                                                      _In_opt_ PVOID InputBuffer,
+                                                      _In_ ULONG InputBufferLength,
+                                                      _In_opt_ PVOID OutputBuffer,
+                                                      _In_ ULONG OutputBufferLength,
+                                                      _Out_ PIRP *Irp)
 {
     PIRP IOCTLIrp = NULL;
     ULONG method = 0;
@@ -274,7 +265,15 @@ VioWskSocketBuildIOCTL(
     PIO_STACK_LOCATION IrpStack = NULL;
     PVIOWSK_REG_CONTEXT pContext = NULL;
     PWSK_REGISTRATION Registraction = NULL;
-    DEBUG_ENTER_FUNCTION("Socket=0x%p; ControlCode=0x%x; InputBuffer=0x%p; InputBufferLength=%u; OutputBuffer=0x%p; OutputBufferLength=%u; Irp=0x%p", Socket, ControlCode, InputBuffer, InputBufferLength, OutputBuffer, OutputBufferLength, Irp);
+    DEBUG_ENTER_FUNCTION("Socket=0x%p; ControlCode=0x%x; InputBuffer=0x%p; InputBufferLength=%u; OutputBuffer=0x%p; "
+                         "OutputBufferLength=%u; Irp=0x%p",
+                         Socket,
+                         ControlCode,
+                         InputBuffer,
+                         InputBufferLength,
+                         OutputBuffer,
+                         OutputBufferLength,
+                         Irp);
 
     Status = STATUS_SUCCESS;
     Registraction = (PWSK_REGISTRATION)Socket->Client;
@@ -297,109 +296,127 @@ VioWskSocketBuildIOCTL(
     method = ControlCode & 3;
     switch (method)
     {
-    case METHOD_BUFFERED:
-        if (InputBufferLength != 0 || OutputBufferLength != 0)
-        {
-            IOCTLIrp->AssociatedIrp.SystemBuffer = ExAllocatePoolUninitialized(
-                NonPagedPool,
-                InputBufferLength > OutputBufferLength ? InputBufferLength : OutputBufferLength,
-                VIOSOCK_WSK_MEMORY_TAG);
-
-            if (IOCTLIrp->AssociatedIrp.SystemBuffer)
+        case METHOD_BUFFERED:
+            if (InputBufferLength != 0 || OutputBufferLength != 0)
             {
-                if (InputBuffer)
-                    memcpy(IOCTLIrp->AssociatedIrp.SystemBuffer, InputBuffer, InputBufferLength);
+                IOCTLIrp->AssociatedIrp.SystemBuffer = ExAllocatePoolUninitialized(NonPagedPool,
+                                                                                   InputBufferLength > OutputBufferLength ? InputBufferLength
+                                                                                                                          : OutputBufferLength,
+                                                                                   VIOSOCK_WSK_MEMORY_TAG);
 
-                IOCTLIrp->Flags = IRP_BUFFERED_IO | IRP_DEALLOCATE_BUFFER;
-                IOCTLIrp->UserBuffer = OutputBuffer;
-                if (OutputBuffer)
-                    IOCTLIrp->Flags |= IRP_INPUT_OPERATION;
-            }
-            else Status = STATUS_INSUFFICIENT_RESOURCES;
-        }
-        else {
-            IOCTLIrp->Flags = 0;
-            IOCTLIrp->UserBuffer = NULL;
-        }
-        break;
-    case METHOD_IN_DIRECT:
-    case METHOD_OUT_DIRECT:
-        if (InputBuffer)
-        {
-            IOCTLIrp->AssociatedIrp.SystemBuffer = ExAllocatePoolUninitialized(
-                NonPagedPool,
-                InputBufferLength,
-                VIOSOCK_WSK_MEMORY_TAG);
-
-            if (IOCTLIrp->AssociatedIrp.SystemBuffer)
-            {
-                memcpy(IOCTLIrp->AssociatedIrp.SystemBuffer, InputBuffer, InputBufferLength);
-                IOCTLIrp->Flags = IRP_BUFFERED_IO | IRP_DEALLOCATE_BUFFER;
-            }
-            else Status = STATUS_INSUFFICIENT_RESOURCES;
-        }
-        else IOCTLIrp->Flags = 0;
-
-        if (NT_SUCCESS(Status) && OutputBuffer) {
-            IOCTLIrp->MdlAddress = IoAllocateMdl(
-                OutputBuffer,
-                OutputBufferLength,
-                FALSE,
-                FALSE,
-                NULL);
-
-            if (!IOCTLIrp->MdlAddress)
-            {
-                if (InputBuffer)
-                    ExFreePoolWithTag(IOCTLIrp->AssociatedIrp.SystemBuffer, VIOSOCK_WSK_MEMORY_TAG);
-
-                Status = STATUS_INSUFFICIENT_RESOURCES;
-            }
-
-            if (NT_SUCCESS(Status)) {
-                __try
+                if (IOCTLIrp->AssociatedIrp.SystemBuffer)
                 {
-                    MmProbeAndLockPages(IOCTLIrp->MdlAddress, KernelMode, (LOCK_OPERATION)((method == METHOD_IN_DIRECT) ? IoReadAccess : IoWriteAccess));
-                }
-                __except (EXCEPTION_EXECUTE_HANDLER) {
-                    if (IOCTLIrp->MdlAddress)
-                        IoFreeMdl(IOCTLIrp->MdlAddress);
-
                     if (InputBuffer)
-                        ExFreePoolWithTag(IOCTLIrp->AssociatedIrp.SystemBuffer, VIOSOCK_WSK_MEMORY_TAG);
+                    {
+                        memcpy(IOCTLIrp->AssociatedIrp.SystemBuffer, InputBuffer, InputBufferLength);
+                    }
 
-                    Status = GetExceptionCode();
+                    IOCTLIrp->Flags = IRP_BUFFERED_IO | IRP_DEALLOCATE_BUFFER;
+                    IOCTLIrp->UserBuffer = OutputBuffer;
+                    if (OutputBuffer)
+                    {
+                        IOCTLIrp->Flags |= IRP_INPUT_OPERATION;
+                    }
+                }
+                else
+                {
+                    Status = STATUS_INSUFFICIENT_RESOURCES;
                 }
             }
-        }
-        break;
-    case METHOD_NEITHER:
-        IOCTLIrp->UserBuffer = OutputBuffer;
-        IrpStack->Parameters.DeviceIoControl.Type3InputBuffer = InputBuffer;
-        break;
-	}
+            else
+            {
+                IOCTLIrp->Flags = 0;
+                IOCTLIrp->UserBuffer = NULL;
+            }
+            break;
+        case METHOD_IN_DIRECT:
+        case METHOD_OUT_DIRECT:
+            if (InputBuffer)
+            {
+                IOCTLIrp->AssociatedIrp.SystemBuffer = ExAllocatePoolUninitialized(NonPagedPool,
+                                                                                   InputBufferLength,
+                                                                                   VIOSOCK_WSK_MEMORY_TAG);
 
-    if (NT_SUCCESS(Status)) {
+                if (IOCTLIrp->AssociatedIrp.SystemBuffer)
+                {
+                    memcpy(IOCTLIrp->AssociatedIrp.SystemBuffer, InputBuffer, InputBufferLength);
+                    IOCTLIrp->Flags = IRP_BUFFERED_IO | IRP_DEALLOCATE_BUFFER;
+                }
+                else
+                {
+                    Status = STATUS_INSUFFICIENT_RESOURCES;
+                }
+            }
+            else
+            {
+                IOCTLIrp->Flags = 0;
+            }
+
+            if (NT_SUCCESS(Status) && OutputBuffer)
+            {
+                IOCTLIrp->MdlAddress = IoAllocateMdl(OutputBuffer, OutputBufferLength, FALSE, FALSE, NULL);
+
+                if (!IOCTLIrp->MdlAddress)
+                {
+                    if (InputBuffer)
+                    {
+                        ExFreePoolWithTag(IOCTLIrp->AssociatedIrp.SystemBuffer, VIOSOCK_WSK_MEMORY_TAG);
+                    }
+
+                    Status = STATUS_INSUFFICIENT_RESOURCES;
+                }
+
+                if (NT_SUCCESS(Status))
+                {
+                    __try
+                    {
+                        MmProbeAndLockPages(IOCTLIrp->MdlAddress,
+                                            KernelMode,
+                                            (LOCK_OPERATION)((method == METHOD_IN_DIRECT) ? IoReadAccess
+                                                                                          : IoWriteAccess));
+                    }
+                    __except (EXCEPTION_EXECUTE_HANDLER)
+                    {
+                        if (IOCTLIrp->MdlAddress)
+                        {
+                            IoFreeMdl(IOCTLIrp->MdlAddress);
+                        }
+
+                        if (InputBuffer)
+                        {
+                            ExFreePoolWithTag(IOCTLIrp->AssociatedIrp.SystemBuffer, VIOSOCK_WSK_MEMORY_TAG);
+                        }
+
+                        Status = GetExceptionCode();
+                    }
+                }
+            }
+            break;
+        case METHOD_NEITHER:
+            IOCTLIrp->UserBuffer = OutputBuffer;
+            IrpStack->Parameters.DeviceIoControl.Type3InputBuffer = InputBuffer;
+            break;
+    }
+
+    if (NT_SUCCESS(Status))
+    {
         *Irp = IOCTLIrp;
         IOCTLIrp = NULL;
     }
 
     if (IOCTLIrp)
+    {
         VioWskIrpFree(IOCTLIrp, NULL, FALSE);
+    }
 Exit:
-	DEBUG_EXIT_FUNCTION("0x%x, *Irp=0x%p", Status, *Irp);
-	return Status;
+    DEBUG_EXIT_FUNCTION("0x%x, *Irp=0x%p", Status, *Irp);
+    return Status;
 }
 
-
-_Must_inspect_result_
-NTSTATUS
-VioWskSocketReadWrite(
-    _In_ PVIOWSK_SOCKET Socket,
-    const WSK_BUF      *Buffers,
-    _In_ UCHAR          MajorFunction,
-    _Inout_ PIRP        Irp
-)
+_Must_inspect_result_ NTSTATUS VioWskSocketReadWrite(_In_ PVIOWSK_SOCKET Socket,
+                                                     const WSK_BUF *Buffers,
+                                                     _In_ UCHAR MajorFunction,
+                                                     _Inout_ PIRP Irp)
 {
     PIRP OpIrp = NULL;
     ULONG firstMdlLength = 0;
@@ -409,35 +426,46 @@ VioWskSocketReadWrite(
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
     PWSK_REGISTRATION Registraction = NULL;
     PVIOSOCKET_COMPLETION_CONTEXT CompContext = NULL;
-	DEBUG_ENTER_FUNCTION("Sockect=0x%p; Buffers=0x%p; MajorFunction=%u; Irp=0x%p", Socket, Buffers, MajorFunction, Irp);
+    DEBUG_ENTER_FUNCTION("Sockect=0x%p; Buffers=0x%p; MajorFunction=%u; Irp=0x%p", Socket, Buffers, MajorFunction, Irp);
 
     Registraction = (PWSK_REGISTRATION)Socket->Client;
     pContext = (PVIOWSK_REG_CONTEXT)Registraction->ReservedRegistrationContext;
     Status = WskBufferValidate(Buffers, &firstMdlLength, &lastMdlLength);
     if (!NT_SUCCESS(Status))
+    {
         goto CompleteParentIrp;
+    }
 
     switch (MajorFunction)
     {
-    case IRP_MJ_READ:
-        state = wsksReceive;
-        break;
-    case IRP_MJ_WRITE:
-        state = wsksSend;
-        break;
-    default:
-        Status = STATUS_INVALID_PARAMETER_3;
-        goto CompleteParentIrp;
-        break;
+        case IRP_MJ_READ:
+            state = wsksReceive;
+            break;
+        case IRP_MJ_WRITE:
+            state = wsksSend;
+            break;
+        default:
+            Status = STATUS_INVALID_PARAMETER_3;
+            goto CompleteParentIrp;
+            break;
     }
 
-    Status = VioWskSocketBuildReadWriteSingleMdl(Socket, Buffers->Mdl, Buffers->Offset, firstMdlLength, MajorFunction, &OpIrp);
+    Status = VioWskSocketBuildReadWriteSingleMdl(Socket,
+                                                 Buffers->Mdl,
+                                                 Buffers->Offset,
+                                                 firstMdlLength,
+                                                 MajorFunction,
+                                                 &OpIrp);
     if (!NT_SUCCESS(Status))
+    {
         goto CompleteParentIrp;
+    }
 
     CompContext = WskCompContextAlloc(state, Socket, Irp, NULL);
     if (!CompContext)
+    {
         goto FreeOpIrp;
+    }
 
     CompContext->Specific.Transfer.CurrentMdlSize = firstMdlLength;
     CompContext->Specific.Transfer.LastMdlSize = lastMdlLength;
@@ -445,32 +473,33 @@ VioWskSocketReadWrite(
     Status = WskCompContextSendIrp(CompContext, OpIrp);
     WskCompContextDereference(CompContext);
     if (NT_SUCCESS(Status))
+    {
         OpIrp = NULL;
+    }
 
     Irp = NULL;
 
 FreeOpIrp:
     if (OpIrp)
+    {
         VioWskIrpFree(OpIrp, NULL, FALSE);
+    }
 CompleteParentIrp:
     if (Irp)
+    {
         VioWskIrpComplete(Socket, Irp, Status, 0);
+    }
 
     DEBUG_EXIT_FUNCTION("0x%x", Status);
     return Status;
 }
 
-
-_Must_inspect_result_
-NTSTATUS
-VioWskSocketBuildReadWriteSingleMdl(
-    _In_ PVIOWSK_SOCKET Socket,
-    _In_ PMDL           Mdl,
-    _In_ ULONG          Offset,
-    _In_ ULONG          Length,
-    _In_ UCHAR          MajorFunction,
-    _Out_ PIRP         *Irp
-)
+_Must_inspect_result_ NTSTATUS VioWskSocketBuildReadWriteSingleMdl(_In_ PVIOWSK_SOCKET Socket,
+                                                                   _In_ PMDL Mdl,
+                                                                   _In_ ULONG Offset,
+                                                                   _In_ ULONG Length,
+                                                                   _In_ UCHAR MajorFunction,
+                                                                   _Out_ PIRP *Irp)
 {
     PIRP OpIrp = NULL;
     PMDL OpMdl = NULL;
@@ -479,7 +508,13 @@ VioWskSocketBuildReadWriteSingleMdl(
     PVIOWSK_REG_CONTEXT pContext = NULL;
     PWSK_REGISTRATION Registraction = NULL;
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
-    DEBUG_ENTER_FUNCTION("Socket=0x%p; Mdl=0x%p; MajorFunction=%u; Offset=%u; Length=%u; Irp=0x%p", Socket, Mdl, Offset, Length, MajorFunction, Irp);
+    DEBUG_ENTER_FUNCTION("Socket=0x%p; Mdl=0x%p; MajorFunction=%u; Offset=%u; Length=%u; Irp=0x%p",
+                         Socket,
+                         Mdl,
+                         Offset,
+                         Length,
+                         MajorFunction,
+                         Irp);
 
     Registraction = (PWSK_REGISTRATION)Socket->Client;
     pContext = (PVIOWSK_REG_CONTEXT)Registraction->ReservedRegistrationContext;
@@ -541,19 +576,16 @@ VioWskSocketBuildReadWriteSingleMdl(
 
 FreeIrp:
     if (OpIrp)
+    {
         VioWskIrpFree(OpIrp, NULL, FALSE);
+    }
 Exit:
     DEBUG_EXIT_FUNCTION("0x%x, *Irp=0x%p", Status, *Irp);
     return Status;
 }
 
-
 NTSTATUS
-WskBufferValidate(
-    _In_ const WSK_BUF* Buffer,
-    _Out_ PULONG FirstMdlLength,
-    _Out_ PULONG LastMdlLength
-)
+WskBufferValidate(_In_ const WSK_BUF *Buffer, _Out_ PULONG FirstMdlLength, _Out_ PULONG LastMdlLength)
 {
     PMDL mdl = NULL;
     ULONG offset = 0;
@@ -578,10 +610,14 @@ WskBufferValidate(
                 ULONG effectiveLength = mdlLength - offset;
 
                 if (length < effectiveLength)
+                {
                     effectiveLength = (ULONG)length;
+                }
 
                 if (mdl == Buffer->Mdl)
+                {
                     *FirstMdlLength = effectiveLength;
+                }
 
                 mdl = mdl->Next;
                 length -= effectiveLength;
@@ -595,10 +631,15 @@ WskBufferValidate(
                 offset = 0;
             }
         }
-        else status = STATUS_INVALID_PARAMETER;
+        else
+        {
+            status = STATUS_INVALID_PARAMETER;
+        }
     }
     else if (length != 0)
+    {
         status = STATUS_INVALID_PARAMETER;
+    }
 
     DEBUG_EXIT_FUNCTION("0x%x, *FirstMdlLength=%u, *LastMdlLength=%u", status, *FirstMdlLength, *LastMdlLength);
     return status;

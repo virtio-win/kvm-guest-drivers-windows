@@ -42,40 +42,38 @@ DRIVER_INITIALIZE DriverEntry;
 EVT_WDF_OBJECT_CONTEXT_CLEANUP _IRQL_requires_(PASSIVE_LEVEL) VIOSockEvtDriverContextCleanup;
 
 #ifdef ALLOC_PRAGMA
-#pragma alloc_text (INIT, DriverEntry)
-#pragma alloc_text (PAGE, VIOSockEvtDriverContextCleanup)
+#pragma alloc_text(INIT, DriverEntry)
+#pragma alloc_text(PAGE, VIOSockEvtDriverContextCleanup)
 #endif
 
-NTSTATUS DriverEntry(IN PDRIVER_OBJECT  DriverObject,
-                     IN PUNICODE_STRING RegistryPath)
+NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING RegistryPath)
 {
-    NTSTATUS               status = STATUS_SUCCESS;
-    WDF_DRIVER_CONFIG      config;
-    WDF_OBJECT_ATTRIBUTES  attributes;
-    WDFDRIVER              Driver;
+    NTSTATUS status = STATUS_SUCCESS;
+    WDF_DRIVER_CONFIG config;
+    WDF_OBJECT_ATTRIBUTES attributes;
+    WDFDRIVER Driver;
 
     ExInitializeDriverRuntime(DrvRtPoolNxOptIn);
 
     InitializeDebugPrints(DriverObject, RegistryPath);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT,
-        "VirtioSocket driver started...built on %s %s\n", __DATE__, __TIME__);
+    TraceEvents(TRACE_LEVEL_INFORMATION,
+                DBG_INIT,
+                "VirtioSocket driver started...built on %s %s\n",
+                __DATE__,
+                __TIME__);
 
     WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
     attributes.EvtCleanupCallback = VIOSockEvtDriverContextCleanup;
 
     WDF_DRIVER_CONFIG_INIT(&config, VIOSockEvtDeviceAdd);
-    config.DriverPoolTag  = VIOSOCK_DRIVER_MEMORY_TAG;
+    config.DriverPoolTag = VIOSOCK_DRIVER_MEMORY_TAG;
 
-    status = WdfDriverCreate(DriverObject,
-                             RegistryPath,
-                             &attributes,
-                             &config,
-                             &Driver);
+    status = WdfDriverCreate(DriverObject, RegistryPath, &attributes, &config, &Driver);
 
-    if (!NT_SUCCESS(status)) {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-           "WdfDriverCreate failed - 0x%x\n", status);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfDriverCreate failed - 0x%x\n", status);
         WPP_CLEANUP(DriverObject);
         return status;
     }
@@ -84,10 +82,7 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT  DriverObject,
     return status;
 }
 
-VOID
-VIOSockEvtDriverContextCleanup(
-    IN WDFOBJECT Driver
-)
+VOID VIOSockEvtDriverContextCleanup(IN WDFOBJECT Driver)
 {
     PAGED_CODE();
 
@@ -96,11 +91,7 @@ VIOSockEvtDriverContextCleanup(
     WPP_CLEANUP(WdfDriverWdmGetDriverObject((WDFDRIVER)Driver));
 }
 
-VOID
-VIOSockTimerStart(
-    IN PVIOSOCK_TIMER   pTimer,
-    IN LONGLONG         Timeout
-)
+VOID VIOSockTimerStart(IN PVIOSOCK_TIMER pTimer, IN LONGLONG Timeout)
 {
     LARGE_INTEGER liTicks;
     BOOLEAN bSetTimer = FALSE;
@@ -108,11 +99,15 @@ VIOSockTimerStart(
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
     if (!Timeout || Timeout == LONGLONG_MAX)
+    {
         return;
+    }
 
     ASSERT(Timeout > VIOSOCK_TIMER_TOLERANCE);
     if (Timeout <= VIOSOCK_TIMER_TOLERANCE)
+    {
         Timeout = VIOSOCK_TIMER_TOLERANCE + 1;
+    }
 
     KeQueryTickCount(&liTicks);
 
@@ -124,13 +119,16 @@ VIOSockTimerStart(
 
         ASSERT(pTimer->Timeout);
 
-        Remaining = pTimer->Timeout -
-            (liTicks.QuadPart - pTimer->StartTime) * KeQueryTimeIncrement();
+        Remaining = pTimer->Timeout - (liTicks.QuadPart - pTimer->StartTime) * KeQueryTimeIncrement();
         if (Remaining > Timeout + VIOSOCK_TIMER_TOLERANCE)
+        {
             bSetTimer = TRUE;
+        }
     }
     else
+    {
         bSetTimer = TRUE;
+    }
 
     if (bSetTimer)
     {

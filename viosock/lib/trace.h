@@ -36,31 +36,34 @@ extern DWORD g_DebugFlags;
 extern int g_DebugLevel;
 
 #if !defined(TRACE_LEVEL_NONE)
-  #define TRACE_LEVEL_NONE        0
-  #define TRACE_LEVEL_CRITICAL    1
-  #define TRACE_LEVEL_FATAL       1
-  #define TRACE_LEVEL_ERROR       2
-  #define TRACE_LEVEL_WARNING     3
-  #define TRACE_LEVEL_INFORMATION 4
-  #define TRACE_LEVEL_VERBOSE     5
-  #define TRACE_LEVEL_RESERVED6   6
-  #define TRACE_LEVEL_RESERVED7   7
-  #define TRACE_LEVEL_RESERVED8   8
-  #define TRACE_LEVEL_RESERVED9   9
+#define TRACE_LEVEL_NONE        0
+#define TRACE_LEVEL_CRITICAL    1
+#define TRACE_LEVEL_FATAL       1
+#define TRACE_LEVEL_ERROR       2
+#define TRACE_LEVEL_WARNING     3
+#define TRACE_LEVEL_INFORMATION 4
+#define TRACE_LEVEL_VERBOSE     5
+#define TRACE_LEVEL_RESERVED6   6
+#define TRACE_LEVEL_RESERVED7   7
+#define TRACE_LEVEL_RESERVED8   8
+#define TRACE_LEVEL_RESERVED9   9
 #endif
 
 //
 // Define Debug Flags
 //
-#define DBG_INIT                0x00000001
-#define DBG_SOCKET              0x00000002
-#define DBG_INSTALL             0x00000004
-#define DBG_RESERVED2           0x00000008
-#define DBG_RESERVED3           0x00000010
+#define DBG_INIT      0x00000001
+#define DBG_SOCKET    0x00000002
+#define DBG_INSTALL   0x00000004
+#define DBG_RESERVED2 0x00000008
+#define DBG_RESERVED3 0x00000010
 
-#define TraceEvents(level, flags, message, ...) \
-if (level > g_DebugLevel || !g_bDebugPrint || !(g_DebugFlags & flags)) {} \
-else DebugPrintProc(message, __VA_ARGS__)
+#define TraceEvents(level, flags, message, ...)                                                                        \
+    if (level > g_DebugLevel || !g_bDebugPrint || !(g_DebugFlags & flags))                                             \
+    {                                                                                                                  \
+    }                                                                                                                  \
+    else                                                                                                               \
+        DebugPrintProc(message, __VA_ARGS__)
 
 #define WPP_INIT_TRACING(a)
 #define WPP_CLEANUP()
@@ -75,36 +78,33 @@ void DebugPrintProc(const char *format, ...);
 //
 // Tracing GUID - 0A3BB318-098D-44CF-B9D9-10737393CD9B
 //
-#define WPP_CONTROL_GUIDS \
-    WPP_DEFINE_CONTROL_GUID(VioSockTraceGuid,(0A3BB318,098D,44CF,B9D9,10737393CD9B), \
-        WPP_DEFINE_BIT(DBG_INIT)             /* bit  0 = 0x00000001 */ \
-        WPP_DEFINE_BIT(DBG_SOCKET)           /* bit  1 = 0x00000002 */ \
-        WPP_DEFINE_BIT(DBG_INSTALL)          /* bit  2 = 0x00000004 */ \
-        WPP_DEFINE_BIT(DBG_RESERVED2)        /* bit  3 = 0x00000008 */ \
-        WPP_DEFINE_BIT(DBG_RESERVED3)        /* bit  4 = 0x00000010 */ \
-        )
+#define WPP_CONTROL_GUIDS                                                                                              \
+    WPP_DEFINE_CONTROL_GUID(VioSockTraceGuid,                                                                          \
+                            (0A3BB318, 098D, 44CF, B9D9, 10737393CD9B),                                                \
+                            WPP_DEFINE_BIT(DBG_INIT)      /* bit  0 = 0x00000001 */                                    \
+                            WPP_DEFINE_BIT(DBG_SOCKET)    /* bit  1 = 0x00000002 */                                    \
+                            WPP_DEFINE_BIT(DBG_INSTALL)   /* bit  2 = 0x00000004 */                                    \
+                            WPP_DEFINE_BIT(DBG_RESERVED2) /* bit  3 = 0x00000008 */                                    \
+                            WPP_DEFINE_BIT(DBG_RESERVED3) /* bit  4 = 0x00000010 */                                    \
+    )
 
-#define WPP_FLAG_LEVEL_LOGGER(flag, level) \
-    WPP_LEVEL_LOGGER(flag)
+#define WPP_FLAG_LEVEL_LOGGER(flag, level)  WPP_LEVEL_LOGGER(flag)
 
-#define WPP_FLAG_LEVEL_ENABLED(flag, level) \
-    (WPP_LEVEL_ENABLED(flag) && WPP_CONTROL(WPP_BIT_ ## flag).Level >= level)
+#define WPP_FLAG_LEVEL_ENABLED(flag, level) (WPP_LEVEL_ENABLED(flag) && WPP_CONTROL(WPP_BIT_##flag).Level >= level)
 
-#define WPP_LEVEL_FLAGS_LOGGER(lvl,flags) \
-    WPP_LEVEL_LOGGER(flags)
+#define WPP_LEVEL_FLAGS_LOGGER(lvl, flags)  WPP_LEVEL_LOGGER(flags)
 
-#define WPP_LEVEL_FLAGS_ENABLED(lvl, flags) \
-    (WPP_LEVEL_ENABLED(flags) && WPP_CONTROL(WPP_BIT_ ## flags).Level >= lvl)
+#define WPP_LEVEL_FLAGS_ENABLED(lvl, flags) (WPP_LEVEL_ENABLED(flags) && WPP_CONTROL(WPP_BIT_##flags).Level >= lvl)
 
- //
- // This comment block is scanned by the trace preprocessor to define our
- // Trace function.
- //
- // begin_wpp config
- // FUNC Trace{FLAG=MYDRIVER_ALL_INFO}(LEVEL, MSG, ...);
- // FUNC TraceEvents(LEVEL, FLAGS, MSG, ...);
- // end_wpp
- //
+//
+// This comment block is scanned by the trace preprocessor to define our
+// Trace function.
+//
+// begin_wpp config
+// FUNC Trace{FLAG=MYDRIVER_ALL_INFO}(LEVEL, MSG, ...);
+// FUNC TraceEvents(LEVEL, FLAGS, MSG, ...);
+// end_wpp
+//
 
 #endif
 

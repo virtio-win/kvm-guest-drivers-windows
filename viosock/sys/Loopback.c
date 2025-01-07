@@ -34,19 +34,13 @@
 #include "Loopback.tmh"
 #endif
 
-
-_Requires_lock_not_held_(pListenSocket->RxLock)
-static
-NTSTATUS
-VIOSockLoopbackAcceptEnqueue(
-    IN PSOCKET_CONTEXT  pListenSocket,
-    IN PSOCKET_CONTEXT  pConnectSocket
-)
+_Requires_lock_not_held_(pListenSocket->RxLock) static NTSTATUS VIOSockLoopbackAcceptEnqueue(IN PSOCKET_CONTEXT pListenSocket,
+                                                                                             IN PSOCKET_CONTEXT pConnectSocket)
 {
     PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pListenSocket);
-    NTSTATUS        status;
-    WDFMEMORY       Memory;
-    LONG            lAcceptPended;
+    NTSTATUS status;
+    WDFMEMORY Memory;
+    LONG lAcceptPended;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
@@ -58,7 +52,7 @@ VIOSockLoopbackAcceptEnqueue(
         return STATUS_CONNECTION_RESET;
     }
 
-    //accepted list is empty
+    // accepted list is empty
     if (lAcceptPended == 1)
     {
         WDFREQUEST PendedRequest;
@@ -75,7 +69,7 @@ VIOSockLoopbackAcceptEnqueue(
             pAcceptSocket->peer_buf_alloc = pConnectSocket->buf_alloc;
             pAcceptSocket->peer_fwd_cnt = pConnectSocket->fwd_cnt;
 
-            //link accepted socket to connecting one
+            // link accepted socket to connecting one
             pAcceptSocket->LoopbackSocket = pConnectSocket->ThisSocket;
             VioSockReference(pAcceptSocket->LoopbackSocket);
             VIOSockSetFlag(pAcceptSocket, SOCK_LOOPBACK);
@@ -121,10 +115,7 @@ VIOSockLoopbackAcceptEnqueue(
 }
 
 BOOLEAN
-VIOSockLoopbackAcceptDequeue(
-    IN PSOCKET_CONTEXT pAcceptSocket,
-    IN PVIOSOCK_ACCEPT_ENTRY pAcceptEntry
-)
+VIOSockLoopbackAcceptDequeue(IN PSOCKET_CONTEXT pAcceptSocket, IN PVIOSOCK_ACCEPT_ENTRY pAcceptEntry)
 {
     PSOCKET_CONTEXT pConnectSocket = GetSocketContext(pAcceptEntry->ConnectSocket);
     BOOLEAN bRes = TRUE;
@@ -133,14 +124,14 @@ VIOSockLoopbackAcceptDequeue(
 
     if (pConnectSocket->State == VIOSOCK_STATE_CONNECTING)
     {
-        //link accepted socket to connecting one
-        pAcceptSocket->LoopbackSocket = pAcceptEntry->ConnectSocket;//referenced on enqueue
+        // link accepted socket to connecting one
+        pAcceptSocket->LoopbackSocket = pAcceptEntry->ConnectSocket; // referenced on enqueue
         VIOSockSetFlag(pAcceptSocket, SOCK_LOOPBACK);
     }
     else
     {
         ASSERT(FALSE);
-        //skip accept entry
+        // skip accept entry
         VioSockDereference(pAcceptEntry->ConnectSocket);
         bRes = FALSE;
     }
@@ -149,13 +140,8 @@ VIOSockLoopbackAcceptDequeue(
 }
 
 //////////////////////////////////////////////////////////////////////////
-_Requires_lock_not_held_(pDstSocket->StateLock)
-__inline
-LONG
-VIOSockLoopbackTxSpaceUpdate(
-    IN PSOCKET_CONTEXT pDstSocket,
-    IN PSOCKET_CONTEXT pSrcSocket
-)
+_Requires_lock_not_held_(pDstSocket->StateLock) __inline LONG VIOSockLoopbackTxSpaceUpdate(IN PSOCKET_CONTEXT pDstSocket,
+                                                                                           IN PSOCKET_CONTEXT pSrcSocket)
 {
     LONG uSpace;
 
@@ -171,13 +157,9 @@ VIOSockLoopbackTxSpaceUpdate(
     return uSpace;
 }
 
-static
-NTSTATUS
-VIOSockLoopbackConnect(
-    PSOCKET_CONTEXT pSocket
-)
+static NTSTATUS VIOSockLoopbackConnect(PSOCKET_CONTEXT pSocket)
 {
-    NTSTATUS        status;
+    NTSTATUS status;
     PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pSocket);
     PSOCKET_CONTEXT pListenSocket = VIOSockBoundFindByPort(pContext, pSocket->dst_port);
 
@@ -187,9 +169,9 @@ VIOSockLoopbackConnect(
 
     if (pListenSocket)
     {
-        if(VIOSockStateGet(pListenSocket) == VIOSOCK_STATE_LISTEN)
+        if (VIOSockStateGet(pListenSocket) == VIOSOCK_STATE_LISTEN)
         {
-            //TODO: Increase buf_alloc for loopback?
+            // TODO: Increase buf_alloc for loopback?
             status = VIOSockLoopbackAcceptEnqueue(pListenSocket, pSocket);
             if (!NT_SUCCESS(status))
             {
@@ -197,27 +179,26 @@ VIOSockLoopbackConnect(
             }
         }
         else
+        {
             status = STATUS_CONNECTION_RESET;
+        }
     }
     else
+    {
         status = STATUS_CONNECTION_RESET;
+    }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s, status: 0x%08x\n", __FUNCTION__, status);
     return status;
 }
 
-_Requires_lock_not_held_(pDestSocket->StateLock)
-static
-NTSTATUS
-VIOSockLoopbackHandleConnecting(
-    IN PSOCKET_CONTEXT  pDestSocket,
-    IN PSOCKET_CONTEXT  pSrcSocket,
-    IN VIRTIO_VSOCK_OP  Op,
-    IN BOOLEAN          bTxHasSpace
-)
+_Requires_lock_not_held_(pDestSocket->StateLock) static NTSTATUS VIOSockLoopbackHandleConnecting(IN PSOCKET_CONTEXT pDestSocket,
+                                                                                                 IN PSOCKET_CONTEXT pSrcSocket,
+                                                                                                 IN VIRTIO_VSOCK_OP Op,
+                                                                                                 IN BOOLEAN bTxHasSpace)
 {
-    WDFREQUEST  PendedRequest;
-    NTSTATUS    status;
+    WDFREQUEST PendedRequest;
+    NTSTATUS status;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
@@ -225,8 +206,7 @@ VIOSockLoopbackHandleConnecting(
 
     if (NT_SUCCESS(status))
     {
-        if (PendedRequest == WDF_NO_HANDLE &&
-            !VIOSockIsNonBlocking(pDestSocket))
+        if (PendedRequest == WDF_NO_HANDLE && !VIOSockIsNonBlocking(pDestSocket))
         {
             status = STATUS_CANCELLED;
         }
@@ -234,33 +214,37 @@ VIOSockLoopbackHandleConnecting(
         {
             switch (Op)
             {
-            case VIRTIO_VSOCK_OP_RESPONSE:
-                ASSERT(pSrcSocket);
-                //link connecting socket to accepted one
-                pDestSocket->LoopbackSocket = pSrcSocket->ThisSocket;
-                VioSockReference(pDestSocket->LoopbackSocket);
+                case VIRTIO_VSOCK_OP_RESPONSE:
+                    ASSERT(pSrcSocket);
+                    // link connecting socket to accepted one
+                    pDestSocket->LoopbackSocket = pSrcSocket->ThisSocket;
+                    VioSockReference(pDestSocket->LoopbackSocket);
 
-                WdfSpinLockAcquire(pDestSocket->StateLock);
-                VIOSockStateSet(pDestSocket, VIOSOCK_STATE_CONNECTED);
-                VIOSockEventSetBit(pDestSocket, FD_CONNECT_BIT, STATUS_SUCCESS);
-                if (bTxHasSpace)
-                    VIOSockEventSetBit(pDestSocket, FD_WRITE_BIT, STATUS_SUCCESS);
-                WdfSpinLockRelease(pDestSocket->StateLock);
-                status = STATUS_SUCCESS;
-                break;
-            case VIRTIO_VSOCK_OP_INVALID:
-                if (PendedRequest != WDF_NO_HANDLE)
-                {
-                    status = VIOSockPendedRequestSetResumeLocked(pDestSocket, PendedRequest);
-                    if (NT_SUCCESS(status))
-                        PendedRequest = WDF_NO_HANDLE;
-                }
-                break;
-            case VIRTIO_VSOCK_OP_RST:
-                status = STATUS_CONNECTION_RESET;
-                break;
-            default:
-                status = STATUS_CONNECTION_INVALID;
+                    WdfSpinLockAcquire(pDestSocket->StateLock);
+                    VIOSockStateSet(pDestSocket, VIOSOCK_STATE_CONNECTED);
+                    VIOSockEventSetBit(pDestSocket, FD_CONNECT_BIT, STATUS_SUCCESS);
+                    if (bTxHasSpace)
+                    {
+                        VIOSockEventSetBit(pDestSocket, FD_WRITE_BIT, STATUS_SUCCESS);
+                    }
+                    WdfSpinLockRelease(pDestSocket->StateLock);
+                    status = STATUS_SUCCESS;
+                    break;
+                case VIRTIO_VSOCK_OP_INVALID:
+                    if (PendedRequest != WDF_NO_HANDLE)
+                    {
+                        status = VIOSockPendedRequestSetResumeLocked(pDestSocket, PendedRequest);
+                        if (NT_SUCCESS(status))
+                        {
+                            PendedRequest = WDF_NO_HANDLE;
+                        }
+                    }
+                    break;
+                case VIRTIO_VSOCK_OP_RST:
+                    status = STATUS_CONNECTION_RESET;
+                    break;
+                default:
+                    status = STATUS_CONNECTION_INVALID;
             }
         }
     }
@@ -272,73 +256,66 @@ VIOSockLoopbackHandleConnecting(
         VIOSockStateSet(pDestSocket, VIOSOCK_STATE_CLOSE);
         WdfSpinLockRelease(pDestSocket->StateLock);
         if (Op != VIRTIO_VSOCK_OP_RST)
+        {
             VIOSockSendReset(pDestSocket, FALSE);
+        }
     }
 
     if (PendedRequest)
+    {
         WdfRequestComplete(PendedRequest, status);
+    }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s, status: 0x%08x\n", __FUNCTION__, status);
     return status;
 }
 
-static
-NTSTATUS
-VIOSockLoopbackHandleConnected(
-    IN PSOCKET_CONTEXT  pDestSocket,
-    IN VIRTIO_VSOCK_OP  Op,
-    IN ULONG32          Flags OPTIONAL,
-    IN WDFREQUEST       Request OPTIONAL,
-    IN ULONG            Length OPTIONAL,
-    IN BOOLEAN          bTxHasSpace
-)
+static NTSTATUS VIOSockLoopbackHandleConnected(IN PSOCKET_CONTEXT pDestSocket,
+                                               IN VIRTIO_VSOCK_OP Op,
+                                               IN ULONG32 Flags OPTIONAL,
+                                               IN WDFREQUEST Request OPTIONAL,
+                                               IN ULONG Length OPTIONAL,
+                                               IN BOOLEAN bTxHasSpace)
 {
-    NTSTATUS    status = STATUS_SUCCESS;
+    NTSTATUS status = STATUS_SUCCESS;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
     switch (Op)
     {
-    case VIRTIO_VSOCK_OP_RW:
-        status = VIOSockRxRequestEnqueueCb(pDestSocket, Request, Length);
-        if (NT_SUCCESS(status))
-        {
-            VIOSockEventSetBitLocked(pDestSocket, FD_READ_BIT, STATUS_SUCCESS);
-            VIOSockReadProcessDequeueCb(pDestSocket);
-        }
-        break;
-    case VIRTIO_VSOCK_OP_CREDIT_UPDATE:
-        if (bTxHasSpace)
-        {
-            VIOSockEventSetBitLocked(pDestSocket, FD_WRITE_BIT, STATUS_SUCCESS);
-        }
-        break;
-    case VIRTIO_VSOCK_OP_SHUTDOWN:
-        if (VIOSockShutdownFromPeer(pDestSocket,
-            Flags & VIRTIO_VSOCK_SHUTDOWN_MASK) &&
-            !VIOSockRxHasData(pDestSocket) &&
-            !VIOSockIsDone(pDestSocket))
-        {
-            VIOSockSendReset(pDestSocket, FALSE);
+        case VIRTIO_VSOCK_OP_RW:
+            status = VIOSockRxRequestEnqueueCb(pDestSocket, Request, Length);
+            if (NT_SUCCESS(status))
+            {
+                VIOSockEventSetBitLocked(pDestSocket, FD_READ_BIT, STATUS_SUCCESS);
+                VIOSockReadProcessDequeueCb(pDestSocket);
+            }
+            break;
+        case VIRTIO_VSOCK_OP_CREDIT_UPDATE:
+            if (bTxHasSpace)
+            {
+                VIOSockEventSetBitLocked(pDestSocket, FD_WRITE_BIT, STATUS_SUCCESS);
+            }
+            break;
+        case VIRTIO_VSOCK_OP_SHUTDOWN:
+            if (VIOSockShutdownFromPeer(pDestSocket, Flags & VIRTIO_VSOCK_SHUTDOWN_MASK) &&
+                !VIOSockRxHasData(pDestSocket) && !VIOSockIsDone(pDestSocket))
+            {
+                VIOSockSendReset(pDestSocket, FALSE);
+                VIOSockDoClose(pDestSocket);
+            }
+            break;
+        case VIRTIO_VSOCK_OP_RST:
             VIOSockDoClose(pDestSocket);
-        }
-        break;
-    case VIRTIO_VSOCK_OP_RST:
-        VIOSockDoClose(pDestSocket);
-        VIOSockEventSetBitLocked(pDestSocket, FD_CLOSE_BIT, STATUS_CONNECTION_RESET);
-        break;
+            VIOSockEventSetBitLocked(pDestSocket, FD_CLOSE_BIT, STATUS_CONNECTION_RESET);
+            break;
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s, status: 0x%08x\n", __FUNCTION__, status);
     return status;
 }
 
-static
-VOID
-VIOSockLoopbackHandleDisconnecting(
-    IN PSOCKET_CONTEXT  pDestSocket,
-    IN VIRTIO_VSOCK_OP  Op
-)
+static VOID VIOSockLoopbackHandleDisconnecting(IN PSOCKET_CONTEXT pDestSocket, IN VIRTIO_VSOCK_OP Op)
 {
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
@@ -353,20 +330,18 @@ VIOSockLoopbackHandleDisconnecting(
 }
 
 NTSTATUS
-VIOSockLoopbackTxEnqueue(
-    IN PSOCKET_CONTEXT  pSocket,
-    IN VIRTIO_VSOCK_OP  Op,
-    IN ULONG32          Flags OPTIONAL,
-    IN WDFREQUEST       Request OPTIONAL,
-    IN ULONG            Length OPTIONAL
-)
+VIOSockLoopbackTxEnqueue(IN PSOCKET_CONTEXT pSocket,
+                         IN VIRTIO_VSOCK_OP Op,
+                         IN ULONG32 Flags OPTIONAL,
+                         IN WDFREQUEST Request OPTIONAL,
+                         IN ULONG Length OPTIONAL)
 {
-    NTSTATUS            status;
-    PDEVICE_CONTEXT     pContext = GetDeviceContextFromSocket(pSocket);
-    PSOCKET_CONTEXT     pLoopbackSocket = (pSocket->LoopbackSocket != WDF_NO_HANDLE) ?
-        GetSocketContext(pSocket->LoopbackSocket) : NULL;
-    ULONG               uCredit;
-    BOOLEAN             bTxHasSpace;
+    NTSTATUS status;
+    PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pSocket);
+    PSOCKET_CONTEXT pLoopbackSocket = (pSocket->LoopbackSocket != WDF_NO_HANDLE) ? GetSocketContext(pSocket->LoopbackSocket)
+                                                                                 : NULL;
+    ULONG uCredit;
+    BOOLEAN bTxHasSpace;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
 
@@ -375,7 +350,9 @@ VIOSockLoopbackTxEnqueue(
         ASSERT(Length);
         status = VIOSockStateValidate(pSocket, TRUE);
         if (status == STATUS_REMOTE_DISCONNECT)
+        {
             status = STATUS_LOCAL_DISCONNECT;
+        }
 
         if (!NT_SUCCESS(status))
         {
@@ -394,7 +371,7 @@ VIOSockLoopbackTxEnqueue(
 
     if (!pLoopbackSocket)
     {
-        //only connect request allowed without LoopbackSocket
+        // only connect request allowed without LoopbackSocket
         if (Op == VIRTIO_VSOCK_OP_REQUEST)
         {
             status = VIOSockLoopbackConnect(pSocket);
@@ -412,21 +389,21 @@ VIOSockLoopbackTxEnqueue(
 
     switch (pLoopbackSocket->State)
     {
-    case VIOSOCK_STATE_CONNECTING:
-        status = VIOSockLoopbackHandleConnecting(pLoopbackSocket, pSocket, Op, bTxHasSpace);
-        break;
+        case VIOSOCK_STATE_CONNECTING:
+            status = VIOSockLoopbackHandleConnecting(pLoopbackSocket, pSocket, Op, bTxHasSpace);
+            break;
 
-    case VIOSOCK_STATE_CONNECTED:
-        status = VIOSockLoopbackHandleConnected(pLoopbackSocket, Op, Flags, Request, uCredit, bTxHasSpace);
-        break;
+        case VIOSOCK_STATE_CONNECTED:
+            status = VIOSockLoopbackHandleConnected(pLoopbackSocket, Op, Flags, Request, uCredit, bTxHasSpace);
+            break;
 
-    case VIOSOCK_STATE_CLOSING:
-        VIOSockLoopbackHandleDisconnecting(pLoopbackSocket, Op);
-        status = STATUS_SUCCESS;
-        break;
-    default:
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Invalid socket state for Loopback Rx command\n");
-        status = STATUS_CONNECTION_INVALID;
+        case VIOSOCK_STATE_CLOSING:
+            VIOSockLoopbackHandleDisconnecting(pLoopbackSocket, Op);
+            status = STATUS_SUCCESS;
+            break;
+        default:
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Invalid socket state for Loopback Rx command\n");
+            status = STATUS_CONNECTION_INVALID;
     }
 
     if (!NT_SUCCESS(status))

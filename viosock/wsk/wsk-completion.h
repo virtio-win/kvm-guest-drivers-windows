@@ -30,13 +30,11 @@
 #ifndef __WSK_COMPLETION_H__
 #define __WSK_COMPLETION_H__
 
-
-
 #include "..\inc\vio_wsk.h"
 #include "wsk-workitem.h"
 
-
-typedef enum _EWSKState {
+typedef enum _EWSKState
+{
     wsksUndefined,
     wsksSingleIOCTL,
     wsksSend,
@@ -49,9 +47,10 @@ typedef enum _EWSKState {
     wsksListen,
     wsksConnectEx,
     wsksFinished,
-} EWSKState, * PEWSKState;
+} EWSKState, *PEWSKState;
 
-typedef struct _VIOSOCKET_COMPLETION_CONTEXT {
+typedef struct _VIOSOCKET_COMPLETION_CONTEXT
+{
     volatile LONG ReferenceCount;
     PVIOWSK_SOCKET Socket;
     PWSK_WORKITEM CloseWorkItem;
@@ -64,53 +63,40 @@ typedef struct _VIOSOCKET_COMPLETION_CONTEXT {
     ULONG_PTR IOSBInformation;
     int UseIOSBInformation : 1;
     union {
-        struct {
+        struct
+        {
             PWSK_SOCKET Socket;
             PSOCKADDR LocalAddress;
             PSOCKADDR RemoteAddress;
         } Accept;
-        struct {
+        struct
+        {
             PMDL NextMdl;
             ULONG CurrentMdlOffset;
             ULONG CurrentMdlSize;
             ULONG LastMdlSize;
         } Transfer;
-        struct {
+        struct
+        {
             PSOCKADDR RemoteAddress;
         } BindConnect;
     } Specific;
 } VIOSOCKET_COMPLETION_CONTEXT, *PVIOSOCKET_COMPLETION_CONTEXT;
 
-
-
 PVIOSOCKET_COMPLETION_CONTEXT
-WskCompContextAlloc(
-    _In_ EWSKState            State,
-    _In_ PVIOWSK_SOCKET       Socket,
-    _In_opt_ PIRP             MasterIrp,
-    _In_opt_ PIO_STATUS_BLOCK IoStatusBlock
-);
+WskCompContextAlloc(_In_ EWSKState State,
+                    _In_ PVIOWSK_SOCKET Socket,
+                    _In_opt_ PIRP MasterIrp,
+                    _In_opt_ PIO_STATUS_BLOCK IoStatusBlock);
 
-void
-WskCompContextReference(
-    _Inout_ PVIOSOCKET_COMPLETION_CONTEXT CompContext
-);
+void WskCompContextReference(_Inout_ PVIOSOCKET_COMPLETION_CONTEXT CompContext);
 
-void
-WskCompContextDereference(
-    _Inout_ PVIOSOCKET_COMPLETION_CONTEXT CompContext
-);
+void WskCompContextDereference(_Inout_ PVIOSOCKET_COMPLETION_CONTEXT CompContext);
 
 NTSTATUS
-WskCompContextSendIrp(
-    _Inout_ PVIOSOCKET_COMPLETION_CONTEXT CompContext,
-    _In_ PIRP                             Irp
-);
+WskCompContextSendIrp(_Inout_ PVIOSOCKET_COMPLETION_CONTEXT CompContext, _In_ PIRP Irp);
 
 NTSTATUS
-WskCompContextAllocCloseWorkItem(
-    PVIOSOCKET_COMPLETION_CONTEXT CompContext
-);
-
+WskCompContextAllocCloseWorkItem(PVIOSOCKET_COMPLETION_CONTEXT CompContext);
 
 #endif

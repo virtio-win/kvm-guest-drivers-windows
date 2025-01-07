@@ -34,107 +34,52 @@
 #pragma once
 #endif //_MSC_VER
 
-
 #include "..\inc\vio_wsk.h"
 #include "viowsk.h"
 
+_Must_inspect_result_ NTSTATUS VioWskIrpAcquire(_In_opt_ PVIOWSK_SOCKET Socket, _Inout_ PIRP Irp);
 
-_Must_inspect_result_
-NTSTATUS
-VioWskIrpAcquire(
-    _In_opt_ PVIOWSK_SOCKET Socket,
-    _Inout_                 PIRP Irp
-);
-
-void
-VioWskIrpRelease(
-    _In_opt_ PVIOWSK_SOCKET Socket,
-    _In_                    PIRP Irp
-);
+void VioWskIrpRelease(_In_opt_ PVIOWSK_SOCKET Socket, _In_ PIRP Irp);
 
 NTSTATUS
-VioWskIrpComplete(
-    _Inout_opt_ PVIOWSK_SOCKET Socket,
-    _In_ PIRP                  Irp,
-    _In_ NTSTATUS              Status,
-    _In_ ULONG_PTR             Information
-);
+VioWskIrpComplete(_Inout_opt_ PVIOWSK_SOCKET Socket, _In_ PIRP Irp, _In_ NTSTATUS Status, _In_ ULONG_PTR Information);
 
-void
-VioWskIrpFree(
-    _Inout_ PIRP            Irp,
-    _In_opt_ PDEVICE_OBJECT DeviceObject,
-    _In_ BOOLEAN            Completion
-);
+void VioWskIrpFree(_Inout_ PIRP Irp, _In_opt_ PDEVICE_OBJECT DeviceObject, _In_ BOOLEAN Completion);
 
-_Must_inspect_result_
-NTSTATUS
-VioWskAddressPartToString(
-    _In_ ULONG            Value,
-    _Out_ PUNICODE_STRING String
-);
+_Must_inspect_result_ NTSTATUS VioWskAddressPartToString(_In_ ULONG Value, _Out_ PUNICODE_STRING String);
 
-_Must_inspect_result_
-NTSTATUS
-VioWskStringToAddressPart(
-    _In_ PUNICODE_STRING String,
-    _Out_ PULONG         Value
-);
+_Must_inspect_result_ NTSTATUS VioWskStringToAddressPart(_In_ PUNICODE_STRING String, _Out_ PULONG Value);
 
-_Must_inspect_result_
-NTSTATUS
-VioWskSocketIOCTL(
-    _In_ PVIOWSK_SOCKET        Socket,
-    _In_ ULONG                 ControlCode,
-    _In_opt_ PVOID             InputBuffer,
-    _In_ ULONG                 InputBufferLength,
-    _Out_opt_ PVOID            OutputBuffer,
-    _In_ ULONG                 OutputBufferLength,
-    _Inout_opt_ PIRP           Irp,
-    _Out_opt_ PIO_STATUS_BLOCK IoStatusBlock
-);
+_Must_inspect_result_ NTSTATUS VioWskSocketIOCTL(_In_ PVIOWSK_SOCKET Socket,
+                                                 _In_ ULONG ControlCode,
+                                                 _In_opt_ PVOID InputBuffer,
+                                                 _In_ ULONG InputBufferLength,
+                                                 _Out_opt_ PVOID OutputBuffer,
+                                                 _In_ ULONG OutputBufferLength,
+                                                 _Inout_opt_ PIRP Irp,
+                                                 _Out_opt_ PIO_STATUS_BLOCK IoStatusBlock);
 
-_Must_inspect_result_
-NTSTATUS
-VioWskSocketBuildIOCTL(
-    _In_ PVIOWSK_SOCKET Socket,
-    _In_ ULONG          ControlCode,
-    _In_opt_ PVOID      InputBuffer,
-    _In_ ULONG          InputBufferLength,
-    _In_opt_ PVOID      OutputBuffer,
-    _In_ ULONG          OutputBufferLength,
-    _Out_ PIRP*         Irp
-);
+_Must_inspect_result_ NTSTATUS VioWskSocketBuildIOCTL(_In_ PVIOWSK_SOCKET Socket,
+                                                      _In_ ULONG ControlCode,
+                                                      _In_opt_ PVOID InputBuffer,
+                                                      _In_ ULONG InputBufferLength,
+                                                      _In_opt_ PVOID OutputBuffer,
+                                                      _In_ ULONG OutputBufferLength,
+                                                      _Out_ PIRP *Irp);
 
+_Must_inspect_result_ NTSTATUS VioWskSocketReadWrite(_In_ PVIOWSK_SOCKET Socket,
+                                                     const WSK_BUF *Buffers,
+                                                     _In_ UCHAR MajorFunction,
+                                                     _Inout_ PIRP Irp);
 
-_Must_inspect_result_
-NTSTATUS
-VioWskSocketReadWrite(
-    _In_ PVIOWSK_SOCKET Socket,
-    const WSK_BUF      *Buffers,
-    _In_ UCHAR          MajorFunction,
-    _Inout_ PIRP        Irp
-);
-
-
-_Must_inspect_result_
-NTSTATUS
-VioWskSocketBuildReadWriteSingleMdl(
-    _In_ PVIOWSK_SOCKET Socket,
-    _In_ PMDL           Mdl,
-    _In_ ULONG          Offset,
-    _In_ ULONG          Length,
-    _In_ UCHAR          MajorFunction,
-    _Out_ PIRP*         Irp
-);
-
+_Must_inspect_result_ NTSTATUS VioWskSocketBuildReadWriteSingleMdl(_In_ PVIOWSK_SOCKET Socket,
+                                                                   _In_ PMDL Mdl,
+                                                                   _In_ ULONG Offset,
+                                                                   _In_ ULONG Length,
+                                                                   _In_ UCHAR MajorFunction,
+                                                                   _Out_ PIRP *Irp);
 
 NTSTATUS
-WskBufferValidate(
-    _In_ const WSK_BUF* Buffer,
-    _Out_ PULONG FirstMdlLength,
-    _Out_ PULONG LastMdlLength
-);
-
+WskBufferValidate(_In_ const WSK_BUF *Buffer, _Out_ PULONG FirstMdlLength, _Out_ PULONG LastMdlLength);
 
 #endif

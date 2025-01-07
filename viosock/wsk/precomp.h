@@ -34,7 +34,7 @@
 #define NTSTRSAFE_LIB
 #include <ntstrsafe.h>
 #include <initguid.h> // required for GUID definitions
-#include <wdmguid.h> // required for WMILIB_CONTEXT
+#include <wdmguid.h>  // required for WMILIB_CONTEXT
 #include <wmistr.h>
 #include <wmilib.h>
 #include <ntintsafe.h>
