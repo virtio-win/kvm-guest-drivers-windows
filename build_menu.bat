@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal enabledelayedexpansion
 
 set proj_path=%~dp0
 set "_t_EWDK_Mnts=Mounted Image"
@@ -9,8 +9,28 @@ rem set _BUILD_DISABLE_SDV=Yes
 set SKIP_SDV_ACTUAL=1
 rem set CODEQL_OFFLINE_ONLY=Yes
 rem set CODEQL_RUN_BLIND=Yes
+set _proj_dir=.
+set drv_idx=1
+for /d %%i in (*) do @(
+  set _drv_dir=%%i
+  if not "!_drv_dir:~0,1!"=="." (
+    if not "!_drv_dir!"=="build" (
+      if not "!_drv_dir!"=="Documentation" (
+        if not "!_drv_dir!"=="Tools" (
+          if "!_drv_dirs!"=="" (
+            set _drv_dirs=!_drv_dir!
+            set drv_cnt=1
+          ) else (
+            set _drv_dirs=!_drv_dirs! !_drv_dir!
+            set /a drv_cnt=!drv_cnt!+1
+          )
+        )
+      )
+    )
+  )
+)
 
-rem Colour mods should work from ABRACADABRA_WIN10_TH2
+rem Colour mods should work from WIN10_TH2
 rem Get the ANSI ESC character [0x27]
 for /f "tokens=2 usebackq delims=#" %%i in (`"prompt #$H#$E# & echo on & for %%i in (1) do rem"`) do @set z_esc=%%i
 rem Prepare pallette
@@ -44,21 +64,28 @@ if "%_t_ARM64%"=="Yes" (set _t_ARM64=Yes) else (set _t_ARM64=No)
 if "%_t_x86%"=="Yes" (set _t_x86=Yes) else (set _t_x86=No)
 if "%_t_AMD64%"=="No" (set _t_AMD64=No) else (set _t_AMD64=Yes)
 if "%_t_Env%"=="" set _t_Env=A
+if "%_proj_dir%"=="." (
+  set "_proj_choice=ALL drivers in the repository"
+  set "proj_path=%~dp0"
+) else (
+  set "_proj_choice=%_proj_dir%"
+  set "proj_path=%~dp0%_proj_dir%"
+)
 call :_get_params
 cls
-title Rapid Prototyping Build Wrapper
+title Rapid Prototyping Build Menu
 mode con cols=78 lines=62
 color 07
 echo.
-call :_color_echo %_s_Hdr% "       Rapid Prototyping Build Wrapper - for Windows KVM Guest Drivers"
+call :_color_echo %_s_Hdr% "       Rapid Prototyping Build Menu - for Windows KVM Guest Drivers"
 echo.
 echo         [T] Toggle Enterprise WDK location
 if "%_t_EWDK_Mnts%"=="Mounted Image" (
-  echo             EWDK11_DIR      = %EWDK11_DIR%                      [%_t_EWDK_Mnts%]
-  echo             EWDK11_24H2_DIR = %EWDK11_24H2_DIR%                      [%_t_EWDK_Mnts%]
+  echo             EWDK11_DIR [21H2] = %EWDK11_DIR%                    [%_t_EWDK_Mnts%]
+  echo             EWDK11_24H2_DIR   = %EWDK11_24H2_DIR%                    [%_t_EWDK_Mnts%]
 ) else (
-  echo             EWDK11_DIR      = %EWDK11_DIR%              [%_t_EWDK_Mnts%]
-  echo             EWDK11_24H2_DIR = %EWDK11_24H2_DIR%         [%_t_EWDK_Mnts%]
+  echo             EWDK11_DIR [21H2] = %EWDK11_DIR%            [%_t_EWDK_Mnts%]
+  echo             EWDK11_24H2_DIR   = %EWDK11_24H2_DIR%       [%_t_EWDK_Mnts%]
 )
 echo.
 if "%_t_NoARM%"=="Yes" (
@@ -95,40 +122,41 @@ echo         Environments :
 echo.
 call :_color_echo %_c_Grn% "        [A]" %_c_Wht% " Dynamic environment via build script - RECOMMENDED"
 echo.
-echo         [E] Use the Cobalt EWDK [21H2] to build all targets
+echo         [E] Use Windows 11, 21H2 [22000] EWDK to build all targets
 echo.
-echo         [F] Use the Germanium EWDK [24H2] to build all targets
-echo             Note : Win10_SDV targets still use the Cobalt EWDK when
-echo                    performing SDV runs to ensure the DVL is valid.
+echo         [F] Use Windows 11, 24H2 [26100] EWDK to build all targets
+echo             Note : Win10_SDV targets use the 21H2 [22000] EWDK to
+echo                    perform SDV so as to ensure the DVL is valid.
 echo.
 echo         Do a Build :
 echo.
-call :_color_echo %_c_Red% "        [B]" %_c_Wht% " Execute a build using the options below."
-echo             This will build all drivers in the repository.
+call :_color_echo %_c_Red% "           [B]" %_c_Wht% " Execute a build using the options specified below."
 echo.
-echo         To build individual drivers choose an environment above
-echo         and issue build commands from the desired driver directory.
+call :_color_echo %_c_Yel% "               [D]" %_c_Wht% " Build for: " %_c_Gry% "%_proj_choice%"
 echo.
-echo               [5] Target Windows 10 (No-Analysis Build) [%_t_Win10%]
-echo               [6] Target Windows 11 (No-Analysis Build) [%_t_Win11%]
-if "%_t_ARM64%"=="No"  call :_color_echo %_c_Wht% "              [7] Build for arm64 platforms             " %_c_Yel% "[%_t_ARM64%]"
-if "%_t_ARM64%"=="Yes" call :_color_echo %_c_Wht% "              [7] Build for arm64 platforms             [%_t_ARM64%]"
-echo               [8] Build for x86 platforms               [%_t_x86%]
-echo               [9] Build for amd64 platforms             [%_t_AMD64%]
-call :_color_echo %_c_Wht% "              [Y] Windows 10 Code Analysis Build [" %_c_Cyn% "*" %_c_Wht% "]    [%_t_Win10_SDV%]"
-call :_color_echo %_c_Wht% "              [Z] Windows 11 Code Analysis Build [" %_c_Cyn% "*" %_c_Wht% "]    [%_t_Win11_SDV%]"
+echo         To build other individual drivers choose an environment above
+echo         and issue build commands from the desired project directory.
+echo.
+echo                [5] Target Windows 10 (No-Analysis Build) [%_t_Win10%]
+echo                [6] Target Windows 11 (No-Analysis Build) [%_t_Win11%]
+if "%_t_ARM64%"=="No"  call :_color_echo %_c_Wht% "               [7] Build for arm64 platforms             " %_c_Yel% "[%_t_ARM64%]"
+if "%_t_ARM64%"=="Yes" call :_color_echo %_c_Wht% "               [7] Build for arm64 platforms             [%_t_ARM64%]"
+echo                [8] Build for x86 platforms               [%_t_x86%]
+echo                [9] Build for amd64 platforms             [%_t_AMD64%]
+call :_color_echo %_c_Wht% "               [Y] Windows 10 Code Analysis Build [" %_c_Cyn% "*" %_c_Wht% "]    [%_t_Win10_SDV%]"
+call :_color_echo %_c_Wht% "               [Z] Windows 11 Code Analysis Build [" %_c_Cyn% "*" %_c_Wht% "]    [%_t_Win11_SDV%]"
 if "%_t_Env%"=="A" (
-  call :_color_echo %_c_Wht% "              [U] Toggle Build Environment              " %_c_Grn% "[%_t_Env%]"
+  call :_color_echo %_c_Wht% "               [U] Toggle Build Environment              " %_c_Grn% "[%_t_Env%]"
 ) else (
-  call :_color_echo %_c_Wht% "              [U] Toggle Build Environment              " %_c_Yel% "[%_t_Env%]"
+  call :_color_echo %_c_Wht% "               [U] Toggle Build Environment              " %_c_Yel% "[%_t_Env%]"
 )
-call :_color_echo %_c_Wht% "                  Choose A, E or F. " %_c_Grn% "A" %_c_Wht% " is RECOMMENDED."
+call :_color_echo %_c_Wht% "                   Choose A, E or F. " %_c_Grn% "A" %_c_Wht% " is RECOMMENDED."
 echo.
-call :_color_echo %_c_Wht% "                  buildAll.bat parameters: " %_c_Gry% "[%__cmd_line_args__%]"
+call :_color_echo %_c_Wht% "                   buildAll.bat parameters: " %_c_Gry% "[%__cmd_line_args__%]"
 echo.
 call :_color_echo %_c_Cyn% "        [S]" %_c_Wht% " Sign built drivers with VirtIO Test Cert"
 echo.
-call :_color_echo %_c_Yel% "        [C]" %_c_Wht% " Clean repository" %_c_Yel% "         [Q]/[D]" %_c_Wht% " Clean: Quiet OR Debug"
+call :_color_echo %_c_Yel% "        [C]" %_c_Wht% " Clean repository" %_c_Yel% "       [Q]/[V]" %_c_Wht% " Clean: Quiet OR Verbose"
 echo.
 call :_color_echo %_c_Wht% "        [" %_c_Cyn% "*" %_c_Wht% "] Includes SDV, CodeQL, CA and DVL operations. A pre-"
 echo             built or simultaneous No-Analysis Build is required.
@@ -136,9 +164,9 @@ echo.
 call :_color_echo %_c_Red% "        CAUTION " %_c_Wht% ": Please be aware that Static Driver Verifier (SDV)"
 echo                   builds can take a long time to complete.
 echo.
-choice /c 123456789ABCDEFMQSTUXYZ /n /m ".              Choose a menu option, or press [X] to Exit: "
+choice /c 123456789ABCDEFMQSTUVXYZ /n /m ".              Choose a menu option, or press [X] to Exit: "
 set _ch_lvl=%ERRORLEVEL%
-if %_ch_lvl%==23 (
+if %_ch_lvl%==24 (
   if "%_t_Win11_SDV%"=="Yes" (
     set _t_Win11_SDV=No
     if "%_t_Win10_SDV%"=="No" (
@@ -160,7 +188,7 @@ if %_ch_lvl%==23 (
     set _t_Win10=No
   )
 )&goto :_proto_menu
-if %_ch_lvl%==22 (
+if %_ch_lvl%==23 (
   if "%_t_Win10_SDV%"=="Yes" (
     set _t_Win10_SDV=No
     if "%_t_Win11_SDV%"=="No" (
@@ -182,7 +210,8 @@ if %_ch_lvl%==22 (
     set _t_Win10=No
   )
 )&goto :_proto_menu
-if %_ch_lvl%==21 goto :_quitter
+if %_ch_lvl%==22 goto :_quitter
+if %_ch_lvl%==21 (start /w /max %comspec% /c "pushd %proj_path% && clean.bat -debug & pause")&goto :_proto_menu
 if %_ch_lvl%==20 (if "%_t_Env%"=="A" (set _t_Env=E) else (if "%_t_Env%"=="E" (set _t_Env=F) else (if "%_t_Env%"=="F" (set _t_Env=A))))&goto :_proto_menu
 if %_ch_lvl%==19 (
   if "%_t_EWDK_Mnts%"=="Mounted Image" (
@@ -214,7 +243,17 @@ if %_ch_lvl%==16 (
 )&goto :_proto_menu
 if %_ch_lvl%==15 (start %comspec% /c "pushd %proj_path% && %EWDK11_24H2_DIR%\LaunchBuildEnv.cmd")&goto :_proto_menu
 if %_ch_lvl%==14 (start %comspec% /c "pushd %proj_path% && %EWDK11_DIR%\LaunchBuildEnv.cmd")&goto :_proto_menu
-if %_ch_lvl%==13 (start /w /max %comspec% /c "pushd %proj_path% && clean.bat -debug & pause")&goto :_proto_menu
+if %_ch_lvl%==13 (
+  if %drv_idx% GTR %drv_cnt% (
+    set drv_idx=0
+  )
+  if !drv_idx! EQU 0 (
+    set _proj_dir=.
+  ) else (
+    for /f "tokens=%drv_idx%" %%i in ("%_drv_dirs%") do @set _proj_choice=%%i
+    set _proj_dir=!_proj_choice!
+  )
+)&& set /a drv_idx=!drv_idx!+1 &goto :_proto_menu
 if %_ch_lvl%==12 (start /w /max %comspec% /c "pushd %proj_path% && clean.bat & pause")&goto :_proto_menu
 if %_ch_lvl%==11 (call :_one_shot )&goto :_proto_menu
 if %_ch_lvl%==10 (start %comspec% /k "pushd %proj_path%")&goto :_proto_menu
