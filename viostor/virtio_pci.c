@@ -49,54 +49,72 @@
 
 static u32 ReadVirtIODeviceRegister(ULONG_PTR ulRegister)
 {
-    if (ulRegister & ~PORT_MASK) {
+    if (ulRegister & ~PORT_MASK)
+    {
         return StorPortReadRegisterUlong(NULL, (PULONG)(ulRegister));
-    } else {
+    }
+    else
+    {
         return StorPortReadPortUlong(NULL, (PULONG)(ulRegister));
     }
 }
 
 static void WriteVirtIODeviceRegister(ULONG_PTR ulRegister, u32 ulValue)
 {
-    if (ulRegister & ~PORT_MASK) {
+    if (ulRegister & ~PORT_MASK)
+    {
         StorPortWriteRegisterUlong(NULL, (PULONG)(ulRegister), (ULONG)(ulValue));
-    } else {
+    }
+    else
+    {
         StorPortWritePortUlong(NULL, (PULONG)(ulRegister), (ULONG)(ulValue));
     }
 }
 
 static u8 ReadVirtIODeviceByte(ULONG_PTR ulRegister)
 {
-    if (ulRegister & ~PORT_MASK) {
+    if (ulRegister & ~PORT_MASK)
+    {
         return StorPortReadRegisterUchar(NULL, (PUCHAR)(ulRegister));
-    } else {
+    }
+    else
+    {
         return StorPortReadPortUchar(NULL, (PUCHAR)(ulRegister));
     }
 }
 
 static void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue)
 {
-    if (ulRegister & ~PORT_MASK) {
+    if (ulRegister & ~PORT_MASK)
+    {
         StorPortWriteRegisterUchar(NULL, (PUCHAR)(ulRegister), (UCHAR)(bValue));
-    } else {
+    }
+    else
+    {
         StorPortWritePortUchar(NULL, (PUCHAR)(ulRegister), (UCHAR)(bValue));
     }
 }
 
 static u16 ReadVirtIODeviceWord(ULONG_PTR ulRegister)
 {
-    if (ulRegister & ~PORT_MASK) {
+    if (ulRegister & ~PORT_MASK)
+    {
         return StorPortReadRegisterUshort(NULL, (PUSHORT)(ulRegister));
-    } else {
+    }
+    else
+    {
         return StorPortReadPortUshort(NULL, (PUSHORT)(ulRegister));
     }
 }
 
 static void WriteVirtIODeviceWord(ULONG_PTR ulRegister, u16 wValue)
 {
-    if (ulRegister & ~PORT_MASK) {
+    if (ulRegister & ~PORT_MASK)
+    {
         StorPortWriteRegisterUshort(NULL, (PUSHORT)(ulRegister), (USHORT)(wValue));
-    } else {
+    }
+    else
+    {
         StorPortWritePortUshort(NULL, (PUSHORT)(ulRegister), (USHORT)(wValue));
     }
 }
@@ -106,12 +124,15 @@ static void *mem_alloc_contiguous_pages(void *context, size_t size)
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)context;
     PVOID ptr = (PVOID)((ULONG_PTR)adaptExt->pageAllocationVa + adaptExt->pageOffset);
 
-    if ((adaptExt->pageOffset + size) <= adaptExt->pageAllocationSize) {
+    if ((adaptExt->pageOffset + size) <= adaptExt->pageAllocationSize)
+    {
         size = ROUND_TO_PAGES(size);
         adaptExt->pageOffset += size;
         RtlZeroMemory(ptr, size);
         return ptr;
-    } else {
+    }
+    else
+    {
         RhelDbgPrint(TRACE_LEVEL_FATAL, " Ran out of memory in (%Id)\n", size);
         return NULL;
     }
@@ -170,7 +191,8 @@ static int pci_read_config_dword(void *context, int where, u32 *dwVal)
 static size_t pci_get_resource_len(void *context, int bar)
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)context;
-    if (bar < PCI_TYPE0_ADDRESSES) {
+    if (bar < PCI_TYPE0_ADDRESSES)
+    {
         return adaptExt->pci_bars[bar].uLength;
     }
     return 0;
@@ -179,18 +201,20 @@ static size_t pci_get_resource_len(void *context, int bar)
 static void *pci_map_address_range(void *context, int bar, size_t offset, size_t maxlen)
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)context;
-    if (bar < PCI_TYPE0_ADDRESSES) {
+    if (bar < PCI_TYPE0_ADDRESSES)
+    {
         PVIRTIO_BAR pBar = &adaptExt->pci_bars[bar];
-        if (pBar->pBase == NULL) {
-            pBar->pBase = StorPortGetDeviceBase(
-                adaptExt,
-                PCIBus,
-                adaptExt->system_io_bus_number,
-                pBar->BasePA,
-                pBar->uLength,
-                !!pBar->bPortSpace);
+        if (pBar->pBase == NULL)
+        {
+            pBar->pBase = StorPortGetDeviceBase(adaptExt,
+                                                PCIBus,
+                                                adaptExt->system_io_bus_number,
+                                                pBar->BasePA,
+                                                pBar->uLength,
+                                                !!pBar->bPortSpace);
         }
-        if (pBar->pBase != NULL && offset < pBar->uLength) {
+        if (pBar->pBase != NULL && offset < pBar->uLength)
+        {
             return (PUCHAR)pBar->pBase + offset;
         }
     }
@@ -202,18 +226,26 @@ static u16 vdev_get_msix_vector(void *context, int queue)
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)context;
     u16 vector = VIRTIO_MSI_NO_VECTOR;
 
-    if (queue >= 0) {
+    if (queue >= 0)
+    {
         /* queue interrupt */
-        if (adaptExt->msix_enabled) {
-            if (adaptExt->msix_one_vector) {
+        if (adaptExt->msix_enabled)
+        {
+            if (adaptExt->msix_one_vector)
+            {
                 vector = 0;
-            } else {
+            }
+            else
+            {
                 vector = queue + 1;
             }
         }
-    } else {
+    }
+    else
+    {
         /* on-device-config-change interrupt */
-        if (!adaptExt->msix_one_vector) {
+        if (!adaptExt->msix_one_vector)
+        {
             vector = VIRTIO_BLK_MSIX_CONFIG_VECTOR;
         }
     }

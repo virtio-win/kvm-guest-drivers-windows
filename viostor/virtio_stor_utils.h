@@ -29,23 +29,17 @@
 #ifndef ___VIOSTOR_UTILS_H___
 #define ___VIOSTOR_UTILS_H___
 
-
 #include "virtio_stor_trace.h"
 
-#define CHECKBIT(value, nbit) virtio_is_feature_enabled(value, nbit)
-#define CHECKFLAG(value, flag) ((value & (flag)) == flag)
-#define SETFLAG(value, flag) (value |= (flag))
+#define CHECKBIT(value, nbit)      virtio_is_feature_enabled(value, nbit)
+#define CHECKFLAG(value, flag)     ((value & (flag)) == flag)
+#define SETFLAG(value, flag)       (value |= (flag))
 
-#define CACHE_LINE_SIZE 64
-#define ROUND_TO_CACHE_LINES(Size)  (((ULONG_PTR)(Size) + CACHE_LINE_SIZE - 1) & ~(CACHE_LINE_SIZE - 1))
+#define CACHE_LINE_SIZE            64
+#define ROUND_TO_CACHE_LINES(Size) (((ULONG_PTR)(Size) + CACHE_LINE_SIZE - 1) & ~(CACHE_LINE_SIZE - 1))
 
-void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING RegistryPath);
+void InitializeDebugPrints(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING RegistryPath);
 
-VOID
-LogError(
-    IN PVOID HwDeviceExtension,
-    IN ULONG ErrorCode,
-    IN ULONG UniqueId
-    );
+VOID LogError(IN PVOID HwDeviceExtension, IN ULONG ErrorCode, IN ULONG UniqueId);
 
 #endif ___VIOSTOR_UTILS_H___
