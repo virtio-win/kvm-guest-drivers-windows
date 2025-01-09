@@ -37,10 +37,10 @@
 #include "Device.tmh"
 #endif
 
-EVT_WDF_DEVICE_PREPARE_HARDWARE     VIOInputEvtDevicePrepareHardware;
-EVT_WDF_DEVICE_RELEASE_HARDWARE     VIOInputEvtDeviceReleaseHardware;
-EVT_WDF_DEVICE_D0_ENTRY             VIOInputEvtDeviceD0Entry;
-EVT_WDF_DEVICE_D0_EXIT              VIOInputEvtDeviceD0Exit;
+EVT_WDF_DEVICE_PREPARE_HARDWARE VIOInputEvtDevicePrepareHardware;
+EVT_WDF_DEVICE_RELEASE_HARDWARE VIOInputEvtDeviceReleaseHardware;
+EVT_WDF_DEVICE_D0_ENTRY VIOInputEvtDeviceD0Entry;
+EVT_WDF_DEVICE_D0_EXIT VIOInputEvtDeviceD0Exit;
 
 static NTSTATUS VIOInputInitInterruptHandling(IN WDFDEVICE hDevice);
 static NTSTATUS VIOInputInitAllQueues(IN WDFOBJECT hDevice);
@@ -48,44 +48,37 @@ static VOID VIOInputShutDownAllQueues(IN WDFOBJECT WdfDevice);
 static NTSTATUS VIOInputCreateChildPdo(IN WDFDEVICE hDevice);
 
 #ifdef ALLOC_PRAGMA
-#pragma alloc_text (PAGE, VIOInputEvtDeviceAdd)
-#pragma alloc_text (PAGE, VIOInputEvtDevicePrepareHardware)
-#pragma alloc_text (PAGE, VIOInputEvtDeviceReleaseHardware)
-#pragma alloc_text (PAGE, VIOInputCreateChildPdo)
-#pragma alloc_text (PAGE, VIOInputEvtDeviceD0Exit)
+#pragma alloc_text(PAGE, VIOInputEvtDeviceAdd)
+#pragma alloc_text(PAGE, VIOInputEvtDevicePrepareHardware)
+#pragma alloc_text(PAGE, VIOInputEvtDeviceReleaseHardware)
+#pragma alloc_text(PAGE, VIOInputCreateChildPdo)
+#pragma alloc_text(PAGE, VIOInputEvtDeviceD0Exit)
 #endif
 
-static
-NTSTATUS
-VIOInputInitInterruptHandling(
-    IN WDFDEVICE hDevice)
+static NTSTATUS VIOInputInitInterruptHandling(IN WDFDEVICE hDevice)
 {
     WDF_INTERRUPT_CONFIG interruptConfig;
-    NTSTATUS             status = STATUS_SUCCESS;
-    PINPUT_DEVICE        pContext = GetDeviceContext(hDevice);
+    NTSTATUS status = STATUS_SUCCESS;
+    PINPUT_DEVICE pContext = GetDeviceContext(hDevice);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS,
-            "Failed to create control queue interrupt: %x\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "Failed to create control queue interrupt: %x\n", status);
         return status;
     }
 
-    WDF_INTERRUPT_CONFIG_INIT(&interruptConfig,
-        VIOInputInterruptIsr, VIOInputQueuesInterruptDpc);
+    WDF_INTERRUPT_CONFIG_INIT(&interruptConfig, VIOInputInterruptIsr, VIOInputQueuesInterruptDpc);
 
     interruptConfig.EvtInterruptEnable = VIOInputInterruptEnable;
     interruptConfig.EvtInterruptDisable = VIOInputInterruptDisable;
 
-    status = WdfInterruptCreate(hDevice, &interruptConfig, WDF_NO_OBJECT_ATTRIBUTES,
-        &pContext->QueuesInterrupt);
+    status = WdfInterruptCreate(hDevice, &interruptConfig, WDF_NO_OBJECT_ATTRIBUTES, &pContext->QueuesInterrupt);
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS,
-            "Failed to create general queue interrupt: %x\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "Failed to create general queue interrupt: %x\n", status);
         return status;
     }
 
@@ -94,16 +87,14 @@ VIOInputInitInterruptHandling(
 }
 
 NTSTATUS
-VIOInputEvtDeviceAdd(
-    IN WDFDRIVER Driver,
-    IN PWDFDEVICE_INIT DeviceInit)
+VIOInputEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
 {
-    NTSTATUS                     status = STATUS_SUCCESS;
-    WDF_OBJECT_ATTRIBUTES        Attributes;
-    WDFDEVICE                    hDevice;
+    NTSTATUS status = STATUS_SUCCESS;
+    WDF_OBJECT_ATTRIBUTES Attributes;
+    WDFDEVICE hDevice;
     WDF_PNPPOWER_EVENT_CALLBACKS PnpPowerCallbacks;
-    PINPUT_DEVICE                pContext = NULL;
-    WDF_IO_QUEUE_CONFIG          queueConfig;
+    PINPUT_DEVICE pContext = NULL;
+    WDF_IO_QUEUE_CONFIG queueConfig;
 
     UNREFERENCED_PARAMETER(Driver);
 
@@ -133,10 +124,7 @@ VIOInputEvtDeviceAdd(
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "VIOInputInitInterruptHandling failed - 0x%x\n", status);
     }
 
-    status = WdfDeviceCreateDeviceInterface(
-        hDevice,
-        &GUID_VIOINPUT_CONTROLLER,
-        NULL);
+    status = WdfDeviceCreateDeviceInterface(hDevice, &GUID_VIOINPUT_CONTROLLER, NULL);
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfDeviceCreateDeviceInterface failed - 0x%x\n", status);
@@ -147,32 +135,20 @@ VIOInputEvtDeviceAdd(
 
     pContext->EventQMemBlock = pContext->StatusQMemBlock = NULL;
 
-    WDF_IO_QUEUE_CONFIG_INIT_DEFAULT_QUEUE(
-        &queueConfig,
-        WdfIoQueueDispatchParallel);
+    WDF_IO_QUEUE_CONFIG_INIT_DEFAULT_QUEUE(&queueConfig, WdfIoQueueDispatchParallel);
 
     queueConfig.EvtIoInternalDeviceControl = EvtIoDeviceControl;
 
-    status = WdfIoQueueCreate(
-        hDevice,
-        &queueConfig,
-        WDF_NO_OBJECT_ATTRIBUTES,
-        &pContext->IoctlQueue);
+    status = WdfIoQueueCreate(hDevice, &queueConfig, WDF_NO_OBJECT_ATTRIBUTES, &pContext->IoctlQueue);
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfIoQueueCreate failed - 0x%x\n", status);
         return status;
     }
 
-    WDF_IO_QUEUE_CONFIG_INIT(
-        &queueConfig,
-        WdfIoQueueDispatchManual);
+    WDF_IO_QUEUE_CONFIG_INIT(&queueConfig, WdfIoQueueDispatchManual);
 
-    status = WdfIoQueueCreate(
-        hDevice,
-        &queueConfig,
-        WDF_NO_OBJECT_ATTRIBUTES,
-        &pContext->HidQueue);
+    status = WdfIoQueueCreate(hDevice, &queueConfig, WDF_NO_OBJECT_ATTRIBUTES, &pContext->HidQueue);
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfIoQueueCreate failed - 0x%x\n", status);
@@ -181,17 +157,13 @@ VIOInputEvtDeviceAdd(
 
     WDF_OBJECT_ATTRIBUTES_INIT(&Attributes);
     Attributes.ParentObject = hDevice;
-    status = WdfSpinLockCreate(
-        &Attributes,
-        &pContext->EventQLock);
+    status = WdfSpinLockCreate(&Attributes, &pContext->EventQLock);
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfSpinLockCreate failed - 0x%x\n", status);
         return status;
     }
-    status = WdfSpinLockCreate(
-        &Attributes,
-        &pContext->StatusQLock);
+    status = WdfSpinLockCreate(&Attributes, &pContext->StatusQLock);
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfSpinLockCreate failed - 0x%x\n", status);
@@ -223,10 +195,7 @@ static void VIOInputFreeMemBlocks(PINPUT_DEVICE pContext)
 }
 
 NTSTATUS
-VIOInputEvtDevicePrepareHardware(
-    IN WDFDEVICE Device,
-    IN WDFCMRESLIST ResourcesRaw,
-    IN WDFCMRESLIST ResourcesTranslated)
+VIOInputEvtDevicePrepareHardware(IN WDFDEVICE Device, IN WDFCMRESLIST ResourcesRaw, IN WDFCMRESLIST ResourcesTranslated)
 {
     PINPUT_DEVICE pContext = GetDeviceContext(Device);
     NTSTATUS status = STATUS_SUCCESS;
@@ -236,24 +205,22 @@ VIOInputEvtDevicePrepareHardware(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
-    status = VirtIOWdfInitialize(
-        &pContext->VDevice,
-        Device,
-        ResourcesTranslated,
-        NULL,
-        VIOINPUT_DRIVER_MEMORY_TAG);
+    status = VirtIOWdfInitialize(&pContext->VDevice, Device, ResourcesTranslated, NULL, VIOINPUT_DRIVER_MEMORY_TAG);
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "VirtIOWdfInitialize failed with %x\n", status);
         return status;
     }
 
-    pContext->EventQMemBlock = VirtIOWdfDeviceAllocDmaMemorySliced(
-        &pContext->VDevice.VIODevice, PAGE_SIZE, sizeof(VIRTIO_INPUT_EVENT));
-    pContext->StatusQMemBlock = VirtIOWdfDeviceAllocDmaMemorySliced(
-        &pContext->VDevice.VIODevice, PAGE_SIZE, sizeof(VIRTIO_INPUT_EVENT_WITH_REQUEST));
+    pContext->EventQMemBlock = VirtIOWdfDeviceAllocDmaMemorySliced(&pContext->VDevice.VIODevice,
+                                                                   PAGE_SIZE,
+                                                                   sizeof(VIRTIO_INPUT_EVENT));
+    pContext->StatusQMemBlock = VirtIOWdfDeviceAllocDmaMemorySliced(&pContext->VDevice.VIODevice,
+                                                                    PAGE_SIZE,
+                                                                    sizeof(VIRTIO_INPUT_EVENT_WITH_REQUEST));
 
-    if (!pContext->EventQMemBlock || !pContext->StatusQMemBlock) {
+    if (!pContext->EventQMemBlock || !pContext->StatusQMemBlock)
+    {
         VIOInputFreeMemBlocks(pContext);
         return STATUS_INSUFFICIENT_RESOURCES;
     }
@@ -286,9 +253,7 @@ VIOInputEvtDevicePrepareHardware(
     return status;
 }
 
-static NTSTATUS
-VIOInputCreateChildPdo(
-    IN WDFDEVICE hDevice)
+static NTSTATUS VIOInputCreateChildPdo(IN WDFDEVICE hDevice)
 {
     PINPUT_DEVICE pContext = GetDeviceContext(hDevice);
     PWDFDEVICE_INIT pDeviceInit = NULL;
@@ -329,10 +294,7 @@ VIOInputCreateChildPdo(
         goto Exit;
     }
 
-    status = RtlUnicodeStringPrintf(
-        &buffer,
-        L"%08I64x",
-        pContext->HidReportDescriptorHash);
+    status = RtlUnicodeStringPrintf(&buffer, L"%08I64x", pContext->HidReportDescriptorHash);
     if (!NT_SUCCESS(status))
     {
         goto Exit;
@@ -344,10 +306,7 @@ VIOInputCreateChildPdo(
     }
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&pdoAttributes, PDO_EXTENSION);
-    status = WdfDeviceCreate(
-        &pDeviceInit,
-        &pdoAttributes,
-        &hChild);
+    status = WdfDeviceCreate(&pDeviceInit, &pdoAttributes, &hChild);
     if (!NT_SUCCESS(status))
     {
         goto Exit;
@@ -384,9 +343,7 @@ Exit:
 }
 
 NTSTATUS
-VIOInputEvtDeviceReleaseHardware(
-    IN WDFDEVICE Device,
-    IN WDFCMRESLIST ResourcesTranslated)
+VIOInputEvtDeviceReleaseHardware(IN WDFDEVICE Device, IN WDFCMRESLIST ResourcesTranslated)
 {
     PINPUT_DEVICE pContext = GetDeviceContext(Device);
     PSINGLE_LIST_ENTRY entry;
@@ -419,10 +376,7 @@ VIOInputEvtDeviceReleaseHardware(
     return STATUS_SUCCESS;
 }
 
-static
-NTSTATUS
-VIOInputInitAllQueues(
-    IN WDFOBJECT Device)
+static NTSTATUS VIOInputInitAllQueues(IN WDFOBJECT Device)
 {
     NTSTATUS status = STATUS_SUCCESS;
     PINPUT_DEVICE pContext = GetDeviceContext(Device);
@@ -453,8 +407,7 @@ VIOInputInitAllQueues(
     return status;
 }
 
-VOID
-VIOInputShutDownAllQueues(IN WDFOBJECT WdfDevice)
+VOID VIOInputShutDownAllQueues(IN WDFOBJECT WdfDevice)
 {
     PINPUT_DEVICE pContext = GetDeviceContext(WdfDevice);
 
@@ -495,14 +448,12 @@ VIOInputFillEventQueue(PINPUT_DEVICE pContext)
     return STATUS_SUCCESS;
 }
 
-static NTSTATUS
-VIOInputAddBuf(
-    IN struct virtqueue *vq,
-    IN PVIRTIO_INPUT_EVENT buf,
-    IN PHYSICAL_ADDRESS pa,
-    IN BOOLEAN out)
+static NTSTATUS VIOInputAddBuf(IN struct virtqueue *vq,
+                               IN PVIRTIO_INPUT_EVENT buf,
+                               IN PHYSICAL_ADDRESS pa,
+                               IN BOOLEAN out)
 {
-    NTSTATUS  status = STATUS_SUCCESS;
+    NTSTATUS status = STATUS_SUCCESS;
     struct VirtIOBufferDescriptor sg;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s  buf = %p, pa %I64x\n", __FUNCTION__, buf, pa.QuadPart);
@@ -532,28 +483,20 @@ VIOInputAddBuf(
 }
 
 NTSTATUS
-VIOInputAddInBuf(
-    IN struct virtqueue *vq,
-    IN PVIRTIO_INPUT_EVENT buf,
-    IN PHYSICAL_ADDRESS pa)
+VIOInputAddInBuf(IN struct virtqueue *vq, IN PVIRTIO_INPUT_EVENT buf, IN PHYSICAL_ADDRESS pa)
 {
     return VIOInputAddBuf(vq, buf, pa, FALSE);
 }
 
 NTSTATUS
-VIOInputAddOutBuf(
-    IN struct virtqueue *vq,
-    IN PVIRTIO_INPUT_EVENT buf,
-    IN PHYSICAL_ADDRESS pa)
+VIOInputAddOutBuf(IN struct virtqueue *vq, IN PVIRTIO_INPUT_EVENT buf, IN PHYSICAL_ADDRESS pa)
 {
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_QUEUEING, "%s %p\n", __FUNCTION__, buf);
     return VIOInputAddBuf(vq, buf, pa, TRUE);
 }
 
 NTSTATUS
-VIOInputEvtDeviceD0Entry(
-    IN  WDFDEVICE Device,
-    IN  WDF_POWER_DEVICE_STATE PreviousState)
+VIOInputEvtDeviceD0Entry(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE PreviousState)
 {
     NTSTATUS status = STATUS_SUCCESS;
     PINPUT_DEVICE pContext = GetDeviceContext(Device);
@@ -579,15 +522,12 @@ VIOInputEvtDeviceD0Entry(
 }
 
 NTSTATUS
-VIOInputEvtDeviceD0Exit(
-    IN  WDFDEVICE Device,
-    IN  WDF_POWER_DEVICE_STATE TargetState)
+VIOInputEvtDeviceD0Exit(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE TargetState)
 {
     PINPUT_DEVICE pContext = GetDeviceContext(Device);
     PVIRTIO_INPUT_EVENT buf;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"--> %s TargetState: %d\n",
-        __FUNCTION__, TargetState);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s TargetState: %d\n", __FUNCTION__, TargetState);
 
     PAGED_CODE();
 

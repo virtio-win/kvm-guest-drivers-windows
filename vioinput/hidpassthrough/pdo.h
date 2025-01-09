@@ -8,7 +8,7 @@
 #pragma once
 #include <wdm.h>
 
-#define PDO_EXTENSION_V1 1
+#define PDO_EXTENSION_V1      1
 #define PDO_EXTENSION_VERSION PDO_EXTENSION_V1
 
 typedef struct _tagPdoExtension
@@ -17,8 +17,8 @@ typedef struct _tagPdoExtension
      * It doesn't hurt to add a version field in case we need to extend it
      * in the future.
      */
-    ULONG           Version;
+    ULONG Version;
 
     /* Pointer to the bus FDO that enumerated the PDO */
-    PDEVICE_OBJECT  BusFdo;
+    PDEVICE_OBJECT BusFdo;
 } PDO_EXTENSION, *PPDO_EXTENSION;

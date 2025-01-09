@@ -42,43 +42,39 @@ DRIVER_INITIALIZE DriverEntry;
 EVT_WDF_OBJECT_CONTEXT_CLEANUP _IRQL_requires_(PASSIVE_LEVEL) VIOInputEvtDriverContextCleanup;
 
 #ifdef ALLOC_PRAGMA
-#pragma alloc_text (INIT, DriverEntry)
-#pragma alloc_text (PAGE, VIOInputEvtDriverContextCleanup)
+#pragma alloc_text(INIT, DriverEntry)
+#pragma alloc_text(PAGE, VIOInputEvtDriverContextCleanup)
 #endif
 
 NTSTATUS
-DriverEntry(
-    IN PDRIVER_OBJECT  DriverObject,
-    IN PUNICODE_STRING RegistryPath)
+DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING RegistryPath)
 {
-    NTSTATUS              status = STATUS_SUCCESS;
-    WDF_DRIVER_CONFIG     config;
+    NTSTATUS status = STATUS_SUCCESS;
+    WDF_DRIVER_CONFIG config;
     WDF_OBJECT_ATTRIBUTES attributes;
-    WDFDRIVER             driver;
+    WDFDRIVER driver;
 
     ExInitializeDriverRuntime(DrvRtPoolNxOptIn);
 
     InitializeDebugPrints(DriverObject, RegistryPath);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT,
-        "Virtio-input driver started...built on %s %s\n", __DATE__, __TIME__);
+    TraceEvents(TRACE_LEVEL_INFORMATION,
+                DBG_INIT,
+                "Virtio-input driver started...built on %s %s\n",
+                __DATE__,
+                __TIME__);
 
-    WDF_DRIVER_CONFIG_INIT(&config,VIOInputEvtDeviceAdd);
-    config.DriverPoolTag  = VIOINPUT_DRIVER_MEMORY_TAG;
+    WDF_DRIVER_CONFIG_INIT(&config, VIOInputEvtDeviceAdd);
+    config.DriverPoolTag = VIOINPUT_DRIVER_MEMORY_TAG;
 
     WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
     attributes.EvtCleanupCallback = VIOInputEvtDriverContextCleanup;
 
-    status = WdfDriverCreate(DriverObject,
-                             RegistryPath,
-                             &attributes,
-                             &config,
-                             &driver);
+    status = WdfDriverCreate(DriverObject, RegistryPath, &attributes, &config, &driver);
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-           "WdfDriverCreate failed - 0x%x\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfDriverCreate failed - 0x%x\n", status);
         WPP_CLEANUP(DriverObject);
         return status;
     }
@@ -87,9 +83,7 @@ DriverEntry(
     return status;
 }
 
-VOID
-VIOInputEvtDriverContextCleanup(
-    IN WDFOBJECT Driver)
+VOID VIOInputEvtDriverContextCleanup(IN WDFOBJECT Driver)
 {
     PAGED_CODE();
 

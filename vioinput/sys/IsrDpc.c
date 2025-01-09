@@ -34,14 +34,14 @@
 #include "IsrDpc.tmh"
 #endif
 
-static
-VOID
-VIOInputEnableInterrupt(PINPUT_DEVICE pContext)
+static VOID VIOInputEnableInterrupt(PINPUT_DEVICE pContext)
 {
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "--> %s enable\n", __FUNCTION__);
 
     if (!pContext)
+    {
         return;
+    }
 
     if (pContext->EventQ)
     {
@@ -57,14 +57,14 @@ VIOInputEnableInterrupt(PINPUT_DEVICE pContext)
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "<-- %s enable\n", __FUNCTION__);
 }
 
-static
-VOID
-VIOInputDisableInterrupt(PINPUT_DEVICE pContext)
+static VOID VIOInputDisableInterrupt(PINPUT_DEVICE pContext)
 {
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "--> %s disable\n", __FUNCTION__);
 
     if (!pContext)
+    {
         return;
+    }
 
     if (pContext->EventQ)
     {
@@ -79,9 +79,7 @@ VIOInputDisableInterrupt(PINPUT_DEVICE pContext)
 }
 
 NTSTATUS
-VIOInputInterruptEnable(
-    IN WDFINTERRUPT Interrupt,
-    IN WDFDEVICE AssociatedDevice)
+VIOInputInterruptEnable(IN WDFINTERRUPT Interrupt, IN WDFDEVICE AssociatedDevice)
 {
     UNREFERENCED_PARAMETER(AssociatedDevice);
 
@@ -92,9 +90,7 @@ VIOInputInterruptEnable(
 }
 
 NTSTATUS
-VIOInputInterruptDisable(
-    IN WDFINTERRUPT Interrupt,
-    IN WDFDEVICE AssociatedDevice)
+VIOInputInterruptDisable(IN WDFINTERRUPT Interrupt, IN WDFDEVICE AssociatedDevice)
 {
     UNREFERENCED_PARAMETER(AssociatedDevice);
 
@@ -105,9 +101,7 @@ VIOInputInterruptDisable(
 }
 
 BOOLEAN
-VIOInputInterruptIsr(
-    IN WDFINTERRUPT Interrupt,
-    IN ULONG MessageID)
+VIOInputInterruptIsr(IN WDFINTERRUPT Interrupt, IN ULONG MessageID)
 {
     PINPUT_DEVICE pContext = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
     WDF_INTERRUPT_INFO info;
@@ -134,10 +128,7 @@ VIOInputInterruptIsr(
     return serviced;
 }
 
-VOID
-VIOInputQueuesInterruptDpc(
-    IN WDFINTERRUPT Interrupt,
-    IN WDFOBJECT AssociatedObject)
+VOID VIOInputQueuesInterruptDpc(IN WDFINTERRUPT Interrupt, IN WDFOBJECT AssociatedObject)
 {
     WDFDEVICE Device = WdfInterruptGetDevice(Interrupt);
     PINPUT_DEVICE pContext = GetDeviceContext(Device);
@@ -154,10 +145,9 @@ VIOInputQueuesInterruptDpc(
         ProcessInputEvent(pContext, pEvent);
 
         // add the buffer back to the queue
-        VIOInputAddInBuf(
-            pContext->EventQ,
-            pEvent,
-            VirtIOWdfDeviceGetPhysicalAddress(&pContext->VDevice.VIODevice, pEvent));
+        VIOInputAddInBuf(pContext->EventQ,
+                         pEvent,
+                         VirtIOWdfDeviceGetPhysicalAddress(&pContext->VDevice.VIODevice, pEvent));
     }
     WdfSpinLockRelease(pContext->EventQLock);
 
