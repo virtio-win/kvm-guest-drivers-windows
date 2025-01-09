@@ -32,174 +32,116 @@
 #ifndef ___HELPER_H___
 #define ___HELPER_H___
 
-
 #include <ntddk.h>
 #include <storport.h>
 #include <ntddscsi.h>
-
 
 #include "osdep.h"
 #include "virtio_pci.h"
 #include "virtio_ring.h"
 #include "vioscsi.h"
 
-#define CHECKBIT(value, nbit) virtio_is_feature_enabled(value, nbit)
-#define CHECKFLAG(value, flag) ((value & (flag)) == flag)
-#define SETFLAG(value, flag) (value |= (flag))
+#define CHECKBIT(value, nbit)      virtio_is_feature_enabled(value, nbit)
+#define CHECKFLAG(value, flag)     ((value & (flag)) == flag)
+#define SETFLAG(value, flag)       (value |= (flag))
 
-#define CACHE_LINE_SIZE 64
-#define ROUND_TO_CACHE_LINES(Size)  (((ULONG_PTR)(Size) + CACHE_LINE_SIZE - 1) & ~(CACHE_LINE_SIZE - 1))
+#define CACHE_LINE_SIZE            64
+#define ROUND_TO_CACHE_LINES(Size) (((ULONG_PTR)(Size) + CACHE_LINE_SIZE - 1) & ~(CACHE_LINE_SIZE - 1))
 
 #include <srbhelper.h>
 
 // Note: SrbGetCdbLength is defined in srbhelper.h
-FORCEINLINE ULONG
-SrbGetCdbLength32(_In_ PVOID Srb) {
+FORCEINLINE ULONG SrbGetCdbLength32(_In_ PVOID Srb)
+{
     ULONG CdbLen32 = 0;
     UCHAR CdbLen8 = 0;
     SrbGetScsiData(Srb, &CdbLen8, &CdbLen32, NULL, NULL, NULL);
     return (CdbLen8 != 0) ? CdbLen8 : CdbLen32;
 }
 
-FORCEINLINE VOID
-SrbGetPnpInfo(_In_ PVOID Srb, ULONG* PnPFlags, ULONG* PnPAction) {
+FORCEINLINE VOID SrbGetPnpInfo(_In_ PVOID Srb, ULONG *PnPFlags, ULONG *PnPAction)
+{
     PSCSI_PNP_REQUEST_BLOCK pPnpSrb = NULL;
     PSRBEX_DATA_PNP pSrbExPnp = NULL;
-    pSrbExPnp = (PSRBEX_DATA_PNP)SrbGetSrbExDataByType(
-        (PSTORAGE_REQUEST_BLOCK)Srb, SrbExDataTypePnP);
-    if (pSrbExPnp != NULL) {
+    pSrbExPnp = (PSRBEX_DATA_PNP)SrbGetSrbExDataByType((PSTORAGE_REQUEST_BLOCK)Srb, SrbExDataTypePnP);
+    if (pSrbExPnp != NULL)
+    {
         *PnPFlags = pSrbExPnp->SrbPnPFlags;
         *PnPAction = pSrbExPnp->PnPAction;
     }
-    else {
+    else
+    {
         pPnpSrb = (PSCSI_PNP_REQUEST_BLOCK)Srb;
         *PnPFlags = pPnpSrb->SrbPnPFlags;
         *PnPAction = pPnpSrb->PnPAction;
     }
 }
-#define PSRB_TYPE PSTORAGE_REQUEST_BLOCK
-#define PSRB_WMI_DATA PSRBEX_DATA_WMI
+#define PSRB_TYPE                      PSTORAGE_REQUEST_BLOCK
+#define PSRB_WMI_DATA                  PSRBEX_DATA_WMI
 #define PSTOR_DEVICE_CAPABILITIES_TYPE PSTOR_DEVICE_CAPABILITIES_EX
-#define SRB_EXTENSION(Srb) SrbGetMiniportContext(Srb)
-#define SRB_FUNCTION(Srb) SrbGetSrbFunction(Srb)
-#define SRB_CDB(Srb) SrbGetCdb(Srb)
-#define SRB_CDB_LENGTH(Srb) SrbGetCdbLength32(Srb)
-#define SRB_FLAGS(Srb) SrbGetSrbFlags(Srb)
-#define SRB_PATH_ID(Srb) SrbGetPathId(Srb)
-#define SRB_TARGET_ID(Srb) SrbGetTargetId(Srb)
-#define SRB_LUN(Srb) SrbGetLun(Srb)
-#define SRB_DATA_BUFFER(Srb) SrbGetDataBuffer(Srb)
-#define SRB_DATA_TRANSFER_LENGTH(Srb) SrbGetDataTransferLength(Srb)
-#define SRB_LENGTH(Srb) SrbGetSrbLength(Srb)
-#define SRB_WMI_DATA(Srb) (PSRBEX_DATA_WMI)SrbGetSrbExDataByType((PSTORAGE_REQUEST_BLOCK)Srb, SrbExDataTypeWmi)
-#define SRB_GET_SENSE_INFO(Srb, senseInfoBuffer, senseInfoBufferLen) SrbGetScsiData(Srb, NULL, NULL, NULL, &senseInfoBuffer, &senseInfoBufferLen)
+#define SRB_EXTENSION(Srb)             SrbGetMiniportContext(Srb)
+#define SRB_FUNCTION(Srb)              SrbGetSrbFunction(Srb)
+#define SRB_CDB(Srb)                   SrbGetCdb(Srb)
+#define SRB_CDB_LENGTH(Srb)            SrbGetCdbLength32(Srb)
+#define SRB_FLAGS(Srb)                 SrbGetSrbFlags(Srb)
+#define SRB_PATH_ID(Srb)               SrbGetPathId(Srb)
+#define SRB_TARGET_ID(Srb)             SrbGetTargetId(Srb)
+#define SRB_LUN(Srb)                   SrbGetLun(Srb)
+#define SRB_DATA_BUFFER(Srb)           SrbGetDataBuffer(Srb)
+#define SRB_DATA_TRANSFER_LENGTH(Srb)  SrbGetDataTransferLength(Srb)
+#define SRB_LENGTH(Srb)                SrbGetSrbLength(Srb)
+#define SRB_WMI_DATA(Srb)              (PSRBEX_DATA_WMI) SrbGetSrbExDataByType((PSTORAGE_REQUEST_BLOCK)Srb, SrbExDataTypeWmi)
+#define SRB_GET_SENSE_INFO(Srb, senseInfoBuffer, senseInfoBufferLen)                                                   \
+    SrbGetScsiData(Srb, NULL, NULL, NULL, &senseInfoBuffer, &senseInfoBufferLen)
 #define SRB_GET_PNP_INFO(Srb, PnPFlags, PnPAction) SrbGetPnpInfo(Srb, &PnPFlags, &PnPAction)
-#define SRB_SET_SCSI_STATUS(Srb, status) SrbSetScsiData(Srb, NULL, NULL, &status, NULL, NULL)
-#define SRB_GET_SCSI_STATUS(Srb, status) SrbGetScsiData(Srb, NULL, NULL, &status, NULL, NULL)
-#define SRB_SET_SRB_STATUS(Srb, status) SrbSetSrbStatus(Srb, status)
-#define SRB_GET_SRB_STATUS(Srb, status) status = SrbSetSrbStatus(Srb)
-#define SRB_SET_DATA_TRANSFER_LENGTH(Srb, Len) SrbSetDataTransferLength(Srb, Len)
-#define SRB_GET_TIMEOUTVALUE(Srb) SrbGetTimeOutValue(Srb)
+#define SRB_SET_SCSI_STATUS(Srb, status)           SrbSetScsiData(Srb, NULL, NULL, &status, NULL, NULL)
+#define SRB_GET_SCSI_STATUS(Srb, status)           SrbGetScsiData(Srb, NULL, NULL, &status, NULL, NULL)
+#define SRB_SET_SRB_STATUS(Srb, status)            SrbSetSrbStatus(Srb, status)
+#define SRB_GET_SRB_STATUS(Srb, status)            status = SrbSetSrbStatus(Srb)
+#define SRB_SET_DATA_TRANSFER_LENGTH(Srb, Len)     SrbSetDataTransferLength(Srb, Len)
+#define SRB_GET_TIMEOUTVALUE(Srb)                  SrbGetTimeOutValue(Srb)
 
-VOID
-SendSRB(
-    IN PVOID DeviceExtension,
-    IN PSRB_TYPE Srb
-    );
+VOID SendSRB(IN PVOID DeviceExtension, IN PSRB_TYPE Srb);
 
 BOOLEAN
-SendTMF(
-    IN PVOID DeviceExtension,
-    IN PSCSI_REQUEST_BLOCK Srb
-    );
+SendTMF(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb);
 
-VOID
-ShutDown(
-    IN PVOID DeviceExtension
-    );
+VOID ShutDown(IN PVOID DeviceExtension);
 
 BOOLEAN
-DeviceReset(
-    IN PVOID DeviceExtension
-    );
+DeviceReset(IN PVOID DeviceExtension);
 
-VOID
-GetScsiConfig(
-    IN PVOID DeviceExtension
-    );
-VOID
-SetGuestFeatures(
-    IN PVOID DeviceExtension
-    );
+VOID GetScsiConfig(IN PVOID DeviceExtension);
+VOID SetGuestFeatures(IN PVOID DeviceExtension);
 
 BOOLEAN
-InitVirtIODevice(
-    IN PVOID DeviceExtension
-    );
+InitVirtIODevice(IN PVOID DeviceExtension);
 
 BOOLEAN
-InitHW(
-    IN PVOID DeviceExtension,
-    IN PPORT_CONFIGURATION_INFORMATION ConfigInfo
-    );
+InitHW(IN PVOID DeviceExtension, IN PPORT_CONFIGURATION_INFORMATION ConfigInfo);
 
-VOID
-LogError(
-    IN PVOID HwDeviceExtension,
-    IN ULONG ErrorCode,
-    IN ULONG UniqueId
-    );
+VOID LogError(IN PVOID HwDeviceExtension, IN ULONG ErrorCode, IN ULONG UniqueId);
 
 BOOLEAN
-KickEvent(
-    IN PVOID DeviceExtension,
-    IN PVirtIOSCSIEventNode event
-    );
+KickEvent(IN PVOID DeviceExtension, IN PVirtIOSCSIEventNode event);
 
 BOOLEAN
-SynchronizedKickEventRoutine(
-    IN PVOID DeviceExtension,
-    IN PVOID Context
-    );
+SynchronizedKickEventRoutine(IN PVOID DeviceExtension, IN PVOID Context);
+
+VOID VioScsiCompleteDpcRoutine(IN PSTOR_DPC Dpc, IN PVOID Context, IN PVOID SystemArgument1, IN PVOID SystemArgument2);
+
+VOID ProcessBuffer(IN PVOID DeviceExtension, IN ULONG MessageId, IN STOR_SPINLOCK LockMode);
 
 VOID
-VioScsiCompleteDpcRoutine(
-    IN PSTOR_DPC  Dpc,
-    IN PVOID Context,
-    IN PVOID SystemArgument1,
-    IN PVOID SystemArgument2
-);
-
-VOID
-ProcessBuffer(
-    IN PVOID DeviceExtension,
-    IN ULONG MessageId,
-    IN STOR_SPINLOCK LockMode
-    );
-
-VOID
-//FORCEINLINE
-HandleResponse(
-    IN PVOID DeviceExtension,
-    IN PVirtIOSCSICmd cmd
-    );
+// FORCEINLINE
+HandleResponse(IN PVOID DeviceExtension, IN PVirtIOSCSICmd cmd);
 
 PVOID
-VioScsiPoolAlloc(
-    IN PVOID DeviceExtension,
-    IN SIZE_T size
-    );
+VioScsiPoolAlloc(IN PVOID DeviceExtension, IN SIZE_T size);
 
-VOID
-CompleteRequest(
-    IN PVOID DeviceExtension,
-    IN PSRB_TYPE Srb
- );
+VOID CompleteRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb);
 
-VOID FirmwareRequest(
-    IN PVOID DeviceExtension,
-    IN PSRB_TYPE Srb
-    );
+VOID FirmwareRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb);
 
 extern VirtIOSystemOps VioScsiSystemOps;
 

@@ -34,14 +34,13 @@ int virtioDebugLevel;
 int bDebugPrint;
 int nVioscsiDebugLevel;
 
-
 #if !defined(EVENT_TRACING)
 
 #if defined(COM_DEBUG)
 #include <ntstrsafe.h>
 
-#define RHEL_DEBUG_PORT     ((PUCHAR)0x3F8)
-#define TEMP_BUFFER_SIZE    256
+#define RHEL_DEBUG_PORT  ((PUCHAR)0x3F8)
+#define TEMP_BUFFER_SIZE 256
 
 static void DebugPrintFuncSerial(const char *format, ...)
 {
@@ -79,13 +78,12 @@ static void DebugPrintFunc(const char *format, ...)
 #else
 static void NoDebugPrintFunc(const char *format, ...)
 {
-
 }
 #endif
 
-void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING RegistryPath)
+void InitializeDebugPrints(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING RegistryPath)
 {
-    //TBD - Read nDebugLevel and bDebugPrint from the registry
+    // TBD - Read nDebugLevel and bDebugPrint from the registry
     bDebugPrint = 1;
     virtioDebugLevel = 0;
 #if !defined(RUN_UNCHECKED)
@@ -102,19 +100,22 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING R
 }
 
 #else
-static void NoDebugPrintFunc(const char *format, ...) {} // This is NOT strictly required for ETW
-void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, IN PUNICODE_STRING RegistryPath)
+static void NoDebugPrintFunc(const char *format, ...)
 {
-    VirtioDebugPrintProc = NoDebugPrintFunc; // This is NOT strictly required for ETW - neither DbgPrint nor DbgPrintEx will be called when EVENT_TRACING is defined
+} // This is NOT strictly required for ETW
+void InitializeDebugPrints(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING RegistryPath)
+{
+    VirtioDebugPrintProc = NoDebugPrintFunc; // This is NOT strictly required for ETW - neither DbgPrint nor DbgPrintEx
+                                             // will be called when EVENT_TRACING is defined
 }
 #endif
 
 tDebugPrintFunc VirtioDebugPrintProc; // This is necessary for compilation due to VirtIO\kdebugprint.h requisites
 
 #undef MAKE_CASE
-#define MAKE_CASE(scsiOpCode)    \
-    case scsiOpCode:             \
-        scsiOpStr = #scsiOpCode; \
+#define MAKE_CASE(scsiOpCode)                                                                                          \
+    case scsiOpCode:                                                                                                   \
+        scsiOpStr = #scsiOpCode;                                                                                       \
         break;
 
 char *DbgGetScsiOpStr(IN UCHAR opCode)
@@ -122,31 +123,31 @@ char *DbgGetScsiOpStr(IN UCHAR opCode)
     char *scsiOpStr = "?";
     switch (opCode)
     {
-        MAKE_CASE(SCSIOP_TEST_UNIT_READY)               // Code 0x00
-        MAKE_CASE(SCSIOP_REWIND)                        // Code 0x01
-        MAKE_CASE(SCSIOP_REQUEST_BLOCK_ADDR)            // Code 0x02
-        MAKE_CASE(SCSIOP_REQUEST_SENSE)                 // Code 0x03
-        MAKE_CASE(SCSIOP_FORMAT_UNIT)                   // Code 0x04
-        MAKE_CASE(SCSIOP_READ_BLOCK_LIMITS)             // Code 0x05
-        MAKE_CASE(SCSIOP_INIT_ELEMENT_STATUS)           // Code 0x07, aka SCSIOP_REASSIGN_BLOCKS
-        MAKE_CASE(SCSIOP_READ6)                         // Code 0x08, aka SCSIOP_RECEIVE
-        MAKE_CASE(SCSIOP_WRITE6)                        // Code 0x0A, aka SCSIOP_PRINT, SCSIOP_SEND
-        MAKE_CASE(SCSIOP_SEEK6)                         // Code 0x0B, aka SCSIOP_SET_CAPACITY, SCSIOP_SLEW_PRINT, SCSIOP_TRACK_SELECT
-        MAKE_CASE(SCSIOP_SEEK_BLOCK)                    // Code 0x0C
-        MAKE_CASE(SCSIOP_PARTITION)                     // Code 0x0D
-        MAKE_CASE(SCSIOP_READ_REVERSE)                  // Code 0x0F
-        MAKE_CASE(SCSIOP_FLUSH_BUFFER)                  // Code 0x10, aka SCSIOP_WRITE_FILEMARKS
-        MAKE_CASE(SCSIOP_SPACE)                         // Code 0x11
-        MAKE_CASE(SCSIOP_INQUIRY)                       // Code 0x12
-        MAKE_CASE(SCSIOP_VERIFY6)                       // Code 0x13
-        MAKE_CASE(SCSIOP_RECOVER_BUF_DATA)              // Code 0x14
-        MAKE_CASE(SCSIOP_MODE_SELECT)                   // Code 0x15
-        MAKE_CASE(SCSIOP_RESERVE_UNIT)                  // Code 0x16
-        MAKE_CASE(SCSIOP_RELEASE_UNIT)                  // Code 0x17
-        MAKE_CASE(SCSIOP_COPY)                          // Code 0x18
-        MAKE_CASE(SCSIOP_ERASE)                         // Code 0x19
-        MAKE_CASE(SCSIOP_MODE_SENSE)                    // Code 0x1A
-        MAKE_CASE(SCSIOP_START_STOP_UNIT)               // Code 0x1B, aka SCSIOP_LOAD_UNLOAD, SCSIOP_STOP_PRINT
+        MAKE_CASE(SCSIOP_TEST_UNIT_READY)     // Code 0x00
+        MAKE_CASE(SCSIOP_REWIND)              // Code 0x01
+        MAKE_CASE(SCSIOP_REQUEST_BLOCK_ADDR)  // Code 0x02
+        MAKE_CASE(SCSIOP_REQUEST_SENSE)       // Code 0x03
+        MAKE_CASE(SCSIOP_FORMAT_UNIT)         // Code 0x04
+        MAKE_CASE(SCSIOP_READ_BLOCK_LIMITS)   // Code 0x05
+        MAKE_CASE(SCSIOP_INIT_ELEMENT_STATUS) // Code 0x07, aka SCSIOP_REASSIGN_BLOCKS
+        MAKE_CASE(SCSIOP_READ6)               // Code 0x08, aka SCSIOP_RECEIVE
+        MAKE_CASE(SCSIOP_WRITE6)              // Code 0x0A, aka SCSIOP_PRINT, SCSIOP_SEND
+        MAKE_CASE(SCSIOP_SEEK6)            // Code 0x0B, aka SCSIOP_SET_CAPACITY, SCSIOP_SLEW_PRINT, SCSIOP_TRACK_SELECT
+        MAKE_CASE(SCSIOP_SEEK_BLOCK)       // Code 0x0C
+        MAKE_CASE(SCSIOP_PARTITION)        // Code 0x0D
+        MAKE_CASE(SCSIOP_READ_REVERSE)     // Code 0x0F
+        MAKE_CASE(SCSIOP_FLUSH_BUFFER)     // Code 0x10, aka SCSIOP_WRITE_FILEMARKS
+        MAKE_CASE(SCSIOP_SPACE)            // Code 0x11
+        MAKE_CASE(SCSIOP_INQUIRY)          // Code 0x12
+        MAKE_CASE(SCSIOP_VERIFY6)          // Code 0x13
+        MAKE_CASE(SCSIOP_RECOVER_BUF_DATA) // Code 0x14
+        MAKE_CASE(SCSIOP_MODE_SELECT)      // Code 0x15
+        MAKE_CASE(SCSIOP_RESERVE_UNIT)     // Code 0x16
+        MAKE_CASE(SCSIOP_RELEASE_UNIT)     // Code 0x17
+        MAKE_CASE(SCSIOP_COPY)             // Code 0x18
+        MAKE_CASE(SCSIOP_ERASE)            // Code 0x19
+        MAKE_CASE(SCSIOP_MODE_SENSE)       // Code 0x1A
+        MAKE_CASE(SCSIOP_START_STOP_UNIT)  // Code 0x1B, aka SCSIOP_LOAD_UNLOAD, SCSIOP_STOP_PRINT
         MAKE_CASE(SCSIOP_RECEIVE_DIAGNOSTIC)            // Code 0x1C
         MAKE_CASE(SCSIOP_SEND_DIAGNOSTIC)               // Code 0x1D
         MAKE_CASE(SCSIOP_MEDIUM_REMOVAL)                // Code 0x1E
@@ -221,41 +222,42 @@ char *DbgGetScsiOpStr(IN UCHAR opCode)
         MAKE_CASE(SCSIOP_ZBC_OUT)                       // Code 0x94
         MAKE_CASE(SCSIOP_ZBC_IN)                        // Code 0x95
         MAKE_CASE(SCSIOP_READ_DATA_BUFF16)              // Code 0x9B
-        MAKE_CASE(SCSIOP_GET_LBA_STATUS)                // Code 0x9E, aka SCSIOP_GET_PHYSICAL_ELEMENT_STATUS, SCSIOP_READ_CAPACITY16, SCSIOP_REMOVE_ELEMENT_AND_TRUNCATE, SCSIOP_SERVICE_ACTION_IN16
-        MAKE_CASE(SCSIOP_SERVICE_ACTION_OUT16)          // Code 0x9F
-        MAKE_CASE(SCSIOP_REPORT_LUNS)                   // Code 0xA0
-        MAKE_CASE(SCSIOP_BLANK)                         // Code 0xA1, aka SCSIOP_ATA_PASSTHROUGH12
-        MAKE_CASE(SCSIOP_SEND_EVENT)                    // Code 0xA2
-        MAKE_CASE(SCSIOP_MAINTENANCE_IN)                // Code 0xA3, aka SCSIOP_SEND_KEY
-        MAKE_CASE(SCSIOP_MAINTENANCE_OUT)               // Code 0xA4, aka SCSIOP_REPORT_KEY
-        MAKE_CASE(SCSIOP_MOVE_MEDIUM)                   // Code 0xA5
-        MAKE_CASE(SCSIOP_LOAD_UNLOAD_SLOT)              // Code 0xA6
-        MAKE_CASE(SCSIOP_SET_READ_AHEAD)                // Code 0xA7
-        MAKE_CASE(SCSIOP_READ12)                        // Code 0xA8
-        MAKE_CASE(SCSIOP_SERVICE_ACTION_OUT12)          // Code 0xA9
-        MAKE_CASE(SCSIOP_WRITE12)                       // Code 0xAA
-        MAKE_CASE(SCSIOP_SEND_MESSAGE)                  // Code 0xAB
-        MAKE_CASE(SCSIOP_GET_PERFORMANCE)               // Code 0xAC
-        MAKE_CASE(SCSIOP_READ_DVD_STRUCTURE)            // Code 0xAD
-        MAKE_CASE(SCSIOP_WRITE_VERIFY12)                // Code 0xAE
-        MAKE_CASE(SCSIOP_VERIFY12)                      // Code 0xAF
-        MAKE_CASE(SCSIOP_SEARCH_DATA_HIGH12)            // Code 0xB0
-        MAKE_CASE(SCSIOP_SEARCH_DATA_EQUAL12)           // Code 0xB1
-        MAKE_CASE(SCSIOP_SEARCH_DATA_LOW12)             // Code 0xB2
-        MAKE_CASE(SCSIOP_SET_LIMITS12)                  // Code 0xB3
-        MAKE_CASE(SCSIOP_READ_ELEMENT_STATUS_ATTACHED)  // Code 0xB4
-        MAKE_CASE(SCSIOP_REQUEST_VOL_ELEMENT)           // Code 0xB5, aka SCSIOP_SECURITY_PROTOCOL_OUT
-        MAKE_CASE(SCSIOP_SEND_VOLUME_TAG)               // Code 0xB6
-        MAKE_CASE(SCSIOP_READ_DEFECT_DATA)              // Code 0xB7
-        MAKE_CASE(SCSIOP_READ_ELEMENT_STATUS)           // Code 0xB8
-        MAKE_CASE(SCSIOP_READ_CD_MSF)                   // Code 0xB9
-        MAKE_CASE(SCSIOP_REDUNDANCY_GROUP_IN)           // Code 0xBA
-        MAKE_CASE(SCSIOP_REDUNDANCY_GROUP_OUT)          // Code 0xBB
-        MAKE_CASE(SCSIOP_SPARE_IN)                      // Code 0xBC
-        MAKE_CASE(SCSIOP_SPARE_OUT)                     // Code 0xBD, aka SCSIOP_MECHANISM_STATUS
-        MAKE_CASE(SCSIOP_VOLUME_SET_IN)                 // Code 0xBE
-        MAKE_CASE(SCSIOP_VOLUME_SET_OUT)                // Code 0xBF
-        MAKE_CASE(SCSIOP_INIT_ELEMENT_RANGE)            // Code 0xE7
+        MAKE_CASE(SCSIOP_GET_LBA_STATUS) // Code 0x9E, aka SCSIOP_GET_PHYSICAL_ELEMENT_STATUS, SCSIOP_READ_CAPACITY16,
+                                         // SCSIOP_REMOVE_ELEMENT_AND_TRUNCATE, SCSIOP_SERVICE_ACTION_IN16
+        MAKE_CASE(SCSIOP_SERVICE_ACTION_OUT16)         // Code 0x9F
+        MAKE_CASE(SCSIOP_REPORT_LUNS)                  // Code 0xA0
+        MAKE_CASE(SCSIOP_BLANK)                        // Code 0xA1, aka SCSIOP_ATA_PASSTHROUGH12
+        MAKE_CASE(SCSIOP_SEND_EVENT)                   // Code 0xA2
+        MAKE_CASE(SCSIOP_MAINTENANCE_IN)               // Code 0xA3, aka SCSIOP_SEND_KEY
+        MAKE_CASE(SCSIOP_MAINTENANCE_OUT)              // Code 0xA4, aka SCSIOP_REPORT_KEY
+        MAKE_CASE(SCSIOP_MOVE_MEDIUM)                  // Code 0xA5
+        MAKE_CASE(SCSIOP_LOAD_UNLOAD_SLOT)             // Code 0xA6
+        MAKE_CASE(SCSIOP_SET_READ_AHEAD)               // Code 0xA7
+        MAKE_CASE(SCSIOP_READ12)                       // Code 0xA8
+        MAKE_CASE(SCSIOP_SERVICE_ACTION_OUT12)         // Code 0xA9
+        MAKE_CASE(SCSIOP_WRITE12)                      // Code 0xAA
+        MAKE_CASE(SCSIOP_SEND_MESSAGE)                 // Code 0xAB
+        MAKE_CASE(SCSIOP_GET_PERFORMANCE)              // Code 0xAC
+        MAKE_CASE(SCSIOP_READ_DVD_STRUCTURE)           // Code 0xAD
+        MAKE_CASE(SCSIOP_WRITE_VERIFY12)               // Code 0xAE
+        MAKE_CASE(SCSIOP_VERIFY12)                     // Code 0xAF
+        MAKE_CASE(SCSIOP_SEARCH_DATA_HIGH12)           // Code 0xB0
+        MAKE_CASE(SCSIOP_SEARCH_DATA_EQUAL12)          // Code 0xB1
+        MAKE_CASE(SCSIOP_SEARCH_DATA_LOW12)            // Code 0xB2
+        MAKE_CASE(SCSIOP_SET_LIMITS12)                 // Code 0xB3
+        MAKE_CASE(SCSIOP_READ_ELEMENT_STATUS_ATTACHED) // Code 0xB4
+        MAKE_CASE(SCSIOP_REQUEST_VOL_ELEMENT)          // Code 0xB5, aka SCSIOP_SECURITY_PROTOCOL_OUT
+        MAKE_CASE(SCSIOP_SEND_VOLUME_TAG)              // Code 0xB6
+        MAKE_CASE(SCSIOP_READ_DEFECT_DATA)             // Code 0xB7
+        MAKE_CASE(SCSIOP_READ_ELEMENT_STATUS)          // Code 0xB8
+        MAKE_CASE(SCSIOP_READ_CD_MSF)                  // Code 0xB9
+        MAKE_CASE(SCSIOP_REDUNDANCY_GROUP_IN)          // Code 0xBA
+        MAKE_CASE(SCSIOP_REDUNDANCY_GROUP_OUT)         // Code 0xBB
+        MAKE_CASE(SCSIOP_SPARE_IN)                     // Code 0xBC
+        MAKE_CASE(SCSIOP_SPARE_OUT)                    // Code 0xBD, aka SCSIOP_MECHANISM_STATUS
+        MAKE_CASE(SCSIOP_VOLUME_SET_IN)                // Code 0xBE
+        MAKE_CASE(SCSIOP_VOLUME_SET_OUT)               // Code 0xBF
+        MAKE_CASE(SCSIOP_INIT_ELEMENT_RANGE)           // Code 0xE7
     }
     return scsiOpStr;
 }
