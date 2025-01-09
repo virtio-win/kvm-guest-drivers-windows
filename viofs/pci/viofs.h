@@ -43,18 +43,18 @@
 #include "VirtIOWdf.h"
 #include "fuse.h"
 
-#define VIRT_FS_DMAR    1
+#define VIRT_FS_DMAR                   1
 
-#define VIRT_FS_MEMORY_TAG ((ULONG)'sf_V')
+#define VIRT_FS_MEMORY_TAG             ((ULONG)'sf_V')
 
-#define VIRT_FS_ENABLE_INDIRECT     1
-#define VIRT_FS_INDIRECT_AREA_PAGES 4
+#define VIRT_FS_ENABLE_INDIRECT        1
+#define VIRT_FS_INDIRECT_AREA_PAGES    4
 #define VIRT_FS_INDIRECT_PAGE_CAPACITY 256
-#define VIRT_FS_INDIRECT_AREA_CAPACITY (VIRT_FS_INDIRECT_AREA_PAGES * \
-                                        VIRT_FS_INDIRECT_PAGE_CAPACITY)
-#define VIRT_FS_MAX_QUEUE_SIZE      1024
+#define VIRT_FS_INDIRECT_AREA_CAPACITY (VIRT_FS_INDIRECT_AREA_PAGES * VIRT_FS_INDIRECT_PAGE_CAPACITY)
+#define VIRT_FS_MAX_QUEUE_SIZE         1024
 
-enum {
+enum
+{
     VQ_TYPE_HIPRIO = 0,
     VQ_TYPE_REQUEST = 1,
     VQ_TYPE_MAX = 2
@@ -88,33 +88,32 @@ typedef struct _VIRTIO_FS_REQUEST
 #else
     VIRTIO_DMA_TRANSACTION_PARAMS H2D_Params;
     VIRTIO_DMA_TRANSACTION_PARAMS D2H_Params;
-    struct virtqueue* VQ;
-    WDFSPINLOCK       VQ_Lock;
-    BOOLEAN           Use_Indirect;
+    struct virtqueue *VQ;
+    WDFSPINLOCK VQ_Lock;
+    BOOLEAN Use_Indirect;
     struct VirtIOBufferDescriptor SGTable[VIRT_FS_MAX_QUEUE_SIZE];
 #endif
 } VIRTIO_FS_REQUEST, *PVIRTIO_FS_REQUEST;
 
-
-
 void FreeVirtFsRequest(IN PVIRTIO_FS_REQUEST Request);
 
-typedef struct _DEVICE_CONTEXT {
+typedef struct _DEVICE_CONTEXT
+{
 
-    VIRTIO_WDF_DRIVER   VDevice;
-    UINT32              NumQueues;
-    UINT32              QueueSize;
-    struct virtqueue    **VirtQueues;
-    BOOLEAN             UseIndirect;
-    PVOID               IndirectVA;
-    PHYSICAL_ADDRESS    IndirectPA;
+    VIRTIO_WDF_DRIVER VDevice;
+    UINT32 NumQueues;
+    UINT32 QueueSize;
+    struct virtqueue **VirtQueues;
+    BOOLEAN UseIndirect;
+    PVOID IndirectVA;
+    PHYSICAL_ADDRESS IndirectPA;
 
-    WDFINTERRUPT        WdfInterrupt[VQ_TYPE_MAX];
-    WDFSPINLOCK         *VirtQueueLocks;
+    WDFINTERRUPT WdfInterrupt[VQ_TYPE_MAX];
+    WDFSPINLOCK *VirtQueueLocks;
 
-    WDFLOOKASIDE        RequestsLookaside;
-    SINGLE_LIST_ENTRY   RequestsList;
-    WDFSPINLOCK         RequestsLock;
+    WDFLOOKASIDE RequestsLookaside;
+    SINGLE_LIST_ENTRY RequestsList;
+    WDFSPINLOCK RequestsLock;
 
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
@@ -135,8 +134,8 @@ EVT_WDF_OBJECT_CONTEXT_CLEANUP VirtFsEvtDeviceContextCleanup;
 // Context cleanup callbacks generally run at IRQL <= DISPATCH_LEVEL but
 // WDFDRIVER context cleanup is guaranteed to run at PASSIVE_LEVEL.
 // Annotate the prototype to make static analysis happy.
-EVT_WDF_OBJECT_CONTEXT_CLEANUP 
-    _IRQL_requires_(PASSIVE_LEVEL) VirtFsEvtDriverContextCleanup;
+EVT_WDF_OBJECT_CONTEXT_CLEANUP
+_IRQL_requires_(PASSIVE_LEVEL) VirtFsEvtDriverContextCleanup;
 
 EVT_WDF_DEVICE_PREPARE_HARDWARE VirtFsEvtDevicePrepareHardware;
 EVT_WDF_DEVICE_RELEASE_HARDWARE VirtFsEvtDeviceReleaseHardware;
