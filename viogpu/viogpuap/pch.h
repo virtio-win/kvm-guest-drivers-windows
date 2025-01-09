@@ -9,7 +9,7 @@
 #include <cfgmgr32.h>
 #include <winternl.h>
 #include <d3dkmthk.h>
-//#include <d3d10umddi.h>
+// #include <d3d10umddi.h>
 
 #include <list>
 #include <string>
@@ -21,4 +21,4 @@
 #include "GpuAdapter.h"
 #include "GpuAdaptersMgr.h"
 
-#endif //PCH_H
+#endif // PCH_H

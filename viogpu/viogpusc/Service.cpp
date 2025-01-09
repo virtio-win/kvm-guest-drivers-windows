@@ -55,29 +55,30 @@ CService::~CService()
     m_SessionMgr = NULL;
 }
 
-DWORD __stdcall CService::HandlerExThunk(CService* pService, DWORD ctlcode, DWORD evtype, PVOID evdata)
+DWORD __stdcall CService::HandlerExThunk(CService *pService, DWORD ctlcode, DWORD evtype, PVOID evdata)
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
-    switch (ctlcode) {
+    switch (ctlcode)
+    {
 
-    case SERVICE_CONTROL_SESSIONCHANGE:
-        return pService->ServiceControlSessionChange(evtype, evdata);
+        case SERVICE_CONTROL_SESSIONCHANGE:
+            return pService->ServiceControlSessionChange(evtype, evdata);
 
-    case SERVICE_CONTROL_DEVICEEVENT:
-    case SERVICE_CONTROL_HARDWAREPROFILECHANGE:
-        return pService->ServiceHandleDeviceChange(evtype);
+        case SERVICE_CONTROL_DEVICEEVENT:
+        case SERVICE_CONTROL_HARDWAREPROFILECHANGE:
+            return pService->ServiceHandleDeviceChange(evtype);
 
-    case SERVICE_CONTROL_POWEREVENT:
-        return pService->ServiceHandlePowerEvent(evtype, (DWORD)((DWORD_PTR) evdata));
+        case SERVICE_CONTROL_POWEREVENT:
+            return pService->ServiceHandlePowerEvent(evtype, (DWORD)((DWORD_PTR)evdata));
 
-    default:
-        pService->ServiceCtrlHandler(ctlcode);
+        default:
+            pService->ServiceCtrlHandler(ctlcode);
     }
     return NO_ERROR;
 }
 
-void __stdcall CService::ServiceMainThunk(CService* service, DWORD argc, TCHAR* argv[])
+void __stdcall CService::ServiceMainThunk(CService *service, DWORD argc, TCHAR *argv[])
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
@@ -93,7 +94,11 @@ BOOL CService::InitService()
     return TRUE;
 }
 
-BOOL CService::SendStatusToSCM(DWORD dwCurrentState, DWORD dwWin32ExitCode, DWORD dwServiceSpecificExitCode, DWORD dwCheckPoint, DWORD dwWaitHint)
+BOOL CService::SendStatusToSCM(DWORD dwCurrentState,
+                               DWORD dwWin32ExitCode,
+                               DWORD dwServiceSpecificExitCode,
+                               DWORD dwCheckPoint,
+                               DWORD dwWaitHint)
 {
     BOOL res;
     SERVICE_STATUS serviceStatus;
@@ -103,18 +108,21 @@ BOOL CService::SendStatusToSCM(DWORD dwCurrentState, DWORD dwWin32ExitCode, DWOR
     serviceStatus.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
     serviceStatus.dwCurrentState = dwCurrentState;
 
-    if (dwCurrentState == SERVICE_START_PENDING) {
+    if (dwCurrentState == SERVICE_START_PENDING)
+    {
         serviceStatus.dwControlsAccepted = 0;
-    } else {
-        serviceStatus.dwControlsAccepted =
-                SERVICE_ACCEPT_STOP |
-                SERVICE_ACCEPT_SHUTDOWN |
-                SERVICE_ACCEPT_SESSIONCHANGE;
+    }
+    else
+    {
+        serviceStatus.dwControlsAccepted = SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SHUTDOWN | SERVICE_ACCEPT_SESSIONCHANGE;
     }
 
-    if (dwServiceSpecificExitCode == 0) {
+    if (dwServiceSpecificExitCode == 0)
+    {
         serviceStatus.dwWin32ExitCode = dwWin32ExitCode;
-    } else {
+    }
+    else
+    {
         serviceStatus.dwWin32ExitCode = ERROR_SERVICE_SPECIFIC_ERROR;
     }
 
@@ -122,8 +130,9 @@ BOOL CService::SendStatusToSCM(DWORD dwCurrentState, DWORD dwWin32ExitCode, DWOR
     serviceStatus.dwCheckPoint = dwCheckPoint;
     serviceStatus.dwWaitHint = dwWaitHint;
 
-    res = SetServiceStatus (m_StatusHandle, &serviceStatus);
-    if (!res) {
+    res = SetServiceStatus(m_StatusHandle, &serviceStatus);
+    if (!res)
+    {
         StopService();
     }
 
@@ -134,7 +143,8 @@ void CService::StopService()
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
-    if (m_bRunningService) {
+    if (m_bRunningService)
+    {
         m_bRunningService = FALSE;
         m_Status = SERVICE_STOPPED;
     }
@@ -145,12 +155,14 @@ void CService::terminate(DWORD error)
 {
     PrintMessage(L"%ws = %d\n", __FUNCTIONW__, error);
 
-    if (m_evTerminate) {
+    if (m_evTerminate)
+    {
         CloseHandle(m_evTerminate);
         m_evTerminate = NULL;
     }
 
-    if (m_StatusHandle) {
+    if (m_StatusHandle)
+    {
         SendStatusToSCM(SERVICE_STOPPED, error, 0, 0, 0);
     }
 
@@ -161,18 +173,12 @@ void CService::ServiceCtrlHandler(DWORD controlCode)
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
-    switch(controlCode)
+    switch (controlCode)
     {
         case SERVICE_CONTROL_STOP:
         case SERVICE_CONTROL_SHUTDOWN:
             m_Status = SERVICE_STOP_PENDING;
-            SendStatusToSCM(
-                             m_Status,
-                             NO_ERROR,
-                             0,
-                             1,
-                             5000
-                             );
+            SendStatusToSCM(m_Status, NO_ERROR, 0, 1, 5000);
             StopService();
             return;
 
@@ -203,7 +209,8 @@ DWORD CService::ServiceControlSessionChange(DWORD evtype, PVOID flags)
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
-    if (m_SessionMgr) {
+    if (m_SessionMgr)
+    {
         return m_SessionMgr->SessionChange(evtype, flags);
     }
 
@@ -214,44 +221,50 @@ void CService::ServiceMain(DWORD argc, LPTSTR *argv)
 {
     BOOL res;
 
-    PrintMessage(L"%ws built on %ws %ws\n", __FUNCTIONW__, _CRT_WIDE(__DATE__) , _CRT_WIDE(__TIME__));
+    PrintMessage(L"%ws built on %ws %ws\n", __FUNCTIONW__, _CRT_WIDE(__DATE__), _CRT_WIDE(__TIME__));
 
-    if (!m_StatusHandle) {
+    if (!m_StatusHandle)
+    {
         PrintMessage(L"-->ServiceMain m_StatusHandle\n");
         terminate(GetLastError());
         return;
     }
 
-    res = SendStatusToSCM(SERVICE_START_PENDING, NO_ERROR, 0 , 1, 5000);
-    if (!res) {
+    res = SendStatusToSCM(SERVICE_START_PENDING, NO_ERROR, 0, 1, 5000);
+    if (!res)
+    {
         PrintMessage(L"-->ServiceMain res\n");
         terminate(GetLastError());
         return;
     }
 
     m_evTerminate = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (!m_evTerminate) {
+    if (!m_evTerminate)
+    {
         PrintMessage(L"-->ServiceMain m_evTerminate\n");
         terminate(GetLastError());
         return;
     }
 
     m_SessionMgr = new CSessionMgr();
-    if (!m_SessionMgr || !m_SessionMgr->Init()) {
+    if (!m_SessionMgr || !m_SessionMgr->Init())
+    {
         PrintMessage(L"-->ServiceMain m_SessionMgr Init\n");
         terminate(GetLastError());
         return;
     }
 
     res = InitService();
-    if (!res) {
+    if (!res)
+    {
         PrintMessage(L"-->ServiceMain InitService\n");
         terminate(GetLastError());
         return;
     }
 
-    res = SendStatusToSCM(SERVICE_RUNNING, NO_ERROR, 0 , 0, 0);
-    if (!res) {
+    res = SendStatusToSCM(SERVICE_RUNNING, NO_ERROR, 0, 0, 0);
+    if (!res)
+    {
         PrintMessage(L"-->ServiceMain SendStatusToSCM\n");
         terminate(GetLastError());
         return;
@@ -261,7 +274,6 @@ void CService::ServiceMain(DWORD argc, LPTSTR *argv)
     terminate(0);
 }
 
-
 void CService::GetStatus(SC_HANDLE service)
 {
     SERVICE_STATUS status;
@@ -269,12 +281,14 @@ void CService::GetStatus(SC_HANDLE service)
 
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
-    if (!QueryServiceStatus(service, &status)) {
+    if (!QueryServiceStatus(service, &status))
+    {
         printf("Failed to get service status.\n");
         return;
     }
 
-    switch(status.dwCurrentState) {
+    switch (status.dwCurrentState)
+    {
         case SERVICE_RUNNING:
             CurrentState = SERVICE_RUNNING;
             printf("Service RUNNING.\n");

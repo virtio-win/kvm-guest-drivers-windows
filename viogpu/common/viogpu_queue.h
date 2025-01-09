@@ -31,16 +31,18 @@
 #include "viogpu.h"
 
 #pragma pack(1)
-typedef struct virtio_gpu_config {
+typedef struct virtio_gpu_config
+{
     u32 events_read;
     u32 events_clear;
     u32 num_scanouts;
     u32 num_capsets;
-}GPU_CONFIG, *PGPU_CONFIG;
+} GPU_CONFIG, *PGPU_CONFIG;
 #pragma pack()
 
-//#pragma pack(1)
-typedef struct virtio_gpu_vbuffer {
+// #pragma pack(1)
+typedef struct virtio_gpu_vbuffer
+{
     char *buf;
     int size;
 
@@ -55,70 +57,99 @@ typedef struct virtio_gpu_vbuffer {
     void *complete_ctx;
 
     bool auto_release;
-}GPU_VBUFFER, *PGPU_VBUFFER;
-//#pragma pack()
+} GPU_VBUFFER, *PGPU_VBUFFER;
+// #pragma pack()
 
-#define MAX_INLINE_CMD_SIZE   96
-#define MAX_INLINE_RESP_SIZE  24
-#define VBUFFER_SIZE          (sizeof(GPU_VBUFFER) \
-                               + MAX_INLINE_CMD_SIZE \
-                               + MAX_INLINE_RESP_SIZE)
+#define MAX_INLINE_CMD_SIZE  96
+#define MAX_INLINE_RESP_SIZE 24
+#define VBUFFER_SIZE         (sizeof(GPU_VBUFFER) + MAX_INLINE_CMD_SIZE + MAX_INLINE_RESP_SIZE)
 
 class VioGpuBuf
 {
-public:
+  public:
     VioGpuBuf();
     ~VioGpuBuf();
-    PGPU_VBUFFER GetBuf(
-        _In_ int size,
-        _In_ int resp_size,
-        _In_opt_ void *resp_buf);
-    void FreeBuf(
-        _In_ PGPU_VBUFFER pbuf);
+    PGPU_VBUFFER GetBuf(_In_ int size, _In_ int resp_size, _In_opt_ void *resp_buf);
+    void FreeBuf(_In_ PGPU_VBUFFER pbuf);
     BOOLEAN Init(_In_ UINT cnt);
-private:
+
+  private:
     void Close(void);
-private:
-    LIST_ENTRY   m_FreeBufs;
-    LIST_ENTRY   m_InUseBufs;
-    KSPIN_LOCK   m_SpinLock;
-    UINT         m_uCount;
+
+  private:
+    LIST_ENTRY m_FreeBufs;
+    LIST_ENTRY m_InUseBufs;
+    KSPIN_LOCK m_SpinLock;
+    UINT m_uCount;
 };
 
 class VioGpuMemSegment
 {
-public:
+  public:
     VioGpuMemSegment(void);
     ~VioGpuMemSegment(void);
-    SIZE_T GetSize(void) { return m_Size; }
-    PVOID GetVirtualAddress(void) { return m_pVAddr; }
+    SIZE_T GetSize(void)
+    {
+        return m_Size;
+    }
+    PVOID GetVirtualAddress(void)
+    {
+        return m_pVAddr;
+    }
     PHYSICAL_ADDRESS GetPhysicalAddress(void);
-    PSCATTER_GATHER_LIST GetSGList(void) { return m_pSGList; }
+    PSCATTER_GATHER_LIST GetSGList(void)
+    {
+        return m_pSGList;
+    }
     BOOLEAN Init(_In_ UINT size, _In_opt_ PPHYSICAL_ADDRESS pPAddr);
-    BOOLEAN IsSystemMemory(void) { return m_bSystemMemory; }
+    BOOLEAN IsSystemMemory(void)
+    {
+        return m_bSystemMemory;
+    }
     void Close(void);
-private:
+
+  private:
     BOOLEAN m_bSystemMemory;
     BOOLEAN m_bMapped;
     PSCATTER_GATHER_LIST m_pSGList;
     PVOID m_pVAddr;
-    PMDL    m_pMdl;
+    PMDL m_pMdl;
     SIZE_T m_Size;
 };
 
 class VioGpuObj
 {
-public:
+  public:
     VioGpuObj(void);
     ~VioGpuObj(void);
-    void SetId(_In_ UINT id) { m_uiHwRes = id; }
-    UINT GetId(void) { return m_uiHwRes; }
+    void SetId(_In_ UINT id)
+    {
+        m_uiHwRes = id;
+    }
+    UINT GetId(void)
+    {
+        return m_uiHwRes;
+    }
     BOOLEAN Init(_In_ UINT size, VioGpuMemSegment *pSegment);
-    SIZE_T GetSize(void) { return m_Size; }
-    PSCATTER_GATHER_LIST GetSGList(void) { return m_pSegment ? m_pSegment->GetSGList() : NULL; }
-    PHYSICAL_ADDRESS GetPhysicalAddress(void) { PHYSICAL_ADDRESS pa = { 0 }; return m_pSegment ? m_pSegment->GetPhysicalAddress() : pa; }
-    PVOID GetVirtualAddress(void) { return m_pSegment ? m_pSegment->GetVirtualAddress() : NULL; }
-private:
+    SIZE_T GetSize(void)
+    {
+        return m_Size;
+    }
+    PSCATTER_GATHER_LIST GetSGList(void)
+    {
+        return m_pSegment ? m_pSegment->GetSGList() : NULL;
+    }
+    PHYSICAL_ADDRESS GetPhysicalAddress(void)
+    {
+        PHYSICAL_ADDRESS pa = {0};
+        return m_pSegment ? m_pSegment->GetPhysicalAddress() : pa;
+    }
+    PVOID GetVirtualAddress(void)
+    {
+        return m_pSegment ? m_pSegment->GetVirtualAddress() : NULL;
+    }
+
+  private:
     UINT m_uiHwRes;
     SIZE_T m_Size;
     VioGpuMemSegment *m_pSegment;
@@ -126,68 +157,83 @@ private:
 
 class VioGpuQueue
 {
-public:
+  public:
     VioGpuQueue();
     ~VioGpuQueue();
-    BOOLEAN Init(
-        _In_ VirtIODevice* pVIODevice,
-        _In_ struct virtqueue* pVirtQueue,
-        _In_ UINT index);
+    BOOLEAN Init(_In_ VirtIODevice *pVIODevice, _In_ struct virtqueue *pVirtQueue, _In_ UINT index);
     void Close(void);
     int AddBuf(_In_ struct VirtIOBufferDescriptor sg[],
-        _In_ UINT out_num,
-        _In_ UINT in_num,
-        _In_ void* data,
-        _In_opt_ void* va_indirect,
-        _In_ ULONGLONG phys_indirect)
+               _In_ UINT out_num,
+               _In_ UINT in_num,
+               _In_ void *data,
+               _In_opt_ void *va_indirect,
+               _In_ ULONGLONG phys_indirect)
     {
-        return m_pVirtQueue ?  virtqueue_add_buf(m_pVirtQueue, sg, out_num, in_num, data,
-            va_indirect, phys_indirect) : 0;
+        return m_pVirtQueue ? virtqueue_add_buf(m_pVirtQueue, sg, out_num, in_num, data, va_indirect, phys_indirect)
+                            : 0;
     }
-    void* GetBuf(_Out_ UINT* len)
+    void *GetBuf(_Out_ UINT *len)
     {
-        if (m_pVirtQueue ) {
+        if (m_pVirtQueue)
+        {
             return virtqueue_get_buf(m_pVirtQueue, len);
         }
         *len = 0;
         return NULL;
     }
     void Kick()
-    { if (m_pVirtQueue) virtqueue_kick_always(m_pVirtQueue); }
-    bool EnableInterrupt(void) { return m_pVirtQueue ? virtqueue_enable_cb(m_pVirtQueue) : false; }
-    VOID DisableInterrupt(void) { if (m_pVirtQueue) virtqueue_disable_cb(m_pVirtQueue); }
+    {
+        if (m_pVirtQueue)
+        {
+            virtqueue_kick_always(m_pVirtQueue);
+        }
+    }
+    bool EnableInterrupt(void)
+    {
+        return m_pVirtQueue ? virtqueue_enable_cb(m_pVirtQueue) : false;
+    }
+    VOID DisableInterrupt(void)
+    {
+        if (m_pVirtQueue)
+        {
+            virtqueue_disable_cb(m_pVirtQueue);
+        }
+    }
     UINT QueryAllocation();
-    void SetGpuBuf(_In_ VioGpuBuf* pbuf) { m_pBuf = pbuf;}
+    void SetGpuBuf(_In_ VioGpuBuf *pbuf)
+    {
+        m_pBuf = pbuf;
+    }
     void ReleaseBuffer(PGPU_VBUFFER buf);
-protected:
-    _IRQL_requires_max_(DISPATCH_LEVEL)
-    _IRQL_saves_global_(OldIrql, Irql)
-    _IRQL_raises_(DISPATCH_LEVEL)
-    void Lock(KIRQL* Irql);
-    _IRQL_requires_(DISPATCH_LEVEL)
-    _IRQL_restores_global_(OldIrql, Irql)
-    void Unlock(KIRQL Irql);
-private:
-    struct virtqueue* m_pVirtQueue;
-    VirtIODevice* m_pVIODevice;
+
+  protected:
+    _IRQL_requires_max_(DISPATCH_LEVEL) _IRQL_saves_global_(OldIrql,
+                                                            Irql) _IRQL_raises_(DISPATCH_LEVEL) void Lock(KIRQL *Irql);
+    _IRQL_requires_(DISPATCH_LEVEL) _IRQL_restores_global_(OldIrql, Irql) void Unlock(KIRQL Irql);
+
+  private:
+    struct virtqueue *m_pVirtQueue;
+    VirtIODevice *m_pVIODevice;
     UINT m_Index;
     KSPIN_LOCK m_SpinLock;
-protected:
-    VioGpuBuf* m_pBuf;
+
+  protected:
+    VioGpuBuf *m_pBuf;
 };
 
 class CtrlQueue : public VioGpuQueue
 {
-public:
-    CtrlQueue() : VioGpuQueue() {
+  public:
+    CtrlQueue() : VioGpuQueue()
+    {
         m_FenceIdr = 0;
     };
 
-    PVOID AllocCmd(PGPU_VBUFFER* buf, int sz);
-    PVOID AllocCmdResp(PGPU_VBUFFER* buf, int cmd_sz, PVOID resp_buf, int resp_sz);
+    PVOID AllocCmd(PGPU_VBUFFER *buf, int sz);
+    PVOID AllocCmdResp(PGPU_VBUFFER *buf, int cmd_sz, PVOID resp_buf, int resp_sz);
 
     UINT QueueBuffer(PGPU_VBUFFER buf);
-    PGPU_VBUFFER DequeueBuffer(_Out_ UINT* len);
+    PGPU_VBUFFER DequeueBuffer(_Out_ UINT *len);
 
     void CreateResource(UINT res_id, UINT format, UINT width, UINT height);
     void DestroyResource(UINT id);
@@ -198,18 +244,18 @@ public:
     void DetachBacking(UINT id);
 
     BOOLEAN GetDisplayInfo(PGPU_VBUFFER buf, UINT id, PULONG xres, PULONG yres);
-    BOOLEAN AskDisplayInfo(PGPU_VBUFFER* buf);
-    BOOLEAN AskEdidInfo(PGPU_VBUFFER* buf, UINT id);
+    BOOLEAN AskDisplayInfo(PGPU_VBUFFER *buf);
+    BOOLEAN AskEdidInfo(PGPU_VBUFFER *buf, UINT id);
     BOOLEAN GetEdidInfo(PGPU_VBUFFER buf, UINT id, PBYTE edid);
 
-private:
+  private:
     volatile LONG m_FenceIdr;
 };
 
 class CrsrQueue : public VioGpuQueue
 {
-public:
-    PVOID AllocCursor(PGPU_VBUFFER* buf);
+  public:
+    PVOID AllocCursor(PGPU_VBUFFER *buf);
     UINT QueueCursor(PGPU_VBUFFER buf);
-    PGPU_VBUFFER DequeueCursor(_Out_ UINT* len);
+    PGPU_VBUFFER DequeueCursor(_Out_ UINT *len);
 };

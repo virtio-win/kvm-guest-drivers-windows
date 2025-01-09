@@ -2,7 +2,8 @@
 
 #include "viogpu.h"
 
-typedef struct _ESTABLISHED_TIMINGS_1_2 {
+typedef struct _ESTABLISHED_TIMINGS_1_2
+{
     USHORT Timing_800x600_60 : 1;
     USHORT Timing_800x600_56 : 1;
     USHORT Timing_640x480_75 : 1;
@@ -20,10 +21,10 @@ typedef struct _ESTABLISHED_TIMINGS_1_2 {
     USHORT Timing_832x624_75 : 1;
     USHORT Timing_800x600_75 : 1;
     USHORT Timing_800x600_72 : 1;
-} ESTABLISHED_TIMINGS_1_2, * PESTABLISHED_TIMINGS_1_2;
+} ESTABLISHED_TIMINGS_1_2, *PESTABLISHED_TIMINGS_1_2;
 
-
-typedef struct _ESTABLISHED_TIMINGS_3 {
+typedef struct _ESTABLISHED_TIMINGS_3
+{
     UCHAR Timing_1152x864_75 : 1;
     UCHAR Timing_1024x768_85 : 1;
     UCHAR Timing_800x600_85 : 1;
@@ -74,18 +75,20 @@ typedef struct _ESTABLISHED_TIMINGS_3 {
     UCHAR Timing_1920x1440_60 : 1;
     UCHAR Timing_1920x1200_85 : 1;
     UCHAR Timing_1920x1200_75 : 1;
-} ESTABLISHED_TIMINGS_3, * PESTABLISHED_TIMINGS_3;
+} ESTABLISHED_TIMINGS_3, *PESTABLISHED_TIMINGS_3;
 
 #pragma pack(push)
 #pragma pack(1)
 
 typedef union _VIDEO_INPUT_DEFINITION {
-    typedef struct _DIGITAL {
+    typedef struct _DIGITAL
+    {
         UCHAR DviStandard : 4;
         UCHAR ColorBitDepth : 3;
         UCHAR Digital : 1;
     } DIGITAL;
-    typedef struct _ANALOG {
+    typedef struct _ANALOG
+    {
         UCHAR VSyncSerration : 1;
         UCHAR GreenVideoSync : 1;
         UCHAR VompositeSync : 1;
@@ -94,20 +97,23 @@ typedef union _VIDEO_INPUT_DEFINITION {
         UCHAR SignalLevelStandard : 2;
         UCHAR Digital : 1;
     } ANALOG;
-} VIDEO_INPUT_DEFINITION, * PVIDEO_INPUT_DEFINITION;
+} VIDEO_INPUT_DEFINITION, *PVIDEO_INPUT_DEFINITION;
 
-typedef struct _MANUFACTURER_TIMINGS {
+typedef struct _MANUFACTURER_TIMINGS
+{
     UCHAR Reserved : 7;
     UCHAR Timing_1152x870_75 : 1;
-} MANUFACTURER_TIMINGS, * PMANUFACTURER_TIMINGS;
+} MANUFACTURER_TIMINGS, *PMANUFACTURER_TIMINGS;
 
-typedef struct _STANDARD_TIMING_DESCRIPTOR {
+typedef struct _STANDARD_TIMING_DESCRIPTOR
+{
     UCHAR HorizontalActivePixels;
     UCHAR RefreshRate : 6;
     UCHAR ImageAspectRatio : 2;
-} STANDARD_TIMING_DESCRIPTOR, * PSTANDARD_TIMING_DESCRIPTOR;
+} STANDARD_TIMING_DESCRIPTOR, *PSTANDARD_TIMING_DESCRIPTOR;
 
-typedef struct _EDID_DETAILED_DESCRIPTOR {
+typedef struct _EDID_DETAILED_DESCRIPTOR
+{
     USHORT PixelClock;
     UCHAR HorizontalActiveLow;
     UCHAR HorizontalBlankingLow;
@@ -137,18 +143,19 @@ typedef struct _EDID_DETAILED_DESCRIPTOR {
     UCHAR SignalSync : 2;
     UCHAR StereoModeHigh : 2;
     UCHAR Interlaced : 1;
-}EDID_DETAILED_DESCRIPTOR, * PEDID_DETAILED_DESCRIPTOR;
+} EDID_DETAILED_DESCRIPTOR, *PEDID_DETAILED_DESCRIPTOR;
 
-typedef struct _EDID_DISPLAY_DESCRIPTOR {
+typedef struct _EDID_DISPLAY_DESCRIPTOR
+{
     USHORT Indicator;
     UCHAR Reserved0;
     UCHAR Tag;
     UCHAR Reserved1;
     UCHAR Data[13];
-}EDID_DISPLAY_DESCRIPTOR, * PEDID_DISPLAY_DESCRIPTOR;
+} EDID_DISPLAY_DESCRIPTOR, *PEDID_DISPLAY_DESCRIPTOR;
 
-
-typedef struct _EDID_DATA_V1 {
+typedef struct _EDID_DATA_V1
+{
     UCHAR Header[8];
     UCHAR VendorID[2];
     UCHAR ProductID[2];
@@ -157,9 +164,9 @@ typedef struct _EDID_DATA_V1 {
     UCHAR Version[1];
     UCHAR Revision[1];
     VIDEO_INPUT_DEFINITION VideoInputDefinition[1];
-    UCHAR  MaximumHorizontalImageSize[1];
-    UCHAR  MaximumVerticallImageSize[1];
-    UCHAR  DisplayTransferCharacteristics[1];
+    UCHAR MaximumHorizontalImageSize[1];
+    UCHAR MaximumVerticallImageSize[1];
+    UCHAR DisplayTransferCharacteristics[1];
     FEATURES_SUPPORT FeaturesSupport;
     COLOR_CHARACTERISTICS ColorCharacteristics;
     ESTABLISHED_TIMINGS_1_2 EstablishedTimings;
@@ -168,21 +175,23 @@ typedef struct _EDID_DATA_V1 {
     EDID_DETAILED_DESCRIPTOR EDIDDetailedTimings[4];
     UCHAR ExtensionFlag[1];
     UCHAR Checksum[1];
-} EDID_DATA_V1, * PEDID_DATA_V1;
+} EDID_DATA_V1, *PEDID_DATA_V1;
 
-typedef struct _EDID_CTA_861 {
+typedef struct _EDID_CTA_861
+{
     UCHAR ExtentionTag[1];
     UCHAR Revision[1];
     UCHAR DTDBegin[1];
     UCHAR DTDsNumber[1];
     UCHAR Data[122];
     UCHAR Checksum[1];
-} EDID_CTA_861, * PEDID_CTA_861;
+} EDID_CTA_861, *PEDID_CTA_861;
 
-typedef struct  _VIC_MODE {
-    USHORT      Index;
+typedef struct _VIC_MODE
+{
+    USHORT Index;
     VIOGPU_DISP_MODE Resolution;
-} VIC_MODE, * PVIC_MODE;
+} VIC_MODE, *PVIC_MODE;
 
 #pragma pack(pop)
 
@@ -192,8 +201,7 @@ typedef enum _IMG_ASPECT_RATIO
     AR_4_3,
     AR_5_4,
     AR_16_9
-}IMG_ASPECT_RATIO;
-
+} IMG_ASPECT_RATIO;
 
 bool GetStandardTimingResolution(PSTANDARD_TIMING_DESCRIPTOR desc, PVIOGPU_DISP_MODE mode);
 bool GetVICResolution(USHORT idx, PVIOGPU_DISP_MODE mode);

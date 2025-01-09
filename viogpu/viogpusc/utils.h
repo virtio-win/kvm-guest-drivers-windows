@@ -30,8 +30,8 @@
 #pragma once
 #include <windows.h>
 
-#define ServiceName  TEXT("vgpusrv")
-#define DisplayName  TEXT("VioGpu Resolution Service")
+#define ServiceName TEXT("vgpusrv")
+#define DisplayName TEXT("VioGpu Resolution Service")
 
 BOOL InstallService();
 BOOL UninstallService();

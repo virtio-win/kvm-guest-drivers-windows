@@ -34,7 +34,7 @@ class CSession;
 
 class CSessionMgr
 {
-public:
+  public:
     CSessionMgr();
     ~CSessionMgr();
     bool Init();
@@ -45,16 +45,17 @@ public:
     HANDLE GetSessioinProcess(UINT Indx);
     void SetSessionProcess(UINT Indx, HANDLE Handle);
     HANDLE GetSessioinCreateProcess(UINT Indx);
-private:
-    CSession* FindSession(ULONG Indx, bool bCreate = false);
-    void AddSession(CSession* session);
-protected:
-    static DWORD WINAPI ServiceThread(CSessionMgr*);
+
+  private:
+    CSession *FindSession(ULONG Indx, bool bCreate = false);
+    void AddSession(CSession *session);
+
+  protected:
+    static DWORD WINAPI ServiceThread(CSessionMgr *);
     void Run();
-private:
-    std::list<CSession*> Sessions;
-    typedef std::list<CSession*>::iterator Iterator;
+
+  private:
+    std::list<CSession *> Sessions;
+    typedef std::list<CSession *>::iterator Iterator;
     HANDLE m_hThread;
-
 };
-

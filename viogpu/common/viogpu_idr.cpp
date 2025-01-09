@@ -46,8 +46,7 @@ VioGpuIdr::~VioGpuIdr()
     Close();
 }
 
-BOOLEAN VioGpuIdr::Init(
-    _In_ ULONG start)
+BOOLEAN VioGpuIdr::Init(_In_ ULONG start)
 {
     Close();
     m_nextId = start;
@@ -58,12 +57,15 @@ BOOLEAN VioGpuIdr::Init(
 ULONG VioGpuIdr::GetId(VOID)
 {
     ULONG id = 0;
-    
-    FreeId* freeId = reinterpret_cast<FreeId*>(ExInterlockedRemoveHeadList(&m_freeList, &m_lock));
-    if (freeId != NULL) {
+
+    FreeId *freeId = reinterpret_cast<FreeId *>(ExInterlockedRemoveHeadList(&m_freeList, &m_lock));
+    if (freeId != NULL)
+    {
         id = freeId->id;
         delete freeId;
-    }  else {
+    }
+    else
+    {
         id = m_nextId++;
     }
 
@@ -75,7 +77,7 @@ ULONG VioGpuIdr::GetId(VOID)
 VOID VioGpuIdr::PutId(_In_ ULONG id)
 {
     DbgPrint(TRACE_LEVEL_VERBOSE, ("[%s] id = %d\n", __FUNCTION__, id));
-    FreeId* freeId = new(NonPagedPoolNx) FreeId;
+    FreeId *freeId = new (NonPagedPoolNx) FreeId;
     freeId->id = id;
     ExInterlockedInsertTailList(&m_freeList, &freeId->list_entry, &m_lock);
 }
@@ -83,10 +85,12 @@ VOID VioGpuIdr::PutId(_In_ ULONG id)
 VOID VioGpuIdr::Close(VOID)
 {
 
-    FreeId* freeId = NULL;
-    do {
-        freeId = reinterpret_cast<FreeId*>(ExInterlockedRemoveHeadList(&m_freeList, &m_lock));
-        if (freeId != NULL) {
+    FreeId *freeId = NULL;
+    do
+    {
+        freeId = reinterpret_cast<FreeId *>(ExInterlockedRemoveHeadList(&m_freeList, &m_lock));
+        if (freeId != NULL)
+        {
             delete freeId;
         }
     } while (freeId != NULL);

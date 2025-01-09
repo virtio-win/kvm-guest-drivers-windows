@@ -35,7 +35,6 @@
 #pragma pack(push)
 #pragma pack(1)
 
-
 typedef struct
 {
     UINT DriverStarted : 1;
@@ -52,8 +51,8 @@ typedef struct
 
 typedef struct _CURRENT_MODE
 {
-    DXGK_DISPLAY_INFORMATION             DispInfo;
-    D3DKMDT_VIDPN_PRESENT_PATH_ROTATION  Rotation;
+    DXGK_DISPLAY_INFORMATION DispInfo;
+    D3DKMDT_VIDPN_PRESENT_PATH_ROTATION Rotation;
     D3DKMDT_VIDPN_PRESENT_PATH_SCALING Scaling;
     UINT SrcModeWidth;
     UINT SrcModeHeight;
@@ -72,71 +71,103 @@ typedef struct _CURRENT_MODE
 
 class VioGpuDod;
 
-class VioGpuAdapter: IVioGpuPCI
+class VioGpuAdapter : IVioGpuPCI
 {
-public:
-    VioGpuAdapter(_In_ VioGpuDod* pVioGpuDod);
+  public:
+    VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod);
     ~VioGpuAdapter(void);
-    NTSTATUS SetCurrentMode(ULONG Mode, CURRENT_MODE* pCurrentMode);
-    ULONG GetModeCount(void) { return m_ModeCount; }
-    NTSTATUS SetPowerState(DXGK_DEVICE_INFO* pDeviceInfo, DEVICE_POWER_STATE DevicePowerState, CURRENT_MODE* pCurrentMode);
-    NTSTATUS HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMATION* pDispInfo);
+    NTSTATUS SetCurrentMode(ULONG Mode, CURRENT_MODE *pCurrentMode);
+    ULONG GetModeCount(void)
+    {
+        return m_ModeCount;
+    }
+    NTSTATUS SetPowerState(DXGK_DEVICE_INFO *pDeviceInfo,
+                           DEVICE_POWER_STATE DevicePowerState,
+                           CURRENT_MODE *pCurrentMode);
+    NTSTATUS HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMATION *pDispInfo);
     NTSTATUS HWClose(void);
-    NTSTATUS ExecutePresentDisplayOnly(_In_ BYTE*       DstAddr,
-        _In_ UINT              DstBitPerPixel,
-        _In_ BYTE*             SrcAddr,
-        _In_ UINT              SrcBytesPerPixel,
-        _In_ LONG              SrcPitch,
-        _In_ ULONG             NumMoves,
-        _In_ D3DKMT_MOVE_RECT* pMoves,
-        _In_ ULONG             NumDirtyRects,
-        _In_ RECT*             pDirtyRect,
-        _In_ D3DKMDT_VIDPN_PRESENT_PATH_ROTATION Rotation,
-        _In_ const CURRENT_MODE* pModeCur);
-    VOID BlackOutScreen(CURRENT_MODE* pCurrentMod);
-    BOOLEAN InterruptRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface, _In_  ULONG MessageNumber);
+    NTSTATUS ExecutePresentDisplayOnly(_In_ BYTE *DstAddr,
+                                       _In_ UINT DstBitPerPixel,
+                                       _In_ BYTE *SrcAddr,
+                                       _In_ UINT SrcBytesPerPixel,
+                                       _In_ LONG SrcPitch,
+                                       _In_ ULONG NumMoves,
+                                       _In_ D3DKMT_MOVE_RECT *pMoves,
+                                       _In_ ULONG NumDirtyRects,
+                                       _In_ RECT *pDirtyRect,
+                                       _In_ D3DKMDT_VIDPN_PRESENT_PATH_ROTATION Rotation,
+                                       _In_ const CURRENT_MODE *pModeCur);
+    VOID BlackOutScreen(CURRENT_MODE *pCurrentMod);
+    BOOLEAN InterruptRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface, _In_ ULONG MessageNumber);
     VOID DpcRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface);
     VOID ResetDevice(VOID);
-    NTSTATUS SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE* pSetPointerShape, _In_ CONST CURRENT_MODE* pModeCur);
-    NTSTATUS SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION* pSetPointerPosition, _In_ CONST CURRENT_MODE* pModeCur);
-    NTSTATUS Escape(_In_ CONST DXGKARG_ESCAPE* pEscap);
-    CPciResources* GetPciResources(void) { return &m_PciResources; }
+    NTSTATUS SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape, _In_ CONST CURRENT_MODE *pModeCur);
+    NTSTATUS SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION *pSetPointerPosition,
+                                _In_ CONST CURRENT_MODE *pModeCur);
+    NTSTATUS Escape(_In_ CONST DXGKARG_ESCAPE *pEscap);
+    CPciResources *GetPciResources(void)
+    {
+        return &m_PciResources;
+    }
     BOOLEAN ResetToVgaMode(void);
-    BOOLEAN IsMSIEnabled() { return m_PciResources.IsMSIEnabled(); }
-    PHYSICAL_ADDRESS GetFrameBufferPA(void) { return  m_PciResources.GetPciBar(0)->GetPA(); }
+    BOOLEAN IsMSIEnabled()
+    {
+        return m_PciResources.IsMSIEnabled();
+    }
+    PHYSICAL_ADDRESS GetFrameBufferPA(void)
+    {
+        return m_PciResources.GetPciBar(0)->GetPA();
+    }
     PDXGKRNL_INTERFACE GetDxgkInterface(void);
 
-    PVIDEO_MODE_INFORMATION GetModeInfo(UINT idx) { return &m_ModeInfo[idx]; }
-    USHORT GetModeNumber(USHORT idx) { return (USHORT)m_ModeInfo[idx].ModeIndex; }
-    USHORT GetCurrentModeIndex(void) { return m_CurrentModeIndex; }
-    VOID SetCurrentModeIndex(USHORT idx) { m_CurrentModeIndex = idx; }
-    VioGpuDod* GetVioGpu(void) { return m_pVioGpuDod; }
-    ULONG GetInstanceId(void) { return m_Id; }
+    PVIDEO_MODE_INFORMATION GetModeInfo(UINT idx)
+    {
+        return &m_ModeInfo[idx];
+    }
+    USHORT GetModeNumber(USHORT idx)
+    {
+        return (USHORT)m_ModeInfo[idx].ModeIndex;
+    }
+    USHORT GetCurrentModeIndex(void)
+    {
+        return m_CurrentModeIndex;
+    }
+    VOID SetCurrentModeIndex(USHORT idx)
+    {
+        m_CurrentModeIndex = idx;
+    }
+    VioGpuDod *GetVioGpu(void)
+    {
+        return m_pVioGpuDod;
+    }
+    ULONG GetInstanceId(void)
+    {
+        return m_Id;
+    }
     PBYTE GetEdidData(void);
     PBYTE GetCTA861Data(void);
 
-protected:
-private:
-    NTSTATUS VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION* pDispInfo);
+  protected:
+  private:
+    NTSTATUS VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION *pDispInfo);
     void SetVideoModeInfo(UINT Idx, PVIOGPU_DISP_MODE pModeInfo);
     void VioGpuAdapterClose(void);
-    NTSTATUS BuildModeList(DXGK_DISPLAY_INFORMATION* pDispInfo);
+    NTSTATUS BuildModeList(DXGK_DISPLAY_INFORMATION *pDispInfo);
     BOOLEAN AckFeature(UINT64 Feature);
     BOOLEAN GetDisplayInfo(void);
     int ProcessEdid(void);
     void FixEdid(void);
     BOOLEAN GetEdids(void);
     int AddEdidModes(void);
-    BOOLEAN UpdateModes(USHORT xres, USHORT yres, int& cnt);
+    BOOLEAN UpdateModes(USHORT xres, USHORT yres, int &cnt);
     NTSTATUS UpdateChildStatus(BOOLEAN connect);
-    void SetCustomDisplay(_In_ USHORT xres,
-        _In_ USHORT yres);
-    BOOLEAN CreateFrameBufferObj(PVIDEO_MODE_INFORMATION pModeInfo, CURRENT_MODE* pCurrentMode);
+    void SetCustomDisplay(_In_ USHORT xres, _In_ USHORT yres);
+    BOOLEAN CreateFrameBufferObj(PVIDEO_MODE_INFORMATION pModeInfo, CURRENT_MODE *pCurrentMode);
     void DestroyFrameBufferObj(BOOLEAN bReset);
-    BOOLEAN CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE* pSetPointerShape, _In_ CONST CURRENT_MODE* pCurrentMode);
-    BOOLEAN UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE* pSetPointerShape, _In_ CONST CURRENT_MODE* pCurrentMode);
+    BOOLEAN CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape, _In_ CONST CURRENT_MODE *pCurrentMode);
+    BOOLEAN UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape, _In_ CONST CURRENT_MODE *pCurrentMode);
     void DestroyCursor(void);
-    BOOLEAN GpuObjectAttach(UINT res_id, VioGpuObj* obj);
+    BOOLEAN GpuObjectAttach(UINT res_id, VioGpuObj *obj);
     void static ThreadWork(_In_ PVOID Context);
     void ThreadWorkRoutine(void);
     void ConfigChanged(void);
@@ -144,13 +175,14 @@ private:
     VOID CreateResolutionEvent(VOID);
     VOID NotifyResolutionEvent(VOID);
     VOID CloseResolutionEvent(VOID);
-private:
-    VioGpuDod* m_pVioGpuDod;
+
+  private:
+    VioGpuDod *m_pVioGpuDod;
     PVIDEO_MODE_INFORMATION m_ModeInfo;
     ULONG m_ModeCount;
     USHORT m_CurrentModeIndex;
     USHORT m_CustomModeIndex;
-    ULONG  m_Id;
+    ULONG m_Id;
     BYTE m_EDIDs[EDID_RAW_BLOCK_SIZE];
     BOOLEAN m_bEDID;
 
@@ -164,8 +196,8 @@ private:
     CrsrQueue m_CursorQueue;
     VioGpuBuf m_GpuBuf;
     VioGpuIdr m_Idr;
-    VioGpuObj* m_pFrameBuf;
-    VioGpuObj* m_pCursorBuf;
+    VioGpuObj *m_pFrameBuf;
+    VioGpuObj *m_pCursorBuf;
     VioGpuMemSegment m_CursorSegment;
     VioGpuMemSegment m_FrameSegment;
     volatile ULONG m_PendingWorks;
@@ -176,9 +208,10 @@ private:
     HANDLE m_ResolutionEventHandle;
 };
 
-class VioGpuDod {
-private:
-    DEVICE_OBJECT* m_pPhysicalDevice;
+class VioGpuDod
+{
+  private:
+    DEVICE_OBJECT *m_pPhysicalDevice;
     DXGKRNL_INTERFACE m_DxgkInterface;
     DXGK_DEVICE_INFO m_DeviceInfo;
 
@@ -191,9 +224,10 @@ private:
     DXGK_DISPLAY_INFORMATION m_SystemDisplayInfo;
 
     DXGKARG_SETPOINTERSHAPE m_PointerShape;
-    VioGpuAdapter* m_pHWDevice;
-public:
-    VioGpuDod(_In_ DEVICE_OBJECT* pPhysicalDeviceObject);
+    VioGpuAdapter *m_pHWDevice;
+
+  public:
+    VioGpuDod(_In_ DEVICE_OBJECT *pPhysicalDeviceObject);
     ~VioGpuDod(void);
 #pragma code_seg(push)
 #pragma code_seg()
@@ -251,72 +285,74 @@ public:
     }
 #pragma code_seg(pop)
 
-    NTSTATUS StartDevice(_In_  DXGK_START_INFO*   pDxgkStartInfo,
-        _In_  DXGKRNL_INTERFACE* pDxgkInterface,
-        _Out_ ULONG*             pNumberOfViews,
-        _Out_ ULONG*             pNumberOfChildren);
+    NTSTATUS StartDevice(_In_ DXGK_START_INFO *pDxgkStartInfo,
+                         _In_ DXGKRNL_INTERFACE *pDxgkInterface,
+                         _Out_ ULONG *pNumberOfViews,
+                         _Out_ ULONG *pNumberOfChildren);
     NTSTATUS StopDevice(VOID);
     VOID ResetDevice(VOID);
-    NTSTATUS DispatchIoRequest(_In_  ULONG VidPnSourceId,
-        _In_  VIDEO_REQUEST_PACKET* pVideoRequestPacket);
-    NTSTATUS SetPowerState(_In_  ULONG HardwareUid,
-        _In_  DEVICE_POWER_STATE DevicePowerState,
-        _In_  POWER_ACTION       ActionType);
-    NTSTATUS QueryChildRelations(_Out_writes_bytes_(ChildRelationsSize) DXGK_CHILD_DESCRIPTOR* pChildRelations,
-        _In_                             ULONG                  ChildRelationsSize);
-    NTSTATUS QueryChildStatus(_Inout_ DXGK_CHILD_STATUS* pChildStatus,
-        _In_    BOOLEAN            NonDestructiveOnly);
-    NTSTATUS QueryDeviceDescriptor(_In_    ULONG                   ChildUid,
-        _Inout_ DXGK_DEVICE_DESCRIPTOR* pDeviceDescriptor);
-    BOOLEAN InterruptRoutine(_In_  ULONG MessageNumber);
+    NTSTATUS DispatchIoRequest(_In_ ULONG VidPnSourceId, _In_ VIDEO_REQUEST_PACKET *pVideoRequestPacket);
+    NTSTATUS SetPowerState(_In_ ULONG HardwareUid,
+                           _In_ DEVICE_POWER_STATE DevicePowerState,
+                           _In_ POWER_ACTION ActionType);
+    NTSTATUS QueryChildRelations(_Out_writes_bytes_(ChildRelationsSize) DXGK_CHILD_DESCRIPTOR *pChildRelations,
+                                 _In_ ULONG ChildRelationsSize);
+    NTSTATUS QueryChildStatus(_Inout_ DXGK_CHILD_STATUS *pChildStatus, _In_ BOOLEAN NonDestructiveOnly);
+    NTSTATUS QueryDeviceDescriptor(_In_ ULONG ChildUid, _Inout_ DXGK_DEVICE_DESCRIPTOR *pDeviceDescriptor);
+    BOOLEAN InterruptRoutine(_In_ ULONG MessageNumber);
     VOID DpcRoutine(VOID);
-    NTSTATUS QueryAdapterInfo(_In_ CONST DXGKARG_QUERYADAPTERINFO* pQueryAdapterInfo);
-    NTSTATUS SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION* pSetPointerPosition);
-    NTSTATUS SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE* pSetPointerShape);
-    NTSTATUS Escape(_In_ CONST DXGKARG_ESCAPE* pEscape);
-    NTSTATUS PresentDisplayOnly(_In_ CONST DXGKARG_PRESENT_DISPLAYONLY* pPresentDisplayOnly);
-    NTSTATUS QueryInterface(_In_ CONST PQUERY_INTERFACE     QueryInterface);
-    NTSTATUS IsSupportedVidPn(_Inout_ DXGKARG_ISSUPPORTEDVIDPN* pIsSupportedVidPn);
-    NTSTATUS RecommendFunctionalVidPn(_In_ CONST DXGKARG_RECOMMENDFUNCTIONALVIDPN* CONST pRecommendFunctionalVidPn);
-    NTSTATUS RecommendVidPnTopology(_In_ CONST DXGKARG_RECOMMENDVIDPNTOPOLOGY* CONST pRecommendVidPnTopology);
-    NTSTATUS RecommendMonitorModes(_In_ CONST DXGKARG_RECOMMENDMONITORMODES* CONST pRecommendMonitorModes);
-    NTSTATUS EnumVidPnCofuncModality(_In_ CONST DXGKARG_ENUMVIDPNCOFUNCMODALITY* CONST pEnumCofuncModality);
-    NTSTATUS SetVidPnSourceVisibility(_In_ CONST DXGKARG_SETVIDPNSOURCEVISIBILITY* pSetVidPnSourceVisibility);
-    NTSTATUS CommitVidPn(_In_ CONST DXGKARG_COMMITVIDPN* CONST pCommitVidPn);
-    NTSTATUS UpdateActiveVidPnPresentPath(_In_ CONST DXGKARG_UPDATEACTIVEVIDPNPRESENTPATH* CONST pUpdateActiveVidPnPresentPath);
-    NTSTATUS QueryVidPnHWCapability(_Inout_ DXGKARG_QUERYVIDPNHWCAPABILITY* pVidPnHWCaps);
-    NTSTATUS StopDeviceAndReleasePostDisplayOwnership(_In_  D3DDDI_VIDEO_PRESENT_TARGET_ID TargetId,
-        _Out_ DXGK_DISPLAY_INFORMATION*      pDisplayInfo);
-    NTSTATUS SystemDisplayEnable(_In_  D3DDDI_VIDEO_PRESENT_TARGET_ID       TargetId,
-        _In_  PDXGKARG_SYSTEM_DISPLAY_ENABLE_FLAGS Flags,
-        _Out_ UINT*                                pWidth,
-        _Out_ UINT*                                pHeight,
-        _Out_ D3DDDIFORMAT*                        pColorFormat);
-    VOID SystemDisplayWrite(_In_reads_bytes_(SourceHeight * SourceStride) VOID* pSource,
-        _In_  UINT                                 SourceWidth,
-        _In_  UINT                                 SourceHeight,
-        _In_  UINT                                 SourceStride,
-        _In_  INT                                  PositionX,
-        _In_  INT                                  PositionY);
-    PDXGKRNL_INTERFACE GetDxgkInterface(void) { return &m_DxgkInterface; }
-private:
+    NTSTATUS QueryAdapterInfo(_In_ CONST DXGKARG_QUERYADAPTERINFO *pQueryAdapterInfo);
+    NTSTATUS SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION *pSetPointerPosition);
+    NTSTATUS SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape);
+    NTSTATUS Escape(_In_ CONST DXGKARG_ESCAPE *pEscape);
+    NTSTATUS PresentDisplayOnly(_In_ CONST DXGKARG_PRESENT_DISPLAYONLY *pPresentDisplayOnly);
+    NTSTATUS QueryInterface(_In_ CONST PQUERY_INTERFACE QueryInterface);
+    NTSTATUS IsSupportedVidPn(_Inout_ DXGKARG_ISSUPPORTEDVIDPN *pIsSupportedVidPn);
+    NTSTATUS RecommendFunctionalVidPn(_In_ CONST DXGKARG_RECOMMENDFUNCTIONALVIDPN *CONST pRecommendFunctionalVidPn);
+    NTSTATUS RecommendVidPnTopology(_In_ CONST DXGKARG_RECOMMENDVIDPNTOPOLOGY *CONST pRecommendVidPnTopology);
+    NTSTATUS RecommendMonitorModes(_In_ CONST DXGKARG_RECOMMENDMONITORMODES *CONST pRecommendMonitorModes);
+    NTSTATUS EnumVidPnCofuncModality(_In_ CONST DXGKARG_ENUMVIDPNCOFUNCMODALITY *CONST pEnumCofuncModality);
+    NTSTATUS SetVidPnSourceVisibility(_In_ CONST DXGKARG_SETVIDPNSOURCEVISIBILITY *pSetVidPnSourceVisibility);
+    NTSTATUS CommitVidPn(_In_ CONST DXGKARG_COMMITVIDPN *CONST pCommitVidPn);
+    NTSTATUS
+    UpdateActiveVidPnPresentPath(_In_ CONST DXGKARG_UPDATEACTIVEVIDPNPRESENTPATH *CONST pUpdateActiveVidPnPresentPath);
+    NTSTATUS QueryVidPnHWCapability(_Inout_ DXGKARG_QUERYVIDPNHWCAPABILITY *pVidPnHWCaps);
+    NTSTATUS StopDeviceAndReleasePostDisplayOwnership(_In_ D3DDDI_VIDEO_PRESENT_TARGET_ID TargetId,
+                                                      _Out_ DXGK_DISPLAY_INFORMATION *pDisplayInfo);
+    NTSTATUS SystemDisplayEnable(_In_ D3DDDI_VIDEO_PRESENT_TARGET_ID TargetId,
+                                 _In_ PDXGKARG_SYSTEM_DISPLAY_ENABLE_FLAGS Flags,
+                                 _Out_ UINT *pWidth,
+                                 _Out_ UINT *pHeight,
+                                 _Out_ D3DDDIFORMAT *pColorFormat);
+    VOID SystemDisplayWrite(_In_reads_bytes_(SourceHeight *SourceStride) VOID *pSource,
+                            _In_ UINT SourceWidth,
+                            _In_ UINT SourceHeight,
+                            _In_ UINT SourceStride,
+                            _In_ INT PositionX,
+                            _In_ INT PositionY);
+    PDXGKRNL_INTERFACE GetDxgkInterface(void)
+    {
+        return &m_DxgkInterface;
+    }
+
+  private:
     BOOLEAN CheckHardware();
     NTSTATUS WriteRegistryString(_In_ HANDLE DevInstRegKeyHandle, _In_ PCWSTR pszwValueName, _In_ PCSTR pszValue);
     NTSTATUS WriteRegistryDWORD(_In_ HANDLE DevInstRegKeyHandle, _In_ PCWSTR pszwValueName, _In_ PDWORD pdwValue);
     NTSTATUS ReadRegistryDWORD(_In_ HANDLE DevInstRegKeyHandle, _In_ PCWSTR pszwValueName, _Inout_ PDWORD pdwValue);
-    NTSTATUS SetSourceModeAndPath(CONST D3DKMDT_VIDPN_SOURCE_MODE* pSourceMode,
-        CONST D3DKMDT_VIDPN_PRESENT_PATH* pPath);
-    NTSTATUS AddSingleMonitorMode(_In_ CONST DXGKARG_RECOMMENDMONITORMODES* CONST pRecommendMonitorModes);
-    NTSTATUS AddSingleSourceMode(_In_ CONST DXGK_VIDPNSOURCEMODESET_INTERFACE* pVidPnSourceModeSetInterface,
-        D3DKMDT_HVIDPNSOURCEMODESET hVidPnSourceModeSet,
-        D3DDDI_VIDEO_PRESENT_SOURCE_ID SourceId);
-    NTSTATUS AddSingleTargetMode(_In_ CONST DXGK_VIDPNTARGETMODESET_INTERFACE* pVidPnTargetModeSetInterface,
-        D3DKMDT_HVIDPNTARGETMODESET hVidPnTargetModeSet,
-        _In_opt_ CONST D3DKMDT_VIDPN_SOURCE_MODE* pVidPnPinnedSourceModeInfo,
-        D3DDDI_VIDEO_PRESENT_SOURCE_ID SourceId);
-    NTSTATUS IsVidPnSourceModeFieldsValid(CONST D3DKMDT_VIDPN_SOURCE_MODE* pSourceMode) const;
-    NTSTATUS IsVidPnPathFieldsValid(CONST D3DKMDT_VIDPN_PRESENT_PATH* pPath) const;
+    NTSTATUS SetSourceModeAndPath(CONST D3DKMDT_VIDPN_SOURCE_MODE *pSourceMode,
+                                  CONST D3DKMDT_VIDPN_PRESENT_PATH *pPath);
+    NTSTATUS AddSingleMonitorMode(_In_ CONST DXGKARG_RECOMMENDMONITORMODES *CONST pRecommendMonitorModes);
+    NTSTATUS AddSingleSourceMode(_In_ CONST DXGK_VIDPNSOURCEMODESET_INTERFACE *pVidPnSourceModeSetInterface,
+                                 D3DKMDT_HVIDPNSOURCEMODESET hVidPnSourceModeSet,
+                                 D3DDDI_VIDEO_PRESENT_SOURCE_ID SourceId);
+    NTSTATUS AddSingleTargetMode(_In_ CONST DXGK_VIDPNTARGETMODESET_INTERFACE *pVidPnTargetModeSetInterface,
+                                 D3DKMDT_HVIDPNTARGETMODESET hVidPnTargetModeSet,
+                                 _In_opt_ CONST D3DKMDT_VIDPN_SOURCE_MODE *pVidPnPinnedSourceModeInfo,
+                                 D3DDDI_VIDEO_PRESENT_SOURCE_ID SourceId);
+    NTSTATUS IsVidPnSourceModeFieldsValid(CONST D3DKMDT_VIDPN_SOURCE_MODE *pSourceMode) const;
+    NTSTATUS IsVidPnPathFieldsValid(CONST D3DKMDT_VIDPN_PRESENT_PATH *pPath) const;
     NTSTATUS SetRegisterInfo(_In_ ULONG Id, _In_ DWORD MemSize);
     NTSTATUS GetRegisterInfo(void);
-    VOID BuildVideoSignalInfo(D3DKMDT_VIDEO_SIGNAL_INFO* pVideoSignalInfo, PVIDEO_MODE_INFORMATION pModeInfo);
+    VOID BuildVideoSignalInfo(D3DKMDT_VIDEO_SIGNAL_INFO *pVideoSignalInfo, PVIDEO_MODE_INFORMATION pModeInfo);
 };

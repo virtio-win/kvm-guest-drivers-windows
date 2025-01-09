@@ -31,11 +31,7 @@
 #include "Session.h"
 #include "pipe.h"
 
-
-CSession::CSession(ULONG Id) :
-    m_PipeServer(NULL),
-    m_hToken(NULL),
-    m_lpvEnv(NULL)
+CSession::CSession(ULONG Id) : m_PipeServer(NULL), m_hToken(NULL), m_lpvEnv(NULL)
 {
     PrintMessage(L"%ws Id = %d\n", __FUNCTIONW__, Id);
 
@@ -43,7 +39,6 @@ CSession::CSession(ULONG Id) :
     m_SessionInfo.SessionId = Id;
     ZeroMemory(&m_ProcessInfo, sizeof(m_ProcessInfo));
 }
-
 
 CSession::~CSession(void)
 {
@@ -57,7 +52,8 @@ bool CSession::Init(void)
 
     std::wstring PipeName = PIPE_NAME + std::to_wstring(m_SessionInfo.SessionId);
     m_PipeServer = new PipeServer(PipeName);
-    if (m_PipeServer && m_PipeServer->Init()) {
+    if (m_PipeServer && m_PipeServer->Init())
+    {
         std::wstring AppName = APP_NAME + std::to_wstring(m_SessionInfo.SessionId);
         return CreateProcessInSession(AppName);
     }
@@ -69,7 +65,8 @@ bool CSession::Init(void)
 void CSession::Close(void)
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
-    if (m_PipeServer) {
+    if (m_PipeServer)
+    {
         m_PipeServer->Close();
         delete m_PipeServer;
         m_PipeServer = NULL;
@@ -108,9 +105,9 @@ void CSession::Resume(void)
 {
 }
 
-bool CSession::CreateProcessInSession(const std::wstring & commandLine)
+bool CSession::CreateProcessInSession(const std::wstring &commandLine)
 {
-    STARTUPINFO si = { sizeof(si) };
+    STARTUPINFO si = {sizeof(si)};
     DWORD dwError = ERROR_SUCCESS;
     wchar_t szUserProfileDir[MAX_PATH];
     DWORD cchUserProfileDir = ARRAYSIZE(szUserProfileDir);
@@ -118,7 +115,8 @@ bool CSession::CreateProcessInSession(const std::wstring & commandLine)
 
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
-    do {
+    do
+    {
         if (WTSGetActiveConsoleSessionId() != m_SessionInfo.SessionId)
         {
             PrintMessage(L"WTSGetActiveConsoleSessionId() != m_SessionInfo.SessionId\n");
@@ -135,7 +133,11 @@ bool CSession::CreateProcessInSession(const std::wstring & commandLine)
         TOKEN_LINKED_TOKEN admin = {};
         HANDLE hAdmToken = 0;
         DWORD dw = 0;
-        if (GetTokenInformation(m_hToken, (TOKEN_INFORMATION_CLASS)TokenLinkedToken, &admin, sizeof(TOKEN_LINKED_TOKEN), &dw))
+        if (GetTokenInformation(m_hToken,
+                                (TOKEN_INFORMATION_CLASS)TokenLinkedToken,
+                                &admin,
+                                sizeof(TOKEN_LINKED_TOKEN),
+                                &dw))
         {
             hAdmToken = admin.LinkedToken;
         }
@@ -151,8 +153,7 @@ bool CSession::CreateProcessInSession(const std::wstring & commandLine)
             break;
         }
 
-        if (!GetUserProfileDirectory(m_hToken, szUserProfileDir,
-            &cchUserProfileDir))
+        if (!GetUserProfileDirectory(m_hToken, szUserProfileDir, &cchUserProfileDir))
         {
             dwError = GetLastError();
             PrintMessage(L"GetUserProfileDirectory failed with error 0x%x\n", dwError);
@@ -161,8 +162,17 @@ bool CSession::CreateProcessInSession(const std::wstring & commandLine)
 
         si.lpDesktop = TEXT("winsta0\\default");
 
-        if (!CreateProcessAsUser(hAdmToken, NULL, const_cast<wchar_t *>(commandLine.c_str()), NULL, NULL, FALSE,
-            CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW, m_lpvEnv, szUserProfileDir, &si, &m_ProcessInfo))
+        if (!CreateProcessAsUser(hAdmToken,
+                                 NULL,
+                                 const_cast<wchar_t *>(commandLine.c_str()),
+                                 NULL,
+                                 NULL,
+                                 FALSE,
+                                 CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW,
+                                 m_lpvEnv,
+                                 szUserProfileDir,
+                                 &si,
+                                 &m_ProcessInfo))
         {
             dwError = GetLastError();
             PrintMessage(L"CreateProcessAsUser failed with error 0x%x\n", dwError);
@@ -178,4 +188,3 @@ bool CSession::CreateProcessInSession(const std::wstring & commandLine)
 
     return true;
 }
-
