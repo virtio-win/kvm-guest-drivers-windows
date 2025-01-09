@@ -41,15 +41,13 @@ static BOOLEAN VirtFsAllocIndirectArea(PDEVICE_CONTEXT context)
 {
     VirtIODevice *dev = &context->VDevice.VIODevice;
 
-    context->IndirectVA = VirtIOWdfDeviceAllocDmaMemory(dev,
-        VIRT_FS_INDIRECT_AREA_PAGES * PAGE_SIZE, 0);
+    context->IndirectVA = VirtIOWdfDeviceAllocDmaMemory(dev, VIRT_FS_INDIRECT_AREA_PAGES * PAGE_SIZE, 0);
     if (context->IndirectVA == NULL)
     {
         return FALSE;
     }
 
-    context->IndirectPA = VirtIOWdfDeviceGetPhysicalAddress(dev,
-        context->IndirectVA);
+    context->IndirectPA = VirtIOWdfDeviceGetPhysicalAddress(dev, context->IndirectVA);
 
     return TRUE;
 }
@@ -65,18 +63,15 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
 
     UNREFERENCED_PARAMETER(Resources);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "--> %!FUNC! Device: %p",
-        Device);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "--> %!FUNC! Device: %p", Device);
 
     PAGED_CODE();
 
-    status = VirtIOWdfInitialize(&context->VDevice, Device,
-        ResourcesTranslated, NULL, VIRT_FS_MEMORY_TAG);
+    status = VirtIOWdfInitialize(&context->VDevice, Device, ResourcesTranslated, NULL, VIRT_FS_MEMORY_TAG);
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
-            "VirtIOWdfInitialize failed with %!STATUS!", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "VirtIOWdfInitialize failed with %!STATUS!", status);
     }
 
     HostFeatures = VirtIOWdfGetDeviceFeatures(&context->VDevice);
@@ -99,12 +94,11 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
     VirtIOWdfSetDriverFeatures(&context->VDevice, GuestFeatures, 0);
 
     VirtIOWdfDeviceGet(&context->VDevice,
-        FIELD_OFFSET(VIRTIO_FS_CONFIG, RequestQueues),
-        &RequestQueues,
-        sizeof(RequestQueues));
+                       FIELD_OFFSET(VIRTIO_FS_CONFIG, RequestQueues),
+                       &RequestQueues,
+                       sizeof(RequestQueues));
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_POWER,
-        "Request queues: %d", RequestQueues);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_POWER, "Request queues: %d", RequestQueues);
 
     // #0 - high priority queue
     // #1 - request queue
@@ -112,13 +106,12 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
     context->QueueSize = VIRT_FS_MAX_QUEUE_SIZE;
 
     context->VirtQueues = ExAllocatePoolZero(NonPagedPool,
-        context->NumQueues * sizeof(struct virtqueue *),
-        VIRT_FS_MEMORY_TAG);
+                                             context->NumQueues * sizeof(struct virtqueue *),
+                                             VIRT_FS_MEMORY_TAG);
 
     if (context->VirtQueues == NULL)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
-            "Failed to allocate queues");
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "Failed to allocate queues");
 
         status = STATUS_INSUFFICIENT_RESOURCES;
     }
@@ -126,8 +119,8 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
     if (NT_SUCCESS(status))
     {
         context->VirtQueueLocks = ExAllocatePoolUninitialized(NonPagedPool,
-            context->NumQueues * sizeof(WDFSPINLOCK),
-            VIRT_FS_MEMORY_TAG);
+                                                              context->NumQueues * sizeof(WDFSPINLOCK),
+                                                              VIRT_FS_MEMORY_TAG);
     }
 
     if (context->VirtQueueLocks != NULL)
@@ -146,16 +139,14 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
             status = WdfSpinLockCreate(&attributes, lock);
             if (!NT_SUCCESS(status))
             {
-                TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
-                    "WdfSpinLockCreate failed");
+                TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "WdfSpinLockCreate failed");
                 break;
             }
         }
     }
     else
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
-            "Failed to allocate queue locks");
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "Failed to allocate queue locks");
 
         status = STATUS_INSUFFICIENT_RESOURCES;
     }
@@ -164,20 +155,17 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
     {
         if (VirtFsAllocIndirectArea(context) == FALSE)
         {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
-                "Failed to allocate indirect area");
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "Failed to allocate indirect area");
             status = STATUS_INSUFFICIENT_RESOURCES;
         }
     }
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER,
-        "<-- %!FUNC! Status: %!STATUS!", status);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "<-- %!FUNC! Status: %!STATUS!", status);
 
     return status;
 }
 
-NTSTATUS VirtFsEvtDeviceReleaseHardware(IN WDFDEVICE Device,
-                                        IN WDFCMRESLIST ResourcesTranslated)
+NTSTATUS VirtFsEvtDeviceReleaseHardware(IN WDFDEVICE Device, IN WDFCMRESLIST ResourcesTranslated)
 {
     PDEVICE_CONTEXT context = GetDeviceContext(Device);
 
@@ -191,8 +179,7 @@ NTSTATUS VirtFsEvtDeviceReleaseHardware(IN WDFDEVICE Device,
 
     if (context->UseIndirect && context->IndirectVA != NULL)
     {
-        VirtIOWdfDeviceFreeDmaMemory(&context->VDevice.VIODevice,
-            context->IndirectVA);
+        VirtIOWdfDeviceFreeDmaMemory(&context->VDevice.VIODevice, context->IndirectVA);
         context->IndirectVA = NULL;
     }
 
@@ -213,8 +200,7 @@ NTSTATUS VirtFsEvtDeviceReleaseHardware(IN WDFDEVICE Device,
     return STATUS_SUCCESS;
 }
 
-NTSTATUS VirtFsEvtDeviceD0Entry(IN WDFDEVICE Device,
-                                IN WDF_POWER_DEVICE_STATE PreviousState)
+NTSTATUS VirtFsEvtDeviceD0Entry(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE PreviousState)
 {
     NTSTATUS status = STATUS_SUCCESS;
     PDEVICE_CONTEXT context = GetDeviceContext(Device);
@@ -222,16 +208,14 @@ NTSTATUS VirtFsEvtDeviceD0Entry(IN WDFDEVICE Device,
 
     UNREFERENCED_PARAMETER(PreviousState);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "--> %!FUNC! Device: %p",
-        Device);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "--> %!FUNC! Device: %p", Device);
 
     PAGED_CODE();
 
     params[VQ_TYPE_HIPRIO].Interrupt = context->WdfInterrupt[VQ_TYPE_HIPRIO];
     params[VQ_TYPE_REQUEST].Interrupt = context->WdfInterrupt[VQ_TYPE_REQUEST];
 
-    status = VirtIOWdfInitQueues(&context->VDevice,
-        context->NumQueues, context->VirtQueues, params);
+    status = VirtIOWdfInitQueues(&context->VDevice, context->NumQueues, context->VirtQueues, params);
 
     if (NT_SUCCESS(status))
     {
@@ -239,14 +223,18 @@ NTSTATUS VirtFsEvtDeviceD0Entry(IN WDFDEVICE Device,
         ULONG queue_size = virtio_get_queue_size(context->VirtQueues[0]);
         queue_size = min(queue_size, VIRT_FS_MAX_QUEUE_SIZE);
         context->QueueSize = virtio_get_queue_size(context->VirtQueues[0]);
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_POWER, "%s: queue size %d, max usable size %d", __FUNCTION__, queue_size, context->QueueSize);
+        TraceEvents(TRACE_LEVEL_INFORMATION,
+                    DBG_POWER,
+                    "%s: queue size %d, max usable size %d",
+                    __FUNCTION__,
+                    queue_size,
+                    context->QueueSize);
         VirtIOWdfSetDriverOK(&context->VDevice);
     }
     else
     {
         VirtIOWdfSetDriverFailed(&context->VDevice);
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
-            "VirtIOWdfInitQueues failed with %x", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "VirtIOWdfInitQueues failed with %x", status);
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "<-- %!FUNC!");
@@ -254,15 +242,13 @@ NTSTATUS VirtFsEvtDeviceD0Entry(IN WDFDEVICE Device,
     return status;
 }
 
-NTSTATUS VirtFsEvtDeviceD0Exit(IN WDFDEVICE Device,
-                               IN WDF_POWER_DEVICE_STATE TargetState)
+NTSTATUS VirtFsEvtDeviceD0Exit(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE TargetState)
 {
     PDEVICE_CONTEXT context = GetDeviceContext(Device);
 
     UNREFERENCED_PARAMETER(TargetState);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "--> %!FUNC! Device: %p",
-        Device);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "--> %!FUNC! Device: %p", Device);
 
     PAGED_CODE();
 

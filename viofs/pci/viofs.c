@@ -36,15 +36,14 @@
 #pragma alloc_text(PAGE, VirtFsEvtDriverContextCleanup)
 #endif
 
-NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject,
-                     IN PUNICODE_STRING RegistryPath)
+NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING RegistryPath)
 {
     NTSTATUS status;
     WDF_DRIVER_CONFIG config;
     WDF_OBJECT_ATTRIBUTES attributes;
 
     ExInitializeDriverRuntime(DrvRtPoolNxOptIn);
-    
+
     // Initialize the WPP tracing.
     WPP_INIT_TRACING(DriverObject, RegistryPath);
 
@@ -57,13 +56,11 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject,
 
     WDF_DRIVER_CONFIG_INIT(&config, VirtFsEvtDeviceAdd);
 
-    status = WdfDriverCreate(DriverObject, RegistryPath, &attributes,
-        &config, WDF_NO_HANDLE);
+    status = WdfDriverCreate(DriverObject, RegistryPath, &attributes, &config, WDF_NO_HANDLE);
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-            "WdfDriverCreate failed: %!STATUS!", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfDriverCreate failed: %!STATUS!", status);
         WPP_CLEANUP(DriverObject);
     }
 
@@ -72,8 +69,7 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject,
     return status;
 }
 
-NTSTATUS VirtFsEvtDeviceAdd(IN WDFDRIVER Driver,
-                            IN PWDFDEVICE_INIT DeviceInit)
+NTSTATUS VirtFsEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
 {
     NTSTATUS status;
     WDFDEVICE device;
@@ -106,51 +102,43 @@ NTSTATUS VirtFsEvtDeviceAdd(IN WDFDRIVER Driver,
     status = WdfDeviceCreate(&DeviceInit, &attributes, &device);
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-            "WdfDeviceCreate failed: %!STATUS!", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfDeviceCreate failed: %!STATUS!", status);
         return status;
     }
 
     context = GetDeviceContext(device);
 
-    WDF_INTERRUPT_CONFIG_INIT(&interruptConfig,
-        VirtFsEvtInterruptIsr, VirtFsEvtInterruptDpc);
+    WDF_INTERRUPT_CONFIG_INIT(&interruptConfig, VirtFsEvtInterruptIsr, VirtFsEvtInterruptDpc);
 
     interruptConfig.EvtInterruptEnable = VirtFsEvtInterruptEnable;
     interruptConfig.EvtInterruptDisable = VirtFsEvtInterruptDisable;
 
     for (ULONG idx = 0; idx < ARRAYSIZE(context->WdfInterrupt); idx++)
     {
-        status = WdfInterruptCreate(device, &interruptConfig,
-            WDF_NO_OBJECT_ATTRIBUTES, &context->WdfInterrupt[idx]);
+        status = WdfInterruptCreate(device, &interruptConfig, WDF_NO_OBJECT_ATTRIBUTES, &context->WdfInterrupt[idx]);
 
         if (!NT_SUCCESS(status))
         {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-                "WdfInterruptCreate #%ul failed: %!STATUS!", idx, status);
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfInterruptCreate #%ul failed: %!STATUS!", idx, status);
             return status;
         }
     }
 
     WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
     attributes.ParentObject = device;
-    status = WdfSpinLockCreate(&attributes,
-        &context->RequestsLock);
+    status = WdfSpinLockCreate(&attributes, &context->RequestsLock);
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-            "WdfSpinLockCreate failed: %!STATUS!", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfSpinLockCreate failed: %!STATUS!", status);
         return status;
     }
 
-    status = WdfDeviceCreateDeviceInterface(device,
-        &GUID_DEVINTERFACE_VIRT_FS, NULL);
+    status = WdfDeviceCreateDeviceInterface(device, &GUID_DEVINTERFACE_VIRT_FS, NULL);
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-            "WdfDeviceCreateDeviceInterface failed: %!STATUS!", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfDeviceCreateDeviceInterface failed: %!STATUS!", status);
         return status;
     }
 
@@ -159,37 +147,35 @@ NTSTATUS VirtFsEvtDeviceAdd(IN WDFDRIVER Driver,
     queueConfig.EvtIoStop = VirtFsEvtIoStop;
     queueConfig.AllowZeroLengthRequests = FALSE;
 
-    status = WdfIoQueueCreate(device, &queueConfig, WDF_NO_OBJECT_ATTRIBUTES,
-        &queue);
+    status = WdfIoQueueCreate(device, &queueConfig, WDF_NO_OBJECT_ATTRIBUTES, &queue);
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-            "WdfIoQueueCreate failed: %!STATUS!", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfIoQueueCreate failed: %!STATUS!", status);
         return status;
     }
 
-    status = WdfDeviceConfigureRequestDispatching(device, queue,
-        WdfRequestTypeDeviceControl);
+    status = WdfDeviceConfigureRequestDispatching(device, queue, WdfRequestTypeDeviceControl);
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-            "WdfDeviceConfigureRequestDispatching failed: %!STATUS!", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfDeviceConfigureRequestDispatching failed: %!STATUS!", status);
         return status;
     }
 
     WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
     attributes.ParentObject = device;
 
-    status = WdfLookasideListCreate(&attributes, sizeof(VIRTIO_FS_REQUEST),
-        NonPagedPool, WDF_NO_OBJECT_ATTRIBUTES, VIRT_FS_MEMORY_TAG,
-        &context->RequestsLookaside);
+    status = WdfLookasideListCreate(&attributes,
+                                    sizeof(VIRTIO_FS_REQUEST),
+                                    NonPagedPool,
+                                    WDF_NO_OBJECT_ATTRIBUTES,
+                                    VIRT_FS_MEMORY_TAG,
+                                    &context->RequestsLookaside);
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-            "WdfLookasideListCreate failed: %!STATUS!", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfLookasideListCreate failed: %!STATUS!", status);
         return status;
     }
 
@@ -209,8 +195,7 @@ VOID VirtFsEvtDeviceContextCleanup(IN WDFOBJECT DeviceObject)
     iter = PopEntryList(&context->RequestsList);
     while (iter != NULL)
     {
-        PVIRTIO_FS_REQUEST fs_req = CONTAINING_RECORD(iter,
-            VIRTIO_FS_REQUEST, ListEntry);
+        PVIRTIO_FS_REQUEST fs_req = CONTAINING_RECORD(iter, VIRTIO_FS_REQUEST, ListEntry);
 
         FreeVirtFsRequest(fs_req);
 
@@ -243,7 +228,7 @@ void FreeVirtFsRequest(IN PVIRTIO_FS_REQUEST Request)
         Request->InputBuffer = NULL;
         Request->InputBufferLength = 0;
     }
-    
+
     if (Request->OutputBuffer != NULL)
     {
         MmFreePagesFromMdl(Request->OutputBuffer);

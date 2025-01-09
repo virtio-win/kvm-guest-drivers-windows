@@ -30,19 +30,18 @@
 #include "viofs.h"
 #include "ioctl.tmh"
 
-#define DIV_ROUND_UP(n, d) (((n) + (d) - 1) / (d))
+#define DIV_ROUND_UP(n, d) (((n) + (d)-1) / (d))
 
 EVT_WDF_REQUEST_CANCEL VirtFsEvtRequestCancel;
 
-static inline int GetVirtQueueIndex(IN PDEVICE_CONTEXT Context,
-                                    IN BOOLEAN HighPrio)
+static inline int GetVirtQueueIndex(IN PDEVICE_CONTEXT Context, IN BOOLEAN HighPrio)
 {
     int index = HighPrio ? VQ_TYPE_HIPRIO : VQ_TYPE_REQUEST;
 
     UNREFERENCED_PARAMETER(Context);
-    
+
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "VirtQueueIndex: %d", index);
-    
+
     return index;
 }
 
@@ -50,9 +49,8 @@ static inline int GetVirtQueueIndex(IN PDEVICE_CONTEXT Context,
 static SIZE_T GetRequiredScatterGatherSize(IN PVIRTIO_FS_REQUEST Request)
 {
     SIZE_T n;
-    
-    n = DIV_ROUND_UP(Request->InputBufferLength, PAGE_SIZE) +
-        DIV_ROUND_UP(Request->OutputBufferLength, PAGE_SIZE);
+
+    n = DIV_ROUND_UP(Request->InputBufferLength, PAGE_SIZE) + DIV_ROUND_UP(Request->OutputBufferLength, PAGE_SIZE);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "Required SG Size: %Iu", n);
 
@@ -70,14 +68,15 @@ static PMDL VirtFsAllocatePages(IN SIZE_T TotalBytes)
     high_addr.QuadPart = -1;
     skip_bytes.QuadPart = 0;
 
-    return MmAllocatePagesForMdlEx(low_addr, high_addr, skip_bytes,
-        TotalBytes, MmNonCached,
-        MM_DONT_ZERO_ALLOCATION | MM_ALLOCATE_FULLY_REQUIRED);
+    return MmAllocatePagesForMdlEx(low_addr,
+                                   high_addr,
+                                   skip_bytes,
+                                   TotalBytes,
+                                   MmNonCached,
+                                   MM_DONT_ZERO_ALLOCATION | MM_ALLOCATE_FULLY_REQUIRED);
 }
 
-static int FillScatterGatherFromMdl(OUT struct scatterlist sg[],
-                                    IN PMDL Mdl,
-                                    IN size_t Length)
+static int FillScatterGatherFromMdl(OUT struct scatterlist sg[], IN PMDL Mdl, IN size_t Length)
 {
     PPFN_NUMBER pfn;
     ULONG total_pages;
@@ -104,9 +103,7 @@ static int FillScatterGatherFromMdl(OUT struct scatterlist sg[],
 }
 
 #if !VIRT_FS_DMAR
-static NTSTATUS VirtFsEnqueueRequest(IN PDEVICE_CONTEXT Context,
-                                     IN PVIRTIO_FS_REQUEST Request,
-                                     IN BOOLEAN HighPrio)
+static NTSTATUS VirtFsEnqueueRequest(IN PDEVICE_CONTEXT Context, IN PVIRTIO_FS_REQUEST Request, IN BOOLEAN HighPrio)
 {
     WDFSPINLOCK vq_lock;
     struct virtqueue *vq;
@@ -125,38 +122,31 @@ static NTSTATUS VirtFsEnqueueRequest(IN PDEVICE_CONTEXT Context,
     vq_lock = Context->VirtQueueLocks[vq_index];
 
     sg_size = GetRequiredScatterGatherSize(Request);
-    sg = ExAllocatePoolUninitialized(NonPagedPool,
-        sg_size * sizeof(struct scatterlist), VIRT_FS_MEMORY_TAG);
+    sg = ExAllocatePoolUninitialized(NonPagedPool, sg_size * sizeof(struct scatterlist), VIRT_FS_MEMORY_TAG);
 
     if (sg == NULL)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL,
-            "Failed to allocate a %Iu items scatter-gatter list", sg_size);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "Failed to allocate a %Iu items scatter-gatter list", sg_size);
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    out_num = FillScatterGatherFromMdl(sg, Request->InputBuffer,
-        Request->InputBufferLength);
-    in_num = FillScatterGatherFromMdl(sg + out_num, Request->OutputBuffer,
-        Request->OutputBufferLength);
+    out_num = FillScatterGatherFromMdl(sg, Request->InputBuffer, Request->InputBufferLength);
+    in_num = FillScatterGatherFromMdl(sg + out_num, Request->OutputBuffer, Request->OutputBufferLength);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "Push %p Request: %p",
-        Request, Request->Request);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "Push %p Request: %p", Request, Request->Request);
 
     WdfSpinLockAcquire(Context->RequestsLock);
     PushEntryList(&Context->RequestsList, &Request->ListEntry);
     WdfSpinLockRelease(Context->RequestsLock);
 
-    if (2 < sg_size && sg_size <= VIRT_FS_INDIRECT_AREA_CAPACITY &&
-        Context->UseIndirect && !HighPrio)
+    if (2 < sg_size && sg_size <= VIRT_FS_INDIRECT_AREA_CAPACITY && Context->UseIndirect && !HighPrio)
     {
         indirect_va = Context->IndirectVA;
         indirect_pa = (ULONGLONG)Context->IndirectPA.QuadPart;
     }
 
     WdfSpinLockAcquire(vq_lock);
-    ret = virtqueue_add_buf(vq, sg, out_num, in_num, Request,
-        indirect_va, indirect_pa);
+    ret = virtqueue_add_buf(vq, sg, out_num, in_num, Request, indirect_va, indirect_pa);
     if (ret < 0)
     {
         WdfSpinLockRelease(vq_lock);
@@ -183,12 +173,19 @@ void FailFsRequest(IN PDEVICE_CONTEXT Context, IN PVIRTIO_FS_REQUEST Request)
 {
     // failing FS request that already was queued but not sent
     WDFREQUEST wdfReq;
-    TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "%s: in %d, out %d", __FUNCTION__, Request->H2D_Params.size, Request->D2H_Params.size);
-    if (Request->H2D_Params.transaction) {
+    TraceEvents(TRACE_LEVEL_ERROR,
+                DBG_IOCTL,
+                "%s: in %d, out %d",
+                __FUNCTION__,
+                Request->H2D_Params.size,
+                Request->D2H_Params.size);
+    if (Request->H2D_Params.transaction)
+    {
         VirtIOWdfDeviceDmaTxComplete(&Context->VDevice.VIODevice, Request->H2D_Params.transaction);
         Request->H2D_Params.transaction = NULL;
     }
-    if (Request->D2H_Params.transaction) {
+    if (Request->D2H_Params.transaction)
+    {
         VirtIOWdfDeviceDmaRxComplete(&Context->VDevice.VIODevice, Request->D2H_Params.transaction, 0);
         Request->D2H_Params.transaction = NULL;
     }
@@ -223,7 +220,7 @@ static FORCEINLINE ULONG FragmentSize(PHYSICAL_ADDRESS Addr, ULONG Length)
 // split SG elements to fragments <= PAGE_SIZE and inside the same page
 // with large SG elements the virtiofsd may fail to map the fragment (happens with 1M elements)
 // DestSG = NULL for dry run (just calculate)
-static ULONG PopulateSG(struct VirtIOBufferDescriptor* DestSG, PSCATTER_GATHER_LIST SrcSG)
+static ULONG PopulateSG(struct VirtIOBufferDescriptor *DestSG, PSCATTER_GATHER_LIST SrcSG)
 {
     ULONG i, n = 0;
     for (i = 0; i < SrcSG->NumberOfElements; ++i)
@@ -263,7 +260,7 @@ static BOOLEAN VirtioFsRxTransactionCallback(PVIRTIO_DMA_TRANSACTION_PARAMS Para
 {
     PDEVICE_CONTEXT context = Params->param1;
     PVIRTIO_FS_REQUEST fs_req = Params->param2;
-    void* indirect_va = NULL;
+    void *indirect_va = NULL;
     ULONGLONG indirect_pa = 0;
     ULONG sgNum, sgNumIn, sgNumOut;
 
@@ -275,7 +272,8 @@ static BOOLEAN VirtioFsRxTransactionCallback(PVIRTIO_DMA_TRANSACTION_PARAMS Para
     sgNumOut = CalculateFragments(fs_req->D2H_Params.sgList);
     sgNum = sgNumIn + sgNumOut;
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "--> %s: %d + %d fragments", __FUNCTION__, sgNumIn, sgNumOut);
-    if (sgNum > VIRT_FS_MAX_QUEUE_SIZE) {
+    if (sgNum > VIRT_FS_MAX_QUEUE_SIZE)
+    {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "--> %s: SG SIZE %d is too large", __FUNCTION__, sgNum);
         FailFsRequest(context, fs_req);
         return TRUE;
@@ -288,7 +286,8 @@ static BOOLEAN VirtioFsRxTransactionCallback(PVIRTIO_DMA_TRANSACTION_PARAMS Para
     }
 #endif
     fs_req->Use_Indirect = fs_req->Use_Indirect && 2 < sgNum && sgNum <= VIRT_FS_INDIRECT_AREA_CAPACITY;
-    if (fs_req->Use_Indirect) {
+    if (fs_req->Use_Indirect)
+    {
         indirect_va = context->IndirectVA;
         indirect_pa = (ULONGLONG)context->IndirectPA.QuadPart;
         TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "%s: using indirect transfer", __FUNCTION__);
@@ -298,12 +297,7 @@ static BOOLEAN VirtioFsRxTransactionCallback(PVIRTIO_DMA_TRANSACTION_PARAMS Para
     sgNumOut = PopulateSG(fs_req->SGTable + sgNumIn, fs_req->D2H_Params.sgList);
     // push buffers to virtqueue
     WdfSpinLockAcquire(fs_req->VQ_Lock);
-    int ret = virtqueue_add_buf(
-        fs_req->VQ, fs_req->SGTable,
-        sgNumIn,
-        sgNumOut,
-        fs_req,
-        indirect_va, indirect_pa);
+    int ret = virtqueue_add_buf(fs_req->VQ, fs_req->SGTable, sgNumIn, sgNumOut, fs_req, indirect_va, indirect_pa);
     WdfSpinLockRelease(fs_req->VQ_Lock);
     if (ret < 0)
     {
@@ -325,15 +319,14 @@ static BOOLEAN VirtioFsTxTransactionCallback(PVIRTIO_DMA_TRANSACTION_PARAMS Para
     fs_req->H2D_Params.sgList = Params->sgList;
     fs_req->H2D_Params.transaction = Params->transaction;
 
-    if (!VirtIOWdfDeviceDmaRxAsync(&context->VDevice.VIODevice, &fs_req->D2H_Params, VirtioFsRxTransactionCallback)) {
+    if (!VirtIOWdfDeviceDmaRxAsync(&context->VDevice.VIODevice, &fs_req->D2H_Params, VirtioFsRxTransactionCallback))
+    {
         FailFsRequest(context, fs_req);
     }
     return TRUE;
 }
 
-static NTSTATUS VirtFsEnqueueRequest(IN PDEVICE_CONTEXT Context,
-    IN PVIRTIO_FS_REQUEST Request,
-    IN BOOLEAN HighPrio)
+static NTSTATUS VirtFsEnqueueRequest(IN PDEVICE_CONTEXT Context, IN PVIRTIO_FS_REQUEST Request, IN BOOLEAN HighPrio)
 {
     int vq_index;
     NTSTATUS status = STATUS_UNSUCCESSFUL;
@@ -345,8 +338,7 @@ static NTSTATUS VirtFsEnqueueRequest(IN PDEVICE_CONTEXT Context,
     Request->VQ_Lock = Context->VirtQueueLocks[vq_index];
     Request->Use_Indirect = Context->UseIndirect && !HighPrio;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "Push %p Request: %p",
-        Request, Request->Request);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "Push %p Request: %p", Request, Request->Request);
 
     // save the request structure in request queue
     WdfSpinLockAcquire(Context->RequestsLock);
@@ -354,16 +346,15 @@ static NTSTATUS VirtFsEnqueueRequest(IN PDEVICE_CONTEXT Context,
     WdfSpinLockRelease(Context->RequestsLock);
 
     // initiate TX part of the DMA mapping
-    if (VirtIOWdfDeviceDmaTxAsync(&Context->VDevice.VIODevice, &Request->H2D_Params, VirtioFsTxTransactionCallback)) {
+    if (VirtIOWdfDeviceDmaTxAsync(&Context->VDevice.VIODevice, &Request->H2D_Params, VirtioFsTxTransactionCallback))
+    {
         status = STATUS_PENDING;
     }
     return status;
 }
 #endif
 
-static VOID HandleGetVolumeName(IN PDEVICE_CONTEXT Context,
-    IN WDFREQUEST Request,
-    IN size_t OutputBufferLength)
+static VOID HandleGetVolumeName(IN PDEVICE_CONTEXT Context, IN WDFREQUEST Request, IN size_t OutputBufferLength)
 {
     NTSTATUS status;
     WCHAR WideTag[MAX_FILE_SYSTEM_NAME + 1];
@@ -374,23 +365,18 @@ static VOID HandleGetVolumeName(IN PDEVICE_CONTEXT Context,
 
     RtlZeroMemory(WideTag, sizeof(WideTag));
 
-    VirtIOWdfDeviceGet(&Context->VDevice,
-        FIELD_OFFSET(VIRTIO_FS_CONFIG, Tag),
-        &tag, sizeof(tag));
+    VirtIOWdfDeviceGet(&Context->VDevice, FIELD_OFFSET(VIRTIO_FS_CONFIG, Tag), &tag, sizeof(tag));
 
-    status = RtlUTF8ToUnicodeN(WideTag, sizeof(WideTag), &WideTagActualSize,
-        tag, sizeof(tag));
+    status = RtlUTF8ToUnicodeN(WideTag, sizeof(WideTag), &WideTagActualSize, tag, sizeof(tag));
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER,
-            "Failed to convert config tag: %!STATUS!", status);
+        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "Failed to convert config tag: %!STATUS!", status);
         status = STATUS_SUCCESS;
     }
     else
     {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_POWER,
-            "Config tag: %s Tag: %S", tag, WideTag);
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_POWER, "Config tag: %s Tag: %S", tag, WideTag);
     }
 
     size = (wcslen(WideTag) + 1) * sizeof(WCHAR);
@@ -405,8 +391,7 @@ static VOID HandleGetVolumeName(IN PDEVICE_CONTEXT Context,
     status = WdfRequestRetrieveOutputBuffer(Request, size, &out_buf, NULL);
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL,
-            "WdfRequestRetrieveOutputBuffer failed");
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "WdfRequestRetrieveOutputBuffer failed");
         WdfRequestComplete(Request, status);
         return;
     }
@@ -415,21 +400,20 @@ static VOID HandleGetVolumeName(IN PDEVICE_CONTEXT Context,
     WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, size);
 }
 
-void CopyBuffer(void* _Dst, void const* _Src, size_t _Size) {
+void CopyBuffer(void *_Dst, void const *_Src, size_t _Size)
+{
     RtlCopyMemory(_Dst, _Src, _Size);
 }
 
 static inline BOOLEAN VirtFsOpcodeIsHighPrio(IN UINT32 Opcode)
 {
-    return (Opcode == FUSE_FORGET) ||
-           (Opcode == FUSE_INTERRUPT) ||
-           (Opcode == FUSE_BATCH_FORGET);
+    return (Opcode == FUSE_FORGET) || (Opcode == FUSE_INTERRUPT) || (Opcode == FUSE_BATCH_FORGET);
 }
 
 static VOID HandleSubmitFuseRequest(IN PDEVICE_CONTEXT Context,
-    IN WDFREQUEST Request,
-    IN size_t OutputBufferLength,
-    IN size_t InputBufferLength)
+                                    IN WDFREQUEST Request,
+                                    IN size_t OutputBufferLength,
+                                    IN size_t InputBufferLength)
 {
     WDFMEMORY handle;
     NTSTATUS status;
@@ -454,33 +438,27 @@ static VOID HandleSubmitFuseRequest(IN PDEVICE_CONTEXT Context,
         goto complete_wdf_req_no_fs_req;
     }
 
-    status = WdfRequestRetrieveInputBuffer(Request, InputBufferLength,
-        &in_buf, NULL);
+    status = WdfRequestRetrieveInputBuffer(Request, InputBufferLength, &in_buf, NULL);
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL,
-            "WdfRequestRetrieveInputBuffer failed");
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "WdfRequestRetrieveInputBuffer failed");
         goto complete_wdf_req_no_fs_req;
     }
 
-    status = WdfRequestRetrieveOutputBuffer(Request, OutputBufferLength,
-        &out_buf, NULL);
+    status = WdfRequestRetrieveOutputBuffer(Request, OutputBufferLength, &out_buf, NULL);
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL,
-            "WdfRequestRetrieveOutputBuffer failed");
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "WdfRequestRetrieveOutputBuffer failed");
         goto complete_wdf_req_no_fs_req;
     }
 
-    status = WdfMemoryCreateFromLookaside(Context->RequestsLookaside,
-        &handle);
+    status = WdfMemoryCreateFromLookaside(Context->RequestsLookaside, &handle);
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL,
-            "WdfMemoryCreateFromLookaside failed");
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "WdfMemoryCreateFromLookaside failed");
         goto complete_wdf_req_no_fs_req;
     }
 
@@ -500,8 +478,12 @@ static VOID HandleSubmitFuseRequest(IN PDEVICE_CONTEXT Context,
         goto complete_wdf_req;
     }
 
-    in_buf_va = MmMapLockedPagesSpecifyCache(fs_req->InputBuffer, KernelMode,
-        MmNonCached, NULL, FALSE, NormalPagePriority);
+    in_buf_va = MmMapLockedPagesSpecifyCache(fs_req->InputBuffer,
+                                             KernelMode,
+                                             MmNonCached,
+                                             NULL,
+                                             FALSE,
+                                             NormalPagePriority);
 
     if (in_buf_va == NULL)
     {
@@ -531,8 +513,7 @@ static VOID HandleSubmitFuseRequest(IN PDEVICE_CONTEXT Context,
     status = WdfRequestMarkCancelableEx(Request, VirtFsEvtRequestCancel);
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL,
-            "WdfRequestMarkCancelableEx failed: %!STATUS!", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "WdfRequestMarkCancelableEx failed: %!STATUS!", status);
         goto complete_wdf_req;
     }
 
@@ -541,8 +522,7 @@ static VOID HandleSubmitFuseRequest(IN PDEVICE_CONTEXT Context,
     status = VirtFsEnqueueRequest(Context, fs_req, hiprio);
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL,
-            "VirtFsEnqueueRequest failed: %!STATUS!", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "VirtFsEnqueueRequest failed: %!STATUS!", status);
         status = WdfRequestUnmarkCancelable(Request);
         __analysis_assume(status != STATUS_NOT_SUPPORTED);
         if (status != STATUS_CANCELLED)
@@ -557,8 +537,7 @@ complete_wdf_req:
     FreeVirtFsRequest(fs_req);
 
 complete_wdf_req_no_fs_req:
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL,
-        "Complete Request: %p Status: %!STATUS!", Request, status);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "Complete Request: %p Status: %!STATUS!", Request, status);
     WdfRequestComplete(Request, status);
 }
 
@@ -570,9 +549,14 @@ VOID VirtFsEvtIoDeviceControl(IN WDFQUEUE Queue,
 {
     PDEVICE_CONTEXT context = GetDeviceContext(WdfIoQueueGetDevice(Queue));
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL,
-        "--> %!FUNC! Queue: %p Request: %p IoCtrl: %x InLen: %Iu OutLen: %Iu",
-        Queue, Request, IoControlCode, InputBufferLength, OutputBufferLength);
+    TraceEvents(TRACE_LEVEL_VERBOSE,
+                DBG_IOCTL,
+                "--> %!FUNC! Queue: %p Request: %p IoCtrl: %x InLen: %Iu OutLen: %Iu",
+                Queue,
+                Request,
+                IoControlCode,
+                InputBufferLength,
+                OutputBufferLength);
 
     switch (IoControlCode)
     {
@@ -581,8 +565,7 @@ VOID VirtFsEvtIoDeviceControl(IN WDFQUEUE Queue,
             break;
 
         case IOCTL_VIRTFS_FUSE_REQUEST:
-            HandleSubmitFuseRequest(context, Request, OutputBufferLength,
-                InputBufferLength);
+            HandleSubmitFuseRequest(context, Request, OutputBufferLength, InputBufferLength);
             break;
 
         default:
@@ -593,14 +576,11 @@ VOID VirtFsEvtIoDeviceControl(IN WDFQUEUE Queue,
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "<-- %!FUNC!");
 }
 
-VOID VirtFsEvtIoStop(IN WDFQUEUE Queue,
-                     IN WDFREQUEST Request,
-                     IN ULONG ActionFlags)
+VOID VirtFsEvtIoStop(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN ULONG ActionFlags)
 {
     PDEVICE_CONTEXT context = GetDeviceContext(WdfIoQueueGetDevice(Queue));
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL,
-        "--> %!FUNC! Request: %p ActionFlags: 0x%08x", Request, ActionFlags);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "--> %!FUNC! Request: %p ActionFlags: 0x%08x", Request, ActionFlags);
 
     if (ActionFlags & WdfRequestStopRequestCancelable)
     {
@@ -634,11 +614,9 @@ end_io_stop:
 
 VOID VirtFsEvtRequestCancel(IN WDFREQUEST Request)
 {
-    PDEVICE_CONTEXT context = GetDeviceContext(WdfIoQueueGetDevice(
-        WdfRequestGetIoQueue(Request)));
+    PDEVICE_CONTEXT context = GetDeviceContext(WdfIoQueueGetDevice(WdfRequestGetIoQueue(Request)));
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL,
-        "--> %!FUNC! Cancelled Request: %p", Request);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "--> %!FUNC! Cancelled Request: %p", Request);
 
     if (!VirtFsDequeueWdfRequest(context, Request))
     {
@@ -659,13 +637,11 @@ BOOLEAN VirtFsDequeueWdfRequest(PDEVICE_CONTEXT Context, WDFREQUEST WdfRequest)
     iter = &Context->RequestsList;
     while (iter->Next != NULL)
     {
-        PVIRTIO_FS_REQUEST entry = CONTAINING_RECORD(iter->Next,
-            VIRTIO_FS_REQUEST, ListEntry);
+        PVIRTIO_FS_REQUEST entry = CONTAINING_RECORD(iter->Next, VIRTIO_FS_REQUEST, ListEntry);
 
         if (WdfRequest == entry->Request)
         {
-            TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL,
-                "Clear virtio fs request %p", entry);
+            TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "Clear virtio fs request %p", entry);
             entry->Request = NULL;
             found = TRUE;
             break;
