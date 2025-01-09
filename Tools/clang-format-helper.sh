@@ -65,7 +65,12 @@ for file in $src_files; do
             continue
         fi
 
-        local_format="$(diff <(cat "${file}") <(echo "${formatted_code}") || true)"
+        # The next line is a workaround to avoid the diff on Windows
+        # The "echo" command replace the \r\n by \n on Windows but only
+        # for the last trailing newline this cause the diff to fail
+        # on Windows because the last newline is different
+        current_file="$(cat "${file}")"
+        local_format="$(diff <(echo "${current_file}") <(echo "${formatted_code}") || true)"
         if [[ -n "${local_format}" ]]; then
             echo "The file ${file} is not formatted correctly"
             echo "${local_format}"
