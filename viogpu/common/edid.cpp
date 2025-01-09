@@ -1,5 +1,6 @@
 #include "edid.h"
 
+// clang-format off
 static VIC_MODE gpu_vic_mode_table[] =
 {
     {1, {640, 480}},
@@ -184,7 +185,7 @@ UCHAR g_gpu_edid[EDID_V1_BLOCK_SIZE] = {
     0x00,                                           // Number of Extentions
     0x00                                            // CheckSum
 };
-
+// clang-format on
 bool GetStandardTimingResolution(PSTANDARD_TIMING_DESCRIPTOR desc, PVIOGPU_DISP_MODE mode)
 {
     if (desc && mode && (desc->HorizontalActivePixels > 0))
@@ -192,18 +193,18 @@ bool GetStandardTimingResolution(PSTANDARD_TIMING_DESCRIPTOR desc, PVIOGPU_DISP_
         mode->XResolution = (desc->HorizontalActivePixels + 31) * 8;
         switch (desc->RefreshRate)
         {
-        case AR_16_10:
-            mode->YResolution = ((mode->XResolution) / 16 * 10);
-            break;
-        case AR_4_3:
-            mode->YResolution = ((mode->XResolution) / 4 * 3);
-            break;
-        case AR_5_4:
-            mode->YResolution = ((mode->XResolution) / 5 * 4);
-            break;
-        case AR_16_9:
-            mode->YResolution = ((mode->XResolution) / 16 * 9);
-            break;
+            case AR_16_10:
+                mode->YResolution = ((mode->XResolution) / 16 * 10);
+                break;
+            case AR_4_3:
+                mode->YResolution = ((mode->XResolution) / 4 * 3);
+                break;
+            case AR_5_4:
+                mode->YResolution = ((mode->XResolution) / 5 * 4);
+                break;
+            case AR_16_9:
+                mode->YResolution = ((mode->XResolution) / 16 * 9);
+                break;
         }
         return true;
     }
