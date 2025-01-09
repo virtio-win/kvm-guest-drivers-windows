@@ -891,16 +891,17 @@ NTSTATUS VIRTFS::NameAwareRequest(uint64_t parent, const char *name, Request req
     {
         return Status;
     }
-
+// clang-format off
     VIRTFS_FILE_CONTEXT ParentContext = { .IsDirectory = TRUE, .NodeId = parent, };
-
+// clang-format on
     Status = SubmitOpenRequest(0, &ParentContext);
     if (!NT_SUCCESS(Status))
     {
         return Status;
     }
+// clang-format off
     SCOPE_EXIT(ParentContext, { SubmitReleaseRequest(&ParentContext); }, this);
-
+// clang-format on
     std::string result_name{};
     Status = ReadDirAndIgnoreCaseSearch(&ParentContext, name, result_name);
     if (!NT_SUCCESS(Status))
@@ -2454,6 +2455,7 @@ static NTSTATUS GetDirInfoByName(FSP_FILE_SYSTEM *FileSystem,
     return Status;
 }
 
+// clang-format off
 static FSP_FILE_SYSTEM_INTERFACE VirtFsInterface = 
 {
     .GetVolumeInfo = GetVolumeInfo,
@@ -2478,6 +2480,7 @@ static FSP_FILE_SYSTEM_INTERFACE VirtFsInterface =
     .SetReparsePoint = SetReparsePoint,
     .GetDirInfoByName = GetDirInfoByName
 };
+// clang-format on
 
 static ULONG wcstol_deflt(wchar_t *w, ULONG deflt)
 {
