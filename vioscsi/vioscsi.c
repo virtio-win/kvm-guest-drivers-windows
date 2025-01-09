@@ -166,12 +166,14 @@ GUID VioScsiWmiExtendedInfoGuid = VioScsiWmi_ExtendedInfo_Guid;
 GUID VioScsiWmiAdapterInformationQueryGuid = MS_SM_AdapterInformationQueryGuid;
 GUID VioScsiWmiPortInformationMethodsGuid = MS_SM_PortInformationMethodsGuid;
 
+// clang-format off
 SCSIWMIGUIDREGINFO VioScsiGuidList[] =
 {
    { &VioScsiWmiExtendedInfoGuid,            1, 0 },
    { &VioScsiWmiAdapterInformationQueryGuid, 1, 0 },
    { &VioScsiWmiPortInformationMethodsGuid,  1, 0 },
 };
+// clang-format on
 
 #define VioScsiGuidCount (sizeof(VioScsiGuidList) / sizeof(SCSIWMIGUIDREGINFO))
 
