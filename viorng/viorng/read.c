@@ -32,9 +32,7 @@
 
 EVT_WDF_REQUEST_CANCEL VirtRngEvtRequestCancel;
 
-static NTSTATUS VirtQueueAddBuffer(IN PDEVICE_CONTEXT Context,
-                                   IN WDFREQUEST Request,
-                                   IN size_t Length)
+static NTSTATUS VirtQueueAddBuffer(IN PDEVICE_CONTEXT Context, IN WDFREQUEST Request, IN size_t Length)
 {
     PREAD_BUFFER_ENTRY entry;
     size_t length;
@@ -45,12 +43,12 @@ static NTSTATUS VirtQueueAddBuffer(IN PDEVICE_CONTEXT Context,
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %!FUNC!");
 
     entry = (PREAD_BUFFER_ENTRY)ExAllocatePoolUninitialized(NonPagedPool,
-        sizeof(READ_BUFFER_ENTRY), VIRT_RNG_MEMORY_TAG);
+                                                            sizeof(READ_BUFFER_ENTRY),
+                                                            VIRT_RNG_MEMORY_TAG);
 
     if (entry == NULL)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ,
-            "Failed to allocate a read entry.");
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "Failed to allocate a read entry.");
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
@@ -63,9 +61,12 @@ static NTSTATUS VirtQueueAddBuffer(IN PDEVICE_CONTEXT Context,
 
     WdfSpinLockAcquire(Context->VirtQueueLock);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ,
-        "Push %p Request: %p Buffer: %p",
-        entry, entry->Request, Context->SingleBufferVA);
+    TraceEvents(TRACE_LEVEL_VERBOSE,
+                DBG_READ,
+                "Push %p Request: %p Buffer: %p",
+                entry,
+                entry->Request,
+                Context->SingleBufferVA);
 
     PushEntryList(&Context->ReadBuffersList, &entry->ListEntry);
 
@@ -74,16 +75,17 @@ static NTSTATUS VirtQueueAddBuffer(IN PDEVICE_CONTEXT Context,
     {
         PSINGLE_LIST_ENTRY removed;
 
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ,
-            "Failed to add buffer to virt queue.");
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "Failed to add buffer to virt queue.");
 
-        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ,
-            "Pop %p Request: %p Buffer: %p",
-            entry, entry->Request, Context->SingleBufferVA);
+        TraceEvents(TRACE_LEVEL_VERBOSE,
+                    DBG_READ,
+                    "Pop %p Request: %p Buffer: %p",
+                    entry,
+                    entry->Request,
+                    Context->SingleBufferVA);
 
         removed = PopEntryList(&Context->ReadBuffersList);
-        NT_ASSERT(entry == CONTAINING_RECORD(
-            removed, READ_BUFFER_ENTRY, ListEntry));
+        NT_ASSERT(entry == CONTAINING_RECORD(removed, READ_BUFFER_ENTRY, ListEntry));
 
         ExFreePoolWithTag(entry, VIRT_RNG_MEMORY_TAG);
 
@@ -101,31 +103,30 @@ static NTSTATUS VirtQueueAddBuffer(IN PDEVICE_CONTEXT Context,
     return STATUS_SUCCESS;
 }
 
-VOID VirtRngEvtIoRead(IN WDFQUEUE Queue,
-                      IN WDFREQUEST Request,
-                      IN size_t Length)
+VOID VirtRngEvtIoRead(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN size_t Length)
 {
     PDEVICE_CONTEXT context = GetDeviceContext(WdfIoQueueGetDevice(Queue));
     NTSTATUS status;
     PVOID buffer;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ,
-        "--> %!FUNC! Queue: %p Request: %p Length: %d",
-        Queue, Request, (ULONG)Length);
+    TraceEvents(TRACE_LEVEL_VERBOSE,
+                DBG_READ,
+                "--> %!FUNC! Queue: %p Request: %p Length: %d",
+                Queue,
+                Request,
+                (ULONG)Length);
 
     status = WdfRequestRetrieveOutputBuffer(Request, Length, &buffer, NULL);
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ,
-            "WdfRequestRetrieveOutputBuffer failed: %!STATUS!", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "WdfRequestRetrieveOutputBuffer failed: %!STATUS!", status);
         WdfRequestComplete(Request, status);
         return;
     }
 
     if (!context->SingleBufferPA.QuadPart || !context->SingleBufferVA)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ,
-            "The RX buffer is not allocated!");
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "The RX buffer is not allocated!");
         WdfRequestComplete(Request, STATUS_INSUFFICIENT_RESOURCES);
         return;
     }
@@ -133,8 +134,7 @@ VOID VirtRngEvtIoRead(IN WDFQUEUE Queue,
     status = WdfRequestMarkCancelableEx(Request, VirtRngEvtRequestCancel);
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ,
-            "WdfRequestMarkCancelableEx failed: %!STATUS!", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "WdfRequestMarkCancelableEx failed: %!STATUS!", status);
         WdfRequestComplete(Request, status);
         return;
     }
@@ -151,14 +151,11 @@ VOID VirtRngEvtIoRead(IN WDFQUEUE Queue,
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %!FUNC!");
 }
 
-VOID VirtRngEvtIoStop(IN WDFQUEUE Queue,
-                      IN WDFREQUEST Request,
-                      IN ULONG ActionFlags)
+VOID VirtRngEvtIoStop(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN ULONG ActionFlags)
 {
     UNREFERENCED_PARAMETER(Queue);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ,
-        "--> %!FUNC! Request: %p", Request);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %!FUNC! Request: %p", Request);
 
     NTSTATUS status = WdfRequestUnmarkCancelable(Request);
     if (status == STATUS_CANCELLED)
@@ -183,12 +180,10 @@ VOID VirtRngEvtIoStop(IN WDFQUEUE Queue,
 
 VOID VirtRngEvtRequestCancel(IN WDFREQUEST Request)
 {
-    PDEVICE_CONTEXT context = GetDeviceContext(WdfIoQueueGetDevice(
-        WdfRequestGetIoQueue(Request)));
+    PDEVICE_CONTEXT context = GetDeviceContext(WdfIoQueueGetDevice(WdfRequestGetIoQueue(Request)));
     PSINGLE_LIST_ENTRY iter;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ,
-        "--> %!FUNC! Cancelled Request: %p", Request);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %!FUNC! Cancelled Request: %p", Request);
 
     WdfSpinLockAcquire(context->VirtQueueLock);
 
@@ -197,13 +192,11 @@ VOID VirtRngEvtRequestCancel(IN WDFREQUEST Request)
     iter = &context->ReadBuffersList;
     while (iter->Next != NULL)
     {
-        PREAD_BUFFER_ENTRY entry = CONTAINING_RECORD(iter->Next,
-            READ_BUFFER_ENTRY, ListEntry);
+        PREAD_BUFFER_ENTRY entry = CONTAINING_RECORD(iter->Next, READ_BUFFER_ENTRY, ListEntry);
 
         if (Request == entry->Request)
         {
-            TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ,
-                "Clear entry %p request.", entry);
+            TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "Clear entry %p request.", entry);
 
             entry->Request = NULL;
             break;

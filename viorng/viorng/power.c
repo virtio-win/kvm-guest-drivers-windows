@@ -47,17 +47,11 @@ NTSTATUS VirtRngEvtDevicePrepareHardware(IN WDFDEVICE Device,
 
     UNREFERENCED_PARAMETER(Resources);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "--> %!FUNC! Device: %p",
-        Device);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "--> %!FUNC! Device: %p", Device);
 
     PAGED_CODE();
 
-    status = VirtIOWdfInitialize(
-        &context->VDevice,
-        Device,
-        ResourcesTranslated,
-        NULL,
-        VIRT_RNG_MEMORY_TAG);
+    status = VirtIOWdfInitialize(&context->VDevice, Device, ResourcesTranslated, NULL, VIRT_RNG_MEMORY_TAG);
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "VirtIOWdfInitialize failed with %x\n", status);
@@ -68,8 +62,7 @@ NTSTATUS VirtRngEvtDevicePrepareHardware(IN WDFDEVICE Device,
     return status;
 }
 
-NTSTATUS VirtRngEvtDeviceReleaseHardware(IN WDFDEVICE Device,
-                                         IN WDFCMRESLIST ResourcesTranslated)
+NTSTATUS VirtRngEvtDeviceReleaseHardware(IN WDFDEVICE Device, IN WDFCMRESLIST ResourcesTranslated)
 {
     PDEVICE_CONTEXT context = GetDeviceContext(Device);
 
@@ -86,8 +79,7 @@ NTSTATUS VirtRngEvtDeviceReleaseHardware(IN WDFDEVICE Device,
     return STATUS_SUCCESS;
 }
 
-NTSTATUS VirtRngEvtDeviceD0Entry(IN WDFDEVICE Device,
-                                 IN WDF_POWER_DEVICE_STATE PreviousState)
+NTSTATUS VirtRngEvtDeviceD0Entry(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE PreviousState)
 {
     NTSTATUS status = STATUS_SUCCESS;
     PDEVICE_CONTEXT context = GetDeviceContext(Device);
@@ -95,8 +87,7 @@ NTSTATUS VirtRngEvtDeviceD0Entry(IN WDFDEVICE Device,
 
     UNREFERENCED_PARAMETER(PreviousState);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "--> %!FUNC! Device: %p",
-        Device);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "--> %!FUNC! Device: %p", Device);
 
     PAGED_CODE();
 
@@ -114,14 +105,14 @@ NTSTATUS VirtRngEvtDeviceD0Entry(IN WDFDEVICE Device,
     else
     {
         VirtIOWdfSetDriverFailed(&context->VDevice);
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER,
-            "VirtIOWdfInitQueues failed with %x\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "VirtIOWdfInitQueues failed with %x\n", status);
     }
 
     context->SingleBufferVA = VirtIOWdfDeviceAllocDmaMemory(&context->VDevice.VIODevice, PAGE_SIZE, 0);
     if (context->SingleBufferVA)
     {
-        context->SingleBufferPA = VirtIOWdfDeviceGetPhysicalAddress(&context->VDevice.VIODevice, context->SingleBufferVA);
+        context->SingleBufferPA = VirtIOWdfDeviceGetPhysicalAddress(&context->VDevice.VIODevice,
+                                                                    context->SingleBufferVA);
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "<-- %!FUNC!");
@@ -129,15 +120,13 @@ NTSTATUS VirtRngEvtDeviceD0Entry(IN WDFDEVICE Device,
     return status;
 }
 
-NTSTATUS VirtRngEvtDeviceD0Exit(IN WDFDEVICE Device,
-                                IN WDF_POWER_DEVICE_STATE TargetState)
+NTSTATUS VirtRngEvtDeviceD0Exit(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE TargetState)
 {
     PDEVICE_CONTEXT context = GetDeviceContext(Device);
 
     UNREFERENCED_PARAMETER(TargetState);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "--> %!FUNC! Device: %p",
-        Device);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "--> %!FUNC! Device: %p", Device);
 
     PAGED_CODE();
 

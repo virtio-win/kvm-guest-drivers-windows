@@ -5,20 +5,32 @@
 
 #pragma comment(lib, "bcrypt")
 
-static BOOL GetParameters(int argc, LPWSTR *argv, ULONG& bufSize, LPCWSTR& substring)
+static BOOL GetParameters(int argc, LPWSTR *argv, ULONG &bufSize, LPCWSTR &substring)
 {
     bufSize = 0;
     WCHAR *end;
-    if (argc < 2) return false;
+    if (argc < 2)
+    {
+        return false;
+    }
     bufSize = wcstol(argv[1], &end, 10);
-    if (bufSize == 0) return false;
-    if (argc < 3) return true;
-    if (_wcsnicmp(argv[2], L"-name:", 6)) return false;
+    if (bufSize == 0)
+    {
+        return false;
+    }
+    if (argc < 3)
+    {
+        return true;
+    }
+    if (_wcsnicmp(argv[2], L"-name:", 6))
+    {
+        return false;
+    }
     substring = argv[2] + 6;
     return true;
 }
 
-static BOOL GetMyProvider(LPCWSTR substring, BCRYPT_ALG_HANDLE& h)
+static BOOL GetMyProvider(LPCWSTR substring, BCRYPT_ALG_HANDLE &h)
 {
     h = NULL;
     ULONG nCount = 0;
@@ -35,8 +47,7 @@ static BOOL GetMyProvider(LPCWSTR substring, BCRYPT_ALG_HANDLE& h)
         wprintf(L"%d: %s\n", i, names[i].pszProviderName);
         if (wcsstr(names[i].pszProviderName, substring))
         {
-            NTSTATUS status = BCryptOpenAlgorithmProvider(
-                &h, L"RNG", names[i].pszProviderName, 0);
+            NTSTATUS status = BCryptOpenAlgorithmProvider(&h, L"RNG", names[i].pszProviderName, 0);
             if (NT_SUCCESS(status))
             {
                 printf("Using it\n");
@@ -57,7 +68,8 @@ int __cdecl wmain(int argc, LPWSTR argv[])
     BCRYPT_ALG_HANDLE h = NULL;
     ULONG bufSize;
     LPCWSTR substring = L"QEMU";
-    if (!GetParameters(argc, argv, bufSize, substring)) {
+    if (!GetParameters(argc, argv, bufSize, substring))
+    {
         puts("viorngtest <buf_size> [-name:<provider>]");
         puts("buf_size - length of random buffer");
         puts("provider - optional substring to select RNG provider.");
@@ -65,7 +77,8 @@ int __cdecl wmain(int argc, LPWSTR argv[])
         return 1;
     }
 
-    if (!GetMyProvider(substring, h)) {
+    if (!GetMyProvider(substring, h))
+    {
         printf("Provider containing %S not found!\n", substring);
         return ERROR_FILE_NOT_FOUND;
     }
