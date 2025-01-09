@@ -261,6 +261,7 @@ static void vdev_sleep(void *context, unsigned int msecs)
     StorPortStallExecution(1000 * msecs);
 }
 
+// clang-format off
 VirtIOSystemOps VioStorSystemOps = {
     .vdev_read_byte = ReadVirtIODeviceByte,
     .vdev_read_word = ReadVirtIODeviceWord,
@@ -281,3 +282,4 @@ VirtIOSystemOps VioStorSystemOps = {
     .vdev_get_msix_vector = vdev_get_msix_vector,
     .vdev_sleep = vdev_sleep,
 };
+// clang-format on
