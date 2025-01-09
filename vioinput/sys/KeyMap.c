@@ -33,6 +33,7 @@
 #include "precomp.h"
 #include "Hid.h"
 
+// clang-format off
 static const ULONG ReportCodeToUsageCodeTable[] =
 {
     /* KEY_RESERVED */           0x00,
@@ -650,6 +651,7 @@ static const ULONG ReportCodeToUsageCodeTable[] =
     /* KEY_KBDINPUTASSIST_ACCEPT */     KEY_TYPE_CONSUMER | 0x2CB,
     /* KEY_KBDINPUTASSIST_CANCEL */     KEY_TYPE_CONSUMER | 0x2CC,
 };
+// clang-format on
 
 ULONG
 HIDKeyboardEventCodeToUsageCode(USHORT uEventCode)
