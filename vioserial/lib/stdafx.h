@@ -18,6 +18,5 @@
 #include <stdio.h>
 #include <tchar.h>
 
-
 #include "PnPAll.h"
 #include "vioser.h"

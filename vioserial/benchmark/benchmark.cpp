@@ -1,12 +1,12 @@
 #include "stdafx.h"
 
-template<class IOPROVIDER>
+template <class IOPROVIDER>
 BOOL RunBenchmarkWorker(HANDLE hPort, SIZE_T cbRequestSize, DWORD dwConcurrency, DWORD dwIterations)
 {
     std::unique_ptr<OVERLAPPED[]> lpOverlapped(new OVERLAPPED[dwConcurrency]);
     std::unique_ptr<HANDLE[]> lpHandles(new HANDLE[dwConcurrency + 1]);
-    HANDLE* hTimer = &lpHandles[0];
-    HANDLE* lpEvents = &lpHandles[1];
+    HANDLE *hTimer = &lpHandles[0];
+    HANDLE *lpEvents = &lpHandles[1];
     std::unique_ptr<BYTE[]> lpBuffer(new BYTE[cbRequestSize]);
     memset(lpBuffer.get(), 0, cbRequestSize);
 
@@ -19,7 +19,7 @@ BOOL RunBenchmarkWorker(HANDLE hPort, SIZE_T cbRequestSize, DWORD dwConcurrency,
     }
 
     SIZE_T cbTotalTransferred = 0;
-    LARGE_INTEGER iDueTime = { 0, 0 };
+    LARGE_INTEGER iDueTime = {0, 0};
     if (!SetWaitableTimer(*hTimer, &iDueTime, 1000, NULL, NULL, FALSE))
     {
         wprintf(L"SetWaitableTimer failed with error %d\n", GetLastError());
@@ -135,7 +135,7 @@ BOOL RunWriteBenchmark(HANDLE hPort, SIZE_T cbRequestSize, DWORD dwConcurrency, 
 {
     class WriteIOProvider
     {
-    public:
+      public:
         static BOOL StartIO(HANDLE handle, LPVOID lpBuffer, DWORD cbBuffer, LPOVERLAPPED lpOverlapped)
         {
             return WriteFile(handle, lpBuffer, cbBuffer, NULL, lpOverlapped);
@@ -148,10 +148,7 @@ BOOL RunWriteBenchmark(HANDLE hPort, SIZE_T cbRequestSize, DWORD dwConcurrency, 
             {
                 if (*lpcbTransferred != cbBuffer)
                 {
-                    wprintf(L"Written %d bytes which is not equal to request size %d",
-                        *lpcbTransferred,
-                        cbBuffer
-                        );
+                    wprintf(L"Written %d bytes which is not equal to request size %d", *lpcbTransferred, cbBuffer);
                 }
                 return TRUE;
             }
@@ -159,12 +156,10 @@ BOOL RunWriteBenchmark(HANDLE hPort, SIZE_T cbRequestSize, DWORD dwConcurrency, 
         }
     };
 
-    wprintf(
-        L"Writing %Iu byte buffers, %u parallel requests, for %u seconds\n",
-        cbRequestSize,
-        dwConcurrency,
-        dwIterations
-        );
+    wprintf(L"Writing %Iu byte buffers, %u parallel requests, for %u seconds\n",
+            cbRequestSize,
+            dwConcurrency,
+            dwIterations);
     return RunBenchmarkWorker<WriteIOProvider>(hPort, cbRequestSize, dwConcurrency, dwIterations);
 }
 
@@ -172,7 +167,7 @@ BOOL RunReadBenchmark(HANDLE hPort, SIZE_T cbRequestSize, DWORD dwConcurrency, D
 {
     class ReadIOProvider
     {
-    public:
+      public:
         static BOOL StartIO(HANDLE hPort, LPVOID lpBuffer, DWORD cbBuffer, LPOVERLAPPED lpOverlapped)
         {
             return ReadFile(hPort, lpBuffer, cbBuffer, NULL, lpOverlapped);
@@ -185,34 +180,29 @@ BOOL RunReadBenchmark(HANDLE hPort, SIZE_T cbRequestSize, DWORD dwConcurrency, D
         }
     };
 
-    wprintf(
-        L"Reading into %Iu byte buffers, %u parallel requests, for %u seconds\n",
-        cbRequestSize,
-        dwConcurrency,
-        dwIterations
-        );
+    wprintf(L"Reading into %Iu byte buffers, %u parallel requests, for %u seconds\n",
+            cbRequestSize,
+            dwConcurrency,
+            dwIterations);
     return RunBenchmarkWorker<ReadIOProvider>(hPort, cbRequestSize, dwConcurrency, dwIterations);
 }
 
-BOOL RunBenchmark(
-    LPCWSTR wszPortName,
-    BenchmarkType type,
-    SIZE_T cbRequestSize,
-    DWORD dwConcurrency,
-    DWORD dwIterations
-    )
+BOOL RunBenchmark(LPCWSTR wszPortName,
+                  BenchmarkType type,
+                  SIZE_T cbRequestSize,
+                  DWORD dwConcurrency,
+                  DWORD dwIterations)
 {
     WCHAR wszNameBuffer[MAX_PATH];
     swprintf(wszNameBuffer, _countof(wszNameBuffer), L"\\\\.\\%s", wszPortName);
 
-    HANDLE hPort = CreateFile(
-        wszNameBuffer,
-        GENERIC_WRITE | GENERIC_READ,
-        0,
-        NULL,
-        OPEN_EXISTING,
-        FILE_FLAG_OVERLAPPED,
-        NULL);
+    HANDLE hPort = CreateFile(wszNameBuffer,
+                              GENERIC_WRITE | GENERIC_READ,
+                              0,
+                              NULL,
+                              OPEN_EXISTING,
+                              FILE_FLAG_OVERLAPPED,
+                              NULL);
     if (hPort == INVALID_HANDLE_VALUE)
     {
         wprintf(L"Error opening port %s\n", wszPortName);
@@ -226,15 +216,15 @@ BOOL RunBenchmark(
     {
         switch (type)
         {
-        case ReadBenchmark:
-            bResult = RunReadBenchmark(hPort, cbRequestSize, dwConcurrency, dwIterations);
-            break;
-        case WriteBenchmark:
-            bResult = RunWriteBenchmark(hPort, cbRequestSize, dwConcurrency, dwIterations);
-            break;
-        default:
-            wprintf(L"Unknown benchmark type\n");
-            break;
+            case ReadBenchmark:
+                bResult = RunReadBenchmark(hPort, cbRequestSize, dwConcurrency, dwIterations);
+                break;
+            case WriteBenchmark:
+                bResult = RunWriteBenchmark(hPort, cbRequestSize, dwConcurrency, dwIterations);
+                break;
+            default:
+                wprintf(L"Unknown benchmark type\n");
+                break;
         }
         dwConcurrency++;
     } while (bResult && !bSingleRun && !_kbhit());

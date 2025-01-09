@@ -13,35 +13,34 @@ void ShowUsage()
     printf("\n");
 }
 
-
-VOID ReadTest( UINT id)
+VOID ReadTest(UINT id)
 {
     PVOID port = OpenPortById(0);
     if (port)
     {
-        ULONG test_size = 1024*1024*2;
+        ULONG test_size = 1024 * 1024 * 2;
         PBYTE data = (PBYTE) new BYTE[test_size];
-        memset (data, '\0', test_size);
+        memset(data, '\0', test_size);
         if (!ReadPort(port, data, &test_size))
         {
-           printf ("ReadTest Error.\n");
+            printf("ReadTest Error.\n");
         }
         else if (test_size == 0)
         {
-           printf ("No data!\n");
+            printf("No data!\n");
         }
         else
         {
-           printf ("%s\n", data);
+            printf("%s\n", data);
         }
         ClosePort(port);
         delete[] data;
         return;
     }
-    printf ("ReadTest Error. Invalid port index.\n");
+    printf("ReadTest Error. Invalid port index.\n");
 }
 
-VOID InfoTest( )
+VOID InfoTest()
 {
     UINT nr = NumPorts();
     for (UINT i = 0; i < nr; i++)
@@ -49,79 +48,88 @@ VOID InfoTest( )
         PVOID port = OpenPortById(i);
         if (port)
         {
-           printf ("Port index %d.\n", i);
-           printf ("\tSymbolic name %ws\n", PortSymbolicName(i));
-           ClosePort(port);
+            printf("Port index %d.\n", i);
+            printf("\tSymbolic name %ws\n", PortSymbolicName(i));
+            ClosePort(port);
         }
     }
 }
 
-VOID WriteTest( UINT id)
+VOID WriteTest(UINT id)
 {
     PVOID port = OpenPortById(0);
     if (port)
     {
-        ULONG test_size = 1024*1024*2;
+        ULONG test_size = 1024 * 1024 * 2;
         PBYTE data = (PBYTE) new BYTE[test_size];
-        memset (data, '0', test_size);
+        memset(data, '0', test_size);
         if (!WritePort(port, data, test_size))
         {
-           printf ("WriteTest Error.\n");
+            printf("WriteTest Error.\n");
         }
         ClosePort(port);
         delete[] data;
         return;
     }
-    printf ("WriteTest Error. Invalid port index.\n");
+    printf("WriteTest Error. Invalid port index.\n");
 }
 
 BOOL NotificationTestFunction(PVOID ptr)
 {
-    printf ("NotificationTestFunction.\n");
+    printf("NotificationTestFunction.\n");
     return TRUE;
 }
 
-VOID NotificationTest( UINT id)
+VOID NotificationTest(UINT id)
 {
     PVOID port = OpenPortById(id);
     if (port)
     {
         int test_data = 5;
         RegisterNotification(port, NotificationTestFunction, (PVOID)&test_data);
-        while(getchar() != 'q');
+        while (getchar() != 'q')
+            ;
         ClosePort(port);
         return;
     }
-    printf ("NotificationTest Error. Invalid port index.\n");
+    printf("NotificationTest Error. Invalid port index.\n");
 }
 
-
 ULONG
-_cdecl
-wmain(
-    __in              ULONG argc,
-    __in_ecount(Argc) PWCHAR argv[]
-    )
+_cdecl wmain(__in ULONG argc, __in_ecount(Argc) PWCHAR argv[])
 {
     VIOSStartup();
     UINT ports = NumPorts();
-    if(argc == 2 && ports > 0)
+    if (argc == 2 && ports > 0)
     {
-        if (_tcsicmp(L"-r", argv[1]) == 0) {
-           ReadTest(0);
-        } else if (_tcsicmp(L"-w", argv[1]) == 0) {
-           WriteTest(0);
-        } else if (_tcsicmp(L"-i", argv[1]) == 0) {
-           InfoTest();
-        } else if (_tcsicmp(L"-n", argv[1]) == 0) {
-           NotificationTest(0);
-        } else if (_tcsicmp(L"help", argv[1]) == 0) {
-           ShowUsage();
-        } else {
-           ShowUsage();
+        if (_tcsicmp(L"-r", argv[1]) == 0)
+        {
+            ReadTest(0);
         }
-    } else {
-      printf ("we have %d port(s) in the system.\n", ports);
+        else if (_tcsicmp(L"-w", argv[1]) == 0)
+        {
+            WriteTest(0);
+        }
+        else if (_tcsicmp(L"-i", argv[1]) == 0)
+        {
+            InfoTest();
+        }
+        else if (_tcsicmp(L"-n", argv[1]) == 0)
+        {
+            NotificationTest(0);
+        }
+        else if (_tcsicmp(L"help", argv[1]) == 0)
+        {
+            ShowUsage();
+        }
+        else
+        {
+            ShowUsage();
+        }
+    }
+    else
+    {
+        printf("we have %d port(s) in the system.\n", ports);
     }
 
     VIOSCleanup();

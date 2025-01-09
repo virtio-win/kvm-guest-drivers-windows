@@ -18,7 +18,8 @@ typical qemu command-line
 #include <linux/un.h>
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
     int speed_test(int client);
 #ifdef __cplusplus

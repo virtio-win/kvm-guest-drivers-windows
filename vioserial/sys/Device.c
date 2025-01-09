@@ -34,10 +34,10 @@
 #include "Device.tmh"
 #endif
 
-EVT_WDF_DEVICE_PREPARE_HARDWARE     VIOSerialEvtDevicePrepareHardware;
-EVT_WDF_DEVICE_RELEASE_HARDWARE     VIOSerialEvtDeviceReleaseHardware;
-EVT_WDF_DEVICE_D0_ENTRY             VIOSerialEvtDeviceD0Entry;
-EVT_WDF_DEVICE_D0_EXIT              VIOSerialEvtDeviceD0Exit;
+EVT_WDF_DEVICE_PREPARE_HARDWARE VIOSerialEvtDevicePrepareHardware;
+EVT_WDF_DEVICE_RELEASE_HARDWARE VIOSerialEvtDeviceReleaseHardware;
+EVT_WDF_DEVICE_D0_ENTRY VIOSerialEvtDeviceD0Entry;
+EVT_WDF_DEVICE_D0_EXIT VIOSerialEvtDeviceD0Exit;
 EVT_WDF_DEVICE_D0_ENTRY_POST_INTERRUPTS_ENABLED VIOSerialEvtDeviceD0EntryPostInterruptsEnabled;
 
 static NTSTATUS VIOSerialInitInterruptHandling(IN WDFDEVICE hDevice);
@@ -45,64 +45,47 @@ static NTSTATUS VIOSerialInitAllQueues(IN WDFOBJECT hDevice);
 static VOID VIOSerialShutDownAllQueues(IN WDFOBJECT WdfDevice);
 
 #ifdef ALLOC_PRAGMA
-#pragma alloc_text (PAGE, VIOSerialEvtDeviceAdd)
-#pragma alloc_text (PAGE, VIOSerialEvtDevicePrepareHardware)
-#pragma alloc_text (PAGE, VIOSerialEvtDeviceReleaseHardware)
-#pragma alloc_text (PAGE, VIOSerialEvtDeviceD0Exit)
-#pragma alloc_text (PAGE, VIOSerialEvtDeviceD0EntryPostInterruptsEnabled)
+#pragma alloc_text(PAGE, VIOSerialEvtDeviceAdd)
+#pragma alloc_text(PAGE, VIOSerialEvtDevicePrepareHardware)
+#pragma alloc_text(PAGE, VIOSerialEvtDeviceReleaseHardware)
+#pragma alloc_text(PAGE, VIOSerialEvtDeviceD0Exit)
+#pragma alloc_text(PAGE, VIOSerialEvtDeviceD0EntryPostInterruptsEnabled)
 
 #endif
 
 static UINT gDeviceCount = 0;
 
-
-static
-NTSTATUS
-VIOSerialInitInterruptHandling(
-    IN WDFDEVICE hDevice)
+static NTSTATUS VIOSerialInitInterruptHandling(IN WDFDEVICE hDevice)
 {
-    WDF_OBJECT_ATTRIBUTES        attributes;
-    WDF_INTERRUPT_CONFIG         interruptConfig;
-    PPORTS_DEVICE                pContext = GetPortsDevice(hDevice);
-    NTSTATUS                     status = STATUS_SUCCESS;
+    WDF_OBJECT_ATTRIBUTES attributes;
+    WDF_INTERRUPT_CONFIG interruptConfig;
+    PPORTS_DEVICE pContext = GetPortsDevice(hDevice);
+    NTSTATUS status = STATUS_SUCCESS;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
     WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
-    WDF_INTERRUPT_CONFIG_INIT(
-                                 &interruptConfig,
-                                 VIOSerialInterruptIsr,
-                                 VIOSerialInterruptDpc
-                                 );
+    WDF_INTERRUPT_CONFIG_INIT(&interruptConfig, VIOSerialInterruptIsr, VIOSerialInterruptDpc);
 
     interruptConfig.EvtInterruptEnable = VIOSerialInterruptEnable;
     interruptConfig.EvtInterruptDisable = VIOSerialInterruptDisable;
 
-    status = WdfInterruptCreate(
-                                 hDevice,
-                                 &interruptConfig,
-                                 &attributes,
-                                 &pContext->WdfInterrupt
-                                 );
+    status = WdfInterruptCreate(hDevice, &interruptConfig, &attributes, &pContext->WdfInterrupt);
 
-    if (!NT_SUCCESS (status))
+    if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS,
-            "Failed to create control queue interrupt: %x\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "Failed to create control queue interrupt: %x\n", status);
         return status;
     }
 
     WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
-    WDF_INTERRUPT_CONFIG_INIT(&interruptConfig,
-        VIOSerialInterruptIsr, VIOSerialQueuesInterruptDpc);
+    WDF_INTERRUPT_CONFIG_INIT(&interruptConfig, VIOSerialInterruptIsr, VIOSerialQueuesInterruptDpc);
 
-    status = WdfInterruptCreate(hDevice, &interruptConfig, &attributes,
-        &pContext->QueuesInterrupt);
+    status = WdfInterruptCreate(hDevice, &interruptConfig, &attributes, &pContext->QueuesInterrupt);
 
-    if (!NT_SUCCESS (status))
+    if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS,
-            "Failed to create general queue interrupt: %x\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "Failed to create general queue interrupt: %x\n", status);
         return status;
     }
 
@@ -111,17 +94,15 @@ VIOSerialInitInterruptHandling(
 }
 
 NTSTATUS
-VIOSerialEvtDeviceAdd(
-    IN WDFDRIVER Driver,
-    IN PWDFDEVICE_INIT DeviceInit)
+VIOSerialEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
 {
-    NTSTATUS                     status = STATUS_SUCCESS;
-    WDF_OBJECT_ATTRIBUTES        Attributes;
-    WDFDEVICE                    hDevice;
+    NTSTATUS status = STATUS_SUCCESS;
+    WDF_OBJECT_ATTRIBUTES Attributes;
+    WDFDEVICE hDevice;
     WDF_PNPPOWER_EVENT_CALLBACKS PnpPowerCallbacks;
-    WDF_CHILD_LIST_CONFIG        ChildListConfig;
-    PNP_BUS_INFORMATION          busInfo;
-    PPORTS_DEVICE                pContext = NULL;
+    WDF_CHILD_LIST_CONFIG ChildListConfig;
+    PNP_BUS_INFORMATION busInfo;
+    PPORTS_DEVICE pContext = NULL;
 
     UNREFERENCED_PARAMETER(Driver);
 
@@ -132,31 +113,20 @@ VIOSerialEvtDeviceAdd(
     WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&PnpPowerCallbacks);
     PnpPowerCallbacks.EvtDevicePrepareHardware = VIOSerialEvtDevicePrepareHardware;
     PnpPowerCallbacks.EvtDeviceReleaseHardware = VIOSerialEvtDeviceReleaseHardware;
-    PnpPowerCallbacks.EvtDeviceD0Entry         = VIOSerialEvtDeviceD0Entry;
-    PnpPowerCallbacks.EvtDeviceD0Exit          = VIOSerialEvtDeviceD0Exit;
+    PnpPowerCallbacks.EvtDeviceD0Entry = VIOSerialEvtDeviceD0Entry;
+    PnpPowerCallbacks.EvtDeviceD0Exit = VIOSerialEvtDeviceD0Exit;
     PnpPowerCallbacks.EvtDeviceD0EntryPostInterruptsEnabled = VIOSerialEvtDeviceD0EntryPostInterruptsEnabled;
     WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &PnpPowerCallbacks);
 
-    WDF_CHILD_LIST_CONFIG_INIT(
-                                 &ChildListConfig,
-                                 sizeof(VIOSERIAL_PORT),
-                                 VIOSerialDeviceListCreatePdo
-                                 );
+    WDF_CHILD_LIST_CONFIG_INIT(&ChildListConfig, sizeof(VIOSERIAL_PORT), VIOSerialDeviceListCreatePdo);
 
-    ChildListConfig.EvtChildListIdentificationDescriptionDuplicate =
-                                 VIOSerialEvtChildListIdentificationDescriptionDuplicate;
+    ChildListConfig.EvtChildListIdentificationDescriptionDuplicate = VIOSerialEvtChildListIdentificationDescriptionDuplicate;
 
-    ChildListConfig.EvtChildListIdentificationDescriptionCompare =
-                                 VIOSerialEvtChildListIdentificationDescriptionCompare;
+    ChildListConfig.EvtChildListIdentificationDescriptionCompare = VIOSerialEvtChildListIdentificationDescriptionCompare;
 
-    ChildListConfig.EvtChildListIdentificationDescriptionCleanup =
-                                 VIOSerialEvtChildListIdentificationDescriptionCleanup;
+    ChildListConfig.EvtChildListIdentificationDescriptionCleanup = VIOSerialEvtChildListIdentificationDescriptionCleanup;
 
-    WdfFdoInitSetDefaultChildListConfig(
-                                 DeviceInit,
-                                 &ChildListConfig,
-                                 WDF_NO_OBJECT_ATTRIBUTES
-                                 );
+    WdfFdoInitSetDefaultChildListConfig(DeviceInit, &ChildListConfig, WDF_NO_OBJECT_ATTRIBUTES);
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&Attributes, PORTS_DEVICE);
     Attributes.SynchronizationScope = WdfSynchronizationScopeDevice;
@@ -169,16 +139,12 @@ VIOSerialEvtDeviceAdd(
     }
 
     status = VIOSerialInitInterruptHandling(hDevice);
-    if(!NT_SUCCESS(status))
+    if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "VIOSerialInitInterruptHandling failed - 0x%x\n", status);
     }
 
-    status = WdfDeviceCreateDeviceInterface(
-                                 hDevice,
-                                 &GUID_VIOSERIAL_CONTROLLER,
-                                 NULL
-                                 );
+    status = WdfDeviceCreateDeviceInterface(hDevice, &GUID_VIOSERIAL_CONTROLLER, NULL);
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfDeviceCreateDeviceInterface failed - 0x%x\n", status);
@@ -200,10 +166,9 @@ VIOSerialEvtDeviceAdd(
 }
 
 NTSTATUS
-VIOSerialEvtDevicePrepareHardware(
-    IN WDFDEVICE Device,
-    IN WDFCMRESLIST ResourcesRaw,
-    IN WDFCMRESLIST ResourcesTranslated)
+VIOSerialEvtDevicePrepareHardware(IN WDFDEVICE Device,
+                                  IN WDFCMRESLIST ResourcesRaw,
+                                  IN WDFCMRESLIST ResourcesTranslated)
 {
     PPORTS_DEVICE pContext = GetPortsDevice(Device);
     NTSTATUS status = STATUS_SUCCESS;
@@ -216,12 +181,7 @@ VIOSerialEvtDevicePrepareHardware(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
-    status = VirtIOWdfInitialize(
-        &pContext->VDevice,
-        Device,
-        ResourcesTranslated,
-        NULL,
-        VIOSERIAL_DRIVER_MEMORY_TAG);
+    status = VirtIOWdfInitialize(&pContext->VDevice, Device, ResourcesTranslated, NULL, VIOSERIAL_DRIVER_MEMORY_TAG);
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "VirtIOWdfInitialize failed with %x\n", status);
@@ -233,7 +193,7 @@ VIOSerialEvtDevicePrepareHardware(
 
     u64HostFeatures = VirtIOWdfGetDeviceFeatures(&pContext->VDevice);
 
-    if(pContext->isHostMultiport = virtio_is_feature_enabled(u64HostFeatures, VIRTIO_CONSOLE_F_MULTIPORT))
+    if (pContext->isHostMultiport = virtio_is_feature_enabled(u64HostFeatures, VIRTIO_CONSOLE_F_MULTIPORT))
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "We have multiport host\n");
         virtio_feature_enable(u64GuestFeatures, VIRTIO_CONSOLE_F_MULTIPORT);
@@ -241,68 +201,59 @@ VIOSerialEvtDevicePrepareHardware(
                            FIELD_OFFSET(CONSOLE_CONFIG, max_nr_ports),
                            &pContext->consoleConfig.max_nr_ports,
                            sizeof(pContext->consoleConfig.max_nr_ports));
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,
-                    "VirtIOConsoleConfig->max_nr_ports %d\n", pContext->consoleConfig.max_nr_ports);
+        TraceEvents(TRACE_LEVEL_INFORMATION,
+                    DBG_PNP,
+                    "VirtIOConsoleConfig->max_nr_ports %d\n",
+                    pContext->consoleConfig.max_nr_ports);
     }
     VirtIOWdfSetDriverFeatures(&pContext->VDevice, u64GuestFeatures, 0);
 
-    if(pContext->isHostMultiport)
+    if (pContext->isHostMultiport)
     {
-        WDF_OBJECT_ATTRIBUTES  attributes;
+        WDF_OBJECT_ATTRIBUTES attributes;
         WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
         attributes.ParentObject = Device;
-        status = WdfSpinLockCreate(
-                                &attributes,
-                                &pContext->CInVqLock
-                                );
+        status = WdfSpinLockCreate(&attributes, &pContext->CInVqLock);
         if (!NT_SUCCESS(status))
         {
-           TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-                "WdfSpinLockCreate failed 0x%x\n", status);
-           return status;
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfSpinLockCreate failed 0x%x\n", status);
+            return status;
         }
 
-        status = WdfWaitLockCreate(
-                                &attributes,
-                                &pContext->COutVqLock
-                                );
+        status = WdfWaitLockCreate(&attributes, &pContext->COutVqLock);
         if (!NT_SUCCESS(status))
         {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-                "WdfWaitLockCreate failed 0x%x\n", status);
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfWaitLockCreate failed 0x%x\n", status);
             return status;
         }
     }
     else
     {
-//FIXME
-//        VIOSerialAddPort(Device, 0);
+        // FIXME
+        //         VIOSerialAddPort(Device, 0);
     }
 
     nr_ports = pContext->consoleConfig.max_nr_ports;
-    pContext->in_vqs = (struct virtqueue**)ExAllocatePoolUninitialized(
-                                 NonPagedPool,
-                                 nr_ports * sizeof(struct virtqueue*),
-                                 VIOSERIAL_DRIVER_MEMORY_TAG);
+    pContext->in_vqs = (struct virtqueue **)ExAllocatePoolUninitialized(NonPagedPool,
+                                                                        nr_ports * sizeof(struct virtqueue *),
+                                                                        VIOSERIAL_DRIVER_MEMORY_TAG);
 
-    if(pContext->in_vqs == NULL)
+    if (pContext->in_vqs == NULL)
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "ExAllocatePoolUninitialized failed\n");
         return STATUS_INSUFFICIENT_RESOURCES;
     }
-    memset(pContext->in_vqs, 0, nr_ports * sizeof(struct virtqueue*));
-    pContext->out_vqs = (struct virtqueue**)ExAllocatePoolUninitialized(
-                                 NonPagedPool,
-                                 nr_ports * sizeof(struct virtqueue*),
-                                 VIOSERIAL_DRIVER_MEMORY_TAG
-                                 );
+    memset(pContext->in_vqs, 0, nr_ports * sizeof(struct virtqueue *));
+    pContext->out_vqs = (struct virtqueue **)ExAllocatePoolUninitialized(NonPagedPool,
+                                                                         nr_ports * sizeof(struct virtqueue *),
+                                                                         VIOSERIAL_DRIVER_MEMORY_TAG);
 
-    if(pContext->out_vqs == NULL)
+    if (pContext->out_vqs == NULL)
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "ExAllocatePoolUninitialized failed\n");
         return STATUS_INSUFFICIENT_RESOURCES;
     }
-    memset(pContext->out_vqs, 0, nr_ports * sizeof(struct virtqueue*));
+    memset(pContext->out_vqs, 0, nr_ports * sizeof(struct virtqueue *));
 
     pContext->DeviceOK = TRUE;
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
@@ -310,9 +261,7 @@ VIOSerialEvtDevicePrepareHardware(
 }
 
 NTSTATUS
-VIOSerialEvtDeviceReleaseHardware(
-    IN WDFDEVICE Device,
-    IN WDFCMRESLIST ResourcesTranslated)
+VIOSerialEvtDeviceReleaseHardware(IN WDFDEVICE Device, IN WDFCMRESLIST ResourcesTranslated)
 {
     PPORTS_DEVICE pContext = GetPortsDevice(Device);
 
@@ -321,13 +270,13 @@ VIOSerialEvtDeviceReleaseHardware(
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
-    if(pContext->in_vqs)
+    if (pContext->in_vqs)
     {
         ExFreePoolWithTag(pContext->in_vqs, VIOSERIAL_DRIVER_MEMORY_TAG);
         pContext->in_vqs = NULL;
     }
 
-    if(pContext->out_vqs)
+    if (pContext->out_vqs)
     {
         ExFreePoolWithTag(pContext->out_vqs, VIOSERIAL_DRIVER_MEMORY_TAG);
         pContext->out_vqs = NULL;
@@ -359,60 +308,63 @@ void DumpQueues(WDFOBJECT Device)
 }
 #endif
 
-static void
-VIOSerialGetQueueParamCallback(
-    PVIRTIO_WDF_DRIVER pVDevice,
-    ULONG uQueueIndex,
-    PVIRTIO_WDF_QUEUE_PARAM pQueueParam)
+static void VIOSerialGetQueueParamCallback(PVIRTIO_WDF_DRIVER pVDevice,
+                                           ULONG uQueueIndex,
+                                           PVIRTIO_WDF_QUEUE_PARAM pQueueParam)
 {
     PPORTS_DEVICE pContext = CONTAINING_RECORD(pVDevice, PORTS_DEVICE, VDevice);
 
-    if (uQueueIndex == 2 || uQueueIndex == 3) {
+    if (uQueueIndex == 2 || uQueueIndex == 3)
+    {
         // control queues
         pQueueParam->Interrupt = pContext->WdfInterrupt;
-    } else {
+    }
+    else
+    {
         // port queues
         pQueueParam->Interrupt = pContext->QueuesInterrupt;
     }
 }
 
-static void
-VIOSerialSetQueueCallback(
-    PVIRTIO_WDF_DRIVER pVDevice,
-    ULONG uQueueIndex,
-    struct virtqueue *pQueue)
+static void VIOSerialSetQueueCallback(PVIRTIO_WDF_DRIVER pVDevice, ULONG uQueueIndex, struct virtqueue *pQueue)
 {
     PPORTS_DEVICE pContext = CONTAINING_RECORD(pVDevice, PORTS_DEVICE, VDevice);
     ULONG uPortIndex;
 
     // control queues
-    if (uQueueIndex == 2) {
+    if (uQueueIndex == 2)
+    {
         pContext->c_ivq = pQueue;
-    } else if (uQueueIndex == 3) {
+    }
+    else if (uQueueIndex == 3)
+    {
         pContext->c_ovq = pQueue;
-    } else {
+    }
+    else
+    {
         // port queues
         uPortIndex = uQueueIndex / 2;
-        if (uPortIndex > 1) {
+        if (uPortIndex > 1)
+        {
             uPortIndex--;
         }
 
-        if (uQueueIndex & 1) {
+        if (uQueueIndex & 1)
+        {
             pContext->out_vqs[uPortIndex] = pQueue;
-        } else {
+        }
+        else
+        {
             pContext->in_vqs[uPortIndex] = pQueue;
         }
     }
 }
 
-static
-NTSTATUS
-VIOSerialInitAllQueues(
-    IN WDFOBJECT Device)
+static NTSTATUS VIOSerialInitAllQueues(IN WDFOBJECT Device)
 {
-    NTSTATUS               status = STATUS_SUCCESS;
-    PPORTS_DEVICE          pContext = GetPortsDevice(Device);
-    UINT                   nr_ports;
+    NTSTATUS status = STATUS_SUCCESS;
+    PPORTS_DEVICE pContext = GetPortsDevice(Device);
+    UINT nr_ports;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
 
@@ -422,16 +374,14 @@ VIOSerialInitAllQueues(
         nr_ports++;
     }
 
-    status = VirtIOWdfInitQueuesCB(
-        &pContext->VDevice,
-        nr_ports * 2,
-        VIOSerialGetQueueParamCallback,
-        VIOSerialSetQueueCallback);
+    status = VirtIOWdfInitQueuesCB(&pContext->VDevice,
+                                   nr_ports * 2,
+                                   VIOSerialGetQueueParamCallback,
+                                   VIOSerialSetQueueCallback);
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT,
-            "VirtIOWdfInitQueues failed with %x\n", status);
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "VirtIOWdfInitQueues failed with %x\n", status);
     }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
@@ -450,13 +400,9 @@ VOID VIOSerialShutDownAllQueues(IN WDFOBJECT WdfDevice)
 }
 
 NTSTATUS
-VIOSerialFillQueue(
-    IN struct virtqueue *vq,
-    IN WDFSPINLOCK Lock,
-    IN ULONG id
-)
+VIOSerialFillQueue(IN struct virtqueue *vq, IN WDFSPINLOCK Lock, IN ULONG id)
 {
-    NTSTATUS     status = STATUS_SUCCESS;
+    NTSTATUS status = STATUS_SUCCESS;
     PPORT_BUFFER buf = NULL;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "--> %s\n", __FUNCTION__);
@@ -464,18 +410,18 @@ VIOSerialFillQueue(
     for (;;)
     {
         buf = VIOSerialAllocateSinglePageBuffer(vq->vdev, id);
-        if(buf == NULL)
+        if (buf == NULL)
         {
-           TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "VIOSerialAllocateBuffer failed\n");
-           WdfSpinLockAcquire(Lock);
-           VIOSerialDrainQueue(vq);
-           WdfSpinLockRelease(Lock);
-           return STATUS_INSUFFICIENT_RESOURCES;
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "VIOSerialAllocateBuffer failed\n");
+            WdfSpinLockAcquire(Lock);
+            VIOSerialDrainQueue(vq);
+            WdfSpinLockRelease(Lock);
+            return STATUS_INSUFFICIENT_RESOURCES;
         }
 
         WdfSpinLockAcquire(Lock);
         status = VIOSerialAddInBuf(vq, buf);
-        if(!NT_SUCCESS(status))
+        if (!NT_SUCCESS(status))
         {
             /* nothing to protect in VIOSerialFreeBuffer
              * better to run it on PASSIVE to free the DMA block
@@ -490,10 +436,7 @@ VIOSerialFillQueue(
     return STATUS_SUCCESS;
 }
 
-VOID
-VIOSerialDrainQueue(
-    IN struct virtqueue *vq
-    )
+VOID VIOSerialDrainQueue(IN struct virtqueue *vq)
 {
     PPORT_BUFFER buf;
 
@@ -506,10 +449,7 @@ VIOSerialDrainQueue(
 }
 
 NTSTATUS
-VIOSerialEvtDeviceD0Entry(
-    IN  WDFDEVICE Device,
-    IN  WDF_POWER_DEVICE_STATE PreviousState
-    )
+VIOSerialEvtDeviceD0Entry(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE PreviousState)
 {
     NTSTATUS status = STATUS_SUCCESS;
     PPORTS_DEVICE pContext = GetPortsDevice(Device);
@@ -531,10 +471,11 @@ VIOSerialEvtDeviceD0Entry(
             status = VIOSerialFillQueue(pContext->c_ivq, pContext->CInVqLock, pContext->DmaGroupTag);
         }
 
-        if (NT_SUCCESS(status)) {
-            pContext->ControlDmaBlock = VirtIOWdfDeviceAllocDmaMemorySliced(
-                &pContext->VDevice.VIODevice,
-                PAGE_SIZE, sizeof(VIRTIO_CONSOLE_CONTROL));
+        if (NT_SUCCESS(status))
+        {
+            pContext->ControlDmaBlock = VirtIOWdfDeviceAllocDmaMemorySliced(&pContext->VDevice.VIODevice,
+                                                                            PAGE_SIZE,
+                                                                            sizeof(VIRTIO_CONSOLE_CONTROL));
         }
 
         if (!NT_SUCCESS(status))
@@ -549,15 +490,11 @@ VIOSerialEvtDeviceD0Entry(
 }
 
 NTSTATUS
-VIOSerialEvtDeviceD0Exit(
-    IN  WDFDEVICE Device,
-    IN  WDF_POWER_DEVICE_STATE TargetState
-    )
+VIOSerialEvtDeviceD0Exit(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE TargetState)
 {
     PPORTS_DEVICE pContext = GetPortsDevice(Device);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"--> %s TargetState: %d\n",
-        __FUNCTION__, TargetState);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s TargetState: %d\n", __FUNCTION__, TargetState);
 
     PAGED_CODE();
 
@@ -567,7 +504,8 @@ VIOSerialEvtDeviceD0Exit(
 
     VirtIOWdfDeviceFreeDmaMemoryByTag(&pContext->VDevice.VIODevice, pContext->DmaGroupTag);
 
-    if (pContext->ControlDmaBlock) {
+    if (pContext->ControlDmaBlock)
+    {
         pContext->ControlDmaBlock->destroy(pContext->ControlDmaBlock);
         pContext->ControlDmaBlock = NULL;
     }
@@ -577,19 +515,16 @@ VIOSerialEvtDeviceD0Exit(
 }
 
 NTSTATUS
-VIOSerialEvtDeviceD0EntryPostInterruptsEnabled(
-    IN  WDFDEVICE WdfDevice,
-    IN  WDF_POWER_DEVICE_STATE PreviousState
-    )
+VIOSerialEvtDeviceD0EntryPostInterruptsEnabled(IN WDFDEVICE WdfDevice, IN WDF_POWER_DEVICE_STATE PreviousState)
 {
-    PPORTS_DEVICE    pContext = GetPortsDevice(WdfDevice);
+    PPORTS_DEVICE pContext = GetPortsDevice(WdfDevice);
     UNREFERENCED_PARAMETER(PreviousState);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
 
     PAGED_CODE();
 
-    if(!pContext->DeviceOK)
+    if (!pContext->DeviceOK)
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Sending VIRTIO_CONSOLE_DEVICE_READY 0\n");
         VIOSerialSendCtrlMsg(WdfDevice, VIRTIO_CONSOLE_BAD_ID, VIRTIO_CONSOLE_DEVICE_READY, 0, TRUE);
