@@ -77,7 +77,7 @@ title Rapid Prototyping Build Menu
 mode con cols=78 lines=62
 color 07
 echo.
-call :_color_echo %_s_Hdr% "       Rapid Prototyping Build Menu - for Windows KVM Guest Drivers"
+call :_color_echo %_s_Hdr% "         Rapid Prototyping Build Menu for Windows KVM Guest Drivers"
 echo.
 echo         [T] Toggle Enterprise WDK location
 if "%_t_EWDK_Mnts%"=="Mounted Image" (
