@@ -26,7 +26,7 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-#include"virtio_stor_utils.h"
+#include "virtio_stor_utils.h"
 #include "kdebugprint.h"
 #include <ntstrsafe.h>
 
@@ -35,12 +35,11 @@ int virtioDebugLevel;
 int bDebugPrint;
 int nViostorDebugLevel;
 
-
 #if !defined(EVENT_TRACING)
 #if defined(COM_DEBUG)
 
-#define RHEL_DEBUG_PORT     ((PUCHAR)0x3F8)
-#define TEMP_BUFFER_SIZE	256
+#define RHEL_DEBUG_PORT  ((PUCHAR)0x3F8)
+#define TEMP_BUFFER_SIZE 256
 
 static void DebugPrintFuncSerial(const char *format, ...)
 {
@@ -86,14 +85,13 @@ static void DebugPrintFuncWPP(const char *format, ...)
 
 static void NoDebugPrintFunc(const char *format, ...)
 {
-
 }
-void InitializeDebugPrints(IN PDRIVER_OBJECT  DriverObject, PUNICODE_STRING RegistryPath)
+void InitializeDebugPrints(IN PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 {
-    //TBD - Read nDebugLevel and bDebugPrint from the registry
+    // TBD - Read nDebugLevel and bDebugPrint from the registry
     bDebugPrint = 1;
     virtioDebugLevel = 0;
-    nViostorDebugLevel = TRACE_LEVEL_ERROR;//TRACE_LEVEL_VERBOSE;//
+    nViostorDebugLevel = TRACE_LEVEL_ERROR; // TRACE_LEVEL_VERBOSE;//
 
 #if defined(PRINT_DEBUG)
     VirtioDebugPrintProc = DebugPrintFunc;
