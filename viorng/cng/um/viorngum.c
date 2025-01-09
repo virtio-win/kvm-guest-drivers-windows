@@ -38,8 +38,7 @@
 #include "viorngum.h"
 #include <bcrypt_provider.h>
 
-DEFINE_GUID(GUID_DEVINTERFACE_VIRT_RNG,
-    0x2489fc19, 0xd0fd, 0x4950, 0x83, 0x86, 0xf3, 0xda, 0x3f, 0xa8, 0x5, 0x8);
+DEFINE_GUID(GUID_DEVINTERFACE_VIRT_RNG, 0x2489fc19, 0xd0fd, 0x4950, 0x83, 0x86, 0xf3, 0xda, 0x3f, 0xa8, 0x5, 0x8);
 
 BCRYPT_RNG_FUNCTION_TABLE RngFunctionTable =
 {
@@ -109,8 +108,7 @@ HANDLE OpenVirtRngDeviceInterface()
     DWORD Index = 0;
     BOOL bResult;
 
-    devInfo = SetupDiGetClassDevs(&GUID_DEVINTERFACE_VIRT_RNG, NULL, NULL,
-        (DIGCF_PRESENT | DIGCF_DEVICEINTERFACE));
+    devInfo = SetupDiGetClassDevs(&GUID_DEVINTERFACE_VIRT_RNG, NULL, NULL, (DIGCF_PRESENT | DIGCF_DEVICEINTERFACE));
 
     if (devInfo == INVALID_HANDLE_VALUE)
     {
@@ -119,14 +117,11 @@ HANDLE OpenVirtRngDeviceInterface()
 
     devIfaceData.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
 
-    while (SetupDiEnumDeviceInterfaces(devInfo, NULL,
-                &GUID_DEVINTERFACE_VIRT_RNG, Index, &devIfaceData) == TRUE)
+    while (SetupDiEnumDeviceInterfaces(devInfo, NULL, &GUID_DEVINTERFACE_VIRT_RNG, Index, &devIfaceData) == TRUE)
     {
-        SetupDiGetDeviceInterfaceDetail(devInfo, &devIfaceData, NULL, 0,
-            &RequiredLength, NULL);
+        SetupDiGetDeviceInterfaceDetail(devInfo, &devIfaceData, NULL, 0, &RequiredLength, NULL);
 
-        devIfaceDetail = (PSP_DEVICE_INTERFACE_DETAIL_DATA)
-            LocalAlloc(LMEM_FIXED, RequiredLength);
+        devIfaceDetail = (PSP_DEVICE_INTERFACE_DETAIL_DATA)LocalAlloc(LMEM_FIXED, RequiredLength);
 
         if (devIfaceDetail == NULL)
         {
@@ -136,8 +131,12 @@ HANDLE OpenVirtRngDeviceInterface()
         devIfaceDetail->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA);
         Length = RequiredLength;
 
-        bResult = SetupDiGetDeviceInterfaceDetail(devInfo, &devIfaceData,
-            devIfaceDetail, Length, &RequiredLength, NULL);
+        bResult = SetupDiGetDeviceInterfaceDetail(devInfo,
+                                                  &devIfaceData,
+                                                  devIfaceDetail,
+                                                  Length,
+                                                  &RequiredLength,
+                                                  NULL);
 
         if (bResult == FALSE)
         {
@@ -145,9 +144,13 @@ HANDLE OpenVirtRngDeviceInterface()
             break;
         }
 
-        devIface = CreateFile(devIfaceDetail->DevicePath, GENERIC_READ,
-            FILE_SHARE_READ, NULL, OPEN_EXISTING,
-            FILE_ATTRIBUTE_NORMAL|FILE_FLAG_OVERLAPPED, NULL);
+        devIface = CreateFile(devIfaceDetail->DevicePath,
+                              GENERIC_READ,
+                              FILE_SHARE_READ,
+                              NULL,
+                              OPEN_EXISTING,
+                              FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED,
+                              NULL);
 
         LocalFree(devIfaceDetail);
 
@@ -164,9 +167,7 @@ HANDLE OpenVirtRngDeviceInterface()
     return devIface;
 }
 
-NTSTATUS WINAPI VirtRngOpenAlgorithmProvider(OUT BCRYPT_ALG_HANDLE *Algorithm,
-                                             IN LPCWSTR AlgId,
-                                             IN ULONG Flags)
+NTSTATUS WINAPI VirtRngOpenAlgorithmProvider(OUT BCRYPT_ALG_HANDLE *Algorithm, IN LPCWSTR AlgId, IN ULONG Flags)
 {
     NTSTATUS status = STATUS_SUCCESS;
     HANDLE devIface;
@@ -214,11 +215,8 @@ NTSTATUS WINAPI VirtRngGetProperty(IN BCRYPT_HANDLE Object,
     return STATUS_NOT_SUPPORTED;
 }
 
-NTSTATUS WINAPI VirtRngSetProperty(IN OUT BCRYPT_HANDLE Object,
-                                   IN LPCWSTR Property,
-                                   IN PUCHAR Input,
-                                   IN ULONG Length,
-                                   IN ULONG Flags)
+NTSTATUS WINAPI
+VirtRngSetProperty(IN OUT BCRYPT_HANDLE Object, IN LPCWSTR Property, IN PUCHAR Input, IN ULONG Length, IN ULONG Flags)
 {
     UNREFERENCED_PARAMETER(Object);
     UNREFERENCED_PARAMETER(Property);
@@ -229,8 +227,7 @@ NTSTATUS WINAPI VirtRngSetProperty(IN OUT BCRYPT_HANDLE Object,
     return STATUS_NOT_SUPPORTED;
 }
 
-NTSTATUS WINAPI VirtRngCloseAlgorithmProvider(IN OUT BCRYPT_ALG_HANDLE Algorithm,
-                                              IN ULONG Flags)
+NTSTATUS WINAPI VirtRngCloseAlgorithmProvider(IN OUT BCRYPT_ALG_HANDLE Algorithm, IN ULONG Flags)
 {
     NTSTATUS status = STATUS_SUCCESS;
     HANDLE devIface = (HANDLE)Algorithm;
@@ -278,8 +275,7 @@ NTSTATUS WINAPI VirtRngGenRandom(IN OUT BCRYPT_ALG_HANDLE Algorithm,
 
     while (totalBytes < Length)
     {
-        status = ReadRngFromDevice(devIface, &ovrlpd, Buffer + totalBytes,
-            Length - totalBytes, &bytesRead);
+        status = ReadRngFromDevice(devIface, &ovrlpd, Buffer + totalBytes, Length - totalBytes, &bytesRead);
 
         if (!NT_SUCCESS(status))
         {

@@ -30,15 +30,15 @@
 #include "viorng.h"
 #include "isrdpc.tmh"
 
-NTSTATUS VirtRngEvtInterruptEnable(IN WDFINTERRUPT Interrupt,
-                                   IN WDFDEVICE AssociatedDevice)
+NTSTATUS VirtRngEvtInterruptEnable(IN WDFINTERRUPT Interrupt, IN WDFDEVICE AssociatedDevice)
 {
-    PDEVICE_CONTEXT context = GetDeviceContext(
-        WdfInterruptGetDevice(Interrupt));
+    PDEVICE_CONTEXT context = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT,
-        "--> %!FUNC! Interrupt: %p Device: %p",
-        Interrupt, AssociatedDevice);
+    TraceEvents(TRACE_LEVEL_VERBOSE,
+                DBG_INTERRUPT,
+                "--> %!FUNC! Interrupt: %p Device: %p",
+                Interrupt,
+                AssociatedDevice);
 
     virtqueue_enable_cb(context->VirtQueue);
     virtqueue_kick(context->VirtQueue);
@@ -48,15 +48,15 @@ NTSTATUS VirtRngEvtInterruptEnable(IN WDFINTERRUPT Interrupt,
     return STATUS_SUCCESS;
 }
 
-NTSTATUS VirtRngEvtInterruptDisable(IN WDFINTERRUPT Interrupt,
-                                    IN WDFDEVICE AssociatedDevice)
+NTSTATUS VirtRngEvtInterruptDisable(IN WDFINTERRUPT Interrupt, IN WDFDEVICE AssociatedDevice)
 {
-    PDEVICE_CONTEXT context = GetDeviceContext(
-        WdfInterruptGetDevice(Interrupt));
+    PDEVICE_CONTEXT context = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT,
-        "--> %!FUNC! Interrupt: %p Device: %p",
-        Interrupt, AssociatedDevice);
+    TraceEvents(TRACE_LEVEL_VERBOSE,
+                DBG_INTERRUPT,
+                "--> %!FUNC! Interrupt: %p Device: %p",
+                Interrupt,
+                AssociatedDevice);
 
     virtqueue_disable_cb(context->VirtQueue);
 
@@ -67,19 +67,16 @@ NTSTATUS VirtRngEvtInterruptDisable(IN WDFINTERRUPT Interrupt,
 
 BOOLEAN VirtRngEvtInterruptIsr(IN WDFINTERRUPT Interrupt, IN ULONG MessageId)
 {
-    PDEVICE_CONTEXT context = GetDeviceContext(
-        WdfInterruptGetDevice(Interrupt));
+    PDEVICE_CONTEXT context = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
     WDF_INTERRUPT_INFO info;
     BOOLEAN serviced;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT,
-        "--> %!FUNC! Interrupt: %p MessageId: %u", Interrupt, MessageId);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "--> %!FUNC! Interrupt: %p MessageId: %u", Interrupt, MessageId);
 
     WDF_INTERRUPT_INFO_INIT(&info);
     WdfInterruptGetInfo(context->WdfInterrupt, &info);
 
-    if ((info.MessageSignaled && (MessageId == 0)) ||
-        VirtIOWdfGetISRStatus(&context->VDevice))
+    if ((info.MessageSignaled && (MessageId == 0)) || VirtIOWdfGetISRStatus(&context->VDevice))
     {
         WdfInterruptQueueDpcForIsr(Interrupt);
         serviced = TRUE;
@@ -94,11 +91,9 @@ BOOLEAN VirtRngEvtInterruptIsr(IN WDFINTERRUPT Interrupt, IN ULONG MessageId)
     return serviced;
 }
 
-VOID VirtRngEvtInterruptDpc(IN WDFINTERRUPT Interrupt,
-                            IN WDFOBJECT AssociatedObject)
+VOID VirtRngEvtInterruptDpc(IN WDFINTERRUPT Interrupt, IN WDFOBJECT AssociatedObject)
 {
-    PDEVICE_CONTEXT context = GetDeviceContext(
-        WdfInterruptGetDevice(Interrupt));
+    PDEVICE_CONTEXT context = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
     struct virtqueue *vq = context->VirtQueue;
     PREAD_BUFFER_ENTRY entry;
     PSINGLE_LIST_ENTRY iter;
@@ -109,8 +104,7 @@ VOID VirtRngEvtInterruptDpc(IN WDFINTERRUPT Interrupt,
 
     UNREFERENCED_PARAMETER(AssociatedObject);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC,
-        "--> %!FUNC! Interrupt: %p", Interrupt);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "--> %!FUNC! Interrupt: %p", Interrupt);
 
     for (;;)
     {
@@ -123,21 +117,26 @@ VOID VirtRngEvtInterruptDpc(IN WDFINTERRUPT Interrupt,
             break;
         }
 
-        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ,
-            "Got %p Request: %p Buffer: %p",
-            entry, entry->Request, context->SingleBufferVA);
+        TraceEvents(TRACE_LEVEL_VERBOSE,
+                    DBG_READ,
+                    "Got %p Request: %p Buffer: %p",
+                    entry,
+                    entry->Request,
+                    context->SingleBufferVA);
 
         iter = &context->ReadBuffersList;
         while (iter->Next != NULL)
         {
-            PREAD_BUFFER_ENTRY current = CONTAINING_RECORD(iter->Next,
-                READ_BUFFER_ENTRY, ListEntry);
+            PREAD_BUFFER_ENTRY current = CONTAINING_RECORD(iter->Next, READ_BUFFER_ENTRY, ListEntry);
 
             if (entry == current)
             {
-                TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ,
-                    "Delete %p Request: %p Buffer: %p",
-                    entry, entry->Request, context->SingleBufferVA);
+                TraceEvents(TRACE_LEVEL_VERBOSE,
+                            DBG_READ,
+                            "Delete %p Request: %p Buffer: %p",
+                            entry,
+                            entry->Request,
+                            context->SingleBufferVA);
 
                 iter->Next = current->ListEntry.Next;
                 break;
@@ -148,11 +147,9 @@ VOID VirtRngEvtInterruptDpc(IN WDFINTERRUPT Interrupt,
             }
         };
 
-        if ((entry->Request == NULL) ||
-            (WdfRequestUnmarkCancelable(entry->Request) == STATUS_CANCELLED))
+        if ((entry->Request == NULL) || (WdfRequestUnmarkCancelable(entry->Request) == STATUS_CANCELLED))
         {
-            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC,
-                "Ignoring a canceled read request: %p", entry->Request);
+            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "Ignoring a canceled read request: %p", entry->Request);
 
             entry->Request = NULL;
         }
@@ -161,24 +158,20 @@ VOID VirtRngEvtInterruptDpc(IN WDFINTERRUPT Interrupt,
 
         if (entry->Request != NULL)
         {
-            status = WdfRequestRetrieveOutputBuffer(entry->Request, length,
-                &buffer, &bufferLen);
+            status = WdfRequestRetrieveOutputBuffer(entry->Request, length, &buffer, &bufferLen);
 
             if (NT_SUCCESS(status))
             {
                 length = min(length, (unsigned)bufferLen);
                 RtlCopyMemory(buffer, context->SingleBufferVA, length);
 
-                TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC,
-                    "Complete Request: %p Length: %d", entry->Request, length);
+                TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "Complete Request: %p Length: %d", entry->Request, length);
 
-                WdfRequestCompleteWithInformation(entry->Request,
-                    STATUS_SUCCESS, (ULONG_PTR)length);
+                WdfRequestCompleteWithInformation(entry->Request, STATUS_SUCCESS, (ULONG_PTR)length);
             }
             else
             {
-                TraceEvents(TRACE_LEVEL_ERROR, DBG_READ,
-                    "WdfRequestRetrieveOutputBuffer failed: %!STATUS!", status);
+                TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "WdfRequestRetrieveOutputBuffer failed: %!STATUS!", status);
                 WdfRequestComplete(entry->Request, status);
             }
         }

@@ -32,31 +32,34 @@
 #endif
 
 #ifndef STATUS_SUCCESS
-#define STATUS_SUCCESS              ((NTSTATUS)0x00000000L)
-#define STATUS_UNSUCCESSFUL         ((NTSTATUS)0xC0000001L)
-#define STATUS_NOT_IMPLEMENTED      ((NTSTATUS)0xC0000002L)
-#define STATUS_NOT_SUPPORTED        ((NTSTATUS)0xC00000BBL)
-#define STATUS_PORT_UNREACHABLE     ((NTSTATUS)0xC000023FL)
+#define STATUS_SUCCESS          ((NTSTATUS)0x00000000L)
+#define STATUS_UNSUCCESSFUL     ((NTSTATUS)0xC0000001L)
+#define STATUS_NOT_IMPLEMENTED  ((NTSTATUS)0xC0000002L)
+#define STATUS_NOT_SUPPORTED    ((NTSTATUS)0xC00000BBL)
+#define STATUS_PORT_UNREACHABLE ((NTSTATUS)0xC000023FL)
 #endif
 
 #ifndef STATUS_INVALID_PARAMETER
-#define STATUS_INVALID_PARAMETER    ((NTSTATUS)0xC000000DL)
+#define STATUS_INVALID_PARAMETER ((NTSTATUS)0xC000000DL)
 #endif
 
 // CNG RNG Provider Interface.
 
-NTSTATUS WINAPI VirtRngOpenAlgorithmProvider(OUT BCRYPT_ALG_HANDLE *Algorithm,
-    IN LPCWSTR AlgId, IN ULONG Flags);
+NTSTATUS WINAPI VirtRngOpenAlgorithmProvider(OUT BCRYPT_ALG_HANDLE *Algorithm, IN LPCWSTR AlgId, IN ULONG Flags);
 
 NTSTATUS WINAPI VirtRngGetProperty(IN BCRYPT_HANDLE Object,
-    IN LPCWSTR Property, OUT PUCHAR Output, IN ULONG Length,
-    OUT ULONG *Result, IN ULONG Flags);
+                                   IN LPCWSTR Property,
+                                   OUT PUCHAR Output,
+                                   IN ULONG Length,
+                                   OUT ULONG *Result,
+                                   IN ULONG Flags);
 
-NTSTATUS WINAPI VirtRngSetProperty(IN OUT BCRYPT_HANDLE Object,
-    IN LPCWSTR Property, IN PUCHAR Input, IN ULONG Length, IN ULONG Flags);
+NTSTATUS WINAPI
+VirtRngSetProperty(IN OUT BCRYPT_HANDLE Object, IN LPCWSTR Property, IN PUCHAR Input, IN ULONG Length, IN ULONG Flags);
 
-NTSTATUS WINAPI VirtRngCloseAlgorithmProvider(
-    IN OUT BCRYPT_ALG_HANDLE Algorithm, IN ULONG Flags);
+NTSTATUS WINAPI VirtRngCloseAlgorithmProvider(IN OUT BCRYPT_ALG_HANDLE Algorithm, IN ULONG Flags);
 
 NTSTATUS WINAPI VirtRngGenRandom(IN OUT BCRYPT_ALG_HANDLE Algorithm,
-    IN OUT PUCHAR Buffer, IN ULONG Length, IN ULONG Flags);
+                                 IN OUT PUCHAR Buffer,
+                                 IN ULONG Length,
+                                 IN ULONG Flags);

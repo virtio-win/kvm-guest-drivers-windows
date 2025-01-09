@@ -45,8 +45,7 @@
 #define VIRT_RNG_MEMORY_TAG ((ULONG)'gnrV')
 
 // {2489fc19-d0fd-4950-8386-f3da3fa80508}
-DEFINE_GUID(GUID_DEVINTERFACE_VIRT_RNG,
-    0x2489fc19, 0xd0fd, 0x4950, 0x83, 0x86, 0xf3, 0xda, 0x3f, 0xa8, 0x5, 0x8);
+DEFINE_GUID(GUID_DEVINTERFACE_VIRT_RNG, 0x2489fc19, 0xd0fd, 0x4950, 0x83, 0x86, 0xf3, 0xda, 0x3f, 0xa8, 0x5, 0x8);
 
 typedef struct _ReadBufferEntry
 {
@@ -54,19 +53,20 @@ typedef struct _ReadBufferEntry
     WDFREQUEST Request;
 } READ_BUFFER_ENTRY, *PREAD_BUFFER_ENTRY;
 
-typedef struct _DEVICE_CONTEXT {
+typedef struct _DEVICE_CONTEXT
+{
 
-    VIRTIO_WDF_DRIVER   VDevice;
-    struct virtqueue    *VirtQueue;
+    VIRTIO_WDF_DRIVER VDevice;
+    struct virtqueue *VirtQueue;
 
-    WDFINTERRUPT        WdfInterrupt;
-    WDFSPINLOCK         VirtQueueLock;
+    WDFINTERRUPT WdfInterrupt;
+    WDFSPINLOCK VirtQueueLock;
 
     // Hold a list of allocated buffers which were put into the virt queue
     // and was not returned yet.
-    SINGLE_LIST_ENTRY   ReadBuffersList;
-    void *              SingleBufferVA;
-    PHYSICAL_ADDRESS    SingleBufferPA;
+    SINGLE_LIST_ENTRY ReadBuffersList;
+    void *SingleBufferVA;
+    PHYSICAL_ADDRESS SingleBufferPA;
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext);

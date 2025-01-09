@@ -36,8 +36,7 @@
 #pragma alloc_text(PAGE, VirtRngEvtDriverContextCleanup)
 #endif
 
-NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject,
-                     IN PUNICODE_STRING RegistryPath)
+NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING RegistryPath)
 {
     NTSTATUS status;
     WDF_DRIVER_CONFIG config;
@@ -55,13 +54,11 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject,
 
     WDF_DRIVER_CONFIG_INIT(&config, VirtRngEvtDeviceAdd);
 
-    status = WdfDriverCreate(DriverObject, RegistryPath, &attributes,
-        &config, WDF_NO_HANDLE);
+    status = WdfDriverCreate(DriverObject, RegistryPath, &attributes, &config, WDF_NO_HANDLE);
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-            "WdfDriverCreate failed: %!STATUS!", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfDriverCreate failed: %!STATUS!", status);
         WPP_CLEANUP(DriverObject);
     }
 
@@ -70,8 +67,7 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject,
     return status;
 }
 
-NTSTATUS VirtRngEvtDeviceAdd(IN WDFDRIVER Driver,
-                             IN PWDFDEVICE_INIT DeviceInit)
+NTSTATUS VirtRngEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
 {
     NTSTATUS status;
     WDFDEVICE device;
@@ -104,48 +100,40 @@ NTSTATUS VirtRngEvtDeviceAdd(IN WDFDRIVER Driver,
     status = WdfDeviceCreate(&DeviceInit, &attributes, &device);
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-            "WdfDeviceCreate failed: %!STATUS!", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfDeviceCreate failed: %!STATUS!", status);
         return status;
     }
 
     context = GetDeviceContext(device);
 
-    WDF_INTERRUPT_CONFIG_INIT(&interruptConfig,
-        VirtRngEvtInterruptIsr, VirtRngEvtInterruptDpc);
+    WDF_INTERRUPT_CONFIG_INIT(&interruptConfig, VirtRngEvtInterruptIsr, VirtRngEvtInterruptDpc);
 
     interruptConfig.EvtInterruptEnable = VirtRngEvtInterruptEnable;
     interruptConfig.EvtInterruptDisable = VirtRngEvtInterruptDisable;
 
-    status = WdfInterruptCreate(device, &interruptConfig,
-        WDF_NO_OBJECT_ATTRIBUTES, &context->WdfInterrupt);
+    status = WdfInterruptCreate(device, &interruptConfig, WDF_NO_OBJECT_ATTRIBUTES, &context->WdfInterrupt);
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-            "WdfInterruptCreate failed: %!STATUS!", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfInterruptCreate failed: %!STATUS!", status);
         return status;
     }
 
     WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
     attributes.ParentObject = device;
-    status = WdfSpinLockCreate(&attributes,
-        &context->VirtQueueLock);
+    status = WdfSpinLockCreate(&attributes, &context->VirtQueueLock);
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-            "WdfSpinLockCreate failed: %!STATUS!", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfSpinLockCreate failed: %!STATUS!", status);
         return status;
     }
 
-    status = WdfDeviceCreateDeviceInterface(device,
-        &GUID_DEVINTERFACE_VIRT_RNG, NULL);
+    status = WdfDeviceCreateDeviceInterface(device, &GUID_DEVINTERFACE_VIRT_RNG, NULL);
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-            "WdfDeviceCreateDeviceInterface failed: %!STATUS!", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfDeviceCreateDeviceInterface failed: %!STATUS!", status);
         return status;
     }
 
@@ -156,23 +144,19 @@ NTSTATUS VirtRngEvtDeviceAdd(IN WDFDRIVER Driver,
     queueConfig.EvtIoStop = VirtRngEvtIoStop;
     queueConfig.AllowZeroLengthRequests = FALSE;
 
-    status = WdfIoQueueCreate(device, &queueConfig,
-        WDF_NO_OBJECT_ATTRIBUTES, &readQueue);
+    status = WdfIoQueueCreate(device, &queueConfig, WDF_NO_OBJECT_ATTRIBUTES, &readQueue);
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-            "WdfIoQueueCreate failed: %!STATUS!", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfIoQueueCreate failed: %!STATUS!", status);
         return status;
     }
 
-    status = WdfDeviceConfigureRequestDispatching(device,
-        readQueue, WdfRequestTypeRead);
+    status = WdfDeviceConfigureRequestDispatching(device, readQueue, WdfRequestTypeRead);
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-            "WdfDeviceConfigureRequestDispatching failed: %!STATUS!", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfDeviceConfigureRequestDispatching failed: %!STATUS!", status);
         return status;
     }
 
@@ -191,8 +175,7 @@ VOID VirtRngEvtDeviceContextCleanup(IN WDFOBJECT DeviceObject)
     iter = PopEntryList(&context->ReadBuffersList);
     while (iter != NULL)
     {
-        PREAD_BUFFER_ENTRY entry = CONTAINING_RECORD(iter,
-            READ_BUFFER_ENTRY, ListEntry);
+        PREAD_BUFFER_ENTRY entry = CONTAINING_RECORD(iter, READ_BUFFER_ENTRY, ListEntry);
 
         ExFreePoolWithTag(entry, VIRT_RNG_MEMORY_TAG);
 
