@@ -964,8 +964,10 @@ static void PrintIndirectionTable(const NDIS_RECEIVE_SCALE_PARAMETERS *Params)
             Params->HashInformation);
 
     DPrintf(RSS_PRINT_LEVEL, "NDIS IndirectionTable[%lu]\n", IndirectionTableEntries);
+    // clang-format off
     ParaNdis_PrintTable<80, 20>(RSS_PRINT_LEVEL, (const PROCESSOR_NUMBER *)((char *)Params + Params->IndirectionTableOffset), IndirectionTableEntries,
         "%u/%u", [](const PROCESSOR_NUMBER *proc) { return proc->Group; }, [](const PROCESSOR_NUMBER *proc) { return proc->Number; });
+    // clang-format on
 }
 
 static void PrintIndirectionTable(const PARANDIS_SCALING_SETTINGS *RSSScalingSetting)
@@ -973,8 +975,10 @@ static void PrintIndirectionTable(const PARANDIS_SCALING_SETTINGS *RSSScalingSet
     ULONG IndirectionTableEntries = RSSScalingSetting->IndirectionTableSize / sizeof(PROCESSOR_NUMBER);
 
     DPrintf(RSS_PRINT_LEVEL, "Driver IndirectionTable[%lu]\n", IndirectionTableEntries);
+    // clang-format off
     ParaNdis_PrintTable<80, 20>(RSS_PRINT_LEVEL, RSSScalingSetting->IndirectionTable, IndirectionTableEntries,
         "%u/%u", [](const PROCESSOR_NUMBER *proc) { return proc->Group; }, [](const PROCESSOR_NUMBER *proc) { return proc->Number; });
+    // clang-format on
 }
 
 static void PrintRSSSettings(const PPARANDIS_RSS_PARAMS RSSParameters)

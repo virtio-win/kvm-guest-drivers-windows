@@ -440,6 +440,7 @@ class CServiceImplementation
     {
         UNREFERENCED_PARAMETER(dwArgc);
         UNREFERENCED_PARAMETER(lpszArgv);
+        // clang-format off
         m_State.hService = RegisterServiceCtrlHandlerEx(
             m_Name,
             [](DWORD dwControl, DWORD dwEventType, LPVOID lpEventData, LPVOID lpContext) -> DWORD
@@ -450,6 +451,7 @@ class CServiceImplementation
             return obj->ControlHandler(dwControl, dwEventType, lpEventData);
         },
             this);
+        // clang-format on
         if (m_State.hService)
         {
             m_State.Set(SERVICE_START_PENDING);

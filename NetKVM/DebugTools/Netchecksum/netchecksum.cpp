@@ -127,6 +127,7 @@ bool ProcessFile(FILE *f, ULONG flags, ULONG result[4])
     return bContinue;
 }
 
+// clang-format off
 struct
 {
     LPCSTR file;
@@ -153,7 +154,7 @@ struct
     // TCP packet with valid UDPCS, populate PHCS
     { "udpv6-cs.txt",  pcrFixPHChecksum | pcrFixIPChecksum, { 0x3028038B, 0x302803AB, 0x30280BBB, 0x3028039B }  },
 };
-
+// clang-format on
 int _tmain(int argc, _TCHAR *argv[])
 {
     bool bOK = true;

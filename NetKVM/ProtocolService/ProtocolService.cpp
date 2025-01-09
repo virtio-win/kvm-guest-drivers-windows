@@ -388,6 +388,7 @@ class CDeviceNotificationOwner
 class CDeviceNotification
 {
   public:
+    // clang-format off
     CDeviceNotification(CDeviceNotificationOwner &owner) : m_Owner(owner)
     {
     }
@@ -412,6 +413,8 @@ class CDeviceNotification
         }
         return m_Notification != NULL;
     }
+    // clang-format on
+
     ~CDeviceNotification()
     {
         if (m_Notification)

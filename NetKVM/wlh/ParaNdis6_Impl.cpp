@@ -409,8 +409,8 @@ static VOID MiniportMSIInterruptDpc(IN PVOID MiniportInterruptContext,
                                     IN PVOID ReceiveThrottleParameters,
                                     IN PVOID NdisReserved2
 #else
-                                     IN PULONG NdisReserved1,
-                                     IN PULONG NdisReserved2
+                                    IN PULONG NdisReserved1,
+                                    IN PULONG NdisReserved2
 #endif
 )
 {

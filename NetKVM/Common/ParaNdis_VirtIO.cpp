@@ -463,7 +463,7 @@ static void vdev_sleep(void *context, unsigned int msecs)
 
     NdisMSleep(1000 * msecs);
 }
-
+// clang-format off
 VirtIOSystemOps ParaNdisSystemOps = {
     ReadVirtIODeviceByte,
     ReadVirtIODeviceWord,
@@ -484,3 +484,4 @@ VirtIOSystemOps ParaNdisSystemOps = {
     vdev_get_msix_vector,
     vdev_sleep,
 };
+// clang-format on

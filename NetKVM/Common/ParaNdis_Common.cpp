@@ -110,6 +110,7 @@ typedef struct _tagConfigurationEntries
     tConfigurationEntry PollMode;
 } tConfigurationEntries;
 
+// clang-format off
 static const tConfigurationEntries defaultConfiguration =
 {
     { "*PhysicalMediaType", 0,  0,  0xff },
@@ -148,6 +149,7 @@ static const tConfigurationEntries defaultConfiguration =
     { "MinRxBufferPercent", PARANDIS_MIN_RX_BUFFER_PERCENT_DEFAULT, 0, 100},
     { "*NdisPoll", 0, 0, 1},
 };
+// clang-format off
 
 static void ParaNdis_ResetVirtIONetDevice(PARANDIS_ADAPTER *pContext)
 {
@@ -474,7 +476,7 @@ static void DumpVirtIOFeatures(PPARANDIS_ADAPTER pContext)
 {
     static const struct {  ULONG bitmask;  PCHAR Name; } Features[] =
     {
-
+        // clang-format off
         {VIRTIO_NET_F_CSUM, "VIRTIO_NET_F_CSUM" },
         {VIRTIO_NET_F_GUEST_CSUM, "VIRTIO_NET_F_GUEST_CSUM" },
         {VIRTIO_NET_F_MTU, "VIRTIO_NET_F_MTU" },
@@ -510,6 +512,7 @@ static void DumpVirtIOFeatures(PPARANDIS_ADAPTER pContext)
         {VIRTIO_NET_F_STANDBY, "VIRTIO_NET_F_STANDBY" },
         {VIRTIO_NET_F_HOST_USO, "VIRTIO_NET_F_HOST_USO" },
     };
+    // clang-format on
     UINT i;
     for (i = 0; i < sizeof(Features) / sizeof(Features[0]); ++i)
     {

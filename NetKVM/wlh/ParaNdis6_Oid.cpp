@@ -123,6 +123,7 @@ static NDIS_STATUS RSSSetReceiveHash(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 /**********************************************************
 Structure defining how to support each OID
 ***********************************************************/
+// clang-format off
 static const tOidWhatToDo OidsDB[] =
 {
 //                                              i f ok flags        set proc
@@ -220,7 +221,7 @@ OIDENTRYPROC(OID_VENDOR_5,                      0,0,0, ohfQueryStat | ohfSet | o
 #if PARANDIS_SUPPORT_RSC
     OIDENTRY(OID_TCP_RSC_STATISTICS,            3,4,4, ohfQueryStat     ),
 #endif
-
+// clang-format on
 #if NDIS_SUPPORT_NDIS620
 // here should be NDIS 6.20 specific OIDs (mostly power management related)
 // OID_PM_CURRENT_CAPABILITIES - not required, supported by NDIS
@@ -232,11 +233,12 @@ OIDENTRYPROC(OID_VENDOR_5,                      0,0,0, ohfQueryStat | ohfSet | o
 // OID_PM_GET_PROTOCOL_OFFLOAD - mandatory
 // OID_PM_REMOVE_PROTOCOL_OFFLOAD - mandatory
 // OID_PM_PROTOCOL_OFFLOAD_LIST - not required, supported by NDIS
+// clang-format off
 #endif
 // last entry, do not remove
 OIDENTRY(0,                                     4,4,4, 0),
 };
-
+// clang-format on
 static NDIS_OID SupportedOids[] = {OID_GEN_SUPPORTED_LIST,
                                    OID_GEN_HARDWARE_STATUS,
                                    OID_GEN_MEDIA_SUPPORTED,
@@ -288,6 +290,7 @@ static NDIS_OID SupportedOids[] = {OID_GEN_SUPPORTED_LIST,
 #endif
 };
 
+// clang-format off
 static const NDIS_GUID supportedGUIDs[] =
 {
     { NetKvm_LoggingGuid,    OID_VENDOR_1, NetKvm_Logging_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_READ | fNDIS_GUID_ALLOW_WRITE },
@@ -296,7 +299,7 @@ static const NDIS_GUID supportedGUIDs[] =
     { NetKvm_DiagResetGuid,  OID_VENDOR_4, NetKvm_DiagReset_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_WRITE | fNDIS_GUID_ALLOW_READ },
     { NetKvm_DeviceRssGuid,  OID_VENDOR_5, NetKvm_DeviceRss_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_WRITE | fNDIS_GUID_ALLOW_READ},
 };
-
+// clang-format on
 /**********************************************************
         For statistics header
 ***********************************************************/
