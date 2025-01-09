@@ -266,7 +266,7 @@ void vdev_sleep(void *context, unsigned int msecs)
     }
 }
 
-
+// clang-format off
 VirtIOSystemOps VioGpuSystemOps = {
     ReadVirtIODeviceByte,
     ReadVirtIODeviceWord,
@@ -287,7 +287,7 @@ VirtIOSystemOps VioGpuSystemOps = {
     vdev_get_msix_vector,
     vdev_sleep,
 };
-
+// clang-format on
 
 PVOID CPciBar::GetVA(PDXGKRNL_INTERFACE pDxgkInterface)
 {
