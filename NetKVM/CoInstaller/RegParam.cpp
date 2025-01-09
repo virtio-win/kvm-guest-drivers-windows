@@ -22,27 +22,21 @@
 #define REG_PARAM_INFO_DELIMITER        TEXT("-----------------------------------------------------")
 #define REG_PARAM_INFO_IDENT            TEXT("  ")
 
-static const LPCTSTR RegParamTypes[] =
-{
-    TEXT("enum"),
-    TEXT("int"),
-    TEXT("long"),
-    TEXT("edit")
-};
+static const LPCTSTR RegParamTypes[] = {TEXT("enum"), TEXT("int"), TEXT("long"), TEXT("edit")};
 
-static BOOL  ReadStringDWord(neTKVMRegAccess &DevParamsRegKey,
-                             LPCTSTR       lpzValueName,
-                             LPDWORD       lpdwValue,
-                             LPCTSTR       lpzSubKey)
+static BOOL ReadStringDWord(neTKVMRegAccess &DevParamsRegKey,
+                            LPCTSTR lpzValueName,
+                            LPDWORD lpdwValue,
+                            LPCTSTR lpzSubKey)
 {
-    BOOL  bRes = FALSE;
+    BOOL bRes = FALSE;
     TCHAR tcaBuf[DEFAULT_REG_ENTRY_DATA_LEN];
 
     bRes = (DevParamsRegKey.ReadString(lpzValueName, tcaBuf, TBUF_SIZEOF(tcaBuf), lpzSubKey) != 0);
     if (bRes == TRUE)
     {
         LPTSTR lpPos = NULL;
-        DWORD  dwVal = _tcstoul(tcaBuf, &lpPos, 0);
+        DWORD dwVal = _tcstoul(tcaBuf, &lpPos, 0);
 
         if (*lpPos != 0)
         {
@@ -55,21 +49,17 @@ static BOOL  ReadStringDWord(neTKVMRegAccess &DevParamsRegKey,
     return bRes;
 }
 
-
-static DWORD ReadStringDWord(neTKVMRegAccess &DevParamsRegKey,
-                             LPCTSTR       lpzValueName,
-                             DWORD         dwDefault,
-                             LPCTSTR       lpzSubKey)
+static DWORD ReadStringDWord(neTKVMRegAccess &DevParamsRegKey, LPCTSTR lpzValueName, DWORD dwDefault, LPCTSTR lpzSubKey)
 {
     DWORD dwRes = 0;
-    return ReadStringDWord(DevParamsRegKey, lpzValueName, &dwRes, lpzSubKey)?dwRes:dwDefault;
+    return ReadStringDWord(DevParamsRegKey, lpzValueName, &dwRes, lpzSubKey) ? dwRes : dwDefault;
 }
 
 neTKVMRegParamType neTKVMRegParam::GetType(neTKVMRegAccess &DevParamsRegKey, LPCTSTR pszName)
 {
     neTKVMRegParamType eRes = NETKVM_RTT_UNKNOWN;
-    TCHAR           tcaBuf[DEFAULT_REG_ENTRY_DATA_LEN];
-    tstring         ParamRegSubKey(REG_DEV_PARAMS_KNAME);
+    TCHAR tcaBuf[DEFAULT_REG_ENTRY_DATA_LEN];
+    tstring ParamRegSubKey(REG_DEV_PARAMS_KNAME);
 
     if (pszName == NULL)
     {
@@ -96,24 +86,24 @@ neTKVMRegParamType neTKVMRegParam::GetType(neTKVMRegAccess &DevParamsRegKey, LPC
 
 neTKVMRegParam *neTKVMRegParam::GetParam(neTKVMRegAccess &DevParamsRegKey, LPCTSTR pszName)
 {
-    neTKVMRegParam    *Param = NULL;
+    neTKVMRegParam *Param = NULL;
     neTKVMRegParamType eParamType = neTKVMRegParam::GetType(DevParamsRegKey, pszName);
     switch (eParamType)
     {
-    case NETKVM_RTT_ENUM:
-        Param = new neTKVMRegEnumParam(DevParamsRegKey, pszName);
-        break;
-    case NETKVM_RTT_INT:
-        Param = new neTKVMRegIntParam(DevParamsRegKey, pszName);
-        break;
-    case NETKVM_RTT_LONG:
-        Param = new neTKVMRegLongParam(DevParamsRegKey, pszName);
-        break;
-    case NETKVM_RTT_EDIT:
-        Param = new neTKVMRegEditParam(DevParamsRegKey, pszName);
-        break;
-    default:
-        break;
+        case NETKVM_RTT_ENUM:
+            Param = new neTKVMRegEnumParam(DevParamsRegKey, pszName);
+            break;
+        case NETKVM_RTT_INT:
+            Param = new neTKVMRegIntParam(DevParamsRegKey, pszName);
+            break;
+        case NETKVM_RTT_LONG:
+            Param = new neTKVMRegLongParam(DevParamsRegKey, pszName);
+            break;
+        case NETKVM_RTT_EDIT:
+            Param = new neTKVMRegEditParam(DevParamsRegKey, pszName);
+            break;
+        default:
+            break;
     }
 
     if (Param)
@@ -133,12 +123,9 @@ neTKVMRegParam *neTKVMRegParam::GetParam(neTKVMRegAccess &DevParamsRegKey, LPCTS
 neTKVMRegParam *neTKVMRegParam::GetParam(neTKVMRegAccess &DevParamsRegKey, DWORD dwIndex)
 {
     neTKVMRegParam *Param = NULL;
-    TCHAR        tcaBuf[DEFAULT_REG_ENTRY_DATA_LEN];
+    TCHAR tcaBuf[DEFAULT_REG_ENTRY_DATA_LEN];
 
-    if (DevParamsRegKey.ReadKeyName(tcaBuf,
-                                    TBUF_SIZEOF(tcaBuf),
-                                    dwIndex,
-                                    REG_DEV_PARAMS_KNAME) == TRUE)
+    if (DevParamsRegKey.ReadKeyName(tcaBuf, TBUF_SIZEOF(tcaBuf), dwIndex, REG_DEV_PARAMS_KNAME) == TRUE)
     {
         Param = neTKVMRegParam::GetParam(DevParamsRegKey, tcaBuf);
     }
@@ -147,7 +134,7 @@ neTKVMRegParam *neTKVMRegParam::GetParam(neTKVMRegAccess &DevParamsRegKey, DWORD
 }
 
 neTKVMRegParam::neTKVMRegParam(neTKVMRegAccess &DevParamsRegKey, LPCTSTR pszName)
-    :   m_bOptional(false), m_DevParamsRegKey(DevParamsRegKey), m_ParamRegSubKey(REG_DEV_PARAMS_KNAME)
+    : m_bOptional(false), m_DevParamsRegKey(DevParamsRegKey), m_ParamRegSubKey(REG_DEV_PARAMS_KNAME)
 {
     if (pszName)
     {
@@ -163,10 +150,8 @@ neTKVMRegParam::neTKVMRegParam(neTKVMRegAccess &DevParamsRegKey, LPCTSTR pszName
     m_ParamRegSubKey += pszName;
 }
 
-
 neTKVMRegParam::~neTKVMRegParam(void)
 {
-
 }
 
 void neTKVMRegParam::Load(void)
@@ -179,13 +164,17 @@ void neTKVMRegParam::Load(void)
         throw neTKVMRegParamBadTypeException();
     }
 
-    m_bOptional = ReadStringDWord(m_DevParamsRegKey, REG_PARAM_OPT_VNAME, (DWORD)false, m_ParamRegSubKey.c_str())?true:false;
+    m_bOptional = ReadStringDWord(m_DevParamsRegKey, REG_PARAM_OPT_VNAME, (DWORD) false, m_ParamRegSubKey.c_str()) ? true
+                                                                                                                   : false;
 
     // Read Value
     dwRes = m_DevParamsRegKey.ReadString(m_Name.c_str(), tcaBuf, TBUF_SIZEOF(tcaBuf));
     if (dwRes == 0)
     { // There's no value => Read Default
-        dwRes = m_DevParamsRegKey.ReadString(REG_PARAM_DEFAULT_VNAME, tcaBuf, TBUF_SIZEOF(tcaBuf), m_ParamRegSubKey.c_str());
+        dwRes = m_DevParamsRegKey.ReadString(REG_PARAM_DEFAULT_VNAME,
+                                             tcaBuf,
+                                             TBUF_SIZEOF(tcaBuf),
+                                             m_ParamRegSubKey.c_str());
     }
 
     if (dwRes != 0)
@@ -205,7 +194,7 @@ void neTKVMRegParam::Load(void)
 
 bool neTKVMRegParam::Save(void)
 {
-    return (m_DevParamsRegKey.WriteString(m_Name.c_str(), m_Value.c_str()) == TRUE)?true:false;
+    return (m_DevParamsRegKey.WriteString(m_Name.c_str(), m_Value.c_str()) == TRUE) ? true : false;
 }
 
 void neTKVMRegParam::FillExInfo(neTKVMRegParamExInfoList &ExInfoList)
@@ -216,12 +205,11 @@ void neTKVMRegParam::FillExInfo(neTKVMRegParamExInfoList &ExInfoList)
 neTKVMRegEnumParam::neTKVMRegEnumParam(neTKVMRegAccess &DevParamsRegKey, LPCTSTR pszName)
     : neTKVMRegParam(DevParamsRegKey, pszName)
 {
-
 }
 
 bool neTKVMRegEnumParam::ValidateValue(LPCTSTR pszValue)
 {
-    bool                  bRes = false;
+    bool bRes = false;
     neTKVMTStrList::iterator i;
 
     for (i = m_Values.begin(); bRes == false && i != m_Values.end(); i++)
@@ -234,8 +222,8 @@ bool neTKVMRegEnumParam::ValidateValue(LPCTSTR pszValue)
 
 void neTKVMRegEnumParam::Load(void)
 {
-    DWORD   dwI = 0;
-    TCHAR   tcaBuf[DEFAULT_REG_ENTRY_DATA_LEN];
+    DWORD dwI = 0;
+    TCHAR tcaBuf[DEFAULT_REG_ENTRY_DATA_LEN];
     tstring EnumValuesSubKey = m_ParamRegSubKey + REG_PATH_DELIMITER + REG_PARAM_ENUM_VALUES_KNAME;
 
     neTKVMRegParam::Load();
@@ -259,9 +247,7 @@ void neTKVMRegEnumParam::FillExInfo(neTKVMRegParamExInfoList &ExInfoList)
 
     neTKVMRegParam::FillExInfo(ExInfoList);
 
-    for (i = m_Values.begin(), j = m_ValueDescs.begin();
-         i!= m_Values.end() && j != m_ValueDescs.end();
-         i++, j++)
+    for (i = m_Values.begin(), j = m_ValueDescs.begin(); i != m_Values.end() && j != m_ValueDescs.end(); i++, j++)
     {
         ExInfoList.push_back(neTKVMRegParamExInfo(NETKVM_RPIID_ENUM_VALUE, *i));
         ExInfoList.push_back(neTKVMRegParamExInfo(NETKVM_RPIID_ENUM_VALUE_DESC, *j));
@@ -272,24 +258,20 @@ template <class INT_T>
 neTKVMRegNumParam<INT_T>::neTKVMRegNumParam(neTKVMRegAccess &DevParamsRegKey, LPCTSTR pszName)
     : m_nMin(0), m_nMax((INT_T)-1), m_nStep(0), neTKVMRegParam(DevParamsRegKey, pszName)
 {
-
 }
 
-template <class INT_T>
-neTKVMRegNumParam<INT_T>::~neTKVMRegNumParam()
+template <class INT_T> neTKVMRegNumParam<INT_T>::~neTKVMRegNumParam()
 {
-
 }
 
-template <class INT_T>
-bool neTKVMRegNumParam<INT_T>::ValidateValue(LPCTSTR pszValue)
+template <class INT_T> bool neTKVMRegNumParam<INT_T>::ValidateValue(LPCTSTR pszValue)
 {
     bool bRes = false;
 
     if (pszValue)
     {
-        LPTSTR psTmp  = NULL;
-        INT_T  nValue = _tcstol(pszValue, &psTmp, 0);
+        LPTSTR psTmp = NULL;
+        INT_T nValue = _tcstol(pszValue, &psTmp, 0);
 
         if (*psTmp == 0 && nValue >= m_nMin && nValue <= m_nMax)
         {
@@ -300,18 +282,25 @@ bool neTKVMRegNumParam<INT_T>::ValidateValue(LPCTSTR pszValue)
     return bRes;
 }
 
-template <class INT_T>
-void neTKVMRegNumParam<INT_T>::Load(void)
+template <class INT_T> void neTKVMRegNumParam<INT_T>::Load(void)
 {
     neTKVMRegParam::Load();
 
-    m_nMin = (INT_T)ReadStringDWord(m_DevParamsRegKey, REG_PARAM_NUM_TYPE_MIN_VNAME, (DWORD)0, m_ParamRegSubKey.c_str());
-    m_nMax = (INT_T)ReadStringDWord(m_DevParamsRegKey, REG_PARAM_NUM_TYPE_MAX_VNAME, (DWORD)-1, m_ParamRegSubKey.c_str());
-    m_nStep = (INT_T)ReadStringDWord(m_DevParamsRegKey, REG_PARAM_NUM_TYPE_STEP_VNAME, (DWORD)1, m_ParamRegSubKey.c_str());
+    m_nMin = (INT_T)ReadStringDWord(m_DevParamsRegKey,
+                                    REG_PARAM_NUM_TYPE_MIN_VNAME,
+                                    (DWORD)0,
+                                    m_ParamRegSubKey.c_str());
+    m_nMax = (INT_T)ReadStringDWord(m_DevParamsRegKey,
+                                    REG_PARAM_NUM_TYPE_MAX_VNAME,
+                                    (DWORD)-1,
+                                    m_ParamRegSubKey.c_str());
+    m_nStep = (INT_T)ReadStringDWord(m_DevParamsRegKey,
+                                     REG_PARAM_NUM_TYPE_STEP_VNAME,
+                                     (DWORD)1,
+                                     m_ParamRegSubKey.c_str());
 }
 
-template <class INT_T>
-void neTKVMRegNumParam<INT_T>::FillExInfo(neTKVMRegParamExInfoList &ExInfoList)
+template <class INT_T> void neTKVMRegNumParam<INT_T>::FillExInfo(neTKVMRegParamExInfoList &ExInfoList)
 {
     tstringstream tss;
 
@@ -332,19 +321,16 @@ void neTKVMRegNumParam<INT_T>::FillExInfo(neTKVMRegParamExInfoList &ExInfoList)
 neTKVMRegIntParam::neTKVMRegIntParam(neTKVMRegAccess &DevParamsRegKey, LPCTSTR pszName)
     : neTKVMRegNumParam<unsigned int>(DevParamsRegKey, pszName)
 {
-
 }
 
 neTKVMRegLongParam::neTKVMRegLongParam(neTKVMRegAccess &DevParamsRegKey, LPCTSTR pszName)
     : neTKVMRegNumParam<unsigned long>(DevParamsRegKey, pszName)
 {
-
 }
 
 neTKVMRegEditParam::neTKVMRegEditParam(neTKVMRegAccess &DevParamsRegKey, LPCTSTR pszName)
     : m_nLimitText(0), m_bUpperCase(false), neTKVMRegParam(DevParamsRegKey, pszName)
 {
-
 }
 
 bool neTKVMRegEditParam::ValidateValue(LPCTSTR pszValue)
@@ -383,8 +369,16 @@ void neTKVMRegEditParam::Load(void)
 {
     neTKVMRegParam::Load();
 
-    m_nLimitText = ReadStringDWord(m_DevParamsRegKey, REG_PARAM_EDIT_TYPE_LIM_VNAME, m_nLimitText, m_ParamRegSubKey.c_str());
-    m_bUpperCase = ReadStringDWord(m_DevParamsRegKey, REG_PARAM_EDIT_TYPE_UCASE_VNAME, (DWORD)false, m_ParamRegSubKey.c_str())?true:false;
+    m_nLimitText = ReadStringDWord(m_DevParamsRegKey,
+                                   REG_PARAM_EDIT_TYPE_LIM_VNAME,
+                                   m_nLimitText,
+                                   m_ParamRegSubKey.c_str());
+    m_bUpperCase = ReadStringDWord(m_DevParamsRegKey,
+                                   REG_PARAM_EDIT_TYPE_UCASE_VNAME,
+                                   (DWORD) false,
+                                   m_ParamRegSubKey.c_str())
+                                                                                                                       ? true
+                                                                                                                       : false;
 }
 
 void neTKVMRegEditParam::FillExInfo(neTKVMRegParamExInfoList &ExInfoList)

@@ -34,9 +34,9 @@
 #include <windows.h>
 #include <stdio.h>
 
-#define DoPrint(fmt, ...) printf(fmt##"\n", __VA_ARGS__)
-#define DPrintf(a,b) DoPrint b
-#define RtlOffsetToPointer(B,O)  ((PCHAR)( ((PCHAR)(B)) + ((ULONG_PTR)(O))  ))
+#define DoPrint(fmt, ...)        printf(fmt##"\n", __VA_ARGS__)
+#define DPrintf(a, b)            DoPrint b
+#define RtlOffsetToPointer(B, O) ((PCHAR)(((PCHAR)(B)) + ((ULONG_PTR)(O))))
 
 #include "ethernetutils.h"
 #endif //+OFFLOAD_UNIT_TEST
@@ -44,11 +44,11 @@
 #if !defined(OFFLOAD_UNIT_TEST)
 
 #if !defined(RtlOffsetToPointer)
-#define RtlOffsetToPointer(Base,Offset)  ((PCHAR)(((PCHAR)(Base))+((ULONG_PTR)(Offset))))
+#define RtlOffsetToPointer(Base, Offset) ((PCHAR)(((PCHAR)(Base)) + ((ULONG_PTR)(Offset))))
 #endif
 
 #if !defined(RtlPointerToOffset)
-#define RtlPointerToOffset(Base,Pointer)  ((ULONG)(((PCHAR)(Pointer))-((PCHAR)(Base))))
+#define RtlPointerToOffset(Base, Pointer) ((ULONG)(((PCHAR)(Pointer)) - ((PCHAR)(Base))))
 #endif
 
 extern "C"
@@ -72,10 +72,9 @@ extern "C"
 #endif
 
 #if !NDIS_SUPPORT_NDIS620
-    static VOID FORCEINLINE NdisFreeMemoryWithTagPriority(
-        IN  NDIS_HANDLE             NdisHandle,
-        IN  PVOID                   VirtualAddress,
-        IN  ULONG                   Tag)
+    static VOID FORCEINLINE NdisFreeMemoryWithTagPriority(IN NDIS_HANDLE NdisHandle,
+                                                          IN PVOID VirtualAddress,
+                                                          IN ULONG Tag)
     {
         UNREFERENCED_PARAMETER(NdisHandle);
         UNREFERENCED_PARAMETER(Tag);
@@ -102,9 +101,9 @@ typedef struct _tagRunTimeNdisVersion
     UCHAR minor;
     UCHAR osmajor;
     UCHAR osminor;
-}tRunTimeNdisVersion;
+} tRunTimeNdisVersion;
 
-extern const tRunTimeNdisVersion& ParandisVersion;
+extern const tRunTimeNdisVersion &ParandisVersion;
 
 /* true if effective NDIS version is at least major.minor */
 static bool FORCEINLINE CheckNdisVersion(UCHAR major, UCHAR minor)
@@ -131,7 +130,7 @@ typedef struct _PARANDIS_ADAPTER PARANDIS_ADAPTER;
 
 void ParaNdisPollNotify(PARANDIS_ADAPTER *, UINT Index, const char *Origin);
 void ParaNdisPollSetAffinity(PARANDIS_ADAPTER *);
-void RxPoll(PARANDIS_ADAPTER* pContext, UINT BundleIndex, NDIS_POLL_RECEIVE_DATA& RxData);
+void RxPoll(PARANDIS_ADAPTER *pContext, UINT BundleIndex, NDIS_POLL_RECEIVE_DATA &RxData);
 
 #include "ParaNdis-SM.h"
 #include "ParaNdis-RSS.h"
@@ -140,15 +139,15 @@ typedef union _tagTcpIpPacketParsingResult tTcpIpPacketParsingResult;
 
 typedef struct _tagCompletePhysicalAddress
 {
-    PHYSICAL_ADDRESS    Physical;
-    PVOID               Virtual;
-    ULONG               size;
+    PHYSICAL_ADDRESS Physical;
+    PVOID Virtual;
+    ULONG size;
 } tCompletePhysicalAddress;
 
 struct _tagRxNetDescriptor;
-typedef struct _tagRxNetDescriptor  RxNetDescriptor, *pRxNetDescriptor;
+typedef struct _tagRxNetDescriptor RxNetDescriptor, *pRxNetDescriptor;
 
-static __inline BOOLEAN ParaNDIS_IsQueueInterruptEnabled(struct virtqueue * _vq);
+static __inline BOOLEAN ParaNDIS_IsQueueInterruptEnabled(struct virtqueue *_vq);
 
 struct PARANDIS_RECEIVE_QUEUE
 {
@@ -161,9 +160,9 @@ struct PARANDIS_RECEIVE_QUEUE
     {
         NdisFreeSpinLock(&Lock);
     }
-    NDIS_SPIN_LOCK          Lock;
-    LIST_ENTRY              BuffersList;
-    COwnership              Ownership;
+    NDIS_SPIN_LOCK Lock;
+    LIST_ENTRY BuffersList;
+    COwnership Ownership;
 };
 typedef PARANDIS_RECEIVE_QUEUE *PPARANDIS_RECEIVE_QUEUE;
 
@@ -185,16 +184,17 @@ struct NdisPollHandler
     bool Register(PPARANDIS_ADAPTER AdapterContext, int Index);
     void Unregister();
     void EnableNotification(BOOLEAN Enable);
-    void HandlePoll(NDIS_POLL_DATA* PollData);
-    bool UpdateAffinity(const PROCESSOR_NUMBER&);
+    void HandlePoll(NDIS_POLL_DATA *PollData);
+    bool UpdateAffinity(const PROCESSOR_NUMBER &);
 };
 
-struct CPUPathBundle : public CPlacementAllocatable {
+struct CPUPathBundle : public CPlacementAllocatable
+{
     CParaNdisRX rxPath;
-    bool        rxCreated = false;
+    bool rxCreated = false;
 
     CParaNdisTX txPath;
-    bool        txCreated = false;
+    bool txCreated = false;
 
     CParaNdisCX *cxPath = NULL;
 
@@ -209,7 +209,7 @@ struct CPUPathBundle : public CPlacementAllocatable {
             txCreated = false;
         }
     }
-} ;
+};
 
 struct tRxLayout
 {
@@ -225,8 +225,8 @@ struct tRxLayout
 };
 
 // those stuff defined in NDIS
-//NDIS_MINIPORT_MAJOR_VERSION
-//NDIS_MINIPORT_MINOR_VERSION
+// NDIS_MINIPORT_MAJOR_VERSION
+// NDIS_MINIPORT_MINOR_VERSION
 // those stuff defined in build environment
 // PARANDIS_MAJOR_DRIVER_VERSION
 // PARANDIS_MINOR_DRIVER_VERSION
@@ -244,13 +244,13 @@ struct tRxLayout
 // #define VIRTIO_DBG_USE_IOPORT    0x99
 
 // to be set to real limit later
-#define MAX_RX_LOOPS    1000
+#define MAX_RX_LOOPS                        1000
 
-#define VIRTIO_NET_INVALID_INTERRUPT_STATUS     0xFF
+#define VIRTIO_NET_INVALID_INTERRUPT_STATUS 0xFF
 
 #define PARANDIS_MULTICAST_LIST_SIZE        32
 #define PARANDIS_MEMORY_TAG                 '5muQ'
-#define PARANDIS_DEFAULT_LINK_SPEED         10000000000  // 10Gbps link speed
+#define PARANDIS_DEFAULT_LINK_SPEED         10000000000 // 10Gbps link speed
 #define PARANDIS_MIN_LSO_SEGMENTS           2
 // reported for TSO
 #define PARANDIS_MAX_LSO_SIZE               0xF800
@@ -259,27 +259,23 @@ struct tRxLayout
 // #define PARANDIS_MAX_USO_SIZE               PARANDIS_MAX_LSO_SIZE
 
 #if !defined(PARANDIS_MAX_USO_SIZE)
-//kernel has a limitation of 64 segments, minimal mss in Windows is 536
-#define PARANDIS_MAX_USO_SIZE               (536 * 64)
+// kernel has a limitation of 64 segments, minimal mss in Windows is 536
+#define PARANDIS_MAX_USO_SIZE (536 * 64)
 #endif
 
-#define PARANDIS_UNLIMITED_PACKETS_TO_INDICATE  (~0ul)
+#define PARANDIS_UNLIMITED_PACKETS_TO_INDICATE (~0ul)
 
 #define PARANDIS_MIN_RX_BUFFER_PERCENT_DEFAULT 0
 
-static const ULONG PARANDIS_PACKET_FILTERS =
-    NDIS_PACKET_TYPE_DIRECTED |
-    NDIS_PACKET_TYPE_MULTICAST |
-    NDIS_PACKET_TYPE_BROADCAST |
-    NDIS_PACKET_TYPE_PROMISCUOUS |
-    NDIS_PACKET_TYPE_ALL_MULTICAST;
+static const ULONG PARANDIS_PACKET_FILTERS = NDIS_PACKET_TYPE_DIRECTED | NDIS_PACKET_TYPE_MULTICAST |
+                                             NDIS_PACKET_TYPE_BROADCAST | NDIS_PACKET_TYPE_PROMISCUOUS |
+                                             NDIS_PACKET_TYPE_ALL_MULTICAST;
 
 typedef VOID (*ONPAUSECOMPLETEPROC)(VOID *);
 
-
 typedef enum _tagSendReceiveState
 {
-    srsDisabled = 0,        // initial state
+    srsDisabled = 0, // initial state
     srsPausing,
     srsEnabled
 } tSendReceiveState;
@@ -312,41 +308,40 @@ typedef enum _tagOffloadSettingsBit
     osbT6RxIpExtChecksum = (1 << 23),
     osbT4Uso = (1 << 24),
     osbT6Uso = (1 << 25),
-}tOffloadSettingsBit;
+} tOffloadSettingsBit;
 
 typedef struct _tagOffloadSettingsFlags
 {
-    int fTxIPChecksum       : 1;
-    int fTxTCPChecksum      : 1;
-    int fTxUDPChecksum      : 1;
-    int fTxTCPOptions       : 1;
-    int fTxIPOptions        : 1;
-    int fTxLso              : 1;
-    int fTxLsoIP            : 1;
-    int fTxLsoTCP           : 1;
+    int fTxIPChecksum : 1;
+    int fTxTCPChecksum : 1;
+    int fTxUDPChecksum : 1;
+    int fTxTCPOptions : 1;
+    int fTxIPOptions : 1;
+    int fTxLso : 1;
+    int fTxLsoIP : 1;
+    int fTxLsoTCP : 1;
 
-    int fRxIPChecksum       : 1;
-    int fRxTCPChecksum      : 1;
-    int fRxUDPChecksum      : 1;
-    int fRxTCPOptions       : 1;
-    int fRxIPOptions        : 1;
-    int fTxTCPv6Checksum    : 1;
-    int fTxUDPv6Checksum    : 1;
-    int fTxTCPv6Options     : 1;
+    int fRxIPChecksum : 1;
+    int fRxTCPChecksum : 1;
+    int fRxUDPChecksum : 1;
+    int fRxTCPOptions : 1;
+    int fRxIPOptions : 1;
+    int fTxTCPv6Checksum : 1;
+    int fTxUDPv6Checksum : 1;
+    int fTxTCPv6Options : 1;
 
-    int fTxIPv6Ext          : 1;
-    int fTxLsov6            : 1;
-    int fTxLsov6IP          : 1;
-    int fTxLsov6TCP         : 1;
-    int fRxTCPv6Checksum    : 1;
-    int fRxUDPv6Checksum    : 1;
-    int fRxTCPv6Options     : 1;
-    int fRxIPv6Ext          : 1;
+    int fTxIPv6Ext : 1;
+    int fTxLsov6 : 1;
+    int fTxLsov6IP : 1;
+    int fTxLsov6TCP : 1;
+    int fRxTCPv6Checksum : 1;
+    int fRxUDPv6Checksum : 1;
+    int fRxTCPv6Options : 1;
+    int fRxIPv6Ext : 1;
 
-    int fUsov4              : 1;
-    int fUsov6              : 1;
-}tOffloadSettingsFlags;
-
+    int fUsov4 : 1;
+    int fUsov6 : 1;
+} tOffloadSettingsFlags;
 
 typedef struct _tagOffloadSettings
 {
@@ -355,27 +350,26 @@ typedef struct _tagOffloadSettings
     /* load once, do not modify - bitmask of offload features, enabled in configuration */
     ULONG flagsValue;
     ULONG ipHeaderOffset;
-}tOffloadSettings;
+} tOffloadSettings;
 
 typedef struct _tagChecksumCheckResult
 {
-    union
-    {
+    union {
         struct
         {
-            int   TcpFailed     :1;
-            int   UdpFailed     :1;
-            int   IpFailed      :1;
-            int   TcpOK         :1;
-            int   UdpOK         :1;
-            int   IpOK          :1;
+            int TcpFailed : 1;
+            int UdpFailed : 1;
+            int IpFailed : 1;
+            int TcpOK : 1;
+            int UdpOK : 1;
+            int IpOK : 1;
         } flags;
         int value;
     };
-}tChecksumCheckResult;
+} tChecksumCheckResult;
 
-typedef PMDL                tPacketHolderType;
-typedef PNET_BUFFER_LIST    tPacketIndicationType;
+typedef PMDL tPacketHolderType;
+typedef PNET_BUFFER_LIST tPacketIndicationType;
 
 typedef struct _tagMaxPacketSize
 {
@@ -384,43 +378,42 @@ typedef struct _tagMaxPacketSize
     UINT nMaxFullSizeHwTx;
     UINT nMaxDataSizeHwRx;
     UINT nMaxFullSizeOsRx;
-}tMaxPacketSize;
+} tMaxPacketSize;
 
 typedef struct _tagLinkProperties
 {
     ULONGLONG Speed;
     NET_IF_MEDIA_DUPLEX_STATE DuplexState;
-}tLinkProperties;
+} tLinkProperties;
 
 #define MAX_HW_RX_PACKET_SIZE (MAX_IP4_DATAGRAM_SIZE + ETH_HEADER_SIZE + ETH_PRIORITY_HEADER_SIZE)
 #define MAX_OS_RX_PACKET_SIZE (MAX_IP4_DATAGRAM_SIZE + ETH_HEADER_SIZE)
 
-
 typedef struct _tagMulticastData
 {
-    ULONG                   nofMulticastEntries;
-    UCHAR                   MulticastList[ETH_ALEN * PARANDIS_MULTICAST_LIST_SIZE];
-}tMulticastData;
+    ULONG nofMulticastEntries;
+    UCHAR MulticastList[ETH_ALEN * PARANDIS_MULTICAST_LIST_SIZE];
+} tMulticastData;
 
 typedef struct _tagNET_PACKET_INFO
 {
     struct
     {
-        int isBroadcast   : 1;
-        int isMulticast   : 1;
-        int isUnicast     : 1;
+        int isBroadcast : 1;
+        int isMulticast : 1;
+        int isUnicast : 1;
         int hasVlanHeader : 1;
-        int isIP4         : 1;
-        int isIP6         : 1;
-        int isTCP         : 1;
-        int isUDP         : 1;
-        int isFragment    : 1;
+        int isIP4 : 1;
+        int isIP6 : 1;
+        int isTCP : 1;
+        int isUDP : 1;
+        int isFragment : 1;
     };
 
     struct
     {
         UINT32 UserPriority : 3;
-        UINT32 VlanId       : 12;
+        UINT32 VlanId : 12;
     } Vlan;
 
 #if PARANDIS_SUPPORT_RSS
@@ -444,104 +437,101 @@ typedef struct _tagNET_PACKET_INFO
     ULONG dataLength;
 } NET_PACKET_INFO, *PNET_PACKET_INFO;
 
-struct _tagRxNetDescriptor {
+struct _tagRxNetDescriptor
+{
     LIST_ENTRY listEntry;
     LIST_ENTRY ReceiveQueueListEntry;
 
-#define PARANDIS_FIRST_RX_DATA_PAGE   (1)
+#define PARANDIS_FIRST_RX_DATA_PAGE (1)
     struct VirtIOBufferDescriptor *BufferSGArray;
-    tCompletePhysicalAddress      *PhysicalPages;
-    ULONG                          BufferSGLength;
-    tCompletePhysicalAddress       IndirectArea;
-    tPacketHolderType              Holder;
+    tCompletePhysicalAddress *PhysicalPages;
+    ULONG BufferSGLength;
+    tCompletePhysicalAddress IndirectArea;
+    tPacketHolderType Holder;
 
     NET_PACKET_INFO PacketInfo;
 
-    CParaNdisRX*                   Queue;
+    CParaNdisRX *Queue;
 };
 
 struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
 {
-    _PARANDIS_ADAPTER(NDIS_HANDLE Handle) :
-        MiniportHandle(Handle),
-        guestAnnouncePackets(this),
-        CXPath(this),
-        RSSParameters(Handle)
+    _PARANDIS_ADAPTER(NDIS_HANDLE Handle)
+        : MiniportHandle(Handle), guestAnnouncePackets(this), CXPath(this), RSSParameters(Handle)
     {
         m_StateMachine.RegisterFlow(m_RxStateMachine);
         m_StateMachine.RegisterFlow(m_CxStateMachine);
     }
     ~_PARANDIS_ADAPTER();
-    NDIS_HANDLE             MiniportHandle = NULL;
-    NDIS_HANDLE             InterruptHandle = NULL;
-    NDIS_HANDLE             BufferListsPool = NULL;
-    NDIS_HANDLE             BufferListsPoolForArm = NULL;
+    NDIS_HANDLE MiniportHandle = NULL;
+    NDIS_HANDLE InterruptHandle = NULL;
+    NDIS_HANDLE BufferListsPool = NULL;
+    NDIS_HANDLE BufferListsPoolForArm = NULL;
 
-    CPciResources           PciResources;
-    VirtIODevice            IODevice = {};
-    CNdisSharedMemory       *pPageAllocator = NULL;
+    CPciResources PciResources;
+    VirtIODevice IODevice = {};
+    CNdisSharedMemory *pPageAllocator = NULL;
 
-    LARGE_INTEGER           LastTxCompletionTimeStamp = {};
+    LARGE_INTEGER LastTxCompletionTimeStamp = {};
 #ifdef PARANDIS_DEBUG_INTERRUPTS
-    LARGE_INTEGER           LastInterruptTimeStamp = {};
+    LARGE_INTEGER LastInterruptTimeStamp = {};
 #endif
-    u64                     u64HostFeatures = 0;
-    u64                     u64GuestFeatures = 0;
-    BOOLEAN                 bConnected = false;
-    BOOLEAN                 bSuppressLinkUp = false;
-    BOOLEAN                 bGuestAnnounced = false;
-    NDIS_PHYSICAL_MEDIUM    physicalMediaType;
+    u64 u64HostFeatures = 0;
+    u64 u64GuestFeatures = 0;
+    BOOLEAN bConnected = false;
+    BOOLEAN bSuppressLinkUp = false;
+    BOOLEAN bGuestAnnounced = false;
+    NDIS_PHYSICAL_MEDIUM physicalMediaType;
     NDIS_MEDIA_CONNECT_STATE fCurrentLinkState;
-    BOOLEAN                 bEnableInterruptHandlingDPC = false;
-    BOOLEAN                 bDoSupportPriority = false;
-    BOOLEAN                 bLinkDetectSupported = false;
-    BOOLEAN                 bGuestAnnounceSupported = false;
-    BOOLEAN                 bMaxMTUConfigSupported = false;
-    BOOLEAN                 bLinkPropertiesConfigSupported = false;
-    BOOLEAN                 bGuestChecksumSupported = false;
-    BOOLEAN                 bControlQueueSupported = false;
-    BOOLEAN                 bUseMergedBuffers = false;
-    BOOLEAN                 bSurprizeRemoved = false;
-    BOOLEAN                 bUsingMSIX = false;
-    BOOLEAN                 bUseIndirect = false;
-    BOOLEAN                 bAnyLayout = false;
-    BOOLEAN                 bCtrlRXFiltersSupported = false;
-    BOOLEAN                 bCtrlRXExtraFiltersSupported = false;
-    BOOLEAN                 bCtrlVLANFiltersSupported = false;
-    BOOLEAN                 bCtrlMACAddrSupported = false;
-    BOOLEAN                 bCfgMACAddrSupported = false;
-    BOOLEAN                 bMultiQueue = false;
-    BOOLEAN                 bPollModeTry = false;
-    BOOLEAN                 bPollModeEnabled = false;
-    USHORT                  nHardwareQueues = false;
-    ULONG                   ulCurrentVlansFilterSet = false;
-    tMulticastData          MulticastData = {};
-    UINT                    uNumberOfHandledRXPacketsInDPC = 0;
-    UINT                    MinRxBufferPercent;
-    LONG                    counterDPCInside = 0;
-    ULONG                   ulPriorityVlanSetting = 0;
-    ULONG                   VlanId = 0;
-    ULONG                   ulEnableWakeup = 0;
-    tMaxPacketSize          MaxPacketSize = {};
-    tRxLayout               RxLayout = {};
-    tLinkProperties         LinkProperties = {};
-    ULONG                   ulUniqueID = 0;
-    UCHAR                   PermanentMacAddress[ETH_ALEN] = {};
-    UCHAR                   CurrentMacAddress[ETH_ALEN] = {};
-    ULONG                   PacketFilter = 0;
-    ULONG                   DummyLookAhead = 0;
-    ULONG                   nVirtioHeaderSize = 0;
+    BOOLEAN bEnableInterruptHandlingDPC = false;
+    BOOLEAN bDoSupportPriority = false;
+    BOOLEAN bLinkDetectSupported = false;
+    BOOLEAN bGuestAnnounceSupported = false;
+    BOOLEAN bMaxMTUConfigSupported = false;
+    BOOLEAN bLinkPropertiesConfigSupported = false;
+    BOOLEAN bGuestChecksumSupported = false;
+    BOOLEAN bControlQueueSupported = false;
+    BOOLEAN bUseMergedBuffers = false;
+    BOOLEAN bSurprizeRemoved = false;
+    BOOLEAN bUsingMSIX = false;
+    BOOLEAN bUseIndirect = false;
+    BOOLEAN bAnyLayout = false;
+    BOOLEAN bCtrlRXFiltersSupported = false;
+    BOOLEAN bCtrlRXExtraFiltersSupported = false;
+    BOOLEAN bCtrlVLANFiltersSupported = false;
+    BOOLEAN bCtrlMACAddrSupported = false;
+    BOOLEAN bCfgMACAddrSupported = false;
+    BOOLEAN bMultiQueue = false;
+    BOOLEAN bPollModeTry = false;
+    BOOLEAN bPollModeEnabled = false;
+    USHORT nHardwareQueues = false;
+    ULONG ulCurrentVlansFilterSet = false;
+    tMulticastData MulticastData = {};
+    UINT uNumberOfHandledRXPacketsInDPC = 0;
+    UINT MinRxBufferPercent;
+    LONG counterDPCInside = 0;
+    ULONG ulPriorityVlanSetting = 0;
+    ULONG VlanId = 0;
+    ULONG ulEnableWakeup = 0;
+    tMaxPacketSize MaxPacketSize = {};
+    tRxLayout RxLayout = {};
+    tLinkProperties LinkProperties = {};
+    ULONG ulUniqueID = 0;
+    UCHAR PermanentMacAddress[ETH_ALEN] = {};
+    UCHAR CurrentMacAddress[ETH_ALEN] = {};
+    ULONG PacketFilter = 0;
+    ULONG DummyLookAhead = 0;
+    ULONG nVirtioHeaderSize = 0;
 
-    CMiniportStateMachine   m_StateMachine;
-    CDataFlowStateMachine   m_RxStateMachine;
+    CMiniportStateMachine m_StateMachine;
+    CDataFlowStateMachine m_RxStateMachine;
     CConfigFlowStateMachine m_CxStateMachine;
 
-
-    CGuestAnnouncePackets    guestAnnouncePackets;
+    CGuestAnnouncePackets guestAnnouncePackets;
 
     /* send part */
-    NDIS_STATISTICS_INFO    Statistics = {};
-    NDIS_STATISTICS_INFO    VfStatistics = {};
+    NDIS_STATISTICS_INFO Statistics = {};
+    NDIS_STATISTICS_INFO VfStatistics = {};
     struct
     {
         ULONG framesCSOffload;
@@ -565,83 +555,85 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
     } extraStatistics = {};
 
     /* initial number of free Tx descriptor(from cfg) - max number of available Tx descriptors */
-    UINT                    maxFreeTxDescriptors = 0;
+    UINT maxFreeTxDescriptors = 0;
     /* total of Rx buffer in turnaround */
-    UINT                    maxRxBufferPerQueue = 0;
-    UINT                    nPnpEventIndex = 0;
-    NDIS_DEVICE_PNP_EVENT   PnpEvents[16] = {};
-    tOffloadSettings        Offload = {};
+    UINT maxRxBufferPerQueue = 0;
+    UINT nPnpEventIndex = 0;
+    NDIS_DEVICE_PNP_EVENT PnpEvents[16] = {};
+    tOffloadSettings Offload = {};
     NDIS_OFFLOAD_PARAMETERS InitialOffloadParameters = {};
 
 #ifdef PARANDIS_SUPPORT_RSS
-    PARANDIS_RECEIVE_QUEUE      ReceiveQueues[PARANDIS_RSS_MAX_RECEIVE_QUEUES];
-    NdisPollHandler             PollHandlers[PARANDIS_RSS_MAX_RECEIVE_QUEUES];
+    PARANDIS_RECEIVE_QUEUE ReceiveQueues[PARANDIS_RSS_MAX_RECEIVE_QUEUES];
+    NdisPollHandler PollHandlers[PARANDIS_RSS_MAX_RECEIVE_QUEUES];
 
-#define PARANDIS_FIRST_RSS_RECEIVE_QUEUE    (0)
+#define PARANDIS_FIRST_RSS_RECEIVE_QUEUE (0)
 #endif
 #define PARANDIS_RECEIVE_UNCLASSIFIED_PACKET (-1)
-#define PARANDIS_RECEIVE_NO_QUEUE  (-2)
+#define PARANDIS_RECEIVE_NO_QUEUE            (-2)
 
     CParaNdisCX CXPath;
     BOOLEAN bCXPathCreated = false;
     BOOLEAN bSharedVectors = false;
     BOOLEAN bDeviceNeedsReset = false;
 
-    CPUPathBundle               *pPathBundles = NULL;
-    UINT                        nPathBundles = 0;
+    CPUPathBundle *pPathBundles = NULL;
+    UINT nPathBundles = 0;
 
-    CPUPathBundle              **RSS2QueueMap = NULL;
-    USHORT                      RSS2QueueLength = 0;
+    CPUPathBundle **RSS2QueueMap = NULL;
+    USHORT RSS2QueueLength = 0;
 
-    PIO_INTERRUPT_MESSAGE_INFO  pMSIXInfoTable = NULL;
-    NDIS_HANDLE                 DmaHandle = NULL;
-    ULONG                       ulIrqReceived = 0;
-    NDIS_OFFLOAD                ReportedOffloadCapabilities = {};
-    NDIS_OFFLOAD                ReportedOffloadConfiguration = {};
-    BOOLEAN                     bOffloadv4Enabled = false;
-    BOOLEAN                     bOffloadv6Enabled = false;
-    BOOLEAN                     bDeviceInitialized = false;
-    BOOLEAN                     bRSSSupportedByDevice = false;
-    BOOLEAN                     bRSSSupportedByDevicePersistent = false;
-    BOOLEAN                     bHashReportedByDevice = false;
+    PIO_INTERRUPT_MESSAGE_INFO pMSIXInfoTable = NULL;
+    NDIS_HANDLE DmaHandle = NULL;
+    ULONG ulIrqReceived = 0;
+    NDIS_OFFLOAD ReportedOffloadCapabilities = {};
+    NDIS_OFFLOAD ReportedOffloadConfiguration = {};
+    BOOLEAN bOffloadv4Enabled = false;
+    BOOLEAN bOffloadv6Enabled = false;
+    BOOLEAN bDeviceInitialized = false;
+    BOOLEAN bRSSSupportedByDevice = false;
+    BOOLEAN bRSSSupportedByDevicePersistent = false;
+    BOOLEAN bHashReportedByDevice = false;
 
 #if PARANDIS_SUPPORT_RSS
-    BOOLEAN                     bRSSOffloadSupported = false;
+    BOOLEAN bRSSOffloadSupported = false;
     NDIS_RECEIVE_SCALE_CAPABILITIES RSSCapabilities = {};
-    PARANDIS_RSS_PARAMS         RSSParameters;
-    CCHAR                       RSSMaxQueuesNumber = 0;
+    PARANDIS_RSS_PARAMS RSSParameters;
+    CCHAR RSSMaxQueuesNumber = 0;
     struct
     {
-        ULONG                   SupportedHashes;
-        USHORT                  MaxIndirectEntries;
-        UCHAR                   MaxKeySize;
+        ULONG SupportedHashes;
+        USHORT MaxIndirectEntries;
+        UCHAR MaxKeySize;
     } DeviceRSSCapabilities = {};
 #else
-    PARANDIS_RSS_PARAMS         RSSParameters;
+    PARANDIS_RSS_PARAMS RSSParameters;
 #endif
 
 #if PARANDIS_SUPPORT_RSC
-    struct {
-        BOOLEAN                     bIPv4SupportedSW;
-        BOOLEAN                     bIPv6SupportedSW;
-        BOOLEAN                     bIPv4SupportedHW;
-        BOOLEAN                     bIPv6SupportedHW;
-        BOOLEAN                     bIPv4Enabled;
-        BOOLEAN                     bIPv6Enabled;
-        BOOLEAN                     bQemuSupported;
-        BOOLEAN                     bHasDynamicConfig;
-        struct {
-            LARGE_INTEGER           CoalescedPkts;
-            LARGE_INTEGER           CoalescedOctets;
-            LARGE_INTEGER           CoalesceEvents;
-        }                           Statistics;
+    struct
+    {
+        BOOLEAN bIPv4SupportedSW;
+        BOOLEAN bIPv6SupportedSW;
+        BOOLEAN bIPv4SupportedHW;
+        BOOLEAN bIPv6SupportedHW;
+        BOOLEAN bIPv4Enabled;
+        BOOLEAN bIPv6Enabled;
+        BOOLEAN bQemuSupported;
+        BOOLEAN bHasDynamicConfig;
+        struct
+        {
+            LARGE_INTEGER CoalescedPkts;
+            LARGE_INTEGER CoalescedOctets;
+            LARGE_INTEGER CoalesceEvents;
+        } Statistics;
     } RSC = {};
 #endif
 
-    ULONG                           uMaxFragmentsInOneNB;
+    ULONG uMaxFragmentsInOneNB;
 
-    _PARANDIS_ADAPTER(const _PARANDIS_ADAPTER&) = delete;
-    _PARANDIS_ADAPTER& operator= (const _PARANDIS_ADAPTER&) = delete;
+    _PARANDIS_ADAPTER(const _PARANDIS_ADAPTER &) = delete;
+    _PARANDIS_ADAPTER &operator=(const _PARANDIS_ADAPTER &) = delete;
 };
 typedef _PARANDIS_ADAPTER PARANDIS_ADAPTER, *PPARANDIS_ADAPTER;
 
@@ -662,87 +654,61 @@ BOOLEAN FORCEINLINE IsPrioritySupported(PARANDIS_ADAPTER *pContext)
     return pContext->ulPriorityVlanSetting & 1;
 }
 
-NDIS_STATUS ParaNdis_InitializeContext(
-    PARANDIS_ADAPTER *pContext,
-    PNDIS_RESOURCE_LIST ResourceList);
+NDIS_STATUS ParaNdis_InitializeContext(PARANDIS_ADAPTER *pContext, PNDIS_RESOURCE_LIST ResourceList);
 
-NDIS_STATUS ParaNdis_FinishInitialization(
-    PARANDIS_ADAPTER *pContext);
+NDIS_STATUS ParaNdis_FinishInitialization(PARANDIS_ADAPTER *pContext);
 
-NDIS_STATUS ParaNdis_ConfigureMSIXVectors(
-    PARANDIS_ADAPTER *pContext);
+NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext);
 
 void ParaNdis_CXDPCWorkBody(PARANDIS_ADAPTER *pContext);
 
 void ParaNdis_ReuseRxNBLs(PNET_BUFFER_LIST pNBL);
 
-NDIS_STATUS ParaNdis_SetMulticastList(
-    PARANDIS_ADAPTER *pContext,
-    PVOID Buffer,
-    ULONG BufferSize,
-    PUINT pBytesRead,
-    PUINT pBytesNeeded);
+NDIS_STATUS ParaNdis_SetMulticastList(PARANDIS_ADAPTER *pContext,
+                                      PVOID Buffer,
+                                      ULONG BufferSize,
+                                      PUINT pBytesRead,
+                                      PUINT pBytesNeeded);
 
-VOID ParaNdis_VirtIOEnableIrqSynchronized(
-    PARANDIS_ADAPTER *pContext,
-    ULONG interruptSource);
+VOID ParaNdis_VirtIOEnableIrqSynchronized(PARANDIS_ADAPTER *pContext, ULONG interruptSource);
 
-VOID ParaNdis_VirtIODisableIrqSynchronized(
-    PARANDIS_ADAPTER *pContext,
-    ULONG interruptSource);
+VOID ParaNdis_VirtIODisableIrqSynchronized(PARANDIS_ADAPTER *pContext, ULONG interruptSource);
 
-static __inline VOID ParaNdis_ProcessorNumberToGroupAffinity(
-    PGROUP_AFFINITY Affinity,
-    const PPROCESSOR_NUMBER Processor)
+static __inline VOID ParaNdis_ProcessorNumberToGroupAffinity(PGROUP_AFFINITY Affinity,
+                                                             const PPROCESSOR_NUMBER Processor)
 {
     Affinity->Group = Processor->Group;
     Affinity->Mask = 1;
     Affinity->Mask <<= Processor->Number;
 }
 
-static __inline BOOLEAN
-ParaNDIS_IsQueueInterruptEnabled(struct virtqueue * _vq)
+static __inline BOOLEAN ParaNDIS_IsQueueInterruptEnabled(struct virtqueue *_vq)
 {
     return virtqueue_is_interrupt_enabled(_vq);
 }
 
-VOID ParaNdis_OnPnPEvent(
-    PARANDIS_ADAPTER *pContext,
-    NDIS_DEVICE_PNP_EVENT pEvent,
-    PVOID   pInfo,
-    ULONG   ulSize);
+VOID ParaNdis_OnPnPEvent(PARANDIS_ADAPTER *pContext, NDIS_DEVICE_PNP_EVENT pEvent, PVOID pInfo, ULONG ulSize);
 
-BOOLEAN ParaNdis_OnLegacyInterrupt(
-    PARANDIS_ADAPTER *pContext,
-    BOOLEAN *pRunDpc);
+BOOLEAN ParaNdis_OnLegacyInterrupt(PARANDIS_ADAPTER *pContext, BOOLEAN *pRunDpc);
 
-BOOLEAN ParaNdis_OnQueuedInterrupt(
-    PARANDIS_ADAPTER *pContext,
-    BOOLEAN *pRunDpc,
-    ULONG knownInterruptSources);
+BOOLEAN ParaNdis_OnQueuedInterrupt(PARANDIS_ADAPTER *pContext, BOOLEAN *pRunDpc, ULONG knownInterruptSources);
 
-VOID ParaNdis_OnShutdown(
-    PARANDIS_ADAPTER *pContext);
+VOID ParaNdis_OnShutdown(PARANDIS_ADAPTER *pContext);
 
-NDIS_STATUS ParaNdis_PowerOn(
-    PARANDIS_ADAPTER *pContext
-);
+NDIS_STATUS ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext);
 
-VOID ParaNdis_PowerOff(
-    PARANDIS_ADAPTER *pContext
-);
+VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext);
 
 void ParaNdis_DeviceConfigureRSC(PARANDIS_ADAPTER *pContext);
 
 void ParaNdis_ResetOffloadSettings(PARANDIS_ADAPTER *pContext, tOffloadSettingsFlags *pDest, PULONG from);
 
-tChecksumCheckResult ParaNdis_CheckRxChecksum(
-                                            PARANDIS_ADAPTER *pContext,
-                                            ULONG virtioFlags,
-                                            tCompletePhysicalAddress *pPacketPages,
-                                            PNET_PACKET_INFO pPacketInfo,
-                                            ULONG ulDataOffset,
-                                            BOOLEAN verifyLength);
+tChecksumCheckResult ParaNdis_CheckRxChecksum(PARANDIS_ADAPTER *pContext,
+                                              ULONG virtioFlags,
+                                              tCompletePhysicalAddress *pPacketPages,
+                                              PNET_PACKET_INFO pPacketInfo,
+                                              ULONG ulDataOffset,
+                                              BOOLEAN verifyLength);
 
 void ParaNdis_CallOnBugCheck(PARANDIS_ADAPTER *pContext);
 
@@ -750,38 +716,26 @@ void ParaNdis_CallOnBugCheck(PARANDIS_ADAPTER *pContext);
 Procedures to implement for NDIS specific implementation
 ******************************************************/
 
-PVOID ParaNdis_AllocateMemory(
-    PARANDIS_ADAPTER *pContext,
-    ULONG ulRequiredSize);
+PVOID ParaNdis_AllocateMemory(PARANDIS_ADAPTER *pContext, ULONG ulRequiredSize);
 
-PVOID ParaNdis_AllocateMemoryRaw(
-    NDIS_HANDLE MiniportHandle,
-    ULONG ulRequiredSize);
+PVOID ParaNdis_AllocateMemoryRaw(NDIS_HANDLE MiniportHandle, ULONG ulRequiredSize);
 
-NDIS_STATUS ParaNdis_FinishSpecificInitialization(
-    PARANDIS_ADAPTER *pContext);
+NDIS_STATUS ParaNdis_FinishSpecificInitialization(PARANDIS_ADAPTER *pContext);
 
-VOID ParaNdis_FinalizeCleanup(
-    PARANDIS_ADAPTER *pContext);
+VOID ParaNdis_FinalizeCleanup(PARANDIS_ADAPTER *pContext);
 
-NDIS_HANDLE ParaNdis_OpenNICConfiguration(
-    PARANDIS_ADAPTER *pContext);
+NDIS_HANDLE ParaNdis_OpenNICConfiguration(PARANDIS_ADAPTER *pContext);
 
-tPacketIndicationType ParaNdis_PrepareReceivedPacket(
-    PARANDIS_ADAPTER *pContext,
-    pRxNetDescriptor pBufferDesc,
-    PUINT            pnCoalescedSegmentsCount);
+tPacketIndicationType ParaNdis_PrepareReceivedPacket(PARANDIS_ADAPTER *pContext,
+                                                     pRxNetDescriptor pBufferDesc,
+                                                     PUINT pnCoalescedSegmentsCount);
 
-BOOLEAN ParaNdis_SynchronizeWithInterrupt(
-    PARANDIS_ADAPTER *pContext,
-    ULONG messageId,
-    tSynchronizedProcedure procedure,
-    PVOID parameter);
+BOOLEAN ParaNdis_SynchronizeWithInterrupt(PARANDIS_ADAPTER *pContext,
+                                          ULONG messageId,
+                                          tSynchronizedProcedure procedure,
+                                          PVOID parameter);
 
-typedef VOID (*tOnAdditionalPhysicalMemoryAllocated)(
-    PARANDIS_ADAPTER *pContext,
-    tCompletePhysicalAddress *pAddresses);
-
+typedef VOID (*tOnAdditionalPhysicalMemoryAllocated)(PARANDIS_ADAPTER *pContext, tCompletePhysicalAddress *pAddresses);
 
 typedef struct _tagPhysicalAddressAllocationContext
 {
@@ -790,92 +744,80 @@ typedef struct _tagPhysicalAddressAllocationContext
     tOnAdditionalPhysicalMemoryAllocated Callback;
 } tPhysicalAddressAllocationContext;
 
+BOOLEAN ParaNdis_InitialAllocatePhysicalMemory(PARANDIS_ADAPTER *pContext,
+                                               ULONG ulSize,
+                                               tCompletePhysicalAddress *pAddresses);
 
-BOOLEAN ParaNdis_InitialAllocatePhysicalMemory(
-    PARANDIS_ADAPTER *pContext,
-    ULONG ulSize,
-    tCompletePhysicalAddress *pAddresses);
+VOID ParaNdis_FreePhysicalMemory(PARANDIS_ADAPTER *pContext, tCompletePhysicalAddress *pAddresses);
 
-VOID ParaNdis_FreePhysicalMemory(
-    PARANDIS_ADAPTER *pContext,
-    tCompletePhysicalAddress *pAddresses);
+void ParaNdis_RestoreDeviceConfigurationAfterReset(PARANDIS_ADAPTER *pContext);
 
-void ParaNdis_RestoreDeviceConfigurationAfterReset(
-    PARANDIS_ADAPTER *pContext);
+VOID ParaNdis_UpdateDeviceFilters(PARANDIS_ADAPTER *pContext);
 
-VOID ParaNdis_UpdateDeviceFilters(
-    PARANDIS_ADAPTER *pContext);
+VOID ParaNdis_DeviceFiltersUpdateVlanId(PARANDIS_ADAPTER *pContext);
 
-VOID ParaNdis_DeviceFiltersUpdateVlanId(
-    PARANDIS_ADAPTER *pContext);
+VOID ParaNdis_SynchronizeLinkState(PARANDIS_ADAPTER *pContext, bool bReport = true);
 
-VOID ParaNdis_SynchronizeLinkState(
-    PARANDIS_ADAPTER *pContext,
-    bool bReport = true);
+VOID ParaNdis_SendGratuitousArpPacket(PARANDIS_ADAPTER *pContext);
 
-VOID ParaNdis_SendGratuitousArpPacket(
-    PARANDIS_ADAPTER *pContext);
-
-VOID ParaNdis_SetLinkState(
-    PARANDIS_ADAPTER *pContext,
-    NDIS_MEDIA_CONNECT_STATE LinkState);
+VOID ParaNdis_SetLinkState(PARANDIS_ADAPTER *pContext, NDIS_MEDIA_CONNECT_STATE LinkState);
 
 #endif //-OFFLOAD_UNIT_TEST
 
 typedef enum class _tagppResult
 {
     ppresNotTested = 0,
-    ppresNotIP     = 1,
-    ppresIPV4      = 2,
-    ppresIPV6      = 3,
-    ppresIPTooShort  = 1,
-    ppresPCSOK       = 1,
-    ppresCSOK        = 2,
-    ppresCSBad       = 3,
-    ppresXxpOther    = 1,
-    ppresXxpKnown    = 2,
+    ppresNotIP = 1,
+    ppresIPV4 = 2,
+    ppresIPV6 = 3,
+    ppresIPTooShort = 1,
+    ppresPCSOK = 1,
+    ppresCSOK = 2,
+    ppresCSBad = 3,
+    ppresXxpOther = 1,
+    ppresXxpKnown = 2,
     ppresXxpIncomplete = 3,
-    ppresIsTCP         = 0,
-    ppresIsUDP         = 1,
-}ppResult;
+    ppresIsTCP = 0,
+    ppresIsUDP = 1,
+} ppResult;
 
-inline bool operator ==(ULONG a, ppResult b)
+inline bool operator==(ULONG a, ppResult b)
 {
     return a == static_cast<ULONG>(b);
 }
 
-inline bool operator !=(ULONG a, ppResult b)
+inline bool operator!=(ULONG a, ppResult b)
 {
     return a != static_cast<ULONG>(b);
 }
 
-typedef union _tagTcpIpPacketParsingResult
-{
-    struct {
+typedef union _tagTcpIpPacketParsingResult {
+    struct
+    {
         /* 0 - not tested, 1 - not IP, 2 - IPV4, 3 - IPV6 */
-        ULONG ipStatus        : 2;
+        ULONG ipStatus : 2;
         /* 0 - not tested, 1 - n/a, 2 - CS, 3 - bad */
-        ULONG ipCheckSum      : 2;
+        ULONG ipCheckSum : 2;
         /* 0 - not tested, 1 - PCS, 2 - CS, 3 - bad */
-        ULONG xxpCheckSum     : 2;
+        ULONG xxpCheckSum : 2;
         /* 0 - not tested, 1 - other, 2 - known(contains basic TCP or UDP header), 3 - known incomplete */
-        ULONG xxpStatus       : 2;
+        ULONG xxpStatus : 2;
         /* 1 - contains complete payload */
-        ULONG xxpFull         : 1;
-        ULONG TcpUdp          : 1;
-        ULONG fixedIpCS       : 1;
-        ULONG fixedXxpCS      : 1;
-        ULONG IsFragment      : 1;
-        ULONG reserved        : 3;
-        ULONG ipHeaderSize    : 8;
+        ULONG xxpFull : 1;
+        ULONG TcpUdp : 1;
+        ULONG fixedIpCS : 1;
+        ULONG fixedXxpCS : 1;
+        ULONG IsFragment : 1;
+        ULONG reserved : 3;
+        ULONG ipHeaderSize : 8;
         ULONG XxpIpHeaderSize : 8;
     };
     ULONG value;
-}tTcpIpPacketParsingResult;
+} tTcpIpPacketParsingResult;
 
 typedef enum class _tagPacketOffloadRequest
 {
-    pcrIpChecksum  = (1 << 0),
+    pcrIpChecksum = (1 << 0),
     pcrTcpV4Checksum = (1 << 1),
     pcrUdpV4Checksum = (1 << 2),
     pcrTcpV6Checksum = (1 << 3),
@@ -883,8 +825,8 @@ typedef enum class _tagPacketOffloadRequest
     pcrTcpChecksum = (pcrTcpV4Checksum | pcrTcpV6Checksum),
     pcrUdpChecksum = (pcrUdpV4Checksum | pcrUdpV6Checksum),
     pcrAnyChecksum = (pcrIpChecksum | pcrTcpV4Checksum | pcrUdpV4Checksum | pcrTcpV6Checksum | pcrUdpV6Checksum),
-    pcrLSO   = (1 << 5),
-    pcrIsIP  = (1 << 6),
+    pcrLSO = (1 << 5),
+    pcrIsIP = (1 << 6),
     pcrFixIPChecksum = (1 << 7),
     pcrFixPHChecksum = (1 << 8),
     pcrFixTcpV4Checksum = (1 << 9),
@@ -893,51 +835,48 @@ typedef enum class _tagPacketOffloadRequest
     pcrFixUdpV6Checksum = (1 << 12),
     pcrFixXxpChecksum = (pcrFixTcpV4Checksum | pcrFixUdpV4Checksum | pcrFixTcpV6Checksum | pcrFixUdpV6Checksum),
     pcrPriorityTag = (1 << 13),
-    pcrNoIndirect  = (1 << 14)
-}tPacketOffloadRequest;
+    pcrNoIndirect = (1 << 14)
+} tPacketOffloadRequest;
 
-inline ULONG operator |(tPacketOffloadRequest a, tPacketOffloadRequest b)
+inline ULONG operator|(tPacketOffloadRequest a, tPacketOffloadRequest b)
 {
     return static_cast<ULONG>(a) | static_cast<ULONG>(b);
 }
 
-inline ULONG operator |(ULONG a, tPacketOffloadRequest b)
+inline ULONG operator|(ULONG a, tPacketOffloadRequest b)
 {
     return a | static_cast<ULONG>(b);
 }
 
-inline ULONG& operator |=(ULONG& a, tPacketOffloadRequest b)
+inline ULONG &operator|=(ULONG &a, tPacketOffloadRequest b)
 {
     return a |= static_cast<ULONG>(b);
 }
 
-inline ULONG operator &(tPacketOffloadRequest a, tPacketOffloadRequest b)
+inline ULONG operator&(tPacketOffloadRequest a, tPacketOffloadRequest b)
 {
     return static_cast<ULONG>(a) & static_cast<ULONG>(b);
 }
 
-inline ULONG operator &(ULONG a, tPacketOffloadRequest b)
+inline ULONG operator&(ULONG a, tPacketOffloadRequest b)
 {
     return a & static_cast<ULONG>(b);
 }
 
 // sw offload
 
-tTcpIpPacketParsingResult ParaNdis_CheckSumVerify(
-                                                tCompletePhysicalAddress *pDataPages,
-                                                ULONG ulDataLength,
-                                                ULONG ulStartOffset,
-                                                ULONG flags,
-                                                BOOLEAN verifyLength,
-                                                LPCSTR caller);
+tTcpIpPacketParsingResult ParaNdis_CheckSumVerify(tCompletePhysicalAddress *pDataPages,
+                                                  ULONG ulDataLength,
+                                                  ULONG ulStartOffset,
+                                                  ULONG flags,
+                                                  BOOLEAN verifyLength,
+                                                  LPCSTR caller);
 
-static __inline
-tTcpIpPacketParsingResult ParaNdis_CheckSumVerifyFlat(
-                                                PVOID pBuffer,
-                                                ULONG ulDataLength,
-                                                ULONG flags,
-                                                BOOLEAN verifyLength,
-                                                LPCSTR caller)
+static __inline tTcpIpPacketParsingResult ParaNdis_CheckSumVerifyFlat(PVOID pBuffer,
+                                                                      ULONG ulDataLength,
+                                                                      ULONG flags,
+                                                                      BOOLEAN verifyLength,
+                                                                      LPCSTR caller)
 {
     tCompletePhysicalAddress SGBuffer;
     SGBuffer.Virtual = pBuffer;
@@ -945,16 +884,12 @@ tTcpIpPacketParsingResult ParaNdis_CheckSumVerifyFlat(
     return ParaNdis_CheckSumVerify(&SGBuffer, ulDataLength, 0, flags, verifyLength, caller);
 }
 
-VOID _Function_class_(KDEFERRED_ROUTINE) MiniportMSIInterruptCXDpc(
-    struct _KDPC  *Dpc,
-    IN PVOID  MiniportInterruptContext,
-    IN PVOID                  NdisReserved1,
-    IN PVOID                  NdisReserved2
-);
+VOID _Function_class_(KDEFERRED_ROUTINE) MiniportMSIInterruptCXDpc(struct _KDPC *Dpc,
+                                                                   IN PVOID MiniportInterruptContext,
+                                                                   IN PVOID NdisReserved1,
+                                                                   IN PVOID NdisReserved2);
 
-bool ParaNdis_RXTXDPCWorkBody(PARANDIS_ADAPTER *pContext,
-    ULONG ulMaxPacketsToIndicate);
-
+bool ParaNdis_RXTXDPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIndicate);
 
 USHORT CheckSumCalculator(PVOID buffer, ULONG len);
 
@@ -968,5 +903,5 @@ NDIS_STATUS ParaNdis_ExactSendFailureStatus(PARANDIS_ADAPTER *pContext);
 
 VOID ParaNdis_PropagateOid(PARANDIS_ADAPTER *pContext, NDIS_OID oid, PVOID buffer, UINT length);
 
-void ParaNdis_PrintIndirectionTable(const NDIS_RECEIVE_SCALE_PARAMETERS* Params);
+void ParaNdis_PrintIndirectionTable(const NDIS_RECEIVE_SCALE_PARAMETERS *Params);
 #endif

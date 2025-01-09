@@ -9,7 +9,7 @@
 #endif
 #endif
 
-#define WTEP_MAX_KEY_SIZE   40
+#define WTEP_MAX_KEY_SIZE 40
 
 typedef unsigned char uint8_t;
 typedef unsigned short uint16_t;

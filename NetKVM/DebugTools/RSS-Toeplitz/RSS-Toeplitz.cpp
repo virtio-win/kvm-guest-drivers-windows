@@ -4,13 +4,10 @@
 #include "stdafx.h"
 #include "WinToeplitz.h"
 
-
-static uint8_t testKey[WTEP_MAX_KEY_SIZE] = {
-0x6d, 0x5a, 0x56, 0xda, 0x25, 0x5b, 0x0e, 0xc2,
-0x41, 0x67, 0x25, 0x3d, 0x43, 0xa3, 0x8f, 0xb0,
-0xd0, 0xca, 0x2b, 0xcb, 0xae, 0x7b, 0x30, 0xb4,
-0x77, 0xcb, 0x2d, 0xa3, 0x80, 0x30, 0xf2, 0x0c,
-0x6a, 0x42, 0xb7, 0x3b, 0xbe, 0xac, 0x01, 0xfa };
+static uint8_t testKey[WTEP_MAX_KEY_SIZE] = {0x6d, 0x5a, 0x56, 0xda, 0x25, 0x5b, 0x0e, 0xc2, 0x41, 0x67,
+                                             0x25, 0x3d, 0x43, 0xa3, 0x8f, 0xb0, 0xd0, 0xca, 0x2b, 0xcb,
+                                             0xae, 0x7b, 0x30, 0xb4, 0x77, 0xcb, 0x2d, 0xa3, 0x80, 0x30,
+                                             0xf2, 0x0c, 0x6a, 0x42, 0xb7, 0x3b, 0xbe, 0xac, 0x01, 0xfa};
 
 static struct
 {
@@ -31,7 +28,7 @@ static struct
 
 #define ITERATIONS_NUMBER (1000000UL)
 
-int _tmain(int argc, _TCHAR* argv[])
+int _tmain(int argc, _TCHAR *argv[])
 {
     int i;
     uint8_t vector[12];
@@ -48,7 +45,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
     for (unsigned long it = 0; it < ITERATIONS_NUMBER; ++it)
     {
-        for (i = 0; i < sizeof(testData)/sizeof(testData[0]); ++i)
+        for (i = 0; i < sizeof(testData) / sizeof(testData[0]); ++i)
         {
             uint32_t res;
             HASH_CALC_SG_BUF_ENTRY sgBuffer[2];
@@ -103,7 +100,7 @@ int _tmain(int argc, _TCHAR* argv[])
     printf("Total test time             %lu Ms\n", FinishTickCount - StartTickCount);
     printf("\n\n");
 
-    if(numFailedIP || numFailedTCP)
+    if (numFailedIP || numFailedTCP)
     {
         printf("Test FAILED\n");
         return -1;
@@ -117,8 +114,24 @@ int _tmain(int argc, _TCHAR* argv[])
 
 static void invertbits(const uint8_t *from, int len, uint8_t *to)
 {
-    //                           0x00  0x01  0x02  0x03  0x04  0x05  0x06  0x07  0x08  0x09  0x0a  0x0b  0x0c  0x0d  0x0e  0x0f
-    static uint8_t trans[16] = { 0x00, 0x08, 0x04, 0x0c, 0x02, 0x0a, 0x06, 0x0e, 0x01, 0x09, 0x05, 0x0d, 0x03, 0x0b, 0x07, 0x0f };
+    //                           0x00  0x01  0x02  0x03  0x04  0x05  0x06  0x07  0x08  0x09  0x0a  0x0b  0x0c  0x0d 0x0e
+    //                           0x0f
+    static uint8_t trans[16] = {0x00,
+                                0x08,
+                                0x04,
+                                0x0c,
+                                0x02,
+                                0x0a,
+                                0x06,
+                                0x0e,
+                                0x01,
+                                0x09,
+                                0x05,
+                                0x0d,
+                                0x03,
+                                0x0b,
+                                0x07,
+                                0x0f};
     while (len--)
     {
         uint8_t lo = trans[*from >> 4];
@@ -134,7 +147,10 @@ static void printbitsofbyte(uint8_t val, char last)
     int i;
     char s[9];
     s[8] = 0;
-    for (i = 0; i < 8; ++i) s[i] = (val & (1 << i)) ? '1' : '0';
+    for (i = 0; i < 8; ++i)
+    {
+        s[i] = (val & (1 << i)) ? '1' : '0';
+    }
     printf("%s%c", s, last);
 }
 
@@ -142,16 +158,16 @@ static void printbits(const char *name, uint8_t *p, int len)
 {
     int i;
     printf("%s", name);
-    for (i = 0; i < len/4; ++i)
+    for (i = 0; i < len / 4; ++i)
     {
-        printbitsofbyte(p[4*i], ' ');
-        printbitsofbyte(p[4*i + 1], ' ');
-        printbitsofbyte(p[4*i + 2], ' ');
-        printbitsofbyte(p[4*i + 3], '\n');
+        printbitsofbyte(p[4 * i], ' ');
+        printbitsofbyte(p[4 * i + 1], ' ');
+        printbitsofbyte(p[4 * i + 2], ' ');
+        printbitsofbyte(p[4 * i + 3], '\n');
     }
     for (i = 0; i < len % 4; ++i)
     {
-        printbitsofbyte(p[(len/4)*4 + i], ' ');
+        printbitsofbyte(p[(len / 4) * 4 + i], ' ');
     }
     printf("\n");
 }

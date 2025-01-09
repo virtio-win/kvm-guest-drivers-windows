@@ -8,13 +8,10 @@
 
 static FORCEINLINE VOID ParaNdis_ReceiveQueueAddBuffer(PPARANDIS_RECEIVE_QUEUE pQueue, pRxNetDescriptor pBuffer)
 {
-    NdisInterlockedInsertTailList(&pQueue->BuffersList,
-        &pBuffer->ReceiveQueueListEntry,
-        &pQueue->Lock);
+    NdisInterlockedInsertTailList(&pQueue->BuffersList, &pBuffer->ReceiveQueueListEntry, &pQueue->Lock);
 }
 
-static void ParaNdis_UnbindRxBufferFromPacket(
-    pRxNetDescriptor p)
+static void ParaNdis_UnbindRxBufferFromPacket(pRxNetDescriptor p)
 {
     PMDL NextMdlLinkage = p->Holder;
     ULONG ulPageDescIndex = PARANDIS_FIRST_RX_DATA_PAGE;
@@ -30,20 +27,20 @@ static void ParaNdis_UnbindRxBufferFromPacket(
     }
 }
 
-static BOOLEAN ParaNdis_BindRxBufferToPacket(
-    PARANDIS_ADAPTER *pContext,
-    pRxNetDescriptor p)
+static BOOLEAN ParaNdis_BindRxBufferToPacket(PARANDIS_ADAPTER *pContext, pRxNetDescriptor p)
 {
     ULONG i;
     PMDL *NextMdlLinkage = &p->Holder;
 
     for (i = PARANDIS_FIRST_RX_DATA_PAGE; i < p->BufferSGLength; i++)
     {
-        *NextMdlLinkage = NdisAllocateMdl(
-            pContext->MiniportHandle,
-            p->PhysicalPages[i].Virtual,
-            p->PhysicalPages[i].size);
-        if (*NextMdlLinkage == NULL) goto error_exit;
+        *NextMdlLinkage = NdisAllocateMdl(pContext->MiniportHandle,
+                                          p->PhysicalPages[i].Virtual,
+                                          p->PhysicalPages[i].size);
+        if (*NextMdlLinkage == NULL)
+        {
+            goto error_exit;
+        }
 
         NextMdlLinkage = &(NDIS_MDL_LINKAGE(*NextMdlLinkage));
     }
@@ -57,10 +54,10 @@ error_exit:
     return FALSE;
 }
 
-static bool IsRegionInside(const tCompletePhysicalAddress& a1, const tCompletePhysicalAddress& a2)
+static bool IsRegionInside(const tCompletePhysicalAddress &a1, const tCompletePhysicalAddress &a2)
 {
-    const LONGLONG& p1 = a1.Physical.QuadPart;
-    const LONGLONG& p2 = a2.Physical.QuadPart;
+    const LONGLONG &p1 = a1.Physical.QuadPart;
+    const LONGLONG &p2 = a2.Physical.QuadPart;
     return p1 >= p2 && p1 <= p2 + a2.size;
 }
 
@@ -72,15 +69,25 @@ static void ParaNdis_FreeRxBufferDescriptor(PARANDIS_ADAPTER *pContext, pRxNetDe
     for (i = 0; i < p->BufferSGLength; i++)
     {
         if (!p->PhysicalPages[i].Virtual)
+        {
             break;
+        }
         // do not try do free the region derived from header block
         if (i != 0 && IsRegionInside(p->PhysicalPages[i], p->PhysicalPages[0]))
+        {
             continue;
+        }
         ParaNdis_FreePhysicalMemory(pContext, &p->PhysicalPages[i]);
     }
 
-    if (p->BufferSGArray) NdisFreeMemory(p->BufferSGArray, 0, 0);
-    if (p->PhysicalPages) NdisFreeMemory(p->PhysicalPages, 0, 0);
+    if (p->BufferSGArray)
+    {
+        NdisFreeMemory(p->BufferSGArray, 0, 0);
+    }
+    if (p->PhysicalPages)
+    {
+        NdisFreeMemory(p->PhysicalPages, 0, 0);
+    }
     NdisFreeMemory(p, 0, 0);
 }
 
@@ -99,9 +106,7 @@ bool CParaNdisRX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
     m_queueIndex = (u16)DeviceQueueIndex;
     m_NetMaxReceiveBuffers = Context->maxRxBufferPerQueue;
 
-    if (!m_VirtQueue.Create(DeviceQueueIndex,
-        &m_Context->IODevice,
-        m_Context->MiniportHandle))
+    if (!m_VirtQueue.Create(DeviceQueueIndex, &m_Context->IODevice, m_Context->MiniportHandle))
     {
         DPrintf(0, ("CParaNdisRX::Create - virtqueue creation failed\n"));
         return false;
@@ -125,7 +130,10 @@ int CParaNdisRX::PrepareReceiveBuffers()
     for (i = 0; i < m_NetMaxReceiveBuffers; ++i)
     {
         pRxNetDescriptor pBuffersDescriptor = CreateRxDescriptorOnInit();
-        if (!pBuffersDescriptor) break;
+        if (!pBuffersDescriptor)
+        {
+            break;
+        }
 
         pBuffersDescriptor->Queue = this;
 
@@ -141,8 +149,13 @@ int CParaNdisRX::PrepareReceiveBuffers()
     }
     m_NetMaxReceiveBuffers = m_NetNofReceiveBuffers;
     m_MinRxBufferLimit = m_NetNofReceiveBuffers * m_Context->MinRxBufferPercent / 100;
-    DPrintf(0, "[%s] m_NetMaxReceiveBuffers %d, m_MinRxBufferLimit %u\n", __FUNCTION__, m_NetMaxReceiveBuffers, m_MinRxBufferLimit);
-    if (m_Context->extraStatistics.minFreeRxBuffers == 0 || m_Context->extraStatistics.minFreeRxBuffers > m_NetNofReceiveBuffers)
+    DPrintf(0,
+            "[%s] m_NetMaxReceiveBuffers %d, m_MinRxBufferLimit %u\n",
+            __FUNCTION__,
+            m_NetMaxReceiveBuffers,
+            m_MinRxBufferLimit);
+    if (m_Context->extraStatistics.minFreeRxBuffers == 0 ||
+        m_Context->extraStatistics.minFreeRxBuffers > m_NetNofReceiveBuffers)
     {
         m_Context->extraStatistics.minFreeRxBuffers = m_NetNofReceiveBuffers;
     }
@@ -153,26 +166,36 @@ int CParaNdisRX::PrepareReceiveBuffers()
 
 pRxNetDescriptor CParaNdisRX::CreateRxDescriptorOnInit()
 {
-    //For RX packets we allocate following pages
-    //  X pages needed to fit most of data payload (or all the payload)
-    //  1 page or less for virtio header, indirect buffers array and the data tail if any
-    //  virtio header and indirect buffers take ~300 bytes
-    //  if the data tail (payload % page size) is small it is also goes to the header block
+    // For RX packets we allocate following pages
+    //   X pages needed to fit most of data payload (or all the payload)
+    //   1 page or less for virtio header, indirect buffers array and the data tail if any
+    //   virtio header and indirect buffers take ~300 bytes
+    //   if the data tail (payload % page size) is small it is also goes to the header block
     ULONG ulNumDataPages = m_Context->RxLayout.TotalAllocationsPerBuffer; // including header block
     ULONG sgArraySize = m_Context->RxLayout.IndirectEntries;
 
     pRxNetDescriptor p = (pRxNetDescriptor)ParaNdis_AllocateMemory(m_Context, sizeof(*p));
-    if (p == NULL) return NULL;
+    if (p == NULL)
+    {
+        return NULL;
+    }
 
     NdisZeroMemory(p, sizeof(*p));
 
-    p->BufferSGArray = (struct VirtIOBufferDescriptor *)
-        ParaNdis_AllocateMemory(m_Context, sizeof(*p->BufferSGArray) * sgArraySize);
-    if (p->BufferSGArray == NULL) goto error_exit;
+    p->BufferSGArray = (struct
+                        VirtIOBufferDescriptor *)ParaNdis_AllocateMemory(m_Context,
+                                                                         sizeof(*p->BufferSGArray) * sgArraySize);
+    if (p->BufferSGArray == NULL)
+    {
+        goto error_exit;
+    }
 
-    p->PhysicalPages = (tCompletePhysicalAddress *)
-        ParaNdis_AllocateMemory(m_Context, sizeof(*p->PhysicalPages) * sgArraySize);
-    if (p->PhysicalPages == NULL) goto error_exit;
+    p->PhysicalPages = (tCompletePhysicalAddress *)ParaNdis_AllocateMemory(m_Context,
+                                                                           sizeof(*p->PhysicalPages) * sgArraySize);
+    if (p->PhysicalPages == NULL)
+    {
+        goto error_exit;
+    }
 
     // must initialize for case of exit in the middle of the loop
     NdisZeroMemory(p->PhysicalPages, sizeof(*p->PhysicalPages) * sgArraySize);
@@ -182,21 +205,21 @@ pRxNetDescriptor CParaNdisRX::CreateRxDescriptorOnInit()
     while (ulNumDataPages > 0)
     {
         // Allocate the first block separately, the rest can be one contiguous block
-        ULONG ulPagesToAlloc = (p->BufferSGLength == 0) ?
-            1 : ulNumDataPages;
-        ULONG sizeToAlloc = (p->BufferSGLength == 0) ?
-            m_Context->RxLayout.HeaderPageAllocation : PAGE_SIZE * ulPagesToAlloc;
+        ULONG ulPagesToAlloc = (p->BufferSGLength == 0) ? 1 : ulNumDataPages;
+        ULONG sizeToAlloc = (p->BufferSGLength == 0) ? m_Context->RxLayout.HeaderPageAllocation
+                                                     : PAGE_SIZE * ulPagesToAlloc;
 
-        while (!ParaNdis_InitialAllocatePhysicalMemory(
-                    m_Context,
-                    sizeToAlloc,
-                    &p->PhysicalPages[p->BufferSGLength]))
+        while (!ParaNdis_InitialAllocatePhysicalMemory(m_Context, sizeToAlloc, &p->PhysicalPages[p->BufferSGLength]))
         {
             // Retry with half the pages
             if (ulPagesToAlloc == 1)
+            {
                 goto error_exit;
+            }
             else
+            {
                 ulPagesToAlloc /= 2;
+            }
         }
 
         p->BufferSGArray[p->BufferSGLength].physAddr = p->PhysicalPages[p->BufferSGLength].Physical;
@@ -206,11 +229,11 @@ pRxNetDescriptor CParaNdisRX::CreateRxDescriptorOnInit()
         p->BufferSGLength++;
     }
 
-    //First page is for virtio header, size needs to be adjusted correspondingly
+    // First page is for virtio header, size needs to be adjusted correspondingly
     p->BufferSGArray[0].length = m_Context->nVirtioHeaderSize;
 
     ULONG offsetInTheHeader = m_Context->RxLayout.ReserveForHeader;
-    //Pre-cache indirect area addresses
+    // Pre-cache indirect area addresses
     p->IndirectArea.Physical.QuadPart = p->PhysicalPages[0].Physical.QuadPart + offsetInTheHeader;
     p->IndirectArea.Virtual = RtlOffsetToPointer(p->PhysicalPages[0].Virtual, offsetInTheHeader);
     p->IndirectArea.size = m_Context->RxLayout.ReserveForIndirectArea;
@@ -221,17 +244,15 @@ pRxNetDescriptor CParaNdisRX::CreateRxDescriptorOnInit()
         offsetInTheHeader += m_Context->RxLayout.ReserveForIndirectArea;
 
         // fill the tail's physical page fields
-        p->PhysicalPages[p->BufferSGLength].Physical.QuadPart =
-            p->PhysicalPages[0].Physical.QuadPart + offsetInTheHeader;
-        p->PhysicalPages[p->BufferSGLength].Virtual =
-            RtlOffsetToPointer(p->PhysicalPages[0].Virtual, offsetInTheHeader);
+        p->PhysicalPages[p->BufferSGLength].Physical.QuadPart = p->PhysicalPages[0].Physical.QuadPart +
+                                                                offsetInTheHeader;
+        p->PhysicalPages[p->BufferSGLength].Virtual = RtlOffsetToPointer(p->PhysicalPages[0].Virtual,
+                                                                         offsetInTheHeader);
         p->PhysicalPages[p->BufferSGLength].size = m_Context->RxLayout.ReserveForPacketTail;
 
         // fill the tail's SG buffer fields
-        p->BufferSGArray[p->BufferSGLength].physAddr.QuadPart =
-            p->PhysicalPages[p->BufferSGLength].Physical.QuadPart;
-        p->BufferSGArray[p->BufferSGLength].length =
-            p->PhysicalPages[p->BufferSGLength].size;
+        p->BufferSGArray[p->BufferSGLength].physAddr.QuadPart = p->PhysicalPages[p->BufferSGLength].Physical.QuadPart;
+        p->BufferSGArray[p->BufferSGLength].length = p->PhysicalPages[p->BufferSGLength].size;
         p->BufferSGLength++;
     }
     else
@@ -241,7 +262,9 @@ pRxNetDescriptor CParaNdisRX::CreateRxDescriptorOnInit()
     }
 
     if (!ParaNdis_BindRxBufferToPacket(m_Context, p))
+    {
         goto error_exit;
+    }
 
     return p;
 
@@ -253,13 +276,15 @@ error_exit:
 /* TODO - make it method in pRXNetDescriptor */
 BOOLEAN CParaNdisRX::AddRxBufferToQueue(pRxNetDescriptor pBufferDescriptor)
 {
-    return 0 <= pBufferDescriptor->Queue->m_VirtQueue.AddBuf(
-        pBufferDescriptor->BufferSGArray,
-        0,
-        pBufferDescriptor->BufferSGLength,
-        pBufferDescriptor,
-        m_Context->bUseIndirect ? pBufferDescriptor->IndirectArea.Virtual : NULL,
-        m_Context->bUseIndirect ? pBufferDescriptor->IndirectArea.Physical.QuadPart : 0);
+    return 0 <=
+           pBufferDescriptor->Queue->m_VirtQueue.AddBuf(pBufferDescriptor->BufferSGArray,
+                                                        0,
+                                                        pBufferDescriptor->BufferSGLength,
+                                                        pBufferDescriptor,
+                                                        m_Context->bUseIndirect ? pBufferDescriptor->IndirectArea.Virtual
+                                                                                : NULL,
+                                                        m_Context->bUseIndirect ? pBufferDescriptor->IndirectArea.Physical.QuadPart
+                                                                                : 0);
 }
 
 void CParaNdisRX::FreeRxDescriptorsFromList()
@@ -280,7 +305,7 @@ void CParaNdisRX::ReuseReceiveBufferNoLock(pRxNetDescriptor pBuffersDescriptor)
         InsertTailList(&m_NetReceiveBuffers, &pBuffersDescriptor->listEntry);
         m_NetNofReceiveBuffers++;
         return;
-    } 
+    }
     else if (AddRxBufferToQueue(pBuffersDescriptor))
     {
         InsertTailList(&m_NetReceiveBuffers, &pBuffersDescriptor->listEntry);
@@ -288,8 +313,10 @@ void CParaNdisRX::ReuseReceiveBufferNoLock(pRxNetDescriptor pBuffersDescriptor)
 
         if (m_NetNofReceiveBuffers > m_NetMaxReceiveBuffers)
         {
-            DPrintf(0, " Error: m_NetNofReceiveBuffers > m_NetMaxReceiveBuffers (%d>%d)\n",
-                m_NetNofReceiveBuffers, m_NetMaxReceiveBuffers);
+            DPrintf(0,
+                    " Error: m_NetNofReceiveBuffers > m_NetMaxReceiveBuffers (%d>%d)\n",
+                    m_NetNofReceiveBuffers,
+                    m_NetMaxReceiveBuffers);
         }
 
         /* TODO - nReusedRXBuffers per queue or per context ?*/
@@ -314,26 +341,34 @@ VOID CParaNdisRX::KickRXRing()
 }
 
 #if PARANDIS_SUPPORT_RSS
-static FORCEINLINE VOID ParaNdis_QueueRSSDpc(PARANDIS_ADAPTER *pContext, ULONG MessageIndex, PGROUP_AFFINITY pTargetAffinity)
+static FORCEINLINE VOID ParaNdis_QueueRSSDpc(PARANDIS_ADAPTER *pContext,
+                                             ULONG MessageIndex,
+                                             PGROUP_AFFINITY pTargetAffinity)
 {
     NdisMQueueDpcEx(pContext->InterruptHandle, MessageIndex, pTargetAffinity, NULL);
 }
 
-static FORCEINLINE CCHAR ParaNdis_GetScalingDataForPacket(PARANDIS_ADAPTER *pContext, PNET_PACKET_INFO pPacketInfo, PPROCESSOR_NUMBER pTargetProcessor)
+static FORCEINLINE CCHAR ParaNdis_GetScalingDataForPacket(PARANDIS_ADAPTER *pContext,
+                                                          PNET_PACKET_INFO pPacketInfo,
+                                                          PPROCESSOR_NUMBER pTargetProcessor)
 {
     return ParaNdis6_RSSGetScalingDataForPacket(&pContext->RSSParameters, pPacketInfo, pTargetProcessor);
 }
 #endif
 
-static ULONG ShallPassPacket(PARANDIS_ADAPTER* pContext, PNET_PACKET_INFO pPacketInfo)
+static ULONG ShallPassPacket(PARANDIS_ADAPTER *pContext, PNET_PACKET_INFO pPacketInfo)
 {
     ULONG i;
 
     if (pPacketInfo->dataLength > pContext->MaxPacketSize.nMaxFullSizeOsRx + ETH_PRIORITY_HEADER_SIZE)
+    {
         return FALSE;
+    }
 
     if ((pPacketInfo->dataLength > pContext->MaxPacketSize.nMaxFullSizeOsRx) && !pPacketInfo->hasVlanHeader)
+    {
         return FALSE;
+    }
 
     if (IsVlanSupported(pContext) && pPacketInfo->hasVlanHeader)
     {
@@ -344,29 +379,39 @@ static ULONG ShallPassPacket(PARANDIS_ADAPTER* pContext, PNET_PACKET_INFO pPacke
     }
 
     if (pContext->PacketFilter & NDIS_PACKET_TYPE_PROMISCUOUS)
+    {
         return TRUE;
+    }
 
     if (pPacketInfo->isUnicast)
     {
         ULONG Res;
 
         if (!(pContext->PacketFilter & NDIS_PACKET_TYPE_DIRECTED))
+        {
             return FALSE;
+        }
 
         ETH_COMPARE_NETWORK_ADDRESSES_EQ_SAFE(pPacketInfo->ethDestAddr, pContext->CurrentMacAddress, &Res);
         return !Res;
     }
 
     if (pPacketInfo->isBroadcast)
+    {
         return (pContext->PacketFilter & NDIS_PACKET_TYPE_BROADCAST);
+    }
 
     // Multi-cast
 
     if (pContext->PacketFilter & NDIS_PACKET_TYPE_ALL_MULTICAST)
+    {
         return TRUE;
+    }
 
     if (!(pContext->PacketFilter & NDIS_PACKET_TYPE_MULTICAST))
+    {
         return FALSE;
+    }
 
     for (i = 0; i < pContext->MulticastData.nofMulticastEntries; i++)
     {
@@ -376,7 +421,9 @@ static ULONG ShallPassPacket(PARANDIS_ADAPTER* pContext, PNET_PACKET_INFO pPacke
         ETH_COMPARE_NETWORK_ADDRESSES_EQ_SAFE(pPacketInfo->ethDestAddr, CurrMcastAddr, &Res);
 
         if (!Res)
+        {
             return TRUE;
+        }
     }
 
     return FALSE;
@@ -389,70 +436,97 @@ static void LogRedirectedPacket(pRxNetDescriptor pBufferDescriptor)
     NET_PACKET_INFO *pi = &pBufferDescriptor->PacketInfo;
     LPCSTR packetType = "Unknown";
     IPv4Header *pIp4Header = NULL;
-    TCPHeader  *pTcpHeader = NULL;
-    UDPHeader  *pUdpHeader = NULL;
-    //IPv6Header *pIp6Header = NULL;
+    TCPHeader *pTcpHeader = NULL;
+    UDPHeader *pUdpHeader = NULL;
+    // IPv6Header *pIp6Header = NULL;
     switch (pi->RSSHash.Type)
     {
-    case NDIS_HASH_TCP_IPV4:
-        packetType = "TCP_IPV4";
-        pIp4Header = (IPv4Header *)RtlOffsetToPointer(pi->headersBuffer, pi->L2HdrLen);
-        pTcpHeader = (TCPHeader *)RtlOffsetToPointer(pIp4Header, pi->L3HdrLen);
-        break;
-    case NDIS_HASH_IPV4:
-        packetType = "IPV4";
-        pIp4Header = (IPv4Header *)RtlOffsetToPointer(pi->headersBuffer, pi->L2HdrLen);
-        break;
-    case NDIS_HASH_TCP_IPV6:
-        packetType = "TCP_IPV6";
-        break;
-    case NDIS_HASH_TCP_IPV6_EX:
-        packetType = "TCP_IPV6EX";
-        break;
-    case NDIS_HASH_IPV6_EX:
-        packetType = "IPV6EX";
-        break;
-    case NDIS_HASH_IPV6:
-        packetType = "IPV6";
-        break;
+        case NDIS_HASH_TCP_IPV4:
+            packetType = "TCP_IPV4";
+            pIp4Header = (IPv4Header *)RtlOffsetToPointer(pi->headersBuffer, pi->L2HdrLen);
+            pTcpHeader = (TCPHeader *)RtlOffsetToPointer(pIp4Header, pi->L3HdrLen);
+            break;
+        case NDIS_HASH_IPV4:
+            packetType = "IPV4";
+            pIp4Header = (IPv4Header *)RtlOffsetToPointer(pi->headersBuffer, pi->L2HdrLen);
+            break;
+        case NDIS_HASH_TCP_IPV6:
+            packetType = "TCP_IPV6";
+            break;
+        case NDIS_HASH_TCP_IPV6_EX:
+            packetType = "TCP_IPV6EX";
+            break;
+        case NDIS_HASH_IPV6_EX:
+            packetType = "IPV6EX";
+            break;
+        case NDIS_HASH_IPV6:
+            packetType = "IPV6";
+            break;
 #if (NDIS_SUPPORT_NDIS680)
-    case NDIS_HASH_UDP_IPV4:
-        packetType = "UDP_IPV4";
-        pIp4Header = (IPv4Header *)RtlOffsetToPointer(pi->headersBuffer, pi->L2HdrLen);
-        pUdpHeader = (UDPHeader *)RtlOffsetToPointer(pIp4Header, pi->L3HdrLen);
-        break;
-    case NDIS_HASH_UDP_IPV6:
-        packetType = "UDP_IPV6";
-        break;
-    case NDIS_HASH_UDP_IPV6_EX:
-        packetType = "UDP_IPV6EX";
-        break;
+        case NDIS_HASH_UDP_IPV4:
+            packetType = "UDP_IPV4";
+            pIp4Header = (IPv4Header *)RtlOffsetToPointer(pi->headersBuffer, pi->L2HdrLen);
+            pUdpHeader = (UDPHeader *)RtlOffsetToPointer(pIp4Header, pi->L3HdrLen);
+            break;
+        case NDIS_HASH_UDP_IPV6:
+            packetType = "UDP_IPV6";
+            break;
+        case NDIS_HASH_UDP_IPV6_EX:
+            packetType = "UDP_IPV6EX";
+            break;
 #endif
-    default:
-        break;
+        default:
+            break;
     }
     if (pTcpHeader)
     {
-        TraceNoPrefix(0, "%s: %s %d.%d.%d.%d:%d->%d.%d.%d.%d:%d\n", __FUNCTION__, packetType,
-            pIp4Header->ip_srca[0], pIp4Header->ip_srca[1], pIp4Header->ip_srca[2], pIp4Header->ip_srca[3],
-            RtlUshortByteSwap(pTcpHeader->tcp_src),
-            pIp4Header->ip_desta[0], pIp4Header->ip_desta[1], pIp4Header->ip_desta[2], pIp4Header->ip_desta[3],
-            RtlUshortByteSwap(pTcpHeader->tcp_dest));
+        TraceNoPrefix(0,
+                      "%s: %s %d.%d.%d.%d:%d->%d.%d.%d.%d:%d\n",
+                      __FUNCTION__,
+                      packetType,
+                      pIp4Header->ip_srca[0],
+                      pIp4Header->ip_srca[1],
+                      pIp4Header->ip_srca[2],
+                      pIp4Header->ip_srca[3],
+                      RtlUshortByteSwap(pTcpHeader->tcp_src),
+                      pIp4Header->ip_desta[0],
+                      pIp4Header->ip_desta[1],
+                      pIp4Header->ip_desta[2],
+                      pIp4Header->ip_desta[3],
+                      RtlUshortByteSwap(pTcpHeader->tcp_dest));
     }
     else if (pUdpHeader)
     {
-        TraceNoPrefix(0, "%s: %s %d.%d.%d.%d:%d->%d.%d.%d.%d:%d\n", __FUNCTION__, packetType,
-            pIp4Header->ip_srca[0], pIp4Header->ip_srca[1], pIp4Header->ip_srca[2], pIp4Header->ip_srca[3],
-            RtlUshortByteSwap(pUdpHeader->udp_src),
-            pIp4Header->ip_desta[0], pIp4Header->ip_desta[1], pIp4Header->ip_desta[2], pIp4Header->ip_desta[3],
-            RtlUshortByteSwap(pUdpHeader->udp_dest));
+        TraceNoPrefix(0,
+                      "%s: %s %d.%d.%d.%d:%d->%d.%d.%d.%d:%d\n",
+                      __FUNCTION__,
+                      packetType,
+                      pIp4Header->ip_srca[0],
+                      pIp4Header->ip_srca[1],
+                      pIp4Header->ip_srca[2],
+                      pIp4Header->ip_srca[3],
+                      RtlUshortByteSwap(pUdpHeader->udp_src),
+                      pIp4Header->ip_desta[0],
+                      pIp4Header->ip_desta[1],
+                      pIp4Header->ip_desta[2],
+                      pIp4Header->ip_desta[3],
+                      RtlUshortByteSwap(pUdpHeader->udp_dest));
     }
     else if (pIp4Header)
     {
-        TraceNoPrefix(0, "%s: %s %d.%d.%d.%d(%d)->%d.%d.%d.%d\n", __FUNCTION__, packetType,
-            pIp4Header->ip_srca[0], pIp4Header->ip_srca[1], pIp4Header->ip_srca[2], pIp4Header->ip_srca[3],
-            pIp4Header->ip_protocol,
-            pIp4Header->ip_desta[0], pIp4Header->ip_desta[1], pIp4Header->ip_desta[2], pIp4Header->ip_desta[3]);
+        TraceNoPrefix(0,
+                      "%s: %s %d.%d.%d.%d(%d)->%d.%d.%d.%d\n",
+                      __FUNCTION__,
+                      packetType,
+                      pIp4Header->ip_srca[0],
+                      pIp4Header->ip_srca[1],
+                      pIp4Header->ip_srca[2],
+                      pIp4Header->ip_srca[3],
+                      pIp4Header->ip_protocol,
+                      pIp4Header->ip_desta[0],
+                      pIp4Header->ip_desta[1],
+                      pIp4Header->ip_desta[2],
+                      pIp4Header->ip_desta[3]);
     }
     else
     {
@@ -483,10 +557,9 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
         m_NetNofReceiveBuffers--;
 
         // basic MAC-based analysis + L3 header info
-        BOOLEAN packetAnalysisRC = ParaNdis_AnalyzeReceivedPacket(
-            pBufferDescriptor->PhysicalPages[PARANDIS_FIRST_RX_DATA_PAGE].Virtual,
-            nFullLength - m_Context->nVirtioHeaderSize,
-            &pBufferDescriptor->PacketInfo);
+        BOOLEAN packetAnalysisRC = ParaNdis_AnalyzeReceivedPacket(pBufferDescriptor->PhysicalPages[PARANDIS_FIRST_RX_DATA_PAGE].Virtual,
+                                                                  nFullLength - m_Context->nVirtioHeaderSize,
+                                                                  &pBufferDescriptor->PacketInfo);
 
         if (!packetAnalysisRC)
         {
@@ -507,19 +580,17 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
 #ifdef PARANDIS_SUPPORT_RSS
         if (m_Context->RSSParameters.RSSMode != PARANDIS_RSS_MODE::PARANDIS_RSS_DISABLED)
         {
-            ParaNdis6_RSSAnalyzeReceivedPacket(
-                &m_Context->RSSParameters,
-                pBufferDescriptor->PhysicalPages[PARANDIS_FIRST_RX_DATA_PAGE].Virtual,
-                &pBufferDescriptor->PacketInfo);
+            ParaNdis6_RSSAnalyzeReceivedPacket(&m_Context->RSSParameters,
+                                               pBufferDescriptor->PhysicalPages[PARANDIS_FIRST_RX_DATA_PAGE].Virtual,
+                                               &pBufferDescriptor->PacketInfo);
         }
         CCHAR nTargetReceiveQueueNum;
         GROUP_AFFINITY TargetAffinity;
         PROCESSOR_NUMBER TargetProcessor;
 
-        nTargetReceiveQueueNum = ParaNdis_GetScalingDataForPacket(
-            m_Context,
-            &pBufferDescriptor->PacketInfo,
-            &TargetProcessor);
+        nTargetReceiveQueueNum = ParaNdis_GetScalingDataForPacket(m_Context,
+                                                                  &pBufferDescriptor->PacketInfo,
+                                                                  &TargetProcessor);
 
         if (nTargetReceiveQueueNum == PARANDIS_RECEIVE_UNCLASSIFIED_PACKET)
         {
@@ -550,7 +621,7 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
             }
         }
 #else
-       ParaNdis_ReceiveQueueAddBuffer(&m_UnclassifiedPacketsQueue, pBufferDescriptor);
+        ParaNdis_ReceiveQueueAddBuffer(&m_UnclassifiedPacketsQueue, pBufferDescriptor);
 #endif
     }
 }
@@ -560,20 +631,17 @@ void CParaNdisRX::PopulateQueue()
     LIST_ENTRY TempList;
     TPassiveSpinLocker autoLock(m_Lock);
 
-
     InitializeListHead(&TempList);
 
     while (!IsListEmpty(&m_NetReceiveBuffers))
     {
-        pRxNetDescriptor pBufferDescriptor =
-            (pRxNetDescriptor)RemoveHeadList(&m_NetReceiveBuffers);
+        pRxNetDescriptor pBufferDescriptor = (pRxNetDescriptor)RemoveHeadList(&m_NetReceiveBuffers);
         InsertTailList(&TempList, &pBufferDescriptor->listEntry);
     }
     m_NetNofReceiveBuffers = 0;
     while (!IsListEmpty(&TempList))
     {
-        pRxNetDescriptor pBufferDescriptor =
-            (pRxNetDescriptor)RemoveHeadList(&TempList);
+        pRxNetDescriptor pBufferDescriptor = (pRxNetDescriptor)RemoveHeadList(&TempList);
         if (AddRxBufferToQueue(pBufferDescriptor))
         {
             InsertTailList(&m_NetReceiveBuffers, &pBufferDescriptor->listEntry);
@@ -592,10 +660,7 @@ void CParaNdisRX::PopulateQueue()
 
 BOOLEAN CParaNdisRX::RestartQueue()
 {
-    return ParaNdis_SynchronizeWithInterrupt(m_Context,
-                                             m_messageIndex,
-                                             RestartQueueSynchronously,
-                                             this);
+    return ParaNdis_SynchronizeWithInterrupt(m_Context, m_messageIndex, RestartQueueSynchronously, this);
 }
 
 #ifdef PARANDIS_SUPPORT_RSS

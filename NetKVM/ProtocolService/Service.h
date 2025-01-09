@@ -2,7 +2,7 @@
 
 class CServiceManager
 {
-public:
+  public:
     CServiceManager(bool bQueryOnly = false)
     {
         m_Handle = OpenSCManager(NULL, NULL, bQueryOnly ? SC_MANAGER_ENUMERATE_SERVICE : SC_MANAGER_ALL_ACCESS);
@@ -22,17 +22,19 @@ public:
     {
         CString s;
         s.Format(_T("\"%s\" %s"), binary, name);
-        SC_HANDLE h = CreateService(m_Handle, name, name,
-            SERVICE_STOP | SERVICE_START | SERVICE_QUERY_STATUS,
-            ServiceType(),
-            SERVICE_DEMAND_START,
-            SERVICE_ERROR_NORMAL,
-            s,
-            NULL,
-            0,
-            NULL,
-            NULL,
-            NULL);
+        SC_HANDLE h = CreateService(m_Handle,
+                                    name,
+                                    name,
+                                    SERVICE_STOP | SERVICE_START | SERVICE_QUERY_STATUS,
+                                    ServiceType(),
+                                    SERVICE_DEMAND_START,
+                                    SERVICE_ERROR_NORMAL,
+                                    s,
+                                    NULL,
+                                    0,
+                                    NULL,
+                                    NULL,
+                                    NULL);
         if (h)
         {
             Log("%s: service installed", __FUNCTION__);
@@ -44,18 +46,23 @@ public:
         }
         return h != NULL;
     }
-    SC_HANDLE Handle() const { return m_Handle; }
-    static ULONG ServiceType() { return SERVICE_WIN32_OWN_PROCESS; }
-protected:
+    SC_HANDLE Handle() const
+    {
+        return m_Handle;
+    }
+    static ULONG ServiceType()
+    {
+        return SERVICE_WIN32_OWN_PROCESS;
+    }
+
+  protected:
     SC_HANDLE m_Handle;
 };
 
 class CService
 {
-public:
-    CService(LPCWSTR name, bool bQueryOnly = false) :
-        m_Handle(NULL),
-        m_ServiceManager(bQueryOnly)
+  public:
+    CService(LPCWSTR name, bool bQueryOnly = false) : m_Handle(NULL), m_ServiceManager(bQueryOnly)
     {
         ULONG flags = SERVICE_QUERY_STATUS;
         if (!bQueryOnly)
@@ -64,8 +71,7 @@ public:
         }
         if (m_ServiceManager.Handle())
         {
-            m_Handle = OpenService(m_ServiceManager.Handle(),
-                name, flags);
+            m_Handle = OpenService(m_ServiceManager.Handle(), name, flags);
         }
         if (!m_Handle)
         {
@@ -109,7 +115,7 @@ public:
         Log("%s done", __FUNCTION__);
         return ERROR_SUCCESS;
     }
-    ULONG Query(ULONG& state)
+    ULONG Query(ULONG &state)
     {
         if (!m_Handle)
         {
@@ -162,16 +168,14 @@ public:
     }
     static LPCSTR StateName(ULONG state)
     {
-        LPCSTR names[] = {
-            "Unknown",
-            "Stopped",
-            "Start Pending",
-            "Stop Pending",
-            "Running",
-            "Continue Pending",
-            "Pause Pending",
-            "Paused"
-        };
+        LPCSTR names[] = {"Unknown",
+                          "Stopped",
+                          "Start Pending",
+                          "Stop Pending",
+                          "Running",
+                          "Continue Pending",
+                          "Pause Pending",
+                          "Paused"};
         if (state >= ELEMENTS_IN(names))
         {
             state = 0;
@@ -183,8 +187,8 @@ public:
         if (m_Handle)
         {
             ULONG state;
-            if (!Query(state) &&
-                (m_Status.dwServiceType == SERVICE_KERNEL_DRIVER || m_Status.dwServiceType == SERVICE_FILE_SYSTEM_DRIVER))
+            if (!Query(state) && (m_Status.dwServiceType == SERVICE_KERNEL_DRIVER ||
+                                  m_Status.dwServiceType == SERVICE_FILE_SYSTEM_DRIVER))
             {
                 Log("%s: Not possible for kernel drivers", __FUNCTION__);
                 return ERROR_INVALID_FLAGS;
@@ -192,7 +196,9 @@ public:
             return NotifyServiceStatusChange(m_Handle, dwNotifyMask, pNotify);
         }
         else
+        {
             return ERROR_INVALID_HANDLE;
+        }
     }
     void Control(UCHAR code)
     {
@@ -205,7 +211,8 @@ public:
             }
         }
     }
-protected:
+
+  protected:
     CServiceManager m_ServiceManager;
     SC_HANDLE m_Handle;
     SERVICE_STATUS m_Status;
@@ -213,14 +220,17 @@ protected:
 
 class CEvent
 {
-public:
+  public:
     CEvent(bool Manual)
     {
         m_Handle = CreateEvent(NULL, Manual, false, NULL);
     }
     ~CEvent()
     {
-        if (m_Handle) CloseHandle(m_Handle);
+        if (m_Handle)
+        {
+            CloseHandle(m_Handle);
+        }
     }
     ULONG Wait(ULONG Millies = INFINITE)
     {
@@ -230,20 +240,24 @@ public:
     {
         SetEvent(m_Handle);
     }
-private:
+
+  private:
     HANDLE m_Handle;
 };
 
 class CMutex
 {
-public:
+  public:
     CMutex()
     {
         m_Handle = CreateMutex(NULL, false, NULL);
     }
     ~CMutex()
     {
-        if (m_Handle) CloseHandle(m_Handle);
+        if (m_Handle)
+        {
+            CloseHandle(m_Handle);
+        }
     }
     ULONG Wait(ULONG Millies = INFINITE)
     {
@@ -253,14 +267,15 @@ public:
     {
         ReleaseMutex(m_Handle);
     }
-private:
+
+  private:
     HANDLE m_Handle;
 };
 
 class CMutexProtect
 {
-public:
-    CMutexProtect(CMutex& Mutex) : m_Mutex(Mutex)
+  public:
+    CMutexProtect(CMutex &Mutex) : m_Mutex(Mutex)
     {
         Mutex.Wait();
     }
@@ -268,25 +283,28 @@ public:
     {
         m_Mutex.Release();
     }
-private:
-    CMutex& m_Mutex;
+
+  private:
+    CMutex &m_Mutex;
 };
 
 class CServiceImplementation
 {
-public:
-    CServiceImplementation(LPCTSTR name) :
-        m_Name(name)
+  public:
+    CServiceImplementation(LPCTSTR name) : m_Name(name)
     {
         Register(this);
     }
-    LPCTSTR ServiceName() const { return m_Name; }
+    LPCTSTR ServiceName() const
+    {
+        return m_Name;
+    }
     static bool CheckInMain()
     {
         char *data;
         ULONG done;
-        if (WTSQuerySessionInformationA(WTS_CURRENT_SERVER_HANDLE, WTS_CURRENT_SESSION,
-            WTSSessionId, &data, &done) && done == 4)
+        if (WTSQuerySessionInformationA(WTS_CURRENT_SERVER_HANDLE, WTS_CURRENT_SESSION, WTSSessionId, &data, &done) &&
+            done == 4)
         {
             ULONG session = *(ULONG *)data;
             Log("The application runs in session %d", session);
@@ -301,8 +319,7 @@ public:
                 {
                     CServiceImplementation *obj = m_Registered.GetAt(i);
                     table[i].lpServiceName = obj->m_Name.GetBuffer();
-                    table[i].lpServiceProc = [](DWORD argc, LPTSTR *argv)
-                    {
+                    table[i].lpServiceProc = [](DWORD argc, LPTSTR *argv) {
                         CServiceImplementation *obj = NULL;
                         if (!argc || CServiceImplementation::Registered().GetCount() == 1)
                         {
@@ -347,7 +364,7 @@ public:
         CService service(ServiceName());
         return service.Delete();
     }
-    static const CAtlArray<CServiceImplementation *>& Registered()
+    static const CAtlArray<CServiceImplementation *> &Registered()
     {
         return m_Registered;
     }
@@ -365,7 +382,8 @@ public:
         CService service(ServiceName());
         service.Control(code);
     }
-protected:
+
+  protected:
     CString m_Name;
     void SetState(ULONG State)
     {
@@ -373,7 +391,7 @@ protected:
     }
     class CServiceState
     {
-    public:
+      public:
         CServiceState() : m_StopEvent(true)
         {
             status.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
@@ -454,29 +472,30 @@ protected:
         Log("%s: %s", __FUNCTION__, Name<eServiceControl>(dwControl));
         switch (dwControl)
         {
-        case SERVICE_CONTROL_STOP:
-            if (!m_State.Stoppable())
-            {
-                res = ERROR_CALL_NOT_IMPLEMENTED;
-            }
-            else if (m_State.status.dwCurrentState == SERVICE_RUNNING)
-            {
-                res = NO_ERROR;
-                m_State.Set(SERVICE_STOP_PENDING);
-                if (OnStop())
+            case SERVICE_CONTROL_STOP:
+                if (!m_State.Stoppable())
                 {
-                    m_State.Set(SERVICE_STOPPED);
+                    res = ERROR_CALL_NOT_IMPLEMENTED;
                 }
-            }
-            else
-            {
-                Log("%s: got STOP, current state %s(%d)", __FUNCTION__,
-                    CService::StateName(m_State.status.dwCurrentState),
-                    m_State.status.dwCurrentState);
-            }
-            break;
-        default:
-            break;
+                else if (m_State.status.dwCurrentState == SERVICE_RUNNING)
+                {
+                    res = NO_ERROR;
+                    m_State.Set(SERVICE_STOP_PENDING);
+                    if (OnStop())
+                    {
+                        m_State.Set(SERVICE_STOPPED);
+                    }
+                }
+                else
+                {
+                    Log("%s: got STOP, current state %s(%d)",
+                        __FUNCTION__,
+                        CService::StateName(m_State.status.dwCurrentState),
+                        m_State.status.dwCurrentState);
+                }
+                break;
+            default:
+                break;
         }
         return res;
     }
@@ -504,7 +523,9 @@ protected:
             CServiceImplementation *obj = m_Registered.GetAt(i);
             CString s = name;
             if (!s.CompareNoCase(obj->ServiceName()))
+            {
                 return obj;
+            }
         }
         return NULL;
     }
@@ -513,28 +534,43 @@ protected:
 
 class CThreadOwner
 {
-public:
-    CThreadOwner() { }
+  public:
+    CThreadOwner()
+    {
+    }
     ~CThreadOwner()
     {
         StopThread(true);
-        while (IsThreadRunning()) {
+        while (IsThreadRunning())
+        {
             Sleep(10);
         }
     }
-    bool IsThreadRunning() const { return m_ThreadHandle != NULL; }
-    enum tThreadState { tsNotRunning, tsRunning, tsAborted, tsDeleting };
+    bool IsThreadRunning() const
+    {
+        return m_ThreadHandle != NULL;
+    }
+    enum tThreadState
+    {
+        tsNotRunning,
+        tsRunning,
+        tsAborted,
+        tsDeleting
+    };
     bool StartThread()
     {
-        if (IsThreadRunning()) {
+        if (IsThreadRunning())
+        {
             return false;
         }
         InterlockedCompareExchange(&m_State, tsRunning, tsNotRunning);
         m_ThreadHandle = (HANDLE)_beginthread(_ThreadProc, 0, this);
-        if (IsThreadRunning()) {
+        if (IsThreadRunning())
+        {
             return true;
         }
-        else {
+        else
+        {
             InterlockedCompareExchange(&m_State, tsNotRunning, tsRunning);
             return false;
         }
@@ -542,18 +578,25 @@ public:
     virtual tThreadState StopThread(bool bDeleting = false)
     {
         LONG val;
-        if (bDeleting) {
+        if (bDeleting)
+        {
             val = InterlockedCompareExchange(&m_State, tsDeleting, tsRunning);
         }
-        else {
+        else
+        {
             val = InterlockedCompareExchange(&m_State, tsAborted, tsRunning);
         }
         return (tThreadState)val;
     }
-private:
-    LONG   m_State = tsNotRunning;
-protected:
-    tThreadState ThreadState() { return (tThreadState)m_State; }
+
+  private:
+    LONG m_State = tsNotRunning;
+
+  protected:
+    tThreadState ThreadState()
+    {
+        return (tThreadState)m_State;
+    }
     HANDLE m_ThreadHandle = NULL;
     virtual void ThreadProc() = 0;
     virtual void ThreadTerminated(tThreadState previous)
@@ -563,7 +606,7 @@ protected:
     }
     static void __cdecl _ThreadProc(PVOID param)
     {
-        CThreadOwner* pOwner = (CThreadOwner*)param;
+        CThreadOwner *pOwner = (CThreadOwner *)param;
         pOwner->ThreadProc();
         LONG val = InterlockedExchange(&pOwner->m_State, tsNotRunning);
         pOwner->ThreadTerminated((tThreadState)val);

@@ -1,6 +1,7 @@
 #pragma once
 
-extern "C" {
+extern "C"
+{
 #include "osdep.h"
 }
 
@@ -10,65 +11,65 @@ extern "C" {
 void NetKvmAssert(bool Statement, ULONG Code);
 #define NETKVM_ASSERT(x) NetKvmAssert((x) ? true : false, __LINE__)
 #else
-#define NETKVM_ASSERT(x) for(;;) break
+#define NETKVM_ASSERT(x)                                                                                               \
+    for (;;)                                                                                                           \
+    break
 #endif
 
-#define _Ndis_acquires_lock_(type, lock)     \
-    _Acquires##type##lock_(lock)             \
-    _IRQL_raises_(DISPATCH_LEVEL)            \
-    _IRQL_saves_global_(OldIrql, lock)
+#define _Ndis_acquires_lock_(type, lock)                                                                               \
+    _Acquires##type##lock_(lock) _IRQL_raises_(DISPATCH_LEVEL) _IRQL_saves_global_(OldIrql, lock)
 
-#define _Ndis_releases_lock_(lock)           \
-    _Requires_lock_held_(lock)               \
-    _Releases_lock_(lock)                    \
-    _IRQL_restores_global_(OldIrql, lock)
+#define _Ndis_releases_lock_(lock)                                                                                     \
+    _Requires_lock_held_(lock) _Releases_lock_(lock) _IRQL_restores_global_(OldIrql, lock)
 
 #define _Ndis_acquires_exclusive_lock_(lock) _Ndis_acquires_lock_(_exclusive_, lock)
-#define _Ndis_acquires_shared_lock_(lock) _Ndis_acquires_lock_(_shared_, lock)
+#define _Ndis_acquires_shared_lock_(lock)    _Ndis_acquires_lock_(_shared_, lock)
 
-static __inline
-BOOLEAN IsPowerOfTwo(ULONG n)
+static __inline BOOLEAN IsPowerOfTwo(ULONG n)
 {
     return ((n != 0) && ((n & (~n + 1)) == n));
 }
 
 class CNdisAllocatableBase
 {
-protected:
-    CNdisAllocatableBase() {};
-    ~CNdisAllocatableBase() {};
+  protected:
+    CNdisAllocatableBase(){};
+    ~CNdisAllocatableBase(){};
     /* Objects's array can't be freed by NdisFreeMemoryWithTagPriority, as C++ array constructor uses the
-    * first several bytes for array length. Array  destructor can't get additional argument, so passing
-    * NDIS_HANDLE to the array destructor is impossible. Therefore, the array constructors and destructor
-    * are declared private and object arrays has be created and destroyed in two steps - construction by
-    * allocating array memory with NdisAllocateMemoryWithTagPriority and then in-place constructing the
-    * objects and destructing in the reverse order. */
-    void* operator new[](size_t Size, NDIS_HANDLE MiniportHandle) throw() = delete;
-    void* operator new[](size_t Size) throw() = delete;
+     * first several bytes for array length. Array  destructor can't get additional argument, so passing
+     * NDIS_HANDLE to the array destructor is impossible. Therefore, the array constructors and destructor
+     * are declared private and object arrays has be created and destroyed in two steps - construction by
+     * allocating array memory with NdisAllocateMemoryWithTagPriority and then in-place constructing the
+     * objects and destructing in the reverse order. */
+    void *operator new[](size_t Size, NDIS_HANDLE MiniportHandle) throw() = delete;
+    void *operator new[](size_t Size) throw() = delete;
     void operator delete[](void *) = delete;
 
-private:
+  private:
     /* The delete operator can't be disabled like array constructors and destructors, as default destructor
-    * and default constructor depend on the delete operator availability */
-    void operator delete(void *) {}
+     * and default constructor depend on the delete operator availability */
+    void operator delete(void *)
+    {
+    }
 };
 
 class CPlacementAllocatable
 {
-public:
-    void* operator new(size_t size, void *ptr) throw()
+  public:
+    void *operator new(size_t size, void *ptr) throw()
     {
         UNREFERENCED_PARAMETER(size);
         return ptr;
     }
 };
 
-template <typename T, ULONG Tag>
-class CNdisAllocatable : private CNdisAllocatableBase
+template <typename T, ULONG Tag> class CNdisAllocatable : private CNdisAllocatableBase
 {
-public:
-    void* operator new(size_t Size, NDIS_HANDLE MiniportHandle) throw()
-        { return NdisAllocateMemoryWithTagPriority(MiniportHandle, (UINT) Size, Tag, NormalPoolPriority); }
+  public:
+    void *operator new(size_t Size, NDIS_HANDLE MiniportHandle) throw()
+    {
+        return NdisAllocateMemoryWithTagPriority(MiniportHandle, (UINT)Size, Tag, NormalPoolPriority);
+    }
 
     static void Destroy(T *ptr, NDIS_HANDLE MiniportHandle)
     {
@@ -76,24 +77,22 @@ public:
         NdisFreeMemoryWithTagPriority(MiniportHandle, ptr, Tag);
     }
 
-protected:
-    CNdisAllocatable() {};
-    ~CNdisAllocatable() {};
+  protected:
+    CNdisAllocatable(){};
+    ~CNdisAllocatable(){};
 };
 
-template <typename T>
-class CAllocationHelper
+template <typename T> class CAllocationHelper
 {
-public:
-    virtual T*   Allocate()      = 0;
+  public:
+    virtual T *Allocate() = 0;
     virtual void Deallocate(T *) = 0;
 };
 
-template <typename T>
-class CNdisAllocatableViaHelper : private CNdisAllocatableBase
+template <typename T> class CNdisAllocatableViaHelper : private CNdisAllocatableBase
 {
-public:
-    void* operator new(size_t Size, CAllocationHelper<T> *pHelper) throw()
+  public:
+    void *operator new(size_t Size, CAllocationHelper<T> *pHelper) throw()
     {
         UNREFERENCED_PARAMETER(Size);
         return pHelper->Allocate();
@@ -106,15 +105,15 @@ public:
         pHelper->Deallocate(ptr);
     }
 
-protected:
-    CNdisAllocatableViaHelper(CAllocationHelper<T> *allocator) : m_Allocator(allocator) {};
-    ~CNdisAllocatableViaHelper() {};
+  protected:
+    CNdisAllocatableViaHelper(CAllocationHelper<T> *allocator) : m_Allocator(allocator){};
+    ~CNdisAllocatableViaHelper(){};
     CAllocationHelper<T> *m_Allocator;
 };
 
 class CNdisSpinLock
 {
-public:
+  public:
     CNdisSpinLock()
     {
         NdisAllocateSpinLock(&m_Lock);
@@ -124,40 +123,36 @@ public:
         NdisFreeSpinLock(&m_Lock);
     }
 
-    _Ndis_acquires_exclusive_lock_(this->m_Lock.SpinLock)
-        void Lock()
+    _Ndis_acquires_exclusive_lock_(this->m_Lock.SpinLock) void Lock()
     {
         NdisAcquireSpinLock(&m_Lock);
     }
 
-    _Ndis_releases_lock_(this->m_Lock.SpinLock)
-        void Unlock()
+    _Ndis_releases_lock_(this->m_Lock.SpinLock) void Unlock()
     {
         NdisReleaseSpinLock(&m_Lock);
     }
 
-    _Ndis_acquires_exclusive_lock_(this->m_Lock.SpinLock)
-        void LockDPR()
+    _Ndis_acquires_exclusive_lock_(this->m_Lock.SpinLock) void LockDPR()
     {
         NETKVM_ASSERT(NDIS_CURRENT_IRQL() == DISPATCH_LEVEL);
         NdisDprAcquireSpinLock(&m_Lock);
     }
-    _Ndis_releases_lock_(this->m_Lock.SpinLock)
-        void UnlockDPR()
+    _Ndis_releases_lock_(this->m_Lock.SpinLock) void UnlockDPR()
     {
         NETKVM_ASSERT(NDIS_CURRENT_IRQL() == DISPATCH_LEVEL);
         NdisDprReleaseSpinLock(&m_Lock);
     }
 
-private:
+  private:
     NDIS_SPIN_LOCK m_Lock;
-    CNdisSpinLock(const CNdisSpinLock&) = delete;
-    CNdisSpinLock& operator= (const CNdisSpinLock&) = delete;
+    CNdisSpinLock(const CNdisSpinLock &) = delete;
+    CNdisSpinLock &operator=(const CNdisSpinLock &) = delete;
 };
 
 class CNdisMutex
 {
-public:
+  public:
     CNdisMutex()
     {
         NDIS_INIT_MUTEX(&m_Mutex);
@@ -170,17 +165,17 @@ public:
     {
         NDIS_RELEASE_MUTEX(&m_Mutex);
     }
-private:
+
+  private:
     KMUTEX m_Mutex;
 };
 
-template <typename T>
-class CLockedContext
+template <typename T> class CLockedContext
 {
-public:
-    _IRQL_raises_(DISPATCH_LEVEL)
-    _IRQL_saves_global_(OldIrql, this->m_LockObject)
-    CLockedContext(T &LockObject, BOOLEAN Autolock = TRUE)
+  public:
+    _IRQL_raises_(DISPATCH_LEVEL) _IRQL_saves_global_(OldIrql,
+                                                      this->m_LockObject) CLockedContext(T &LockObject,
+                                                                                         BOOLEAN Autolock = TRUE)
         : m_LockObject(LockObject), m_Autolock(Autolock)
     {
         if (Autolock)
@@ -189,8 +184,7 @@ public:
         }
     }
 
-    _IRQL_restores_global_(OldIrql, this->m_LockObject)
-        ~CLockedContext()
+    _IRQL_restores_global_(OldIrql, this->m_LockObject) ~CLockedContext()
     {
         if (m_Autolock)
         {
@@ -198,83 +192,103 @@ public:
         }
     }
 
-protected:
+  protected:
     T &m_LockObject;
     BOOLEAN m_Autolock;
 
-private:
-    CLockedContext(const CLockedContext&) = delete;
-    CLockedContext& operator= (const CLockedContext&) = delete;
+  private:
+    CLockedContext(const CLockedContext &) = delete;
+    CLockedContext &operator=(const CLockedContext &) = delete;
 };
 
 class CPassiveSpinLockedContext : public CLockedContext<CNdisSpinLock>
 {
-public:
-    _Ndis_acquires_exclusive_lock_(this->m_LockObject)
-        CPassiveSpinLockedContext(CNdisSpinLock &LockObject) :
-        CLockedContext<CNdisSpinLock>(LockObject) {}
+  public:
+    _Ndis_acquires_exclusive_lock_(this->m_LockObject) CPassiveSpinLockedContext(CNdisSpinLock &LockObject)
+        : CLockedContext<CNdisSpinLock>(LockObject)
+    {
+    }
 
-    _Ndis_releases_lock_(this->m_LockObject)
-        ~CPassiveSpinLockedContext() {}
+    _Ndis_releases_lock_(this->m_LockObject) ~CPassiveSpinLockedContext()
+    {
+    }
 
-private:
-
-    CPassiveSpinLockedContext(const CPassiveSpinLockedContext&) = delete;
-    CPassiveSpinLockedContext& operator= (const CPassiveSpinLockedContext&) = delete;
+  private:
+    CPassiveSpinLockedContext(const CPassiveSpinLockedContext &) = delete;
+    CPassiveSpinLockedContext &operator=(const CPassiveSpinLockedContext &) = delete;
 };
 
 class CDPCSpinLockedContext : public CLockedContext<CNdisSpinLock>
 {
-public:
-    _Ndis_acquires_exclusive_lock_(this->m_LockObject)
-        CDPCSpinLockedContext(CNdisSpinLock &LockObject) :
-        CLockedContext<CNdisSpinLock>(LockObject, FALSE)
-    { m_LockObject.LockDPR(); }
+  public:
+    _Ndis_acquires_exclusive_lock_(this->m_LockObject) CDPCSpinLockedContext(CNdisSpinLock &LockObject)
+        : CLockedContext<CNdisSpinLock>(LockObject, FALSE)
+    {
+        m_LockObject.LockDPR();
+    }
 
-    _Ndis_releases_lock_(this->m_LockObject)
-        ~CDPCSpinLockedContext()
-    { m_LockObject.UnlockDPR(); }
+    _Ndis_releases_lock_(this->m_LockObject) ~CDPCSpinLockedContext()
+    {
+        m_LockObject.UnlockDPR();
+    }
 
-private:
-
-    CDPCSpinLockedContext(const CDPCSpinLockedContext&) = delete;
-    CDPCSpinLockedContext& operator= (const CDPCSpinLockedContext&) = delete;
+  private:
+    CDPCSpinLockedContext(const CDPCSpinLockedContext &) = delete;
+    CDPCSpinLockedContext &operator=(const CDPCSpinLockedContext &) = delete;
 };
 
 typedef CPassiveSpinLockedContext TPassiveSpinLocker;
 typedef CDPCSpinLockedContext TDPCSpinLocker;
 
-
-LONG FORCEINLINE NetKvmInterlockedAdd(
-    __inout __drv_interlocked LONG volatile *p,
-    __in LONG Val
-)
+LONG FORCEINLINE NetKvmInterlockedAdd(__inout __drv_interlocked LONG volatile *p, __in LONG Val)
 {
     return InterlockedExchangeAdd(p, Val) + Val;
 }
 
 class CNdisRefCounter
 {
-public:
+  public:
     CNdisRefCounter() = default;
 
-    LONG AddRef() { return NdisInterlockedIncrement(&m_Counter); }
-    LONG AddRef(ULONG RefCnt) { return NetKvmInterlockedAdd(&m_Counter, (LONG)RefCnt); }
-    LONG Release() { return NdisInterlockedDecrement(&m_Counter); }
-    LONG Release(ULONG RefCnt) { return NetKvmInterlockedAdd(&m_Counter, -(LONG)RefCnt); }
-    void SetMask(LONG mask) { InterlockedOr(&m_Counter, mask); }
-    void ClearMask(LONG mask) { InterlockedAnd(&m_Counter, ~mask); }
-    operator LONG () { return m_Counter; }
-private:
+    LONG AddRef()
+    {
+        return NdisInterlockedIncrement(&m_Counter);
+    }
+    LONG AddRef(ULONG RefCnt)
+    {
+        return NetKvmInterlockedAdd(&m_Counter, (LONG)RefCnt);
+    }
+    LONG Release()
+    {
+        return NdisInterlockedDecrement(&m_Counter);
+    }
+    LONG Release(ULONG RefCnt)
+    {
+        return NetKvmInterlockedAdd(&m_Counter, -(LONG)RefCnt);
+    }
+    void SetMask(LONG mask)
+    {
+        InterlockedOr(&m_Counter, mask);
+    }
+    void ClearMask(LONG mask)
+    {
+        InterlockedAnd(&m_Counter, ~mask);
+    }
+    operator LONG()
+    {
+        return m_Counter;
+    }
+
+  private:
     LONG m_Counter = 0;
 
-    CNdisRefCounter(const CNdisRefCounter&) = delete;
-    CNdisRefCounter& operator= (const CNdisRefCounter&) = delete;
+    CNdisRefCounter(const CNdisRefCounter &) = delete;
+    CNdisRefCounter &operator=(const CNdisRefCounter &) = delete;
 };
 
 class COwnership
 {
-public:
+  public:
     COwnership() = default;
 
     bool Acquire()
@@ -291,20 +305,26 @@ public:
     }
 
     void Release()
-    { m_RefCounter.Release(); }
+    {
+        m_RefCounter.Release();
+    }
 
-private:
+  private:
     CNdisRefCounter m_RefCounter;
 };
 
 class CRefCountingObject
 {
-public:
+  public:
     CRefCountingObject()
-    { AddRef(); }
+    {
+        AddRef();
+    }
 
     void AddRef()
-    { m_RefCounter.AddRef(); }
+    {
+        m_RefCounter.AddRef();
+    }
 
     void Release()
     {
@@ -314,33 +334,45 @@ public:
         }
     }
 
-protected:
+  protected:
     virtual void OnLastReferenceGone() = 0;
 
-private:
+  private:
     CNdisRefCounter m_RefCounter;
 
-    CRefCountingObject(const CRefCountingObject&) = delete;
-    CRefCountingObject& operator= (const CRefCountingObject&) = delete;
+    CRefCountingObject(const CRefCountingObject &) = delete;
+    CRefCountingObject &operator=(const CRefCountingObject &) = delete;
 };
 
 class CLockedAccess
 {
-public:
-    _Ndis_acquires_exclusive_lock_(this->m_Lock.m_Lock.SpinLock)
-    void Lock() { m_Lock.Lock(); }
-    _Ndis_releases_lock_(this->m_Lock.m_Lock.SpinLock)
-    void Unlock() { m_Lock.Unlock(); }
-private:
+  public:
+    _Ndis_acquires_exclusive_lock_(this->m_Lock.m_Lock.SpinLock) void Lock()
+    {
+        m_Lock.Lock();
+    }
+    _Ndis_releases_lock_(this->m_Lock.m_Lock.SpinLock) void Unlock()
+    {
+        m_Lock.Unlock();
+    }
+
+  private:
     CNdisSpinLock m_Lock;
 };
 
 class CMutexProtectedAccess
 {
-public:
-    void Lock() { m_Mutex.Lock(); }
-    void Unlock() { m_Mutex.Unlock(); }
-private:
+  public:
+    void Lock()
+    {
+        m_Mutex.Lock();
+    }
+    void Unlock()
+    {
+        m_Mutex.Unlock();
+    }
+
+  private:
     CNdisMutex m_Mutex;
 };
 
@@ -348,53 +380,83 @@ typedef CLockedContext<CMutexProtectedAccess> CMutexLockedContext;
 
 class CRawAccess
 {
-public:
-    void Lock() { }
-    void Unlock() { }
+  public:
+    void Lock()
+    {
+    }
+    void Unlock()
+    {
+    }
 };
 
 class CCountingObject
 {
-public:
-    void CounterIncrement() { m_Counter++; }
-    void CounterDecrement() { m_Counter--; }
-    ULONG GetCount() { return m_Counter; }
-private:
+  public:
+    void CounterIncrement()
+    {
+        m_Counter++;
+    }
+    void CounterDecrement()
+    {
+        m_Counter--;
+    }
+    ULONG GetCount()
+    {
+        return m_Counter;
+    }
+
+  private:
     ULONG m_Counter = 0;
 };
 
 class CNonCountingObject
 {
-public:
-    void CounterIncrement() { }
-    void CounterDecrement() { }
-protected:
-    ULONG GetCount() { return 0; }
+  public:
+    void CounterIncrement()
+    {
+    }
+    void CounterDecrement()
+    {
+    }
+
+  protected:
+    ULONG GetCount()
+    {
+        return 0;
+    }
 };
 
-#define DECLARE_CNDISLIST_ENTRY(type)                                                   \
-    private:                                                                            \
-        PLIST_ENTRY GetListEntry()                                                      \
-        { return &m_ListEntry; }                                                        \
-                                                                                        \
-        static type *GetByListEntry(PLIST_ENTRY entry)                                  \
-        { return static_cast<type*>(CONTAINING_RECORD(entry, type, m_ListEntry)); }     \
-                                                                                        \
-        template<typename type, typename AnyAccess, typename AnyStrategy>               \
-        friend class CNdisList;                                                         \
-                                                                                        \
-        LIST_ENTRY m_ListEntry{}
-
+#define DECLARE_CNDISLIST_ENTRY(type)                                                                                  \
+  private:                                                                                                             \
+    PLIST_ENTRY GetListEntry()                                                                                         \
+    {                                                                                                                  \
+        return &m_ListEntry;                                                                                           \
+    }                                                                                                                  \
+                                                                                                                       \
+    static type *GetByListEntry(PLIST_ENTRY entry)                                                                     \
+    {                                                                                                                  \
+        return static_cast<type *>(CONTAINING_RECORD(entry, type, m_ListEntry));                                       \
+    }                                                                                                                  \
+                                                                                                                       \
+    template <typename type, typename AnyAccess, typename AnyStrategy> friend class CNdisList;                         \
+                                                                                                                       \
+    LIST_ENTRY m_ListEntry                                                                                             \
+    {                                                                                                                  \
+    }
 
 template <typename TEntryType, typename TAccessStrategy, typename TCountingStrategy>
 class CNdisList : private TAccessStrategy, public TCountingStrategy
 {
-public:
+  public:
     CNdisList()
-    { InitializeListHead(&m_List); }
+    {
+        InitializeListHead(&m_List);
+    }
 
     bool IsEmpty()
-    { return IsListEmpty(&m_List) ? true : false; }
+    {
+        return IsListEmpty(&m_List) ? true : false;
+    }
 
     TEntryType *Pop()
     {
@@ -405,7 +467,7 @@ public:
     TEntryType *Peek()
     {
         CLockedContext<TAccessStrategy> LockedContext(*this);
-        TEntryType * entry = Pop_LockLess();
+        TEntryType *entry = Pop_LockLess();
         Push_LockLess(entry);
         return entry;
     }
@@ -430,8 +492,7 @@ public:
         Remove_LockLess(Entry->GetListEntry());
     }
 
-    template <typename TFunctor>
-    void ForEachDetached(TFunctor Functor)
+    template <typename TFunctor> void ForEachDetached(TFunctor Functor)
     {
         CLockedContext<TAccessStrategy> LockedContext(*this);
         while (!IsListEmpty(&m_List))
@@ -440,19 +501,17 @@ public:
         }
     }
 
-    template <typename TPredicate, typename TFunctor>
-    void ForEachDetachedIf(TPredicate Predicate, TFunctor Functor)
+    template <typename TPredicate, typename TFunctor> void ForEachDetachedIf(TPredicate Predicate, TFunctor Functor)
     {
         ForEachPrepareIf(Predicate, [this](PLIST_ENTRY Entry){ Remove_LockLess(Entry); }, Functor);
     }
 
-    template <typename TFunctor>
-    void ForEach(TFunctor Functor)
+    template <typename TFunctor> void ForEach(TFunctor Functor)
     {
-        ForEachPrepareIf([](TEntryType*) { return true; }, [](PLIST_ENTRY){}, Functor);
+        ForEachPrepareIf([](TEntryType *) { return true; }, [](PLIST_ENTRY) {}, Functor);
     }
 
-private:
+  private:
     template <typename TPredicate, typename TPrepareFunctor, typename TFunctor>
     void ForEachPrepareIf(TPredicate Predicate, TPrepareFunctor Prepare, TFunctor Functor)
     {
@@ -490,7 +549,6 @@ private:
         return GetCount();
     }
 
-
     void Remove_LockLess(PLIST_ENTRY Entry)
     {
         RemoveEntryList(Entry);
@@ -502,48 +560,54 @@ private:
 
 class CDpcIrqlRaiser
 {
-public:
-
-    _IRQL_requires_max_(DISPATCH_LEVEL)
-    _IRQL_raises_(DISPATCH_LEVEL)
-    _IRQL_saves_global_(OldIrql, this->m_OriginalIRQL)
-    CDpcIrqlRaiser()
+  public:
+    _IRQL_requires_max_(DISPATCH_LEVEL) _IRQL_raises_(DISPATCH_LEVEL) _IRQL_saves_global_(OldIrql, this->m_OriginalIRQL)
+                                                                                                        CDpcIrqlRaiser()
         : m_OriginalIRQL(KeRaiseIrqlToDpcLevel())
-    { }
+    {
+    }
 
-    _IRQL_requires_(DISPATCH_LEVEL)
-    _IRQL_restores_global_(OldIrql, this->m_OriginalIRQL)
-    ~CDpcIrqlRaiser()
-    { KeLowerIrql(m_OriginalIRQL); }
-    CDpcIrqlRaiser(const CDpcIrqlRaiser&) = delete;
-    CDpcIrqlRaiser& operator= (const CDpcIrqlRaiser&) = delete;
+    _IRQL_requires_(DISPATCH_LEVEL) _IRQL_restores_global_(OldIrql, this->m_OriginalIRQL) ~CDpcIrqlRaiser()
+    {
+        KeLowerIrql(m_OriginalIRQL);
+    }
+    CDpcIrqlRaiser(const CDpcIrqlRaiser &) = delete;
+    CDpcIrqlRaiser &operator=(const CDpcIrqlRaiser &) = delete;
 
-private:
+  private:
     KIRQL m_OriginalIRQL;
 };
 
 template <typename TEntryType, ULONG tag>
-class CPool : public CNdisList<TEntryType, CLockedAccess, CCountingObject>,
-              public CAllocationHelper<TEntryType>
+class CPool : public CNdisList<TEntryType, CLockedAccess, CCountingObject>, public CAllocationHelper<TEntryType>
 {
-public:
-    CPool() {}
+  public:
+    CPool()
+    {
+    }
     TEntryType *Allocate() override
     {
         auto *p = Pop();
-        if (!p) p = NdisAllocate();
+        if (!p)
+        {
+            p = NdisAllocate();
+        }
         return p;
     }
     void Deallocate(TEntryType *ptr) override
     {
         PushBack(ptr);
     }
-    void Create(NDIS_HANDLE h) { m_Handle = h; }
+    void Create(NDIS_HANDLE h)
+    {
+        m_Handle = h;
+    }
     ~CPool()
     {
         ForEachDetached([this](TEntryType *p) { NdisFree(p); });
     }
-private:
+
+  private:
     NDIS_HANDLE m_Handle = nullptr;
     void NdisFree(TEntryType *p)
     {
@@ -557,10 +621,10 @@ private:
 
 class CNdisSharedMemory : public CNdisAllocatable<CNdisSharedMemory, 'XTSM'>
 {
-public:
-    explicit CNdisSharedMemory()
-        : m_DrvHandle(NULL)
-    {}
+  public:
+    explicit CNdisSharedMemory() : m_DrvHandle(NULL)
+    {
+    }
 
     bool Create(NDIS_HANDLE DrvHandle)
     {
@@ -571,10 +635,20 @@ public:
     ~CNdisSharedMemory();
     bool Allocate(ULONG Size, bool IsCached = true);
 
-    ULONG GetSize() const {return m_Size; }
-    PVOID GetVA() const {return m_VA; }
-    NDIS_PHYSICAL_ADDRESS GetPA() const {return m_PA; }
-private:
+    ULONG GetSize() const
+    {
+        return m_Size;
+    }
+    PVOID GetVA() const
+    {
+        return m_VA;
+    }
+    NDIS_PHYSICAL_ADDRESS GetPA() const
+    {
+        return m_PA;
+    }
+
+  private:
     NDIS_HANDLE m_DrvHandle;
 
     PVOID m_VA = nullptr;
@@ -582,28 +656,36 @@ private:
     ULONG m_Size = 0;
     bool m_IsCached = false;
 
-    CNdisSharedMemory(const CNdisSharedMemory&) = delete;
-    CNdisSharedMemory& operator= (const CNdisSharedMemory&) = delete;
+    CNdisSharedMemory(const CNdisSharedMemory &) = delete;
+    CNdisSharedMemory &operator=(const CNdisSharedMemory &) = delete;
 
     DECLARE_CNDISLIST_ENTRY(CNdisSharedMemory);
 };
 
 class CNdisEvent
 {
-public:
+  public:
     CNdisEvent()
-    { NdisInitializeEvent(&m_Event); }
+    {
+        NdisInitializeEvent(&m_Event);
+    }
 
     void Notify()
-    { NdisSetEvent(&m_Event); }
+    {
+        NdisSetEvent(&m_Event);
+    }
 
     void Clear()
-    { NdisResetEvent(&m_Event); }
+    {
+        NdisResetEvent(&m_Event);
+    }
 
     bool Wait(UINT IntervalMs = 0)
-    { return NdisWaitEvent(&m_Event, IntervalMs) == TRUE; }
+    {
+        return NdisWaitEvent(&m_Event, IntervalMs) == TRUE;
+    }
 
-private:
+  private:
     NDIS_EVENT m_Event;
 };
 
@@ -617,12 +699,12 @@ bool __inline ParaNdis_IsPassive()
 #elif NDIS_SUPPORT_NDIS6
 #define RW_LOCK_60
 #elif
-#error  Read/Write lock not supported by NDIS before 6.0
+#error Read/Write lock not supported by NDIS before 6.0
 #endif
 
 class CNdisRWLockState
 {
-private:
+  private:
 #ifdef RW_LOCK_60
     LOCK_STATE m_state;
 #endif
@@ -634,7 +716,7 @@ private:
 
 class CNdisRWLock : public CPlacementAllocatable
 {
-public:
+  public:
 #ifdef RW_LOCK_60
     bool Create(NDIS_HANDLE)
     {
@@ -643,7 +725,9 @@ public:
     }
 #endif
 #ifdef RW_LOCK_62
-    CNdisRWLock() : m_pLock(nullptr) {}
+    CNdisRWLock() : m_pLock(nullptr)
+    {
+    }
     bool Create(NDIS_HANDLE miniportHandle);
 #endif
 
@@ -651,12 +735,13 @@ public:
     {
 #ifdef RW_LOCK_62
         if (m_pLock != nullptr)
+        {
             NdisFreeRWLock(m_pLock);
+        }
 #endif
     }
 
-    _Ndis_acquires_shared_lock_(this->m_pLock)
-    void acquireRead(CNdisRWLockState &lockState)
+    _Ndis_acquires_shared_lock_(this->m_pLock) void acquireRead(CNdisRWLockState &lockState)
     {
 #ifdef RW_LOCK_60
         NdisAcquireReadWriteLock(&m_lock, 0, &lockState.m_state);
@@ -666,8 +751,7 @@ public:
 #endif
     }
 
-    _Ndis_acquires_exclusive_lock_(this->m_pLock)
-    void acquireWrite(CNdisRWLockState &lockState)
+    _Ndis_acquires_exclusive_lock_(this->m_pLock) void acquireWrite(CNdisRWLockState &lockState)
     {
 #ifdef RW_LOCK_60
         NdisAcquireReadWriteLock(&m_lock, 1, &lockState.m_state);
@@ -677,21 +761,19 @@ public:
 #endif
     }
 
-    _Ndis_releases_lock_(this->m_pLock)
-    void release(CNdisRWLockState &lockState)
+    _Ndis_releases_lock_(this->m_pLock) void release(CNdisRWLockState &lockState)
     {
 #ifdef RW_LOCK_60
         NdisReleaseReadWriteLock(&m_lock, &lockState.m_state);
 #endif
 #ifdef RW_LOCK_62
-#pragma warning(disable:26110)
+#pragma warning(disable : 26110)
         NdisReleaseRWLock(m_pLock, &lockState.m_state);
-#pragma warning(default:26110)
+#pragma warning(default : 26110)
 #endif
     }
 
-    _Ndis_acquires_shared_lock_(this->m_pLock)
-    void acquireReadDpr(CNdisRWLockState &lockState)
+    _Ndis_acquires_shared_lock_(this->m_pLock) void acquireReadDpr(CNdisRWLockState &lockState)
     {
         NETKVM_ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
 
@@ -703,8 +785,7 @@ public:
 #endif
     }
 
-    _Ndis_acquires_exclusive_lock_(this->m_pLock)
-    void acquireWriteDpr(CNdisRWLockState &lockState)
+    _Ndis_acquires_exclusive_lock_(this->m_pLock) void acquireWriteDpr(CNdisRWLockState &lockState)
     {
         NETKVM_ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
 #ifdef RW_LOCK_60
@@ -715,21 +796,20 @@ public:
 #endif
     }
 
-    _Ndis_releases_lock_(this->m_pLock)
-    void releaseDpr(CNdisRWLockState &lockState)
+    _Ndis_releases_lock_(this->m_pLock) void releaseDpr(CNdisRWLockState &lockState)
     {
         NETKVM_ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
 #ifdef RW_LOCK_60
         NdisDprReleaseReadWriteLock(&m_lock, &lockState.m_state);
 #endif
 #ifdef RW_LOCK_62
-#pragma warning(disable:26110)
+#pragma warning(disable : 26110)
         NdisReleaseRWLock(m_pLock, &lockState.m_state);
-#pragma warning(default:26110)
+#pragma warning(default : 26110)
 #endif
     }
 
-private:
+  private:
 #ifdef RW_LOCK_60
     NDIS_RW_LOCK m_lock;
 #endif
@@ -738,24 +818,26 @@ private:
 #endif
 };
 
-template <void (CNdisRWLock::*Acquire)(CNdisRWLockState&), void (CNdisRWLock::*Release)(CNdisRWLockState&)>   class CNdisAutoRWLock
+template <void (CNdisRWLock::*Acquire)(CNdisRWLockState &), void (CNdisRWLock::*Release)(CNdisRWLockState &)>
+class CNdisAutoRWLock
 {
-public:
-    _Ndis_acquires_lock_(_, this->lock)
-    CNdisAutoRWLock(CNdisRWLock &_lock) : lock(_lock)
+  public:
+    _Ndis_acquires_lock_(_, this->lock) CNdisAutoRWLock(CNdisRWLock &_lock) : lock(_lock)
     {
         (lock.*Acquire)(lockState);
     }
 
-    _Ndis_releases_lock_(this->lock)
-    ~CNdisAutoRWLock()
+    _Ndis_releases_lock_(this->lock) ~CNdisAutoRWLock()
     {
         (lock.*Release)(lockState);
     }
-private:
+
+  private:
     CNdisRWLock &lock;
     CNdisRWLockState lockState;
-    CNdisAutoRWLock &operator=(const CNdisAutoRWLock &) {}
+    CNdisAutoRWLock &operator=(const CNdisAutoRWLock &)
+    {
+    }
 };
 
 typedef CNdisAutoRWLock<&CNdisRWLock::acquireRead, &CNdisRWLock::release> CNdisPassiveReadAutoLock;
@@ -799,7 +881,7 @@ void ParaNdis_PrintTable(int DebugPrintLevel, TTable table, size_t Size, LPCSTR 
         return;
     }
 
-    size_t  i = 0;
+    size_t i = 0;
     memset(Line, ' ', sizeof(Line));
     Line[PrintWidth] = 0;
     LinePos = Line;
@@ -808,12 +890,19 @@ void ParaNdis_PrintTable(int DebugPrintLevel, TTable table, size_t Size, LPCSTR 
     {
         for (size_t j = 0; j < PrintWidth / ColumnWidth && i < Size; j++, i++)
         {
-            Res = RtlStringCbPrintfExA(LinePos, ColumnWidth, &End, NULL, STRSAFE_FILL_ON_FAILURE | ' ',
-                FullFormat, i, Accessors(table + i)...);
+            Res = RtlStringCbPrintfExA(LinePos,
+                                       ColumnWidth,
+                                       &End,
+                                       NULL,
+                                       STRSAFE_FILL_ON_FAILURE | ' ',
+                                       FullFormat,
+                                       i,
+                                       Accessors(table + i)...);
             if (Res == STATUS_SUCCESS)
+            {
                 *End = ' ';
+            }
             LinePos += ColumnWidth;
-
         }
         Parandis_UtilOnly_Trace(DebugPrintLevel, Line);
         memset(Line, ' ', sizeof(Line));
@@ -823,24 +912,24 @@ void ParaNdis_PrintTable(int DebugPrintLevel, TTable table, size_t Size, LPCSTR 
 }
 void ParaNdis_PrintCharArray(int DebugPrintLevel, const CCHAR *data, size_t length);
 
-static inline
-ULONG ParaNdis_CountNBLs(PNET_BUFFER_LIST NBL)
+static inline ULONG ParaNdis_CountNBLs(PNET_BUFFER_LIST NBL)
 {
-	ULONG Result;
-    for (Result = 0UL; NBL != nullptr;
-        NBL = NET_BUFFER_LIST_NEXT_NBL(NBL), Result++);
+    ULONG Result;
+    for (Result = 0UL; NBL != nullptr; NBL = NET_BUFFER_LIST_NEXT_NBL(NBL), Result++)
+        ;
 
     return Result;
 }
 
-static inline
-void ParaNdis_CompleteNBLChain(NDIS_HANDLE MiniportHandle, PNET_BUFFER_LIST NBL, ULONG Flags = 0)
+static inline void ParaNdis_CompleteNBLChain(NDIS_HANDLE MiniportHandle, PNET_BUFFER_LIST NBL, ULONG Flags = 0)
 {
     NdisMSendNetBufferListsComplete(MiniportHandle, NBL, Flags);
 }
 
-static inline
-void ParaNdis_CompleteNBLChainWithStatus(NDIS_HANDLE MiniportHandle, PNET_BUFFER_LIST NBL, NDIS_STATUS Status, ULONG Flags = 0)
+static inline void ParaNdis_CompleteNBLChainWithStatus(NDIS_HANDLE MiniportHandle,
+                                                       PNET_BUFFER_LIST NBL,
+                                                       NDIS_STATUS Status,
+                                                       ULONG Flags = 0)
 {
     for (auto curr = NBL; curr != nullptr; curr = NET_BUFFER_LIST_NEXT_NBL(curr))
     {
