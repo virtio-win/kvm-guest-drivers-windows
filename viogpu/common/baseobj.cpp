@@ -8,7 +8,7 @@ _When_((PoolType & NonPagedPoolMustSucceed) != 0,
 {
     Size = (Size != 0) ? Size : 1;
 
-    void* pObject = ExAllocatePoolUninitialized(PoolType, Size, VIOGPUTAG);
+    void *pObject = ExAllocatePoolUninitialized(PoolType, Size, VIOGPUTAG);
 
     if (pObject != NULL)
     {
@@ -23,13 +23,13 @@ _When_((PoolType & NonPagedPoolMustSucceed) != 0,
 
 _When_((PoolType & NonPagedPoolMustSucceed) != 0,
     __drv_reportError("Must succeed pool allocations are forbidden. "
-        "Allocation failures cause a system crash"))
-    void* __cdecl operator new[](size_t Size, POOL_TYPE PoolType)
+                         "Allocation failures cause a system crash")) void *__cdecl
+operator new[](size_t Size, POOL_TYPE PoolType)
 {
 
     Size = (Size != 0) ? Size : 1;
 
-    void* pObject = ExAllocatePoolUninitialized(PoolType, Size, VIOGPUTAG);
+    void *pObject = ExAllocatePoolUninitialized(PoolType, Size, VIOGPUTAG);
 
     if (pObject != NULL)
     {
@@ -42,7 +42,7 @@ _When_((PoolType & NonPagedPoolMustSucceed) != 0,
     return pObject;
 }
 
-void __cdecl operator delete(void* pObject)
+void __cdecl operator delete(void *pObject)
 {
 
     if (pObject != NULL)
@@ -51,7 +51,7 @@ void __cdecl operator delete(void* pObject)
     }
 }
 
-void __cdecl operator delete[](void* pObject)
+void __cdecl operator delete[](void *pObject)
 {
 
     if (pObject != NULL)
@@ -64,5 +64,5 @@ void __cdecl operator delete(void *pObject, size_t Size)
 {
 
     UNREFERENCED_PARAMETER(Size);
-    ::operator delete (pObject);
+    ::operator delete(pObject);
 }

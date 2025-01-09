@@ -15,12 +15,12 @@
  * the COPYING file in the top-level directory.
  *
  */
- /**********************************************************************
-  * Copyright (c) 2012-2020 Red Hat, Inc.
-  *
-  * This work is licensed under the terms of the GNU GPL, version 2.  See
-  * the COPYING file in the top-level directory.
-  *
+/**********************************************************************
+ * Copyright (c) 2012-2020 Red Hat, Inc.
+ *
+ * This work is licensed under the terms of the GNU GPL, version 2.  See
+ * the COPYING file in the top-level directory.
+ *
  **********************************************************************/
 #include "viogpu.h"
 #include "..\viogpudo\viogpudo.h"
@@ -28,63 +28,74 @@
 #include "viogpu_pci.tmh"
 #endif
 
-
 u32 ReadVirtIODeviceRegister(ULONG_PTR ulRegister)
 {
-    if (ulRegister & ~PORT_MASK) {
+    if (ulRegister & ~PORT_MASK)
+    {
         return READ_REGISTER_ULONG((PULONG)(ulRegister));
     }
-    else {
+    else
+    {
         return READ_PORT_ULONG((PULONG)(ulRegister));
     }
 }
 
 void WriteVirtIODeviceRegister(ULONG_PTR ulRegister, u32 ulValue)
 {
-    if (ulRegister & ~PORT_MASK) {
+    if (ulRegister & ~PORT_MASK)
+    {
         WRITE_REGISTER_ULONG((PULONG)(ulRegister), (ULONG)(ulValue));
     }
-    else {
+    else
+    {
         WRITE_PORT_ULONG((PULONG)(ulRegister), (ULONG)(ulValue));
     }
 }
 
 u8 ReadVirtIODeviceByte(ULONG_PTR ulRegister)
 {
-    if (ulRegister & ~PORT_MASK) {
+    if (ulRegister & ~PORT_MASK)
+    {
         return READ_REGISTER_UCHAR((PUCHAR)(ulRegister));
     }
-    else {
+    else
+    {
         return READ_PORT_UCHAR((PUCHAR)(ulRegister));
     }
 }
 
 void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue)
 {
-    if (ulRegister & ~PORT_MASK) {
+    if (ulRegister & ~PORT_MASK)
+    {
         WRITE_REGISTER_UCHAR((PUCHAR)(ulRegister), (UCHAR)(bValue));
     }
-    else {
+    else
+    {
         WRITE_PORT_UCHAR((PUCHAR)(ulRegister), (UCHAR)(bValue));
     }
 }
 
 u16 ReadVirtIODeviceWord(ULONG_PTR ulRegister)
 {
-    if (ulRegister & ~PORT_MASK) {
+    if (ulRegister & ~PORT_MASK)
+    {
         return READ_REGISTER_USHORT((PUSHORT)(ulRegister));
     }
-    else {
+    else
+    {
         return READ_PORT_USHORT((PUSHORT)(ulRegister));
     }
 }
 
 void WriteVirtIODeviceWord(ULONG_PTR ulRegister, u16 wValue)
 {
-    if (ulRegister & ~PORT_MASK) {
+    if (ulRegister & ~PORT_MASK)
+    {
         WRITE_REGISTER_USHORT((PUSHORT)(ulRegister), (USHORT)(wValue));
     }
-    else {
+    else
+    {
         WRITE_PORT_USHORT((PUSHORT)(ulRegister), (USHORT)(wValue));
     }
 }
@@ -98,10 +109,12 @@ void *mem_alloc_contiguous_pages(void *context, size_t size)
 
     HighestAcceptable.QuadPart = 0xFFFFFFFFFF;
     ptr = MmAllocateContiguousMemory(size, HighestAcceptable);
-    if (ptr) {
+    if (ptr)
+    {
         RtlZeroMemory(ptr, size);
     }
-    else {
+    else
+    {
         DbgPrint(TRACE_LEVEL_FATAL, ("Ran out of memory in alloc_pages_exact(%Id)\n", size));
     }
     return ptr;
@@ -110,7 +123,8 @@ void *mem_alloc_contiguous_pages(void *context, size_t size)
 void mem_free_contiguous_pages(void *context, void *virt)
 {
     UNREFERENCED_PARAMETER(context);
-    if (virt) {
+    if (virt)
+    {
         MmFreeContiguousMemory(virt);
     }
 }
@@ -126,14 +140,13 @@ ULONGLONG mem_get_physical_address(void *context, void *virt)
 void *mem_alloc_nonpaged_block(void *context, size_t size)
 {
     UNREFERENCED_PARAMETER(context);
-    PVOID ptr = ExAllocatePoolUninitialized(
-        NonPagedPoolNx,
-        size,
-        VIOGPUTAG);
-    if (ptr) {
+    PVOID ptr = ExAllocatePoolUninitialized(NonPagedPoolNx, size, VIOGPUTAG);
+    if (ptr)
+    {
         RtlZeroMemory(ptr, size);
     }
-    else {
+    else
+    {
         DbgPrint(TRACE_LEVEL_FATAL, ("Ran out of memory in alloc_pages_exact(%Id)\n", size));
     }
     return ptr;
@@ -142,19 +155,14 @@ void *mem_alloc_nonpaged_block(void *context, size_t size)
 void mem_free_nonpaged_block(void *context, void *addr)
 {
     UNREFERENCED_PARAMETER(context);
-    if (addr) {
-        ExFreePoolWithTag(
-            addr,
-            VIOGPUTAG);
+    if (addr)
+    {
+        ExFreePoolWithTag(addr, VIOGPUTAG);
     }
 }
 
 PAGED_CODE_SEG_BEGIN
-static int PCIReadConfig(
-    IVioGpuPCI* pDev,
-    int where,
-    void *buffer,
-    size_t length)
+static int PCIReadConfig(IVioGpuPCI *pDev, int where, void *buffer, size_t length)
 {
     PAGED_CODE();
 
@@ -164,11 +172,11 @@ static int PCIReadConfig(
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
     Status = pDxgkInterface->DxgkCbReadDeviceSpace(pDxgkInterface->DeviceHandle,
-        DXGK_WHICHSPACE_CONFIG,
-        buffer,
-        where,
-        (ULONG)length,
-        &BytesRead);
+                                                   DXGK_WHICHSPACE_CONFIG,
+                                                   buffer,
+                                                   where,
+                                                   (ULONG)length,
+                                                   &BytesRead);
 
     if (!NT_SUCCESS(Status))
     {
@@ -186,28 +194,28 @@ static int PCIReadConfig(
 static int pci_read_config_byte(void *context, int where, u8 *bVal)
 {
     PAGED_CODE();
-    IVioGpuPCI* pdev = static_cast<IVioGpuPCI*>(context);
+    IVioGpuPCI *pdev = static_cast<IVioGpuPCI *>(context);
     return PCIReadConfig(pdev, where, bVal, sizeof(*bVal));
 }
 
 int pci_read_config_word(void *context, int where, u16 *wVal)
 {
     PAGED_CODE();
-    IVioGpuPCI* pdev = static_cast<IVioGpuPCI*>(context);
+    IVioGpuPCI *pdev = static_cast<IVioGpuPCI *>(context);
     return PCIReadConfig(pdev, where, wVal, sizeof(*wVal));
 }
 
 int pci_read_config_dword(void *context, int where, u32 *dwVal)
 {
     PAGED_CODE();
-    IVioGpuPCI* pdev = static_cast<IVioGpuPCI*>(context);
+    IVioGpuPCI *pdev = static_cast<IVioGpuPCI *>(context);
     return PCIReadConfig(pdev, where, dwVal, sizeof(*dwVal));
 }
 PAGED_CODE_SEG_END
 
 size_t pci_get_resource_len(void *context, int bar)
 {
-    IVioGpuPCI* pdev = static_cast<IVioGpuPCI*>(context);
+    IVioGpuPCI *pdev = static_cast<IVioGpuPCI *>(context);
     return pdev->GetPciResources()->GetBarSize(bar);
 }
 
@@ -215,22 +223,25 @@ void *pci_map_address_range(void *context, int bar, size_t offset, size_t maxlen
 {
     UNREFERENCED_PARAMETER(maxlen);
 
-    IVioGpuPCI* pdev = static_cast<IVioGpuPCI*>(context);
+    IVioGpuPCI *pdev = static_cast<IVioGpuPCI *>(context);
     return pdev->GetPciResources()->GetMappedAddress(bar, (ULONG)offset);
 }
 
 u16 vdev_get_msix_vector(void *context, int queue)
 {
-    IVioGpuPCI* pdev = static_cast<IVioGpuPCI*>(context);
+    IVioGpuPCI *pdev = static_cast<IVioGpuPCI *>(context);
     u16 vector = VIRTIO_MSI_NO_VECTOR;
 
-    if (queue >= 0) {
+    if (queue >= 0)
+    {
         /* queue interrupt */
-        if (pdev->IsMSIEnabled()) {
+        if (pdev->IsMSIEnabled())
+        {
             vector = (u16)(queue + 1);
         }
     }
-    else {
+    else
+    {
         vector = VIRTIO_GPU_MSIX_CONFIG_VECTOR;
     }
     return vector;
@@ -242,13 +253,15 @@ void vdev_sleep(void *context, unsigned int msecs)
 
     UNREFERENCED_PARAMETER(context);
 
-    if (KeGetCurrentIrql() <= APC_LEVEL) {
+    if (KeGetCurrentIrql() <= APC_LEVEL)
+    {
         LARGE_INTEGER delay;
         delay.QuadPart = Int32x32To64(msecs, -10000);
         status = KeDelayExecutionThread(KernelMode, FALSE, &delay);
     }
 
-    if (!NT_SUCCESS(status)) {
+    if (!NT_SUCCESS(status))
+    {
         KeStallExecutionProcessor(1000 * msecs);
     }
 }
@@ -286,13 +299,12 @@ PVOID CPciBar::GetVA(PDXGKRNL_INTERFACE pDxgkInterface)
             if (m_bIoMapped)
             {
                 Status = pDxgkInterface->DxgkCbMapMemory(pDxgkInterface->DeviceHandle,
-                    m_BasePA,
-                    m_uSize,
-                    TRUE,
-                    FALSE,
-                    MmNonCached,
-                    &m_BaseVA
-                );
+                                                         m_BasePA,
+                                                         m_uSize,
+                                                         TRUE,
+                                                         FALSE,
+                                                         MmNonCached,
+                                                         &m_BaseVA);
                 if (Status == STATUS_SUCCESS)
                 {
                     DbgPrint(TRACE_LEVEL_VERBOSE, ("[%s] mapped port BAR at %x\n", __FUNCTION__, m_BasePA.LowPart));
@@ -300,7 +312,8 @@ PVOID CPciBar::GetVA(PDXGKRNL_INTERFACE pDxgkInterface)
                 else
                 {
                     m_BaseVA = nullptr;
-                    DbgPrint(TRACE_LEVEL_ERROR, ("DxgkCbMapMemor (CmResourceTypePort) failed with status 0x%X\n", Status));
+                    DbgPrint(TRACE_LEVEL_ERROR,
+                             ("DxgkCbMapMemor (CmResourceTypePort) failed with status 0x%X\n", Status));
                 }
             }
             else
@@ -311,13 +324,12 @@ PVOID CPciBar::GetVA(PDXGKRNL_INTERFACE pDxgkInterface)
         else
         {
             Status = pDxgkInterface->DxgkCbMapMemory(pDxgkInterface->DeviceHandle,
-                m_BasePA,
-                m_uSize,
-                FALSE,
-                FALSE,
-                MmNonCached,
-                &m_BaseVA
-            );
+                                                     m_BasePA,
+                                                     m_uSize,
+                                                     FALSE,
+                                                     FALSE,
+                                                     MmNonCached,
+                                                     &m_BaseVA);
             if (Status == STATUS_SUCCESS)
             {
                 DbgPrint(TRACE_LEVEL_VERBOSE, ("[%s] mapped memory BAR at %I64x\n", __FUNCTION__, m_BasePA.QuadPart));
@@ -325,7 +337,8 @@ PVOID CPciBar::GetVA(PDXGKRNL_INTERFACE pDxgkInterface)
             else
             {
                 m_BaseVA = nullptr;
-                DbgPrint(TRACE_LEVEL_ERROR, ("[%s] failed to map memory BAR at %I64x\n", __FUNCTION__, m_BasePA.QuadPart));
+                DbgPrint(TRACE_LEVEL_ERROR,
+                         ("[%s] failed to map memory BAR at %I64x\n", __FUNCTION__, m_BasePA.QuadPart));
             }
         }
     }
@@ -346,7 +359,7 @@ void CPciBar::Unmap(PDXGKRNL_INTERFACE pDxgkInterface)
 
 bool CPciResources::Init(PDXGKRNL_INTERFACE pDxgkInterface, PCM_RESOURCE_LIST pResList)
 {
-    PCI_COMMON_HEADER pci_config = { 0 };
+    PCI_COMMON_HEADER pci_config = {0};
     ULONG BytesRead = 0;
     NTSTATUS Status = STATUS_SUCCESS;
     bool interrupt_found = false;
@@ -356,11 +369,11 @@ bool CPciResources::Init(PDXGKRNL_INTERFACE pDxgkInterface, PCM_RESOURCE_LIST pR
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
     Status = m_pDxgkInterface->DxgkCbReadDeviceSpace(m_pDxgkInterface->DeviceHandle,
-        DXGK_WHICHSPACE_CONFIG,
-        &pci_config,
-        0,
-        sizeof(pci_config),
-        &BytesRead);
+                                                     DXGK_WHICHSPACE_CONFIG,
+                                                     &pci_config,
+                                                     0,
+                                                     sizeof(pci_config),
+                                                     &BytesRead);
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--> %s BytesRead = %d\n", __FUNCTION__, BytesRead));
 
     if (!NT_SUCCESS(Status))
@@ -385,59 +398,62 @@ bool CPciResources::Init(PDXGKRNL_INTERFACE pDxgkInterface, PCM_RESOURCE_LIST pR
             PCM_PARTIAL_RESOURCE_DESCRIPTOR pResDescriptor = &pFullResDescriptor->PartialResourceList.PartialDescriptors[j];
             switch (pResDescriptor->Type)
             {
-            case CmResourceTypePort:
-            {
-                DbgPrint(TRACE_LEVEL_FATAL, ("CmResourceTypePort\n"));
-                break;
-            }
-            break;
-            case CmResourceTypeInterrupt:
-            {
-                m_InterruptFlags = pResDescriptor->Flags;
-                if (IsMSIEnabled())
-                {
-                    DbgPrint(TRACE_LEVEL_FATAL, ("Found MSI Interrupt vector %d, level %d, affinity 0x%X, flags %X\n",
-                        pResDescriptor->u.MessageInterrupt.Translated.Vector,
-                        pResDescriptor->u.MessageInterrupt.Translated.Level,
-                        (ULONG)pResDescriptor->u.MessageInterrupt.Translated.Affinity,
-                        pResDescriptor->Flags));
-                }
-                else
-                {
-                    DbgPrint(TRACE_LEVEL_FATAL, ("Found Interrupt vector %d, level %d, affinity 0x%X, flags %X\n",
-                        pResDescriptor->u.Interrupt.Vector,
-                        pResDescriptor->u.Interrupt.Level,
-                        (ULONG)pResDescriptor->u.Interrupt.Affinity,
-                        pResDescriptor->Flags));
-                }
-                interrupt_found = true;
-            }
-            break;
-            case CmResourceTypeMemory:
-            {
-                PHYSICAL_ADDRESS Start = pResDescriptor->u.Port.Start;
-                ULONG len = pResDescriptor->u.Port.Length;
-                bar = virtio_get_bar_index(&pci_config, Start);
-                DbgPrint(TRACE_LEVEL_FATAL, ("Found IO memory at %08I64X(%d) bar %d\n", Start.QuadPart, len, bar));
-                if (bar < 0)
-                {
+                case CmResourceTypePort:
+                    {
+                        DbgPrint(TRACE_LEVEL_FATAL, ("CmResourceTypePort\n"));
+                        break;
+                    }
                     break;
-                }
-                m_Bars[bar] = CPciBar(Start, len, false, true);
-            }
-            break;
-            case CmResourceTypeDma:
-                DbgPrint(TRACE_LEVEL_FATAL, ("Dma\n"));
-                break;
-            case CmResourceTypeDeviceSpecific:
-                DbgPrint(TRACE_LEVEL_FATAL, ("Device Specific\n"));
-                break;
-            case CmResourceTypeBusNumber:
-                DbgPrint(TRACE_LEVEL_FATAL, ("Bus number\n"));
-                break;
-            default:
-                DbgPrint(TRACE_LEVEL_ERROR, ("Unsupported descriptor type = %d\n", pResDescriptor->Type));
-                break;
+                case CmResourceTypeInterrupt:
+                    {
+                        m_InterruptFlags = pResDescriptor->Flags;
+                        if (IsMSIEnabled())
+                        {
+                            DbgPrint(TRACE_LEVEL_FATAL,
+                                     ("Found MSI Interrupt vector %d, level %d, affinity 0x%X, flags %X\n",
+                                      pResDescriptor->u.MessageInterrupt.Translated.Vector,
+                                      pResDescriptor->u.MessageInterrupt.Translated.Level,
+                                      (ULONG)pResDescriptor->u.MessageInterrupt.Translated.Affinity,
+                                      pResDescriptor->Flags));
+                        }
+                        else
+                        {
+                            DbgPrint(TRACE_LEVEL_FATAL,
+                                     ("Found Interrupt vector %d, level %d, affinity 0x%X, flags %X\n",
+                                      pResDescriptor->u.Interrupt.Vector,
+                                      pResDescriptor->u.Interrupt.Level,
+                                      (ULONG)pResDescriptor->u.Interrupt.Affinity,
+                                      pResDescriptor->Flags));
+                        }
+                        interrupt_found = true;
+                    }
+                    break;
+                case CmResourceTypeMemory:
+                    {
+                        PHYSICAL_ADDRESS Start = pResDescriptor->u.Port.Start;
+                        ULONG len = pResDescriptor->u.Port.Length;
+                        bar = virtio_get_bar_index(&pci_config, Start);
+                        DbgPrint(TRACE_LEVEL_FATAL,
+                                 ("Found IO memory at %08I64X(%d) bar %d\n", Start.QuadPart, len, bar));
+                        if (bar < 0)
+                        {
+                            break;
+                        }
+                        m_Bars[bar] = CPciBar(Start, len, false, true);
+                    }
+                    break;
+                case CmResourceTypeDma:
+                    DbgPrint(TRACE_LEVEL_FATAL, ("Dma\n"));
+                    break;
+                case CmResourceTypeDeviceSpecific:
+                    DbgPrint(TRACE_LEVEL_FATAL, ("Device Specific\n"));
+                    break;
+                case CmResourceTypeBusNumber:
+                    DbgPrint(TRACE_LEVEL_FATAL, ("Bus number\n"));
+                    break;
+                default:
+                    DbgPrint(TRACE_LEVEL_ERROR, ("Unsupported descriptor type = %d\n", pResDescriptor->Type));
+                    break;
             }
         }
     }
@@ -480,60 +496,58 @@ PVOID CPciResources::GetMappedAddress(UINT bar, ULONG uOffset)
 
 PAGED_CODE_SEG_BEGIN
 NTSTATUS
-MapFrameBuffer(
-    _In_                       PHYSICAL_ADDRESS    PhysicalAddress,
-    _In_                       ULONG               Length,
-    _Outptr_result_bytebuffer_(Length) VOID**      VirtualAddress)
+MapFrameBuffer(_In_ PHYSICAL_ADDRESS PhysicalAddress,
+               _In_ ULONG Length,
+               _Outptr_result_bytebuffer_(Length) VOID **VirtualAddress)
 {
     PAGED_CODE();
 
-    if ((PhysicalAddress.QuadPart == (ULONGLONG)0) ||
-        (Length == 0) ||
-        (VirtualAddress == NULL))
+    if ((PhysicalAddress.QuadPart == (ULONGLONG)0) || (Length == 0) || (VirtualAddress == NULL))
     {
-        DbgPrint(TRACE_LEVEL_ERROR, ("One of PhysicalAddress.QuadPart (0x%I64x), Length (%lu), VirtualAddress (%p) is NULL or 0\n",
-            PhysicalAddress.QuadPart, Length, VirtualAddress));
+        DbgPrint(TRACE_LEVEL_ERROR,
+                 ("One of PhysicalAddress.QuadPart (0x%I64x), Length (%lu), VirtualAddress (%p) is NULL or 0\n",
+                  PhysicalAddress.QuadPart,
+                  Length,
+                  VirtualAddress));
         return STATUS_INVALID_PARAMETER;
     }
 
-    *VirtualAddress = MmMapIoSpace(PhysicalAddress,
-        Length,
-        MmWriteCombined);
+    *VirtualAddress = MmMapIoSpace(PhysicalAddress, Length, MmWriteCombined);
     if (*VirtualAddress == NULL)
     {
 
-        *VirtualAddress = MmMapIoSpace(PhysicalAddress,
-            Length,
-            MmNonCached);
+        *VirtualAddress = MmMapIoSpace(PhysicalAddress, Length, MmNonCached);
         if (*VirtualAddress == NULL)
         {
-            DbgPrint(TRACE_LEVEL_ERROR, ("MmMapIoSpace returned a NULL buffer when trying to allocate %lu bytes", Length));
+            DbgPrint(TRACE_LEVEL_ERROR,
+                     ("MmMapIoSpace returned a NULL buffer when trying to allocate %lu bytes", Length));
             return STATUS_NO_MEMORY;
         }
     }
 
-    DbgPrint(TRACE_LEVEL_FATAL, ("%s PhysicalAddress.QuadPart (0x%I64x), Length (%lu), VirtualAddress (%p)\n",
-        __FUNCTION__, PhysicalAddress.QuadPart, Length, VirtualAddress));
+    DbgPrint(TRACE_LEVEL_FATAL,
+             ("%s PhysicalAddress.QuadPart (0x%I64x), Length (%lu), VirtualAddress (%p)\n",
+              __FUNCTION__,
+              PhysicalAddress.QuadPart,
+              Length,
+              VirtualAddress));
     return STATUS_SUCCESS;
 }
 
 NTSTATUS
-UnmapFrameBuffer(
-    _In_reads_bytes_(Length) VOID* VirtualAddress,
-    _In_                ULONG Length)
+UnmapFrameBuffer(_In_reads_bytes_(Length) VOID *VirtualAddress, _In_ ULONG Length)
 {
     PAGED_CODE();
 
-    DbgPrint(TRACE_LEVEL_FATAL, ("%s Length (%lu), VirtualAddress (%p)\n",
-        __FUNCTION__, Length, VirtualAddress));
+    DbgPrint(TRACE_LEVEL_FATAL, ("%s Length (%lu), VirtualAddress (%p)\n", __FUNCTION__, Length, VirtualAddress));
     if ((VirtualAddress == NULL) && (Length == 0))
     {
         return STATUS_SUCCESS;
     }
     else if ((VirtualAddress == NULL) || (Length == 0))
     {
-        DbgPrint(TRACE_LEVEL_ERROR, ("Only one of Length (%lu), VirtualAddress (%p) is NULL or 0",
-            Length, VirtualAddress));
+        DbgPrint(TRACE_LEVEL_ERROR,
+                 ("Only one of Length (%lu), VirtualAddress (%p) is NULL or 0", Length, VirtualAddress));
         return STATUS_INVALID_PARAMETER;
     }
 

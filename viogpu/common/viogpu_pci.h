@@ -1,25 +1,22 @@
 #pragma once
 
-#define REDHAT_PCI_VENDOR_ID       0x1AF4
+#define REDHAT_PCI_VENDOR_ID          0x1AF4
 
-#define PORT_MASK                  0xFFFF
+#define PORT_MASK                     0xFFFF
 #define VIRTIO_GPU_MSIX_CONFIG_VECTOR 0
 
 class CPciBar
 {
-public:
+  public:
     CPciBar(PHYSICAL_ADDRESS BasePA, ULONG uSize, bool bPortSpace, bool bIoMapped)
-        : m_BasePA(BasePA)
-        , m_uSize(uSize)
-        , m_BaseVA(nullptr)
-        , m_bPortSpace(bPortSpace)
-        , m_bIoMapped(bIoMapped)
+        : m_BasePA(BasePA), m_uSize(uSize), m_BaseVA(nullptr), m_bPortSpace(bPortSpace), m_bIoMapped(bIoMapped)
     {
         ASSERT(!m_bPortSpace || m_BasePA.HighPart == 0);
     }
 
     CPciBar() : CPciBar(PHYSICAL_ADDRESS(), 0, false, true)
-     { }
+    {
+    }
 
     ~CPciBar()
     {
@@ -47,21 +44,20 @@ public:
     // Undoes the effect of GetVA
     void Unmap(PDXGKRNL_INTERFACE pDxgkInterface);
 
-private:
+  private:
     PHYSICAL_ADDRESS m_BasePA;
-    ULONG            m_uSize;
-    PVOID            m_BaseVA;
-    bool             m_bPortSpace;
-    bool             m_bIoMapped;
+    ULONG m_uSize;
+    PVOID m_BaseVA;
+    bool m_bPortSpace;
+    bool m_bIoMapped;
 };
 
 class CPciResources
 {
-public:
-    CPciResources()
-        : m_pDxgkInterface(nullptr),
-          m_InterruptFlags(0)
-    { }
+  public:
+    CPciResources() : m_pDxgkInterface(nullptr), m_InterruptFlags(0)
+    {
+    }
 
     ~CPciResources()
     {
@@ -89,7 +85,7 @@ public:
         return (m_InterruptFlags & CM_RESOURCE_INTERRUPT_MESSAGE);
     }
 
-    CPciBar* GetPciBar(UINT bar)
+    CPciBar *GetPciBar(UINT bar)
     {
         ASSERT(bar < PCI_TYPE0_ADDRESSES);
         if (bar < PCI_TYPE0_ADDRESSES)
@@ -101,26 +97,24 @@ public:
 
     PVOID GetMappedAddress(UINT bar, ULONG uOffset);
 
-private:
+  private:
     PDXGKRNL_INTERFACE m_pDxgkInterface;
-    USHORT             m_InterruptFlags;
-    CPciBar            m_Bars[PCI_TYPE0_ADDRESSES];
+    USHORT m_InterruptFlags;
+    CPciBar m_Bars[PCI_TYPE0_ADDRESSES];
 };
 
-class IVioGpuPCI {
-public:
+class IVioGpuPCI
+{
+  public:
     virtual PDXGKRNL_INTERFACE GetDxgkInterface() = 0;
-    virtual CPciResources* GetPciResources() = 0;
+    virtual CPciResources *GetPciResources() = 0;
     virtual BOOLEAN IsMSIEnabled() = 0;
 };
 
 NTSTATUS
-MapFrameBuffer(
-    _In_                PHYSICAL_ADDRESS    PhysicalAddress,
-    _In_                ULONG               Length,
-    _Outptr_result_bytebuffer_(Length) VOID**              VirtualAddress);
+MapFrameBuffer(_In_ PHYSICAL_ADDRESS PhysicalAddress,
+               _In_ ULONG Length,
+               _Outptr_result_bytebuffer_(Length) VOID **VirtualAddress);
 
 NTSTATUS
-UnmapFrameBuffer(
-    _In_reads_bytes_(Length) VOID* VirtualAddress,
-    _In_                ULONG Length);
+UnmapFrameBuffer(_In_reads_bytes_(Length) VOID *VirtualAddress, _In_ ULONG Length);

@@ -31,16 +31,19 @@
 
 class VioGpuIdr
 {
-public:
+  public:
     VioGpuIdr();
     ~VioGpuIdr();
     BOOLEAN Init(_In_ ULONG start);
     ULONG GetId(VOID);
     VOID PutId(_In_ ULONG id);
-private:
+
+  private:
     VOID Close(VOID);
-private:
-    struct FreeId {
+
+  private:
+    struct FreeId
+    {
         LIST_ENTRY list_entry;
         ULONG id;
     };

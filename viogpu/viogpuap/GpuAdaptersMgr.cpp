@@ -34,38 +34,34 @@ void GpuAdaptersMgr::FindAdapters()
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
     std::wstring id = TEXT("PCI\\VEN_1AF4&DEV_1050");
-    DISPLAY_DEVICE adapter = { sizeof(DISPLAY_DEVICE) };
+    DISPLAY_DEVICE adapter = {sizeof(DISPLAY_DEVICE)};
     DWORD adapterIndex = 0;
     while (FindDisplayDevice(&adapter, id, &adapterIndex))
     {
-        if (adapter.StateFlags & DISPLAY_DEVICE_ACTIVE) {
+        if (adapter.StateFlags & DISPLAY_DEVICE_ACTIVE)
+        {
             AddAdapter(adapter.DeviceName);
         }
     }
 }
 
-BOOL GpuAdaptersMgr::GetDisplayDevice(
-    LPCTSTR lpDevice,
-    DWORD iDevNum,
-    PDISPLAY_DEVICE lpDisplayDevice,
-    DWORD dwFlags)
+BOOL GpuAdaptersMgr::GetDisplayDevice(LPCTSTR lpDevice, DWORD iDevNum, PDISPLAY_DEVICE lpDisplayDevice, DWORD dwFlags)
 {
     PrintMessage(L"%ws iDevNum = %d\n", __FUNCTIONW__, iDevNum);
 
     return ::EnumDisplayDevices(lpDevice, iDevNum, lpDisplayDevice, dwFlags);
 };
 
-BOOL GpuAdaptersMgr::FindDisplayDevice(PDISPLAY_DEVICE lpDisplayDevice,
-    std::wstring& name, PDWORD adapterIndex)
+BOOL GpuAdaptersMgr::FindDisplayDevice(PDISPLAY_DEVICE lpDisplayDevice, std::wstring &name, PDWORD adapterIndex)
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
     DWORD index = *adapterIndex;
     (*adapterIndex)++;
 
-    if (GetDisplayDevice(NULL, index, lpDisplayDevice, 0)) {
-        if (!name.empty() &&
-            !_wcsnicmp(lpDisplayDevice->DeviceID, name.c_str(), name.size()))
+    if (GetDisplayDevice(NULL, index, lpDisplayDevice, 0))
+    {
+        if (!name.empty() && !_wcsnicmp(lpDisplayDevice->DeviceID, name.c_str(), name.size()))
         {
             return TRUE;
         }
@@ -77,13 +73,7 @@ BOOL GpuAdaptersMgr::Init()
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
-    m_hThread = CreateThread(
-        NULL,
-        0,
-        (LPTHREAD_START_ROUTINE)ServiceThread,
-        (LPVOID)this,
-        0,
-        NULL);
+    m_hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ServiceThread, (LPVOID)this, 0, NULL);
 
     if (m_hThread == NULL)
     {
@@ -120,13 +110,13 @@ void GpuAdaptersMgr::Close()
     }
 }
 
-DWORD WINAPI GpuAdaptersMgr::ServiceThread(GpuAdaptersMgr* ptr)
+DWORD WINAPI GpuAdaptersMgr::ServiceThread(GpuAdaptersMgr *ptr)
 {
     ptr->Run();
     return 0;
 }
 
-#define WIN_CLASS_NAME  TEXT("VioGpuMon")
+#define WIN_CLASS_NAME TEXT("VioGpuMon")
 
 void GpuAdaptersMgr::Run()
 {
@@ -153,14 +143,18 @@ void GpuAdaptersMgr::Run()
         return;
     }
 
-    m_hWnd = CreateWindowEx(
-        WS_EX_TOOLWINDOW,
-        WIN_CLASS_NAME,
-        NULL,
-        WS_POPUP,
-        0, 0, 0, 0,
-        HWND_DESKTOP, NULL, hInstance, NULL
-    );
+    m_hWnd = CreateWindowEx(WS_EX_TOOLWINDOW,
+                            WIN_CLASS_NAME,
+                            NULL,
+                            WS_POPUP,
+                            0,
+                            0,
+                            0,
+                            0,
+                            HWND_DESKTOP,
+                            NULL,
+                            hInstance,
+                            NULL);
 
     if (m_hWnd == NULL)
     {
@@ -182,86 +176,85 @@ LRESULT CALLBACK GpuAdaptersMgr::GlobalWndProc(HWND hWnd, UINT msg, WPARAM wPara
 {
     switch (msg)
     {
-    case WM_CLOSE:
-        DestroyWindow(hWnd);
-        break;
-    case WM_DESTROY:
-        PostQuitMessage(0);
-        break;
-    case WM_DEVICECHANGE:
-        ProcessPnPNotification((GpuAdaptersMgr*)(GetWindowLongPtr(hWnd, GWLP_USERDATA)), Notification(msg, wParam, lParam));
-        break;
-    default:
-        return DefWindowProc(hWnd, msg, wParam, lParam);
+        case WM_CLOSE:
+            DestroyWindow(hWnd);
+            break;
+        case WM_DESTROY:
+            PostQuitMessage(0);
+            break;
+        case WM_DEVICECHANGE:
+            ProcessPnPNotification((GpuAdaptersMgr *)(GetWindowLongPtr(hWnd, GWLP_USERDATA)),
+                                   Notification(msg, wParam, lParam));
+            break;
+        default:
+            return DefWindowProc(hWnd, msg, wParam, lParam);
     }
     return 0;
 }
 
-HDEVNOTIFY GpuAdaptersMgr::RegisterInterfaceNotify(
-    GUID InterfaceClassGuid
-)
+HDEVNOTIFY GpuAdaptersMgr::RegisterInterfaceNotify(GUID InterfaceClassGuid)
 {
     DEV_BROADCAST_DEVICEINTERFACE NotificationFilter;
     HDEVNOTIFY Notify;
 
     ZeroMemory(&NotificationFilter, sizeof(NotificationFilter));
-    NotificationFilter.dbcc_size =
-        sizeof(DEV_BROADCAST_DEVICEINTERFACE);
+    NotificationFilter.dbcc_size = sizeof(DEV_BROADCAST_DEVICEINTERFACE);
     NotificationFilter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE;
     NotificationFilter.dbcc_classguid = InterfaceClassGuid;
 
-    Notify = RegisterDeviceNotification(m_hWnd,
-        &NotificationFilter,
-        DEVICE_NOTIFY_WINDOW_HANDLE
-    );
+    Notify = RegisterDeviceNotification(m_hWnd, &NotificationFilter, DEVICE_NOTIFY_WINDOW_HANDLE);
 
     if (Notify == NULL)
     {
-        PrintMessage(L"RegisterDeviceNotification failed: %d\n",
-            GetLastError());
+        PrintMessage(L"RegisterDeviceNotification failed: %d\n", GetLastError());
     }
     return Notify;
 }
 
-void GpuAdaptersMgr::ProcessPnPNotification(GpuAdaptersMgr* ptr, Notification notification)
+void GpuAdaptersMgr::ProcessPnPNotification(GpuAdaptersMgr *ptr, Notification notification)
 {
     switch (notification.wParam)
     {
-    case DBT_DEVICEARRIVAL: {
-        PDEV_BROADCAST_HDR pHdr = (PDEV_BROADCAST_HDR)notification.lParam;
-        PrintMessage(L"DBT_DEVICEARRIVAL\n");
-        if (pHdr->dbch_devicetype == DBT_DEVTYP_DEVICEINTERFACE) {
-            PDEV_BROADCAST_DEVICEINTERFACE pDevInf = (PDEV_BROADCAST_DEVICEINTERFACE)pHdr;
-            if (IsEqualGUID(GUID_DEVCLASS_DISPLAY, pDevInf->dbcc_classguid))
+        case DBT_DEVICEARRIVAL:
             {
-                ptr->FindAdapters();
+                PDEV_BROADCAST_HDR pHdr = (PDEV_BROADCAST_HDR)notification.lParam;
+                PrintMessage(L"DBT_DEVICEARRIVAL\n");
+                if (pHdr->dbch_devicetype == DBT_DEVTYP_DEVICEINTERFACE)
+                {
+                    PDEV_BROADCAST_DEVICEINTERFACE pDevInf = (PDEV_BROADCAST_DEVICEINTERFACE)pHdr;
+                    if (IsEqualGUID(GUID_DEVCLASS_DISPLAY, pDevInf->dbcc_classguid))
+                    {
+                        ptr->FindAdapters();
+                    }
+                }
             }
-        }
-    }
-    break;
-    case DBT_DEVICEREMOVECOMPLETE: {
-        PDEV_BROADCAST_HDR pHdr = (PDEV_BROADCAST_HDR)notification.lParam;
-        PrintMessage(L"DBT_DEVICEREMOVECOMPLETE\n");
-        if (pHdr->dbch_devicetype == DBT_DEVTYP_DEVICEINTERFACE) {
-            PDEV_BROADCAST_DEVICEINTERFACE pDevInf = (PDEV_BROADCAST_DEVICEINTERFACE)pHdr;
-            if (IsEqualGUID(GUID_DEVCLASS_DISPLAY, pDevInf->dbcc_classguid))
+            break;
+        case DBT_DEVICEREMOVECOMPLETE:
             {
+                PDEV_BROADCAST_HDR pHdr = (PDEV_BROADCAST_HDR)notification.lParam;
+                PrintMessage(L"DBT_DEVICEREMOVECOMPLETE\n");
+                if (pHdr->dbch_devicetype == DBT_DEVTYP_DEVICEINTERFACE)
+                {
+                    PDEV_BROADCAST_DEVICEINTERFACE pDevInf = (PDEV_BROADCAST_DEVICEINTERFACE)pHdr;
+                    if (IsEqualGUID(GUID_DEVCLASS_DISPLAY, pDevInf->dbcc_classguid))
+                    {
+                        ptr->InvalidateAdapters();
+                    }
+                }
+            }
+            break;
+        case DBT_DEVNODES_CHANGED:
+            {
+                PrintMessage(L"DBT_DEVNODES_CHANGED\n");
                 ptr->InvalidateAdapters();
             }
-        }
-    }
-    break;
-    case DBT_DEVNODES_CHANGED: {
-        PrintMessage(L"DBT_DEVNODES_CHANGED\n");
-        ptr->InvalidateAdapters();
-    }
-    break;
-    default:
-    break;
+            break;
+        default:
+            break;
     }
 }
 
-void GpuAdaptersMgr::AddAdapter(const wchar_t* name)
+void GpuAdaptersMgr::AddAdapter(const wchar_t *name)
 {
     PrintMessage(L"Add Adapter %ws\n", name);
 
@@ -309,7 +302,8 @@ void GpuAdaptersMgr::InvalidateAdapters()
             Adapters.erase(it);
             it = Adapters.begin();
         }
-        else {
+        else
+        {
             ++it;
         }
     }

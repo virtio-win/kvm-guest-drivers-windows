@@ -29,73 +29,78 @@
 
 #pragma once
 
-extern "C" {
+extern "C"
+{
 
 #define __CPLUSPLUS
 
-    #include <stddef.h>
-    #include <string.h>
-    #include <stdarg.h>
-    #include <stdio.h>
-    #include <stdlib.h>
+#include <stddef.h>
+#include <string.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
 
-    #include <initguid.h>
+#include <initguid.h>
 
-    #include <ntddk.h>
+#include <ntddk.h>
 
-    #ifndef FAR
-    #define FAR
-    #endif
+#ifndef FAR
+#define FAR
+#endif
 
-    #include <windef.h>
-    #include <winerror.h>
+#include <windef.h>
+#include <winerror.h>
 
-    #include <wingdi.h>
-    #include <stdarg.h>
+#include <wingdi.h>
+#include <stdarg.h>
 
-    #include <winddi.h>
-    #include <ntddvdeo.h>
+#include <winddi.h>
+#include <ntddvdeo.h>
 
-    #include <d3dkmddi.h>
-    #include <d3dkmthk.h>
+#include <d3dkmddi.h>
+#include <d3dkmthk.h>
 
-    #include <ntstrsafe.h>
-    #include <ntintsafe.h>
+#include <ntstrsafe.h>
+#include <ntintsafe.h>
 
-    #include <dispmprt.h>
+#include <dispmprt.h>
 
-    #include "trace.h"
+#include "trace.h"
 }
 
-#define MAX_CHILDREN               1
-#define MAX_VIEWS                  1
-#define BITS_PER_BYTE              8
+#define MAX_CHILDREN                       1
+#define MAX_VIEWS                          1
+#define BITS_PER_BYTE                      8
 
-#define POINTER_SIZE               64
+#define POINTER_SIZE                       64
 
-#define MIN_WIDTH_SIZE             640
-#define MIN_HEIGHT_SIZE            480
+#define MIN_WIDTH_SIZE                     640
+#define MIN_HEIGHT_SIZE                    480
 
-#define NOM_WIDTH_SIZE             1024
-#define NOM_HEIGHT_SIZE            768
+#define NOM_WIDTH_SIZE                     1024
+#define NOM_HEIGHT_SIZE                    768
 
-#define VIOGPUTAG                  'OIVg'
+#define VIOGPUTAG                          'OIVg'
 
-#define VIOGPU_LOG_ASSERTION0(Msg) NT_ASSERT(FALSE)
-#define VIOGPU_LOG_ASSERTION1(Msg,Param1) NT_ASSERT(FALSE)
-#define VIOGPU_ASSERT(exp) {if (!(exp)) {VIOGPU_LOG_ASSERTION0(#exp);}}
-
+#define VIOGPU_LOG_ASSERTION0(Msg)         NT_ASSERT(FALSE)
+#define VIOGPU_LOG_ASSERTION1(Msg, Param1) NT_ASSERT(FALSE)
+#define VIOGPU_ASSERT(exp)                                                                                             \
+    {                                                                                                                  \
+        if (!(exp))                                                                                                    \
+        {                                                                                                              \
+            VIOGPU_LOG_ASSERTION0(#exp);                                                                               \
+        }                                                                                                              \
+    }
 
 #if DBG
 #define VIOGPU_ASSERT_CHK(exp) VIOGPU_ASSERT(exp)
 #else
-#define VIOGPU_ASSERT_CHK(exp) {}
+#define VIOGPU_ASSERT_CHK(exp)                                                                                         \
+    {                                                                                                                  \
+    }
 #endif
 
-#define PAGED_CODE_SEG __declspec(code_seg("PAGE"))
-#define PAGED_CODE_SEG_BEGIN \
-    __pragma(code_seg(push)) \
-    __pragma(code_seg("PAGE"))
+#define PAGED_CODE_SEG       __declspec(code_seg("PAGE"))
+#define PAGED_CODE_SEG_BEGIN __pragma(code_seg(push)) __pragma(code_seg("PAGE"))
 
-#define PAGED_CODE_SEG_END \
-    __pragma(code_seg(pop))
+#define PAGED_CODE_SEG_END   __pragma(code_seg(pop))
