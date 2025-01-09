@@ -6,24 +6,16 @@
 #include "Control.tmh"
 #endif
 
-static
-VOID
-VIOSerialHandleCtrlMsg(
-    IN WDFDEVICE Device,
-    IN PPORT_BUFFER buf
-);
+static VOID VIOSerialHandleCtrlMsg(IN WDFDEVICE Device, IN PPORT_BUFFER buf);
 
-#define     CTRL_MSG_INITIAL_WAIT           (-1000000LL)
-#define     CTRL_MSG_NORMAL_WAIT           (-10000000LL)
+#define CTRL_MSG_INITIAL_WAIT (-1000000LL)
+#define CTRL_MSG_NORMAL_WAIT  (-10000000LL)
 
-VOID
-VIOSerialSendCtrlMsg(
-    IN WDFDEVICE Device,
-    IN ULONG id,
-    IN USHORT event,
-    IN USHORT value,
-    IN BOOLEAN LongWaitAllowed
-)
+VOID VIOSerialSendCtrlMsg(IN WDFDEVICE Device,
+                          IN ULONG id,
+                          IN USHORT event,
+                          IN USHORT value,
+                          IN BOOLEAN LongWaitAllowed)
 {
     struct VirtIOBufferDescriptor sg;
     struct virtqueue *vq;
@@ -39,7 +31,8 @@ VIOSerialSendCtrlMsg(
     vq = pContext->c_ovq;
 
     cpkt = pContext->ControlDmaBlock->get_slice(pContext->ControlDmaBlock, &sg.physAddr);
-    if (!cpkt) {
+    if (!cpkt)
+    {
 
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "<-- %s can't get a slice\n", __FUNCTION__);
         return;
@@ -53,22 +46,28 @@ VIOSerialSendCtrlMsg(
     sg.length = sizeof(*cpkt);
 
     WdfWaitLockAcquire(pContext->COutVqLock, NULL);
-    if(0 <= virtqueue_add_buf(vq, &sg, 1, 0, &cpkt, NULL, 0))
+    if (0 <= virtqueue_add_buf(vq, &sg, 1, 0, &cpkt, NULL, 0))
     {
         LARGE_INTEGER interval;
 
         virtqueue_kick(vq);
         interval.QuadPart = CTRL_MSG_INITIAL_WAIT;
-        while(!virtqueue_get_buf(vq, &len))
+        while (!virtqueue_get_buf(vq, &len))
         {
-            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s waiting for the hypervisor (%lld ms)\n", __FUNCTION__, -interval.QuadPart / 10000);
+            TraceEvents(TRACE_LEVEL_INFORMATION,
+                        DBG_PNP,
+                        "--> %s waiting for the hypervisor (%lld ms)\n",
+                        __FUNCTION__,
+                        -interval.QuadPart / 10000);
             KeDelayExecutionThread(KernelMode, FALSE, &interval);
-            if (!LongWaitAllowed &&
-                interval.QuadPart == CTRL_MSG_NORMAL_WAIT)
+            if (!LongWaitAllowed && interval.QuadPart == CTRL_MSG_NORMAL_WAIT)
             {
                 if (!virtqueue_get_buf(vq, &len))
                 {
-                    TraceEvents(TRACE_LEVEL_WARNING, DBG_PNP, "--> %s log waits not possible, exiting the wait loop\n", __FUNCTION__);
+                    TraceEvents(TRACE_LEVEL_WARNING,
+                                DBG_PNP,
+                                "--> %s log waits not possible, exiting the wait loop\n",
+                                __FUNCTION__);
                 }
 
                 break;
@@ -84,15 +83,12 @@ VIOSerialSendCtrlMsg(
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
 }
 
-VOID
-VIOSerialCtrlWorkHandler(
-    IN WDFDEVICE Device
-)
+VOID VIOSerialCtrlWorkHandler(IN WDFDEVICE Device)
 {
     struct virtqueue *vq;
     PPORT_BUFFER buf;
     UINT len;
-    NTSTATUS  status = STATUS_SUCCESS;
+    NTSTATUS status = STATUS_SUCCESS;
     PPORTS_DEVICE pContext = GetPortsDevice(Device);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> %s\n", __FUNCTION__);
@@ -112,19 +108,15 @@ VIOSerialCtrlWorkHandler(
         status = VIOSerialAddInBuf(vq, buf);
         if (!NT_SUCCESS(status))
         {
-           TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "%s::%d Error adding buffer to queue\n", __FUNCTION__, __LINE__);
-           VIOSerialFreeBuffer(buf);
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "%s::%d Error adding buffer to queue\n", __FUNCTION__, __LINE__);
+            VIOSerialFreeBuffer(buf);
         }
     }
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "<-- %s\n", __FUNCTION__);
     WdfSpinLockRelease(pContext->CInVqLock);
 }
 
-VOID
-VIOSerialHandleCtrlMsg(
-    IN WDFDEVICE Device,
-    IN PPORT_BUFFER buf
-)
+VOID VIOSerialHandleCtrlMsg(IN WDFDEVICE Device, IN PPORT_BUFFER buf)
 {
     PPORTS_DEVICE pContext = GetPortsDevice(Device);
     PVIRTIO_CONSOLE_CONTROL cpkt;
@@ -144,83 +136,89 @@ VIOSerialHandleCtrlMsg(
     switch (cpkt->event)
     {
         case VIRTIO_CONSOLE_PORT_ADD:
-           if (port)
-           {
-               TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "VIRTIO_CONSOLE_PORT_ADD id = %d\n", cpkt->id);
-               break;
-           }
-           if (cpkt->id >= pContext->consoleConfig.max_nr_ports)
-           {
-               TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "Out-of-bound id %u\n", cpkt->id);
-               break;
-           }
-           VIOSerialAddPort(Device, cpkt->id);
-        break;
+            if (port)
+            {
+                TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "VIRTIO_CONSOLE_PORT_ADD id = %d\n", cpkt->id);
+                break;
+            }
+            if (cpkt->id >= pContext->consoleConfig.max_nr_ports)
+            {
+                TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "Out-of-bound id %u\n", cpkt->id);
+                break;
+            }
+            VIOSerialAddPort(Device, cpkt->id);
+            break;
 
         case VIRTIO_CONSOLE_PORT_REMOVE:
-           if (!port)
-           {
-              TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "VIRTIO_CONSOLE_PORT_REMOVE invalid id = %d\n", cpkt->id);
-              break;
-           }
-           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "VIRTIO_CONSOLE_PORT_REMOVE id = %d\n", cpkt->id);
-           VIOSerialRemovePort(Device, port);
-        break;
+            if (!port)
+            {
+                TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "VIRTIO_CONSOLE_PORT_REMOVE invalid id = %d\n", cpkt->id);
+                break;
+            }
+            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "VIRTIO_CONSOLE_PORT_REMOVE id = %d\n", cpkt->id);
+            VIOSerialRemovePort(Device, port);
+            break;
 
         case VIRTIO_CONSOLE_CONSOLE_PORT:
-           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,
-                       "VIRTIO_CONSOLE_CONSOLE_PORT id = %d value = %u\n", cpkt->id, cpkt->value);
-           if (port && cpkt->value)
-           {
-              VIOSerialInitPortConsole(Device,port);
-           }
-        break;
+            TraceEvents(TRACE_LEVEL_INFORMATION,
+                        DBG_PNP,
+                        "VIRTIO_CONSOLE_CONSOLE_PORT id = %d value = %u\n",
+                        cpkt->id,
+                        cpkt->value);
+            if (port && cpkt->value)
+            {
+                VIOSerialInitPortConsole(Device, port);
+            }
+            break;
 
         case VIRTIO_CONSOLE_RESIZE:
-           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "VIRTIO_CONSOLE_RESIZE id = %d\n", cpkt->id);
-        break;
+            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "VIRTIO_CONSOLE_RESIZE id = %d\n", cpkt->id);
+            break;
 
         case VIRTIO_CONSOLE_PORT_OPEN:
-           if (port)
-           {
-              BOOLEAN  Connected = (BOOLEAN)cpkt->value;
-              TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "VIRTIO_CONSOLE_PORT_OPEN id = %d, HostConnected = %d\n", cpkt->id, Connected);
-              if (port->HostConnected != Connected)
-              {
-                 VIOSerialPortPnpNotify(Device, port, Connected);
-              }
+            if (port)
+            {
+                BOOLEAN Connected = (BOOLEAN)cpkt->value;
+                TraceEvents(TRACE_LEVEL_ERROR,
+                            DBG_PNP,
+                            "VIRTIO_CONSOLE_PORT_OPEN id = %d, HostConnected = %d\n",
+                            cpkt->id,
+                            Connected);
+                if (port->HostConnected != Connected)
+                {
+                    VIOSerialPortPnpNotify(Device, port, Connected);
+                }
 
-              // Someone is listening. Trigger a check to see if we have
-              // something waiting to be told.
-              if (port->HostConnected)
-              {
-                  WDF_INTERRUPT_INFO info;
-                  WDFINTERRUPT *interrupt;
+                // Someone is listening. Trigger a check to see if we have
+                // something waiting to be told.
+                if (port->HostConnected)
+                {
+                    WDF_INTERRUPT_INFO info;
+                    WDFINTERRUPT *interrupt;
 
-                  WDF_INTERRUPT_INFO_INIT(&info);
-                  WdfInterruptGetInfo(pContext->QueuesInterrupt, &info);
+                    WDF_INTERRUPT_INFO_INIT(&info);
+                    WdfInterruptGetInfo(pContext->QueuesInterrupt, &info);
 
-                  // Check if MSI is enabled and notify the right interrupt.
-                  interrupt = (info.Vector == 0) ? &pContext->WdfInterrupt :
-                      &pContext->QueuesInterrupt;
+                    // Check if MSI is enabled and notify the right interrupt.
+                    interrupt = (info.Vector == 0) ? &pContext->WdfInterrupt : &pContext->QueuesInterrupt;
 
-                  WdfInterruptQueueDpcForIsr(*interrupt);
-              }
-           }
-           else
-           {
-              TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "VIRTIO_CONSOLE_PORT_OPEN invalid id = %d\n", cpkt->id);
-           }
-        break;
+                    WdfInterruptQueueDpcForIsr(*interrupt);
+                }
+            }
+            else
+            {
+                TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "VIRTIO_CONSOLE_PORT_OPEN invalid id = %d\n", cpkt->id);
+            }
+            break;
 
         case VIRTIO_CONSOLE_PORT_NAME:
-           if (port)
-           {
-              VIOSerialPortCreateName(Device, port, buf);
-           }
-        break;
+            if (port)
+            {
+                VIOSerialPortCreateName(Device, port, buf);
+            }
+            break;
         default:
-           TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s UNKNOWN event = %d\n", __FUNCTION__, cpkt->event);
+            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s UNKNOWN event = %d\n", __FUNCTION__, cpkt->event);
     }
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
 }

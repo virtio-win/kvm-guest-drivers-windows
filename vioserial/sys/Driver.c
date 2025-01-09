@@ -45,42 +45,38 @@ DRIVER_INITIALIZE DriverEntry;
 EVT_WDF_OBJECT_CONTEXT_CLEANUP _IRQL_requires_(PASSIVE_LEVEL) VIOSerialEvtDriverContextCleanup;
 
 #ifdef ALLOC_PRAGMA
-#pragma alloc_text (INIT, DriverEntry)
-#pragma alloc_text (PAGE, VIOSerialEvtDriverContextCleanup)
+#pragma alloc_text(INIT, DriverEntry)
+#pragma alloc_text(PAGE, VIOSerialEvtDriverContextCleanup)
 #endif
 
-
-
-NTSTATUS DriverEntry(IN PDRIVER_OBJECT  DriverObject,
-                     IN PUNICODE_STRING RegistryPath)
+NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING RegistryPath)
 {
-    NTSTATUS               status = STATUS_SUCCESS;
-    WDF_DRIVER_CONFIG      config;
-    WDF_OBJECT_ATTRIBUTES  attributes;
-    WDFDRIVER              Driver;
-    PDRIVER_CONTEXT        Context;
+    NTSTATUS status = STATUS_SUCCESS;
+    WDF_DRIVER_CONFIG config;
+    WDF_OBJECT_ATTRIBUTES attributes;
+    WDFDRIVER Driver;
+    PDRIVER_CONTEXT Context;
 
     ExInitializeDriverRuntime(DrvRtPoolNxOptIn);
 
     InitializeDebugPrints(DriverObject, RegistryPath);
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT,
-        "Virtio-Serial driver started...built on %s %s\n", __DATE__, __TIME__);
+    TraceEvents(TRACE_LEVEL_INFORMATION,
+                DBG_INIT,
+                "Virtio-Serial driver started...built on %s %s\n",
+                __DATE__,
+                __TIME__);
 
-    WDF_DRIVER_CONFIG_INIT(&config,VIOSerialEvtDeviceAdd);
-    config.DriverPoolTag  = VIOSERIAL_DRIVER_MEMORY_TAG;
+    WDF_DRIVER_CONFIG_INIT(&config, VIOSerialEvtDeviceAdd);
+    config.DriverPoolTag = VIOSERIAL_DRIVER_MEMORY_TAG;
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, DRIVER_CONTEXT);
     attributes.EvtCleanupCallback = VIOSerialEvtDriverContextCleanup;
 
-    status = WdfDriverCreate(DriverObject,
-                             RegistryPath,
-                             &attributes,
-                             &config,
-                             &Driver);
+    status = WdfDriverCreate(DriverObject, RegistryPath, &attributes, &config, &Driver);
 
-    if (!NT_SUCCESS(status)) {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-           "WdfDriverCreate failed - 0x%x\n", status);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfDriverCreate failed - 0x%x\n", status);
         WPP_CLEANUP(DriverObject);
         return status;
     }
@@ -97,8 +93,7 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT  DriverObject,
                                     &Context->WriteBufferLookaside);
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-            "WdfLookasideListCreate failed - 0x%x\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfLookasideListCreate failed - 0x%x\n", status);
         return status;
     }
 
@@ -106,14 +101,11 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT  DriverObject,
     return status;
 }
 
-VOID
-VIOSerialEvtDriverContextCleanup(
-    IN WDFOBJECT Driver
-    )
+VOID VIOSerialEvtDriverContextCleanup(IN WDFOBJECT Driver)
 {
-    PAGED_CODE ();
+    PAGED_CODE();
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<--> %s\n", __FUNCTION__);
 
-    WPP_CLEANUP( WdfDriverWdmGetDriverObject((WDFDRIVER)Driver) );
+    WPP_CLEANUP(WdfDriverWdmGetDriverObject((WDFDRIVER)Driver));
 }

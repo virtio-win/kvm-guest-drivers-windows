@@ -3,8 +3,8 @@
 
 CNotifier::CNotifier()
 {
-    m_hThread  = INVALID_HANDLE_VALUE;
-    m_hEvent   = INVALID_HANDLE_VALUE;
+    m_hThread = INVALID_HANDLE_VALUE;
+    m_hEvent = INVALID_HANDLE_VALUE;
     m_bRunning = TRUE;
 }
 
@@ -26,15 +26,10 @@ BOOL CNotifier::Init()
 {
     DWORD id;
 
-    m_hThread = CreateThread(
-                              NULL,
-                              0,
-                              (LPTHREAD_START_ROUTINE) ServiceThread,
-                              (LPVOID)this,
-                              0,
-                              &id);
+    m_hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ServiceThread, (LPVOID)this, 0, &id);
 
-    if (m_hThread == NULL) {
+    if (m_hThread == NULL)
+    {
         printf("Cannot create thread.\n");
         return FALSE;
     }
@@ -48,8 +43,7 @@ BOOL CNotifier::Stop()
     return res;
 }
 
-
-DWORD WINAPI CNotifier::ServiceThread(CNotifier* ptr)
+DWORD WINAPI CNotifier::ServiceThread(CNotifier *ptr)
 {
     ptr->Run();
     return 0;

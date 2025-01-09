@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#define DEFAULT_REQUEST_SIZE 16384
+#define DEFAULT_REQUEST_SIZE      16384
 #define DEFAULT_NUM_OF_ITERATIONS 5
 
 VOID ShowUsage()
@@ -19,8 +19,7 @@ VOID ShowUsage()
     wprintf(L"Example: benchmark w com.redhat.rhevm.vdsm1 -s 8192 -c 2 -t 10\n");
 }
 
-template<typename T>
-BOOL ParseUInt(LPCWSTR wszStr, T* lpRes)
+template <typename T> BOOL ParseUInt(LPCWSTR wszStr, T *lpRes)
 {
     LPWCH lpEnd;
     unsigned long long value = wcstoull(wszStr, &lpEnd, 10);
@@ -48,11 +47,15 @@ ULONG _cdecl wmain(ULONG argc, PWCHAR argv[])
     BenchmarkType type;
     switch (argv[1][0])
     {
-    case 'r': type = ReadBenchmark; break;
-    case 'w': type = WriteBenchmark; break;
-    default:
-        wprintf(L"Unrecognized benchmark type %s\n", argv[1]);
-        return 1;
+        case 'r':
+            type = ReadBenchmark;
+            break;
+        case 'w':
+            type = WriteBenchmark;
+            break;
+        default:
+            wprintf(L"Unrecognized benchmark type %s\n", argv[1]);
+            return 1;
     }
 
     LPCWSTR wszPortName = argv[2];
@@ -74,12 +77,18 @@ ULONG _cdecl wmain(ULONG argc, PWCHAR argv[])
             BOOL bSuccess = FALSE;
             switch (wszArg[1])
             {
-            case 's': bSuccess = ParseUInt<SIZE_T>(argv[i + 1], &cbRequestSize); break;
-            case 'c': bSuccess = ParseUInt<DWORD>(argv[i + 1], &dwConcurrency); break;
-            case 't': bSuccess = ParseUInt<DWORD>(argv[i + 1], &dwIterations); break;
-            default:
-                wprintf(L"Unrecognized option %s\n", wszArg);
-                return 1;
+                case 's':
+                    bSuccess = ParseUInt<SIZE_T>(argv[i + 1], &cbRequestSize);
+                    break;
+                case 'c':
+                    bSuccess = ParseUInt<DWORD>(argv[i + 1], &dwConcurrency);
+                    break;
+                case 't':
+                    bSuccess = ParseUInt<DWORD>(argv[i + 1], &dwIterations);
+                    break;
+                default:
+                    wprintf(L"Unrecognized option %s\n", wszArg);
+                    return 1;
             }
             if (!bSuccess)
             {
