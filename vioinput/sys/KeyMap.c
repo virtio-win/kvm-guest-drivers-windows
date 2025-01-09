@@ -652,8 +652,7 @@ static const ULONG ReportCodeToUsageCodeTable[] =
 };
 
 ULONG
-HIDKeyboardEventCodeToUsageCode(
-    USHORT uEventCode)
+HIDKeyboardEventCodeToUsageCode(USHORT uEventCode)
 {
     if (uEventCode < (sizeof(ReportCodeToUsageCodeTable) / sizeof(ReportCodeToUsageCodeTable[0])))
     {
