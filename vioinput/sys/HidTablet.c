@@ -866,12 +866,14 @@ HIDTabletProbe(PINPUT_DEVICE pContext,
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Created HID tablet report descriptor\n");
 
     // calculate the tablet HID report size
+    // clang-format off
     pTabletDesc->Common.cbHidReportSize =
         1 + // report ID
         sizeof(INPUT_CLASS_TABLET_SLOT) * pTabletDesc->uMaxContacts + // max contacts * per-contact packet. See INPUT_CLASS_TABLET_SLOT and INPUT_CLASS_TABLET for layout details.
         1 + // Actual contact count
         (pTabletDesc->bMscTs ? sizeof(LONG) : 0) // Scan time
         ;
+    // clang-format on
 
     // register the tablet class
     status = RegisterClass(pContext, &pTabletDesc->Common);

@@ -42,6 +42,7 @@
 // HID descriptor based on this structure is returned by the mini driver in response
 // to IOCTL_HID_GET_DEVICE_DESCRIPTOR.
 //
+// clang-format off
 static const HID_DESCRIPTOR G_DefaultHidDescriptor =
 {
     0x09,   // length of HID descriptor
@@ -54,6 +55,7 @@ static const HID_DESCRIPTOR G_DefaultHidDescriptor =
         0x0000     // total length of report descriptor
     }
 };
+// clang-format on
 
 VOID EvtIoDeviceControl(WDFQUEUE Queue,
                         WDFREQUEST Request,
