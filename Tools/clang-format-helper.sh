@@ -5,10 +5,11 @@ set -e
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 # Default to the root of the repository
-CHECK_PATH="${1:-"${SCRIPT_DIR}/.."}"
-CLANG_FORMAT_STYLE="${2:-"${CHECK_PATH}/.clang-format"}"
-EXCLUDE_REGEX="$3"
-INCLUDE_REGEX="$4"
+FORMAT_ACTION="${1:-"check"}"
+CHECK_PATH="${2:-"${SCRIPT_DIR}/.."}"
+CLANG_FORMAT_STYLE="${3:-"${CHECK_PATH}/.clang-format"}"
+EXCLUDE_REGEX="$4"
+INCLUDE_REGEX="$5"
 
 CLANG_FORMAT_STYLE="$(realpath "${CLANG_FORMAT_STYLE}")"
 
@@ -60,21 +61,28 @@ for file in $src_files; do
             file_path="$(cygpath -w "${file}")"
         fi
 
-        formatted_code="$("${clang_format}" --style=file:"${CLANG_FORMAT_STYLE}" --verbose --Werror "${file_path}")"
-        if [[ -z "$formatted_code" ]]; then
-            continue
-        fi
+        if [[ "${FORMAT_ACTION}" == "check" ]]; then
+            formatted_code="$("${clang_format}" --style=file:"${CLANG_FORMAT_STYLE}" --verbose --Werror "${file_path}")"
+            if [[ -z "$formatted_code" ]]; then
+                continue
+            fi
 
-        # The next line is a workaround to avoid the diff on Windows
-        # The "echo" command replace the \r\n by \n on Windows but only
-        # for the last trailing newline this cause the diff to fail
-        # on Windows because the last newline is different
-        current_file="$(cat "${file}")"
-        local_format="$(diff <(echo "${current_file}") <(echo "${formatted_code}") || true)"
-        if [[ -n "${local_format}" ]]; then
-            echo "The file ${file} is not formatted correctly"
-            echo "${local_format}"
-            exit_code=1
+            # The next line is a workaround to avoid the diff on Windows
+            # The "echo" command replace the \r\n by \n on Windows but only
+            # for the last trailing newline this cause the diff to fail
+            # on Windows because the last newline is different
+            current_file="$(cat "${file}")"
+            local_format="$(diff <(echo "${current_file}") <(echo "${formatted_code}") || true)"
+            if [[ -n "${local_format}" ]]; then
+                echo "The file ${file} is not formatted correctly"
+                echo "${local_format}"
+                exit_code=1
+            fi
+        elif [[ "${FORMAT_ACTION}" == "format" ]]; then
+            "${clang_format}" --style=file:"${CLANG_FORMAT_STYLE}" --verbose -i "${file_path}"
+        else
+            echo "Unknown action: ${FORMAT_ACTION}"
+            exit 1
         fi
     fi
 done

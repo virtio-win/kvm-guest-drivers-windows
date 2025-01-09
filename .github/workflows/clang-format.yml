@@ -19,7 +19,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install --no-install-recommends -y clang-format-16
-        bash Tools/clang-format-helper.sh ${CHECK_PATH} "" ${EXCLUDE_REGEX}
+        bash Tools/clang-format-helper.sh check ${CHECK_PATH} "" ${EXCLUDE_REGEX}
       env:
         CHECK_PATH: ${{ matrix.path['check'] }}
         EXCLUDE_REGEX: ${{ matrix.path['exclude'] }}
