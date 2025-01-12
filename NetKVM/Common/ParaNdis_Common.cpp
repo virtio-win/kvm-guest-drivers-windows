@@ -2044,6 +2044,10 @@ VOID ParaNdis_OnPnPEvent(
     {
         // on simulated surprise removal (under PnpTest) we need to reset the device
         // to prevent any access of device queues to memory buffers
+
+        // sync with lazy alloc thread action
+        CMutexLockedContext sync(pContext->systemThread.PowerMutex());
+
         pContext->bSurprizeRemoved = TRUE;
         pContext->m_StateMachine.NotifySupriseRemoved();
         ParaNdis_ResetVirtIONetDevice(pContext);
