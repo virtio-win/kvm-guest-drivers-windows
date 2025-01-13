@@ -9,7 +9,7 @@
 #include "resource.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
+#define WIN32_LEAN_AND_MEAN // Exclude rarely-used stuff from Windows headers
 #endif
 
 // Windows Header Files:
@@ -29,24 +29,32 @@
 #include "Exception.h"
 
 #pragma warning(push, 3)
-#pragma warning(disable:4995) //name was marked as #pragma deprecated
+#pragma warning(disable : 4995) // name was marked as #pragma deprecated
 #include <vector>
 #include <algorithm>
 #pragma warning(pop)
 
 using namespace std;
 #endif
-#pragma warning(disable:4512) //assignment operator could not be generated
-
+#pragma warning(disable : 4512) // assignment operator could not be generated
 
 #ifdef _DEBUG
-#define NETCO_DEBUG_PRINT(x) { tcout << TEXT("NETKVM: ") << x << endl;}
+#define NETCO_DEBUG_PRINT(x)                                                                                           \
+    {                                                                                                                  \
+        tcout << TEXT("NETKVM: ") << x << endl;                                                                        \
+    }
 #else
-#define NETCO_DEBUG_PRINT(x) { wstringbuf sb; wostream s(&sb); s << TEXT("NETKVM: ") << x << endl; OutputDebugString(sb.str().c_str()); }
+#define NETCO_DEBUG_PRINT(x)                                                                                           \
+    {                                                                                                                  \
+        wstringbuf sb;                                                                                                 \
+        wostream s(&sb);                                                                                               \
+        s << TEXT("NETKVM: ") << x << endl;                                                                            \
+        OutputDebugString(sb.str().c_str());                                                                           \
+    }
 #endif
 
 #ifndef ARRAY_SIZE
-#define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 #endif
 
 // TODO: reference additional headers your program requires here
