@@ -51,6 +51,7 @@ typedef struct _VIOSOCK_WAIT_CONTEXT
 PDRIVER_OBJECT _viowskDriverObject = NULL;
 PDEVICE_OBJECT _viowskDeviceObject = NULL;
 
+// clang-format off
 static const WSK_PROVIDER_DISPATCH _providerDispatch = {
     MAKE_WSK_VERSION(VIOWSK_PROVIDER_VERSION, 0),
     0,
@@ -61,6 +62,7 @@ static const WSK_PROVIDER_DISPATCH _providerDispatch = {
     VioWskFreeAddressInfo,
     VioWskGetNameInfo,
 };
+// clang-format on
 
 static NTSTATUS _NotifyCallback(_In_ PVOID NotificationStructure, _Inout_ PVOID Context)
 {
