@@ -39,32 +39,37 @@
 
 #ifndef _WINSOCK2API_
 
-#define FIONREAD    _IOR('f', 127, ULONG) /* get # bytes to read */
-#define FIONBIO     _IOW('f', 126, ULONG) /* set/clear non-blocking i/o */
+#define FIONREAD _IOR('f', 127, ULONG) /* get # bytes to read */
+#define FIONBIO  _IOW('f', 126, ULONG) /* set/clear non-blocking i/o */
 
 #endif
 
-#define  VIOSOCK_NAME L"\\??\\Viosock"
+#define VIOSOCK_NAME L"\\??\\Viosock"
 
 #ifdef _WINBASE_
 
 #ifndef IOCTL_GET_AF
-#define IOCTL_GET_AF    0x0801300C
+#define IOCTL_GET_AF 0x0801300C
 #endif
 
-__inline
-ADDRESS_FAMILY
-ViosockGetAF()
+__inline ADDRESS_FAMILY ViosockGetAF()
 {
     DWORD dwAF = AF_UNSPEC;
-    HANDLE hDevice = CreateFileW(VIOSOCK_NAME, GENERIC_READ, FILE_SHARE_READ,
-        NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    HANDLE hDevice = CreateFileW(VIOSOCK_NAME,
+                                 GENERIC_READ,
+                                 FILE_SHARE_READ,
+                                 NULL,
+                                 OPEN_EXISTING,
+                                 FILE_ATTRIBUTE_NORMAL,
+                                 NULL);
 
     if (hDevice != INVALID_HANDLE_VALUE)
     {
         DWORD dwReturned;
-        if (!DeviceIoControl(hDevice, IOCTL_GET_AF, NULL, 0, &dwAF, sizeof(dwAF),&dwReturned, NULL))
+        if (!DeviceIoControl(hDevice, IOCTL_GET_AF, NULL, 0, &dwAF, sizeof(dwAF), &dwReturned, NULL))
+        {
             dwAF = AF_UNSPEC;
+        }
 
         CloseHandle(hDevice);
     }
@@ -78,7 +83,7 @@ ViosockGetAF()
  * Value is clamped to the MIN and MAX.
  */
 
-#define SO_VM_SOCKETS_BUFFER_SIZE       0x6000
+#define SO_VM_SOCKETS_BUFFER_SIZE     0x6000
 
 /* Option name for STREAM socket minimum buffer size.  Use as the option name
  * in setsockopt or getsockopt to set or get an unsigned long long that
@@ -86,41 +91,41 @@ ViosockGetAF()
  * STREAM socket.
  */
 
-#define SO_VM_SOCKETS_BUFFER_MIN_SIZE   0x6001
+#define SO_VM_SOCKETS_BUFFER_MIN_SIZE 0x6001
 
- /* Option name for STREAM socket maximum buffer size.  Use as the option name
-  * in setsockopt or getsockopt to set or get an unsigned long long
-  * that specifies the maximum size allowed for the buffer underlying a
-  * vSockets STREAM socket.
-  */
+/* Option name for STREAM socket maximum buffer size.  Use as the option name
+ * in setsockopt or getsockopt to set or get an unsigned long long
+ * that specifies the maximum size allowed for the buffer underlying a
+ * vSockets STREAM socket.
+ */
 
-#define SO_VM_SOCKETS_BUFFER_MAX_SIZE   0x6002
+#define SO_VM_SOCKETS_BUFFER_MAX_SIZE 0x6002
 
- /* Option name for STREAM socket connection timeout.  Use as the option name
-  * in setsockopt(3) or getsockopt(3) to set or get the connection
-  * timeout for a STREAM socket.
-  */
+/* Option name for STREAM socket connection timeout.  Use as the option name
+ * in setsockopt(3) or getsockopt(3) to set or get the connection
+ * timeout for a STREAM socket.
+ */
 
-#define SO_VM_SOCKETS_CONNECT_TIMEOUT   0x6006
+#define SO_VM_SOCKETS_CONNECT_TIMEOUT 0x6006
 
 /* Any address  for  binding, equivalent of INADDR_ANY.  This works for the svm_cid field of
  * sockaddr_vm and indicates the context ID of the current endpoint.
  */
-#define VMADDR_CID_ANY          (-1)
+#define VMADDR_CID_ANY                (-1)
 
 /* Bind to any available port.  Works for the svm_port field of sockaddr_vm. */
-#define VMADDR_PORT_ANY         (-1)
+#define VMADDR_PORT_ANY               (-1)
 
 /* Use this as the destination CID in an address when referring to the hypervisor.*/
-#define VMADDR_CID_HYPERVISOR   0
+#define VMADDR_CID_HYPERVISOR         0
 
 /* Reserved, must not be used. */
-#define VMADDR_CID_RESERVED     1
+#define VMADDR_CID_RESERVED           1
 
 /* Use this as the destination CID in an address when referring to the host
  * (any process other than the hypervisor).
  */
-#define VMADDR_CID_HOST         2
+#define VMADDR_CID_HOST               2
 
 /* Address structure for virtio vsockets. The address family should be set to
  * AF_VSOCK.  The structure members should all align on their natural
@@ -128,15 +133,15 @@ ViosockGetAF()
  */
 typedef struct sockaddr_vm
 {
-    ADDRESS_FAMILY  svm_family;     /* Address family: AF_VSOCK */
-    USHORT          svm_reserved1;
-    UINT            svm_port;       /* Port # in host byte order */
-    UINT            svm_cid;        /* Address in host byte order */
-}SOCKADDR_VM, *PSOCKADDR_VM;
+    ADDRESS_FAMILY svm_family; /* Address family: AF_VSOCK */
+    USHORT svm_reserved1;
+    UINT svm_port; /* Port # in host byte order */
+    UINT svm_cid;  /* Address in host byte order */
+} SOCKADDR_VM, *PSOCKADDR_VM;
 
-#define IOCTL_VM_SOCKETS_GET_LOCAL_CID		_IO(7, 0xb9)
+#define IOCTL_VM_SOCKETS_GET_LOCAL_CID _IO(7, 0xb9)
 
-#define STATUS_NOT_SOCKET               ((NTSTATUS)0xE0040001L)
-#define STATUS_CONNECTION_ESTABLISHING  ((NTSTATUS)0xE0040002L)
+#define STATUS_NOT_SOCKET              ((NTSTATUS)0xE0040001L)
+#define STATUS_CONNECTION_ESTABLISHING ((NTSTATUS)0xE0040002L)
 
 #endif /* _VIO_SOCKETS_H */

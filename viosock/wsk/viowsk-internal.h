@@ -30,51 +30,34 @@
 #ifndef __VIOWSK_INTERNAL_H__
 #define __VIOWSK_INTERNAL_H__
 
-
-
 extern PDRIVER_OBJECT _viowskDriverObject;
 extern PDEVICE_OBJECT _viowskDeviceObject;
 
-
-_Must_inspect_result_
-NTSTATUS
-VioWskSocketInternal(
-    _In_ PWSK_CLIENT              Client,
-    _In_opt_ PVIOWSK_SOCKET       ListenSocket,
-    _In_ ULONG                    Flags,
-    _In_opt_ PVOID                SocketContext,
-    _In_opt_ CONST VOID* Dispatch,
-    _In_opt_ PEPROCESS            OwningProcess,
-    _In_opt_ PETHREAD             OwningThread,
-    _In_opt_ PSECURITY_DESCRIPTOR SecurityDescriptor,
-    _Out_ PVIOWSK_SOCKET* pNewSocket
-);
+_Must_inspect_result_ NTSTATUS VioWskSocketInternal(_In_ PWSK_CLIENT Client,
+                                                    _In_opt_ PVIOWSK_SOCKET ListenSocket,
+                                                    _In_ ULONG Flags,
+                                                    _In_opt_ PVOID SocketContext,
+                                                    _In_opt_ CONST VOID *Dispatch,
+                                                    _In_opt_ PEPROCESS OwningProcess,
+                                                    _In_opt_ PETHREAD OwningThread,
+                                                    _In_opt_ PSECURITY_DESCRIPTOR SecurityDescriptor,
+                                                    _Out_ PVIOWSK_SOCKET *pNewSocket);
 
 NTSTATUS
-VioWskCloseSocketInternal(
-    _Inout_ PVIOWSK_SOCKET Socket,
-    _In_opt_ PVOID         ReleleaseTag
-);
+VioWskCloseSocketInternal(_Inout_ PVIOWSK_SOCKET Socket, _In_opt_ PVOID ReleleaseTag);
 
 NTSTATUS
 WSKAPI
-VioWskCloseSocket(
-    _In_ PWSK_SOCKET Socket,
-    _Inout_ PIRP     Irp
-);
+VioWskCloseSocket(_In_ PWSK_SOCKET Socket, _Inout_ PIRP Irp);
 
 NTSTATUS
 WSKAPI
-VioWskAccept(
-    _In_ PWSK_SOCKET                               ListenSocket,
-    _Reserved_ ULONG                               Flags,
-    _In_opt_ PVOID                                 AcceptSocketContext,
-    _In_opt_ CONST WSK_CLIENT_CONNECTION_DISPATCH* AcceptSocketDispatch,
-    _Out_opt_ PSOCKADDR                            LocalAddress,
-    _Out_opt_ PSOCKADDR                            RemoteAddress,
-    _Inout_ PIRP                                   Irp
-);
-
-
+VioWskAccept(_In_ PWSK_SOCKET ListenSocket,
+             _Reserved_ ULONG Flags,
+             _In_opt_ PVOID AcceptSocketContext,
+             _In_opt_ CONST WSK_CLIENT_CONNECTION_DISPATCH *AcceptSocketDispatch,
+             _Out_opt_ PSOCKADDR LocalAddress,
+             _Out_opt_ PSOCKADDR RemoteAddress,
+             _Inout_ PIRP Irp);
 
 #endif

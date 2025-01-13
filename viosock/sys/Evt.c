@@ -34,19 +34,13 @@
 #include "Evt.tmh"
 #endif
 
-
 #ifdef ALLOC_PRAGMA
-#pragma alloc_text (PAGE, VIOSockEvtVqInit)
-#pragma alloc_text (PAGE, VIOSockEvtVqCleanup)
+#pragma alloc_text(PAGE, VIOSockEvtVqInit)
+#pragma alloc_text(PAGE, VIOSockEvtVqCleanup)
 #endif
 
-_IRQL_requires_max_(DISPATCH_LEVEL)
-static
-BOOLEAN
-VIOSockEvtPktInsert(
-    IN PDEVICE_CONTEXT pContext,
-    IN PVIRTIO_VSOCK_EVENT pEvent
-)
+_IRQL_requires_max_(DISPATCH_LEVEL) static BOOLEAN VIOSockEvtPktInsert(IN PDEVICE_CONTEXT pContext,
+                                                                       IN PVIRTIO_VSOCK_EVENT pEvent)
 {
     BOOLEAN bRes = TRUE;
     VIOSOCK_SG_DESC sg;
@@ -55,27 +49,21 @@ VIOSockEvtPktInsert(
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
     sg.length = sizeof(VIRTIO_VSOCK_EVENT);
-    sg.physAddr.QuadPart = pContext->EvtPA.QuadPart +
-        (ULONGLONG)((PCHAR)pEvent - (PCHAR)pContext->EvtVA);
+    sg.physAddr.QuadPart = pContext->EvtPA.QuadPart + (ULONGLONG)((PCHAR)pEvent - (PCHAR)pContext->EvtVA);
 
     ret = virtqueue_add_buf(pContext->EvtVq, &sg, 0, 1, pEvent, NULL, 0);
 
     ASSERT(ret >= 0);
     if (ret < 0)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS,
-            "Error adding buffer to Evt queue (ret = %d)\n", ret);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "Error adding buffer to Evt queue (ret = %d)\n", ret);
         return FALSE;
     }
 
     return TRUE;
 }
 
-_IRQL_requires_max_(PASSIVE_LEVEL)
-VOID
-VIOSockEvtVqCleanup(
-    IN PDEVICE_CONTEXT pContext
-)
+_IRQL_requires_max_(PASSIVE_LEVEL) VOID VIOSockEvtVqCleanup(IN PDEVICE_CONTEXT pContext)
 {
     PAGED_CODE();
 
@@ -83,8 +71,9 @@ VIOSockEvtVqCleanup(
 
     ASSERT(pContext->EvtVq && pContext->EvtVA);
 
-    //drain queue
-    while (virtqueue_detach_unused_buf(pContext->EvtVq));
+    // drain queue
+    while (virtqueue_detach_unused_buf(pContext->EvtVq))
+        ;
 
     if (pContext->EvtVA)
     {
@@ -95,11 +84,7 @@ VIOSockEvtVqCleanup(
     pContext->EvtVq = NULL;
 }
 
-_IRQL_requires_max_(PASSIVE_LEVEL)
-NTSTATUS
-VIOSockEvtVqInit(
-    IN PDEVICE_CONTEXT pContext
-)
+_IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS VIOSockEvtVqInit(IN PDEVICE_CONTEXT pContext)
 {
     NTSTATUS status = STATUS_SUCCESS;
     ULONG uRingSize, uHeapSize, uBufferSize;
@@ -110,17 +95,23 @@ VIOSockEvtVqInit(
 
     uBufferSize = sizeof(VIRTIO_VSOCK_EVENT) * VIRTIO_VSOCK_MAX_EVENTS;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "Allocating common buffer of %u bytes for %u Events\n",
-        uBufferSize, VIRTIO_VSOCK_MAX_EVENTS);
+    TraceEvents(TRACE_LEVEL_INFORMATION,
+                DBG_HW_ACCESS,
+                "Allocating common buffer of %u bytes for %u Events\n",
+                uBufferSize,
+                VIRTIO_VSOCK_MAX_EVENTS);
 
     pContext->EvtVA = (PVIRTIO_VSOCK_EVENT)VirtIOWdfDeviceAllocDmaMemory(&pContext->VDevice.VIODevice,
-        uBufferSize, VIOSOCK_DRIVER_MEMORY_TAG);
+                                                                         uBufferSize,
+                                                                         VIOSOCK_DRIVER_MEMORY_TAG);
 
     ASSERT(pContext->EvtVA);
     if (!pContext->EvtVA)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS,
-            "VirtIOWdfDeviceAllocDmaMemory(%u bytes for Events) failed\n", uBufferSize);
+        TraceEvents(TRACE_LEVEL_ERROR,
+                    DBG_HW_ACCESS,
+                    "VirtIOWdfDeviceAllocDmaMemory(%u bytes for Events) failed\n",
+                    uBufferSize);
         status = STATUS_INSUFFICIENT_RESOURCES;
         pContext->EvtVq = NULL;
     }
@@ -131,7 +122,7 @@ VIOSockEvtVqInit(
         pContext->EvtPA = VirtIOWdfDeviceGetPhysicalAddress(&pContext->VDevice.VIODevice, pContext->EvtVA);
         ASSERT(pContext->EvtPA.QuadPart);
 
-        //fill queue
+        // fill queue
         for (i = 0; i < VIRTIO_VSOCK_MAX_EVENTS; i++)
         {
             if (!VIOSockEvtPktInsert(pContext, &pContext->EvtVA[i]))
@@ -141,7 +132,9 @@ VIOSockEvtVqInit(
             }
         }
         if (!NT_SUCCESS(status))
+        {
             VIOSockEvtVqCleanup(pContext);
+        }
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
@@ -149,11 +142,7 @@ VIOSockEvtVqInit(
     return status;
 }
 
-_IRQL_requires_max_(DISPATCH_LEVEL)
-VOID
-VIOSockEvtVqProcess(
-    IN PDEVICE_CONTEXT pContext
-)
+_IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockEvtVqProcess(IN PDEVICE_CONTEXT pContext)
 {
     PVIRTIO_VSOCK_EVENT pEvt;
     BOOLEAN bNotify = FALSE, bKick = FALSE;
@@ -188,19 +177,13 @@ VIOSockEvtVqProcess(
         }
     } while (!virtqueue_enable_cb(pContext->EvtVq));
 
-
     if (bNotify)
     {
-        VirtIOWdfDeviceGet(&pContext->VDevice,
-            0,
-            &pContext->Config,
-            sizeof(pContext->Config));
+        VirtIOWdfDeviceGet(&pContext->VDevice, 0, &pContext->Config, sizeof(pContext->Config));
 
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS,
-            "New guest_cid %lld\n", pContext->Config.guest_cid);
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "New guest_cid %lld\n", pContext->Config.guest_cid);
 
         VIOSockHandleTransportReset(pContext);
-
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);

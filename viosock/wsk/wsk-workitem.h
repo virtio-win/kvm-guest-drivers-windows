@@ -30,13 +30,11 @@
 #ifndef __WSK_WORKITEM_H__
 #define __WSK_WORKITEM_H__
 
-
 #include <ntifs.h>
 #include "viowsk.h"
 
-
-
-typedef enum _EWSKWorkItemType {
+typedef enum _EWSKWorkItemType
+{
     wskwitUndefined,
     wskwitSocket,
     wskwitSocketAndConnect,
@@ -45,12 +43,14 @@ typedef enum _EWSKWorkItemType {
     wskwitMax,
 } EWSKWorkItemType, *PEWSKWorkItemType;
 
-typedef struct _WSK_WORKITEM {
+typedef struct _WSK_WORKITEM
+{
     EWSKWorkItemType Type;
     BOOLEAN IoMethod;
     PIRP Irp;
     union {
-        struct {
+        struct
+        {
             PWSK_CLIENT Client;
             ADDRESS_FAMILY AddressFamily;
             USHORT SocketType;
@@ -62,7 +62,8 @@ typedef struct _WSK_WORKITEM {
             PETHREAD OwningThread;
             PSECURITY_DESCRIPTOR SecurityDescriptor;
         } Socket;
-        struct {
+        struct
+        {
             PWSK_CLIENT Client;
             USHORT SocketType;
             ULONG Protocol;
@@ -75,10 +76,12 @@ typedef struct _WSK_WORKITEM {
             PETHREAD OwningThread;
             PSECURITY_DESCRIPTOR SecurityDescriptor;
         } SocketConnect;
-        struct {
+        struct
+        {
             PWSK_SOCKET Socket;
         } CloseSocket;
-        struct {
+        struct
+        {
             PWSK_SOCKET ListenSocket;
             ULONG Flags;
             PVOID AcceptSocketContext;
@@ -89,26 +92,15 @@ typedef struct _WSK_WORKITEM {
     } Specific;
     union {
         WORK_QUEUE_ITEM ExWorkItem;
-        unsigned char IoWorkItem[1]; 
+        unsigned char IoWorkItem[1];
     };
 } WSK_WORKITEM, *PWSK_WORKITEM;
 
-
 PWSK_WORKITEM
-WskWorkItemAlloc(
-    _In_ EWSKWorkItemType Type,
-    _In_ PIRP             Irp
-);
+WskWorkItemAlloc(_In_ EWSKWorkItemType Type, _In_ PIRP Irp);
 
-void
-WskWorkItemQueue(
-    _In_ PWSK_WORKITEM WorkItem
-);
+void WskWorkItemQueue(_In_ PWSK_WORKITEM WorkItem);
 
-void
-WskWorkItemFree(
-    _In_ PWSK_WORKITEM WorkItem
-);
-
+void WskWorkItemFree(_In_ PWSK_WORKITEM WorkItem);
 
 #endif

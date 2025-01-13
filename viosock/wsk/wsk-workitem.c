@@ -38,84 +38,69 @@
 #include "wsk-workitem.tmh"
 #endif
 
-
 #pragma warning(disable : 4996)
 
-
-static
-void
-_ProcessWorkItem(
-    _In_ PWSK_WORKITEM WorkItem
-)
+static void _ProcessWorkItem(_In_ PWSK_WORKITEM WorkItem)
 {
     DEBUG_ENTER_FUNCTION("WorkItem=0x%p", WorkItem);
 
     switch (WorkItem->Type)
     {
-    case wskwitSocket:
-        VioWskSocket(WorkItem->Specific.Socket.Client,
-            WorkItem->Specific.Socket.AddressFamily,
-            WorkItem->Specific.Socket.SocketType,
-            WorkItem->Specific.Socket.Protocol,
-            WorkItem->Specific.Socket.Flags,
-            WorkItem->Specific.Socket.SocketContext,
-            WorkItem->Specific.Socket.Dispatch,
-            WorkItem->Specific.Socket.OwningProcess,
-            WorkItem->Specific.Socket.OwningThread,
-            WorkItem->Specific.Socket.SecurityDescriptor,
-            WorkItem->Irp);
-			break;
-    case wskwitSocketAndConnect:
-        VioWskSocketConnect(
-            WorkItem->Specific.SocketConnect.Client,
-            WorkItem->Specific.SocketConnect.SocketType,
-            WorkItem->Specific.SocketConnect.Protocol,
-            WorkItem->Specific.SocketConnect.LocalAddress,
-            WorkItem->Specific.SocketConnect.RemoteAddress,
-            WorkItem->Specific.SocketConnect.Flags,
-            WorkItem->Specific.SocketConnect.SocketContext,
-            WorkItem->Specific.SocketConnect.Dispatch,
-            WorkItem->Specific.SocketConnect.OwningProcess,
-            WorkItem->Specific.SocketConnect.OwningThread,
-            WorkItem->Specific.SocketConnect.SecurityDescriptor,
-            WorkItem->Irp);
-        break;
-    case wskwitCloseSocket:
-        VioWskCloseSocket(
-            WorkItem->Specific.CloseSocket.Socket,
-            WorkItem->Irp);
-        break;
-    case wskwitAccept:
-    {
-        PVIOWSK_SOCKET ListenSocket = NULL;
+        case wskwitSocket:
+            VioWskSocket(WorkItem->Specific.Socket.Client,
+                         WorkItem->Specific.Socket.AddressFamily,
+                         WorkItem->Specific.Socket.SocketType,
+                         WorkItem->Specific.Socket.Protocol,
+                         WorkItem->Specific.Socket.Flags,
+                         WorkItem->Specific.Socket.SocketContext,
+                         WorkItem->Specific.Socket.Dispatch,
+                         WorkItem->Specific.Socket.OwningProcess,
+                         WorkItem->Specific.Socket.OwningThread,
+                         WorkItem->Specific.Socket.SecurityDescriptor,
+                         WorkItem->Irp);
+            break;
+        case wskwitSocketAndConnect:
+            VioWskSocketConnect(WorkItem->Specific.SocketConnect.Client,
+                                WorkItem->Specific.SocketConnect.SocketType,
+                                WorkItem->Specific.SocketConnect.Protocol,
+                                WorkItem->Specific.SocketConnect.LocalAddress,
+                                WorkItem->Specific.SocketConnect.RemoteAddress,
+                                WorkItem->Specific.SocketConnect.Flags,
+                                WorkItem->Specific.SocketConnect.SocketContext,
+                                WorkItem->Specific.SocketConnect.Dispatch,
+                                WorkItem->Specific.SocketConnect.OwningProcess,
+                                WorkItem->Specific.SocketConnect.OwningThread,
+                                WorkItem->Specific.SocketConnect.SecurityDescriptor,
+                                WorkItem->Irp);
+            break;
+        case wskwitCloseSocket:
+            VioWskCloseSocket(WorkItem->Specific.CloseSocket.Socket, WorkItem->Irp);
+            break;
+        case wskwitAccept:
+            {
+                PVIOWSK_SOCKET ListenSocket = NULL;
 
-        ListenSocket = CONTAINING_RECORD(WorkItem->Specific.Accept.ListenSocket, VIOWSK_SOCKET, WskSocket);
-        VioWskAccept(
-            WorkItem->Specific.Accept.ListenSocket,
-            WorkItem->Specific.Accept.Flags,
-            WorkItem->Specific.Accept.AcceptSocketContext,
-            WorkItem->Specific.Accept.AcceptSocketDispatch,
-            WorkItem->Specific.Accept.LocalAddress,
-            WorkItem->Specific.Accept.RemoteAddress,
-            WorkItem->Irp);
-        VioWskIrpRelease(ListenSocket, WorkItem->Irp);
-    } break;
-    default:
-        ASSERT(FALSE);
-        break;
+                ListenSocket = CONTAINING_RECORD(WorkItem->Specific.Accept.ListenSocket, VIOWSK_SOCKET, WskSocket);
+                VioWskAccept(WorkItem->Specific.Accept.ListenSocket,
+                             WorkItem->Specific.Accept.Flags,
+                             WorkItem->Specific.Accept.AcceptSocketContext,
+                             WorkItem->Specific.Accept.AcceptSocketDispatch,
+                             WorkItem->Specific.Accept.LocalAddress,
+                             WorkItem->Specific.Accept.RemoteAddress,
+                             WorkItem->Irp);
+                VioWskIrpRelease(ListenSocket, WorkItem->Irp);
+            }
+            break;
+        default:
+            ASSERT(FALSE);
+            break;
     }
 
     DEBUG_EXIT_FUNCTION_VOID();
     return;
 }
 
-static
-void
-_IoWskRoutine(
-    _In_ PVOID        IoObject,
-    _In_opt_ PVOID    Context,
-    _In_ PIO_WORKITEM IoWorkItem
-)
+static void _IoWskRoutine(_In_ PVOID IoObject, _In_opt_ PVOID Context, _In_ PIO_WORKITEM IoWorkItem)
 {
     PWSK_WORKITEM WorkItem = (PWSK_WORKITEM)Context;
     DEBUG_ENTER_FUNCTION("IoObject=0x%p; Context=0x%p; IoWorkItem=0x%p", IoObject, Context, IoWorkItem);
@@ -130,11 +115,7 @@ _IoWskRoutine(
     return;
 }
 
-static
-void
-_ExWskRoutine(
-    _In_opt_ PVOID Context
-)
+static void _ExWskRoutine(_In_opt_ PVOID Context)
 {
     PWSK_WORKITEM WorkItem = (PWSK_WORKITEM)Context;
     DEBUG_ENTER_FUNCTION("Context=0x%p", Context);
@@ -147,13 +128,8 @@ _ExWskRoutine(
     return;
 }
 
-
-
 PWSK_WORKITEM
-WskWorkItemAlloc(
-    _In_ EWSKWorkItemType Type,
-    _In_ PIRP             Irp
-)
+WskWorkItemAlloc(_In_ EWSKWorkItemType Type, _In_ PIRP Irp)
 {
     PWSK_WORKITEM Ret = NULL;
     SIZE_T TotalSize = sizeof(WSK_WORKITEM);
@@ -161,9 +137,11 @@ WskWorkItemAlloc(
     DEBUG_ENTER_FUNCTION("Type%u; Irp=0x%p", Type, Irp);
 
     if (IoWorkItem)
+    {
         TotalSize += (IoSizeofWorkItem() - sizeof(Ret->ExWorkItem));
+    }
 
-    Ret = ExAllocatePoolWithTag(NonPagedPool,TotalSize , VIOSOCK_WSK_MEMORY_TAG);
+    Ret = ExAllocatePoolWithTag(NonPagedPool, TotalSize, VIOSOCK_WSK_MEMORY_TAG);
     if (Ret)
     {
         memset(Ret, 0, TotalSize);
@@ -171,37 +149,42 @@ WskWorkItemAlloc(
         Ret->IoMethod = IoWorkItem;
         Ret->Irp = Irp;
         if (Ret->IoMethod)
+        {
             IoInitializeWorkItem(_viowskDeviceObject, (PIO_WORKITEM)Ret->IoWorkItem);
-        else ExInitializeWorkItem(&Ret->ExWorkItem, _ExWskRoutine, Ret);
+        }
+        else
+        {
+            ExInitializeWorkItem(&Ret->ExWorkItem, _ExWskRoutine, Ret);
+        }
     }
 
     DEBUG_EXIT_FUNCTION("0x%p", Ret);
     return Ret;
 }
 
-
-void
-WskWorkItemQueue(
-	_In_ PWSK_WORKITEM WorkItem
-)
+void WskWorkItemQueue(_In_ PWSK_WORKITEM WorkItem)
 {
     DEBUG_ENTER_FUNCTION("WorkItem=0x%p", WorkItem);
 
     if (WorkItem->IoMethod)
+    {
         IoQueueWorkItemEx((PIO_WORKITEM)WorkItem->IoWorkItem, _IoWskRoutine, DelayedWorkQueue, WorkItem);
-    else ExQueueWorkItem(&WorkItem->ExWorkItem, DelayedWorkQueue);
+    }
+    else
+    {
+        ExQueueWorkItem(&WorkItem->ExWorkItem, DelayedWorkQueue);
+    }
 
     DEBUG_EXIT_FUNCTION_VOID();
     return;
 }
 
-void
-WskWorkItemFree(
-    _In_ PWSK_WORKITEM WorkItem
-)
+void WskWorkItemFree(_In_ PWSK_WORKITEM WorkItem)
 {
     if (WorkItem->IoMethod)
+    {
         IoUninitializeWorkItem((PIO_WORKITEM)WorkItem->IoWorkItem);
+    }
 
     IoFreeIrp(WorkItem->Irp);
     ExFreePoolWithTag(WorkItem, VIOSOCK_WSK_MEMORY_TAG);

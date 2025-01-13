@@ -20,9 +20,13 @@ GetGuestCid()
     }
 
     if (VIOSockGetConfig(hViosock, &vsConfig))
+    {
         uRes = vsConfig.guest_cid;
+    }
     else
+    {
         _tprintf(L"VIOSockGetConfig error: %d\n", GetLastError());
+    }
 
     VIOSockCloseSocket(hViosock);
 
@@ -36,7 +40,7 @@ GetGuestCidFromNewSocket()
     ULONG64 uRes = VMADDR_CID_ANY;
     SOCKET hViosock;
     VIRTIO_VSOCK_CONFIG vsConfig;
-    VIRTIO_VSOCK_PARAMS SocketParams = { 0 };
+    VIRTIO_VSOCK_PARAMS SocketParams = {0};
 
     _tprintf(L"--> %s\n", TEXT(__FUNCTION__));
 
@@ -52,7 +56,9 @@ GetGuestCidFromNewSocket()
         uRes = vsConfig.guest_cid;
     }
     else
+    {
         _tprintf(L"VIOSockGetConfig error: %d\n", GetLastError());
+    }
 
     VIOSockCloseSocket(hViosock);
 
@@ -66,7 +72,7 @@ GetGuestCidFromAcceptSocket()
     ULONG64 uRes = VMADDR_CID_ANY;
     SOCKET hListenSock, hAcceptSocket;
     VIRTIO_VSOCK_CONFIG vsConfig;
-    VIRTIO_VSOCK_PARAMS SocketParams = { 0 };
+    VIRTIO_VSOCK_PARAMS SocketParams = {0};
 
     _tprintf(L"--> %s\n", TEXT(__FUNCTION__));
 
@@ -91,7 +97,9 @@ GetGuestCidFromAcceptSocket()
         uRes = vsConfig.guest_cid;
     }
     else
+    {
         _tprintf(L"VIOSockGetConfig error: %d\n", GetLastError());
+    }
 
     VIOSockCloseSocket(hAcceptSocket);
     VIOSockCloseSocket(hListenSock);

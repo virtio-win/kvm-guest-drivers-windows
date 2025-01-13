@@ -34,59 +34,33 @@
 #pragma once
 #endif //_MSC_VER
 
-#ifdef  __cplusplus
-extern "C" {
+#ifdef __cplusplus
+extern "C"
+{
 #endif
 
-_Must_inspect_result_
-NTSTATUS
-VioWskRegister(
-    _In_ PWSK_CLIENT_NPI    WskClientNpi,
-    _Out_ PWSK_REGISTRATION WskRegistration
-);
+    _Must_inspect_result_ NTSTATUS VioWskRegister(_In_ PWSK_CLIENT_NPI WskClientNpi,
+                                                  _Out_ PWSK_REGISTRATION WskRegistration);
 
-VOID
-VioWskDeregister(
-    _In_ PWSK_REGISTRATION WskRegistration
-);
+    VOID VioWskDeregister(_In_ PWSK_REGISTRATION WskRegistration);
 
-_Must_inspect_result_
-NTSTATUS
-VioWskCaptureProviderNPI(
-    _In_ PWSK_REGISTRATION  WskRegistration,
-    _In_ ULONG              WaitTimeout,
-    _Out_ PWSK_PROVIDER_NPI WskProviderNpi
-);
+    _Must_inspect_result_ NTSTATUS VioWskCaptureProviderNPI(_In_ PWSK_REGISTRATION WskRegistration,
+                                                            _In_ ULONG WaitTimeout,
+                                                            _Out_ PWSK_PROVIDER_NPI WskProviderNpi);
 
-VOID
-VioWskReleaseProviderNPI(
-    _In_ PWSK_REGISTRATION WskRegistration
-);
+    VOID VioWskReleaseProviderNPI(_In_ PWSK_REGISTRATION WskRegistration);
 
-_Must_inspect_result_
-NTSTATUS
-VioWskQueryProviderCharacteristics(
-    _In_ PWSK_REGISTRATION              WskRegistration,
-    _Out_ PWSK_PROVIDER_CHARACTERISTICS WskProviderCharacteristics
-);
+    _Must_inspect_result_ NTSTATUS
+    VioWskQueryProviderCharacteristics(_In_ PWSK_REGISTRATION WskRegistration,
+                                       _Out_ PWSK_PROVIDER_CHARACTERISTICS WskProviderCharacteristics);
 
-_Must_inspect_result_
-NTSTATUS
-VioWskModuleInit(
-    _In_ PDRIVER_OBJECT     DriverObject,
-    _In_ PUNICODE_STRING    RegistryPath,
-    _In_opt_ PDEVICE_OBJECT DeviceObject
-);
+    _Must_inspect_result_ NTSTATUS VioWskModuleInit(_In_ PDRIVER_OBJECT DriverObject,
+                                                    _In_ PUNICODE_STRING RegistryPath,
+                                                    _In_opt_ PDEVICE_OBJECT DeviceObject);
 
-VOID
-VioWskModuleFinit(
-    VOID
-);
+    VOID VioWskModuleFinit(VOID);
 
-
-
-
-#ifdef  __cplusplus
+#ifdef __cplusplus
 }
 #endif
 
