@@ -82,10 +82,12 @@ static KEVENT _initEvent;
 static PDEVICE_OBJECT _shutdownDeviceObject = NULL;
 static WSK_REGISTRATION _vioWskRegistration;
 static WSK_PROVIDER_NPI _vioWskProviderNPI;
+// clang-format off
 static WSK_CLIENT_NPI _vioWskClientNPI =  {
 	NULL,
 	NULL,
 };
+// clang-format on
 
 static NTSTATUS _GeneralIrpComplete(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP Irp, _In_ PVOID Context)
 {
@@ -544,9 +546,10 @@ static void _ServerThreadRoutine(_In_opt_ PVOID Context)
         DEBUG_ERROR("Unable to bind: 0x%x", iosb.Status);
         goto CloseSocket;
     }
-
+    // clang-format off
 	nonBlocking = TRUE;
 	WSK_SYNCHRONOUS_CALL(irp, &event, ((PWSK_PROVIDER_LISTEN_DISPATCH)serverSocket->Dispatch)->WskControlSocket(serverSocket, WskIoctl, FIONBIO, 0, sizeof(nonBlocking), &nonBlocking, 0, NULL, NULL, irp), &iosb);
+    // clang-format on
     if (!NT_SUCCESS(iosb.Status))
     {
         DEBUG_ERROR("Unable to be nonblocking: 0x%x", iosb.Status);
@@ -563,8 +566,10 @@ static void _ServerThreadRoutine(_In_opt_ PVOID Context)
         SOCKADDR_VM remoteAddr;
         LARGE_INTEGER timeout;
 
-		timeout.QuadPart = -10000000;
+        timeout.QuadPart = -10000000;
+        // clang-format off
 		WSK_SYNCHRONOUS_CALL(irp, &event, ((PWSK_PROVIDER_LISTEN_DISPATCH)serverSocket->Dispatch)->WskAccept(serverSocket, WSK_FLAG_CONNECTION_SOCKET, NULL, NULL, (PSOCKADDR)&localAddr, (PSOCKADDR)&remoteAddr, irp), &iosb);
+        // clang-format on
         if (iosb.Status == STATUS_CANT_WAIT)
         {
             KeDelayExecutionThread(KernelMode, FALSE, &timeout);
@@ -577,8 +582,10 @@ static void _ServerThreadRoutine(_In_opt_ PVOID Context)
             break;
         }
 
-		clientSocket = (PWSK_SOCKET)iosb.Information;
+        clientSocket = (PWSK_SOCKET)iosb.Information;
+        // clang-format off
 		WSK_SYNCHRONOUS_CALL(irp, &event, ((PWSK_PROVIDER_LISTEN_DISPATCH)clientSocket->Dispatch)->WskControlSocket(clientSocket, WskIoctl, FIONBIO, 0, sizeof(nonBlocking), &nonBlocking, 0, NULL, NULL, irp), &iosb);
+        // clang-format on
         if (!NT_SUCCESS(iosb.Status))
         {
             DEBUG_ERROR("Unable to be blocking: 0x%x", iosb.Status);
