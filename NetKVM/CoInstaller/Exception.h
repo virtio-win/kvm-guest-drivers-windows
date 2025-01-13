@@ -6,7 +6,7 @@ using std::exception;
 
 class neTKVMException : public exception
 {
-public:
+  public:
     neTKVMException();
     neTKVMException(LPCTSTR lpzMessage);
     neTKVMException(const tstring &Message);
@@ -14,51 +14,54 @@ public:
     virtual ~neTKVMException();
 
     virtual const char *what() const;
-    virtual LPCTSTR     twhat() const;
+    virtual LPCTSTR twhat() const;
 
-protected:
+  protected:
     void SetMessage(const tstring &Message);
 
-private:
+  private:
     tstring m_Message;
-    string  m_MBCSMessage;
+    string m_MBCSMessage;
 };
 
 class neTKVMNumErrorException : public neTKVMException
 {
-public:
+  public:
     neTKVMNumErrorException(LPCTSTR lpzDescription, DWORD dwErrorCode);
     neTKVMNumErrorException(const tstring &Description, DWORD dwErrorCode);
-    neTKVMNumErrorException(const neTKVMNumErrorException& Other);
+    neTKVMNumErrorException(const neTKVMNumErrorException &Other);
 
-    DWORD GetErrorCode(void) { return m_dwErrorCode; }
+    DWORD GetErrorCode(void)
+    {
+        return m_dwErrorCode;
+    }
 
-protected:
+  protected:
     DWORD m_dwErrorCode;
 };
 
 class neTKVMCRTErrorException : public neTKVMNumErrorException
 {
-public:
+  public:
     neTKVMCRTErrorException(int nErrorCode = errno);
     neTKVMCRTErrorException(LPCTSTR lpzDescription, int nErrorCode = errno);
     neTKVMCRTErrorException(const tstring &Description, int nErrorCode = errno);
     neTKVMCRTErrorException(const neTKVMCRTErrorException &Other);
 
-protected:
+  protected:
     static tstring GetErrorString(DWORD dwErrorCode);
 };
 
 #ifdef WIN32
 class neTKVMW32ErrorException : public neTKVMNumErrorException
 {
-public:
+  public:
     neTKVMW32ErrorException(DWORD dwErrorCode = GetLastError());
     neTKVMW32ErrorException(LPCTSTR lpzDescription, DWORD dwErrorCode = GetLastError());
     neTKVMW32ErrorException(const tstring &Description, DWORD dwErrorCode = GetLastError());
     neTKVMW32ErrorException(const neTKVMW32ErrorException &Other);
 
-protected:
+  protected:
     static tstring GetErrorString(DWORD dwErrorCode);
 };
 #endif
