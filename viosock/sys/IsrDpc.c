@@ -34,60 +34,45 @@
 #include "IsrDpc.tmh"
 #endif
 
-EVT_WDF_INTERRUPT_ISR       VIOSockInterruptIsr;
-EVT_WDF_INTERRUPT_DPC       VIOSockInterruptDpc;
-EVT_WDF_INTERRUPT_ENABLE    VIOSockInterruptEnable;
-EVT_WDF_INTERRUPT_DISABLE   VIOSockInterruptDisable;
+EVT_WDF_INTERRUPT_ISR VIOSockInterruptIsr;
+EVT_WDF_INTERRUPT_DPC VIOSockInterruptDpc;
+EVT_WDF_INTERRUPT_ENABLE VIOSockInterruptEnable;
+EVT_WDF_INTERRUPT_DISABLE VIOSockInterruptDisable;
 
 #ifdef ALLOC_PRAGMA
-#pragma alloc_text (PAGE, VIOSockInterruptInit)
+#pragma alloc_text(PAGE, VIOSockInterruptInit)
 #endif
 
 NTSTATUS
-VIOSockInterruptInit(
-    IN WDFDEVICE hDevice)
+VIOSockInterruptInit(IN WDFDEVICE hDevice)
 {
-    WDF_OBJECT_ATTRIBUTES        attributes;
-    WDF_INTERRUPT_CONFIG         interruptConfig;
-    PDEVICE_CONTEXT              pContext = GetDeviceContext(hDevice);
-    NTSTATUS                     status = STATUS_SUCCESS;
+    WDF_OBJECT_ATTRIBUTES attributes;
+    WDF_INTERRUPT_CONFIG interruptConfig;
+    PDEVICE_CONTEXT pContext = GetDeviceContext(hDevice);
+    NTSTATUS status = STATUS_SUCCESS;
 
     PAGED_CODE();
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "--> %s\n", __FUNCTION__);
 
     WDF_OBJECT_ATTRIBUTES_INIT(&attributes);
-    WDF_INTERRUPT_CONFIG_INIT(
-        &interruptConfig,
-        VIOSockInterruptIsr,
-        VIOSockInterruptDpc
-    );
+    WDF_INTERRUPT_CONFIG_INIT(&interruptConfig, VIOSockInterruptIsr, VIOSockInterruptDpc);
 
     interruptConfig.EvtInterruptEnable = VIOSockInterruptEnable;
     interruptConfig.EvtInterruptDisable = VIOSockInterruptDisable;
 
-    status = WdfInterruptCreate(
-        hDevice,
-        &interruptConfig,
-        &attributes,
-        &pContext->WdfInterrupt
-    );
+    status = WdfInterruptCreate(hDevice, &interruptConfig, &attributes, &pContext->WdfInterrupt);
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-            "Failed to create interrupt: %x\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "Failed to create interrupt: %x\n", status);
         return status;
     }
 
     return status;
 }
 
-static
-BOOLEAN
-VIOSockInterruptIsr(
-    IN WDFINTERRUPT Interrupt,
-    IN ULONG MessageID)
+static BOOLEAN VIOSockInterruptIsr(IN WDFINTERRUPT Interrupt, IN ULONG MessageID)
 {
     PDEVICE_CONTEXT pContext = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
     WDF_INTERRUPT_INFO info;
@@ -110,16 +95,16 @@ VIOSockInterruptIsr(
         serviced = FALSE;
     }
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "<-- %s, serviced: %s\n", __FUNCTION__, serviced ? "TRUE" : "FALSE");
+    TraceEvents(TRACE_LEVEL_VERBOSE,
+                DBG_INTERRUPT,
+                "<-- %s, serviced: %s\n",
+                __FUNCTION__,
+                serviced ? "TRUE" : "FALSE");
 
     return serviced;
 }
 
-static
-VOID
-VIOSockInterruptDpc(
-    IN WDFINTERRUPT Interrupt,
-    IN WDFOBJECT AssociatedObject)
+static VOID VIOSockInterruptDpc(IN WDFINTERRUPT Interrupt, IN WDFOBJECT AssociatedObject)
 {
     WDFDEVICE Device = WdfInterruptGetDevice(Interrupt);
     PDEVICE_CONTEXT pContext = GetDeviceContext(Device);
@@ -136,11 +121,7 @@ VIOSockInterruptDpc(
     VIOSockTxVqProcess(pContext);
 }
 
-static
-NTSTATUS
-VIOSockInterruptEnable(
-    IN WDFINTERRUPT Interrupt,
-    IN WDFDEVICE AssociatedDevice)
+static NTSTATUS VIOSockInterruptEnable(IN WDFINTERRUPT Interrupt, IN WDFDEVICE AssociatedDevice)
 {
     PDEVICE_CONTEXT pContext = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
 
@@ -158,11 +139,7 @@ VIOSockInterruptEnable(
     return STATUS_SUCCESS;
 }
 
-static
-NTSTATUS
-VIOSockInterruptDisable(
-    IN WDFINTERRUPT Interrupt,
-    IN WDFDEVICE AssociatedDevice)
+static NTSTATUS VIOSockInterruptDisable(IN WDFINTERRUPT Interrupt, IN WDFDEVICE AssociatedDevice)
 {
     PDEVICE_CONTEXT pContext = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
     UNREFERENCED_PARAMETER(AssociatedDevice);
@@ -170,13 +147,19 @@ VIOSockInterruptDisable(
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "--> %s\n", __FUNCTION__);
 
     if (pContext->TxVq)
+    {
         virtqueue_disable_cb(pContext->TxVq);
+    }
 
     if (pContext->RxVq)
+    {
         virtqueue_disable_cb(pContext->RxVq);
+    }
 
     if (pContext->EvtVq)
+    {
         virtqueue_disable_cb(pContext->EvtVq);
+    }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INTERRUPT, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;

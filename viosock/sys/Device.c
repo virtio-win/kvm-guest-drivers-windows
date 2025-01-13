@@ -34,117 +34,88 @@
 #include "Device.tmh"
 #endif
 
-EVT_WDF_DEVICE_PREPARE_HARDWARE     VIOSockEvtDevicePrepareHardware;
-EVT_WDF_DEVICE_RELEASE_HARDWARE     VIOSockEvtDeviceReleaseHardware;
-EVT_WDF_DEVICE_D0_ENTRY             VIOSockEvtDeviceD0Entry;
-EVT_WDF_DEVICE_D0_EXIT              VIOSockEvtDeviceD0Exit;
+EVT_WDF_DEVICE_PREPARE_HARDWARE VIOSockEvtDevicePrepareHardware;
+EVT_WDF_DEVICE_RELEASE_HARDWARE VIOSockEvtDeviceReleaseHardware;
+EVT_WDF_DEVICE_D0_ENTRY VIOSockEvtDeviceD0Entry;
+EVT_WDF_DEVICE_D0_EXIT VIOSockEvtDeviceD0Exit;
 EVT_WDF_DEVICE_D0_ENTRY_POST_INTERRUPTS_ENABLED VIOSockEvtDeviceD0EntryPostInterruptsEnabled;
-EVT_WDF_DEVICE_SELF_MANAGED_IO_SUSPEND          VIOSockEvtDeviceSelfManagedIoSuspend;
-EVT_WDF_DEVICE_SELF_MANAGED_IO_RESTART          VIOSockEvtDeviceSelfManagedIoRestart;
+EVT_WDF_DEVICE_SELF_MANAGED_IO_SUSPEND VIOSockEvtDeviceSelfManagedIoSuspend;
+EVT_WDF_DEVICE_SELF_MANAGED_IO_RESTART VIOSockEvtDeviceSelfManagedIoRestart;
 
-EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL  VIOSockEvtIoDeviceControl;
-EVT_WDF_REQUEST_CANCEL              VIOSockSelectCancel;
-EVT_WDF_WORKITEM                    VIOSockSelectWorkitem;
-EVT_WDF_TIMER                       VIOSockSelectTimerFunc;
+EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL VIOSockEvtIoDeviceControl;
+EVT_WDF_REQUEST_CANCEL VIOSockSelectCancel;
+EVT_WDF_WORKITEM VIOSockSelectWorkitem;
+EVT_WDF_TIMER VIOSockSelectTimerFunc;
 
-VOID
-VIOSockQueuesCleanup(
-    IN WDFDEVICE hDevice
-);
+VOID VIOSockQueuesCleanup(IN WDFDEVICE hDevice);
 
 NTSTATUS
-VIOSockQueuesInit(
-    IN WDFDEVICE hDevice
-);
+VIOSockQueuesInit(IN WDFDEVICE hDevice);
 
 NTSTATUS
-VIOSockDeviceGetConfig(
-    IN WDFREQUEST   Request,
-    OUT size_t      *pLength
-);
+VIOSockDeviceGetConfig(IN WDFREQUEST Request, OUT size_t *pLength);
 
 NTSTATUS
-VIOSockDeviceGetAf(
-    IN WDFREQUEST   Request,
-    OUT size_t      *pLength
-);
+VIOSockDeviceGetAf(IN WDFREQUEST Request, OUT size_t *pLength);
 
 typedef struct _VIOSOCK_SELECT_HANDLE
 {
-    ULONGLONG       hSocket;
-    WDFFILEOBJECT   Socket;
-}VIOSOCK_SELECT_HANDLE, *PVIOSOCK_SELECT_HANDLE;
+    ULONGLONG hSocket;
+    WDFFILEOBJECT Socket;
+} VIOSOCK_SELECT_HANDLE, *PVIOSOCK_SELECT_HANDLE;
 
 typedef struct _VIOSOCK_SELECT_PKT
 {
-    LIST_ENTRY              ListEntry;
-    LONGLONG                Timeout;
-    PVIRTIO_VSOCK_SELECT    pSelect;
-    ULONG                   FdCount[FDSET_MAX];
-    NTSTATUS                Status;
-    VIOSOCK_SELECT_HANDLE   Fds[FD_SETSIZE];
-}VIOSOCK_SELECT_PKT, *PVIOSOCK_SELECT_PKT;
+    LIST_ENTRY ListEntry;
+    LONGLONG Timeout;
+    PVIRTIO_VSOCK_SELECT pSelect;
+    ULONG FdCount[FDSET_MAX];
+    NTSTATUS Status;
+    VIOSOCK_SELECT_HANDLE Fds[FD_SETSIZE];
+} VIOSOCK_SELECT_PKT, *PVIOSOCK_SELECT_PKT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIOSOCK_SELECT_PKT, GetSelectContext);
 
 NTSTATUS
-VIOSockSelectInit(
-    IN PDEVICE_CONTEXT pContext
-);
+VIOSockSelectInit(IN PDEVICE_CONTEXT pContext);
 
-VOID
-VIOSockSelectCleanupFds(
-    IN PVIOSOCK_SELECT_PKT      pPkt,
-    IN VIRTIO_VSOCK_FDSET_TYPE  iFdSet,
-    IN ULONG                    uStartIndex
-);
+VOID VIOSockSelectCleanupFds(IN PVIOSOCK_SELECT_PKT pPkt, IN VIRTIO_VSOCK_FDSET_TYPE iFdSet, IN ULONG uStartIndex);
 
 BOOLEAN
-VIOSockSelectCheckPkt(
-    IN PVIOSOCK_SELECT_PKT  pPkt
-);
+VIOSockSelectCheckPkt(IN PVIOSOCK_SELECT_PKT pPkt);
 
 BOOLEAN
-VIOSockSelectCopyFds(
-    IN PDEVICE_CONTEXT          pContext,
-    IN BOOLEAN                  bIs32BitProcess,
-    IN PVIRTIO_VSOCK_SELECT     pSelect,
-    IN PVIOSOCK_SELECT_PKT      pPkt,
-    IN VIRTIO_VSOCK_FDSET_TYPE  iFdSet,
-    IN ULONG                    uStartIndex
-);
+VIOSockSelectCopyFds(IN PDEVICE_CONTEXT pContext,
+                     IN BOOLEAN bIs32BitProcess,
+                     IN PVIRTIO_VSOCK_SELECT pSelect,
+                     IN PVIOSOCK_SELECT_PKT pPkt,
+                     IN VIRTIO_VSOCK_FDSET_TYPE iFdSet,
+                     IN ULONG uStartIndex);
 
 NTSTATUS
-VIOSockSelect(
-    IN WDFREQUEST Request,
-    IN OUT size_t *pLength
-);
+VIOSockSelect(IN WDFREQUEST Request, IN OUT size_t *pLength);
 
 #ifdef ALLOC_PRAGMA
-#pragma alloc_text (PAGE, VIOSockEvtDeviceAdd)
-#pragma alloc_text (PAGE, VIOSockQueuesCleanup)
+#pragma alloc_text(PAGE, VIOSockEvtDeviceAdd)
+#pragma alloc_text(PAGE, VIOSockQueuesCleanup)
 
-#pragma alloc_text (PAGE, VIOSockEvtDevicePrepareHardware)
-#pragma alloc_text (PAGE, VIOSockEvtDeviceReleaseHardware)
-#pragma alloc_text (PAGE, VIOSockEvtDeviceD0Exit)
-#pragma alloc_text (PAGE, VIOSockEvtDeviceSelfManagedIoSuspend)
+#pragma alloc_text(PAGE, VIOSockEvtDevicePrepareHardware)
+#pragma alloc_text(PAGE, VIOSockEvtDeviceReleaseHardware)
+#pragma alloc_text(PAGE, VIOSockEvtDeviceD0Exit)
+#pragma alloc_text(PAGE, VIOSockEvtDeviceSelfManagedIoSuspend)
 
-#pragma alloc_text (PAGE, VIOSockDeviceGetConfig)
-#pragma alloc_text (PAGE, VIOSockDeviceGetAf)
-#pragma alloc_text (PAGE, VIOSockEvtIoDeviceControl)
-#pragma alloc_text (PAGE, VIOSockSelectInit)
-#pragma alloc_text (PAGE, VIOSockSelectCleanupFds)
-#pragma alloc_text (PAGE, VIOSockSelectCheckPkt)
-#pragma alloc_text (PAGE, VIOSockSelectWorkitem)
-#pragma alloc_text (PAGE, VIOSockSelectCopyFds)
-#pragma alloc_text (PAGE, VIOSockSelect)
+#pragma alloc_text(PAGE, VIOSockDeviceGetConfig)
+#pragma alloc_text(PAGE, VIOSockDeviceGetAf)
+#pragma alloc_text(PAGE, VIOSockEvtIoDeviceControl)
+#pragma alloc_text(PAGE, VIOSockSelectInit)
+#pragma alloc_text(PAGE, VIOSockSelectCleanupFds)
+#pragma alloc_text(PAGE, VIOSockSelectCheckPkt)
+#pragma alloc_text(PAGE, VIOSockSelectWorkitem)
+#pragma alloc_text(PAGE, VIOSockSelectCopyFds)
+#pragma alloc_text(PAGE, VIOSockSelect)
 #endif
 
-static
-VOID
-VIOSockQueuesCleanup(
-    IN WDFDEVICE hDevice
-)
+static VOID VIOSockQueuesCleanup(IN WDFDEVICE hDevice)
 {
     PDEVICE_CONTEXT pContext = GetDeviceContext(hDevice);
     NTSTATUS status = STATUS_SUCCESS;
@@ -156,22 +127,24 @@ VIOSockQueuesCleanup(
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
     if (pContext->RxVq)
+    {
         VIOSockRxVqCleanup(pContext);
+    }
 
     if (pContext->TxVq)
+    {
         VIOSockTxVqCleanup(pContext);
+    }
 
     if (pContext->EvtVq)
+    {
         VIOSockEvtVqCleanup(pContext);
+    }
 
     VirtIOWdfDestroyQueues(&pContext->VDevice);
 }
 
-static
-NTSTATUS
-VIOSockQueuesInit(
-    IN WDFDEVICE hDevice
-)
+static NTSTATUS VIOSockQueuesInit(IN WDFDEVICE hDevice)
 {
     PDEVICE_CONTEXT pContext = GetDeviceContext(hDevice);
     NTSTATUS status = STATUS_SUCCESS;
@@ -207,16 +180,24 @@ VIOSockQueuesInit(
             pContext->EvtVq = vqs[VIOSOCK_VQ_EVT];
             status = VIOSockEvtVqInit(pContext);
             if (!NT_SUCCESS(status))
+            {
                 pContext->EvtVq = NULL;
+            }
         }
         else
+        {
             pContext->TxVq = NULL;
+        }
     }
     else
+    {
         pContext->RxVq = NULL;
+    }
 
     if (!NT_SUCCESS(status))
+    {
         VIOSockQueuesCleanup(hDevice);
+    }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
 
@@ -225,19 +206,16 @@ VIOSockQueuesInit(
 
 //////////////////////////////////////////////////////////////////////////
 NTSTATUS
-VIOSockEvtDeviceAdd(
-    IN WDFDRIVER Driver,
-    IN PWDFDEVICE_INIT DeviceInit
-)
+VIOSockEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
 {
-    NTSTATUS                     status = STATUS_SUCCESS;
-    WDF_OBJECT_ATTRIBUTES        Attributes;
-    WDFDEVICE                    hDevice;
+    NTSTATUS status = STATUS_SUCCESS;
+    WDF_OBJECT_ATTRIBUTES Attributes;
+    WDFDEVICE hDevice;
     WDF_PNPPOWER_EVENT_CALLBACKS PnpPowerCallbacks;
-    PDEVICE_CONTEXT              pContext = NULL;
-    WDF_FILEOBJECT_CONFIG        fileConfig;
-    WDF_IO_QUEUE_CONFIG          queueConfig;
-    WDF_WORKITEM_CONFIG          wrkConfig;
+    PDEVICE_CONTEXT pContext = NULL;
+    WDF_FILEOBJECT_CONFIG fileConfig;
+    WDF_IO_QUEUE_CONFIG queueConfig;
+    WDF_WORKITEM_CONFIG wrkConfig;
 
     DECLARE_CONST_UNICODE_STRING(usDeviceName, VIOSOCK_DEVICE_NAME);
     DECLARE_CONST_UNICODE_STRING(usDosDeviceName, VIOSOCK_SYMLINK_NAME);
@@ -252,8 +230,8 @@ VIOSockEvtDeviceAdd(
     WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&PnpPowerCallbacks);
     PnpPowerCallbacks.EvtDevicePrepareHardware = VIOSockEvtDevicePrepareHardware;
     PnpPowerCallbacks.EvtDeviceReleaseHardware = VIOSockEvtDeviceReleaseHardware;
-    PnpPowerCallbacks.EvtDeviceD0Entry         = VIOSockEvtDeviceD0Entry;
-    PnpPowerCallbacks.EvtDeviceD0Exit          = VIOSockEvtDeviceD0Exit;
+    PnpPowerCallbacks.EvtDeviceD0Entry = VIOSockEvtDeviceD0Entry;
+    PnpPowerCallbacks.EvtDeviceD0Exit = VIOSockEvtDeviceD0Exit;
     PnpPowerCallbacks.EvtDeviceD0EntryPostInterruptsEnabled = VIOSockEvtDeviceD0EntryPostInterruptsEnabled;
     PnpPowerCallbacks.EvtDeviceSelfManagedIoSuspend = VIOSockEvtDeviceSelfManagedIoSuspend;
     PnpPowerCallbacks.EvtDeviceSelfManagedIoRestart = VIOSockEvtDeviceSelfManagedIoRestart;
@@ -279,12 +257,10 @@ VIOSockEvtDeviceAdd(
     }
 
     // Configure file object callbacks
-    WDF_FILEOBJECT_CONFIG_INIT(
-        &fileConfig,
-        VIOSockCreateStub,
-        WDF_NO_EVENT_CALLBACK, // Close
-        VIOSockCleanup
-    );
+    WDF_FILEOBJECT_CONFIG_INIT(&fileConfig,
+                               VIOSockCreateStub,
+                               WDF_NO_EVENT_CALLBACK, // Close
+                               VIOSockCleanup);
     fileConfig.FileObjectClass = WdfFileObjectWdfCanUseFsContext;
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&Attributes, SOCKET_CONTEXT);
@@ -301,21 +277,14 @@ VIOSockEvtDeviceAdd(
         return status;
     }
 
-    status = WdfDeviceCreateDeviceInterface(
-        hDevice,
-        &GUID_DEVINTERFACE_VIOSOCK,
-        NULL
-    );
+    status = WdfDeviceCreateDeviceInterface(hDevice, &GUID_DEVINTERFACE_VIOSOCK, NULL);
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfDeviceCreateDeviceInterface failed - 0x%x\n", status);
         return status;
     }
 
-    status = WdfDeviceCreateSymbolicLink(
-        hDevice,
-        &usDosDeviceName
-    );
+    status = WdfDeviceCreateSymbolicLink(hDevice, &usDosDeviceName);
 
     if (!NT_SUCCESS(status))
     {
@@ -345,45 +314,39 @@ VIOSockEvtDeviceAdd(
     Attributes.ParentObject = hDevice;
 
     status = WdfLookasideListCreate(&Attributes,
-        sizeof(VIOSOCK_ACCEPT_ENTRY), NonPagedPoolNx,
-        &Attributes, VIOSOCK_DRIVER_MEMORY_TAG,
-        &pContext->AcceptMemoryList);
+                                    sizeof(VIOSOCK_ACCEPT_ENTRY),
+                                    NonPagedPoolNx,
+                                    &Attributes,
+                                    VIOSOCK_DRIVER_MEMORY_TAG,
+                                    &pContext->AcceptMemoryList);
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-            "WdfLookasideListCreate failed: 0x%x\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfLookasideListCreate failed: 0x%x\n", status);
         return status;
     }
 
     // Create sequential queue for IoCtl requests
-    WDF_IO_QUEUE_CONFIG_INIT(&queueConfig,
-        WdfIoQueueDispatchParallel
-    );
+    WDF_IO_QUEUE_CONFIG_INIT(&queueConfig, WdfIoQueueDispatchParallel);
     queueConfig.EvtIoDeviceControl = VIOSockEvtIoDeviceControl;
     queueConfig.AllowZeroLengthRequests = WdfFalse;
 
-    status = WdfIoQueueCreate(hDevice,
-        &queueConfig,
-        WDF_NO_OBJECT_ATTRIBUTES,
-        &pContext->IoCtlQueue
-    );
+    status = WdfIoQueueCreate(hDevice, &queueConfig, WDF_NO_OBJECT_ATTRIBUTES, &pContext->IoCtlQueue);
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-            "WdfIoQueueCreate failed (IoCtrl Queue): 0x%x\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfIoQueueCreate failed (IoCtrl Queue): 0x%x\n", status);
         return status;
     }
 
-    status = WdfDeviceConfigureRequestDispatching(hDevice,
-        pContext->IoCtlQueue,
-        WdfRequestTypeDeviceControl);
+    status = WdfDeviceConfigureRequestDispatching(hDevice, pContext->IoCtlQueue, WdfRequestTypeDeviceControl);
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-            "WdfDeviceConfigureRequestDispatching failed (IoCtrl Queue): 0x%x\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR,
+                    DBG_INIT,
+                    "WdfDeviceConfigureRequestDispatching failed (IoCtrl Queue): 0x%x\n",
+                    status);
         return status;
     }
 
@@ -391,8 +354,7 @@ VIOSockEvtDeviceAdd(
     status = VIOSockWriteQueueInit(hDevice);
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-            "VIOSockWriteQueueInit failed (Write Queue): 0x%x\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "VIOSockWriteQueueInit failed (Write Queue): 0x%x\n", status);
         return status;
     }
 
@@ -400,21 +362,19 @@ VIOSockEvtDeviceAdd(
     status = VIOSockReadQueueInit(hDevice);
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-            "VIOSockReadQueueInit failed (Read Queue): 0x%x\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "VIOSockReadQueueInit failed (Read Queue): 0x%x\n", status);
         return status;
     }
 
     status = VIOSockSelectInit(pContext);
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT,
-            "VIOSockSelectInit failed: 0x%x\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "VIOSockSelectInit failed: 0x%x\n", status);
         return status;
     }
 
     status = VIOSockInterruptInit(hDevice);
-    if(!NT_SUCCESS(status))
+    if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "VIOSockInterruptInit failed - 0x%x\n", status);
     }
@@ -423,12 +383,9 @@ VIOSockEvtDeviceAdd(
     return status;
 }
 
-static
-NTSTATUS
-VIOSockEvtDevicePrepareHardware(
-    IN WDFDEVICE Device,
-    IN WDFCMRESLIST ResourcesRaw,
-    IN WDFCMRESLIST ResourcesTranslated)
+static NTSTATUS VIOSockEvtDevicePrepareHardware(IN WDFDEVICE Device,
+                                                IN WDFCMRESLIST ResourcesRaw,
+                                                IN WDFCMRESLIST ResourcesTranslated)
 {
     PDEVICE_CONTEXT pContext = GetDeviceContext(Device);
     NTSTATUS status = STATUS_SUCCESS;
@@ -441,12 +398,7 @@ VIOSockEvtDevicePrepareHardware(
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
-    status = VirtIOWdfInitialize(
-        &pContext->VDevice,
-        Device,
-        ResourcesTranslated,
-        NULL,
-        VIOSOCK_DRIVER_MEMORY_TAG);
+    status = VirtIOWdfInitialize(&pContext->VDevice, Device, ResourcesTranslated, NULL, VIOSOCK_DRIVER_MEMORY_TAG);
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "VirtIOWdfInitialize failed with 0x%x\n", status);
@@ -473,11 +425,7 @@ VIOSockEvtDevicePrepareHardware(
     return status;
 }
 
-static
-NTSTATUS
-VIOSockEvtDeviceReleaseHardware(
-    IN WDFDEVICE Device,
-    IN WDFCMRESLIST ResourcesTranslated)
+static NTSTATUS VIOSockEvtDeviceReleaseHardware(IN WDFDEVICE Device, IN WDFCMRESLIST ResourcesTranslated)
 {
     PDEVICE_CONTEXT pContext = GetDeviceContext(Device);
 
@@ -491,12 +439,7 @@ VIOSockEvtDeviceReleaseHardware(
     return STATUS_SUCCESS;
 }
 
-static
-NTSTATUS
-VIOSockEvtDeviceD0Entry(
-    IN  WDFDEVICE Device,
-    IN  WDF_POWER_DEVICE_STATE PreviousState
-)
+static NTSTATUS VIOSockEvtDeviceD0Entry(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE PreviousState)
 {
     NTSTATUS status = STATUS_SUCCESS;
     PDEVICE_CONTEXT pContext = GetDeviceContext(Device);
@@ -512,44 +455,30 @@ VIOSockEvtDeviceD0Entry(
         return status;
     }
 
-    VirtIOWdfDeviceGet(&pContext->VDevice,
-        0,
-        &pContext->Config,
-        sizeof(pContext->Config));
+    VirtIOWdfDeviceGet(&pContext->VDevice, 0, &pContext->Config, sizeof(pContext->Config));
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,
-        "guest_cid %lld\n", pContext->Config.guest_cid);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "guest_cid %lld\n", pContext->Config.guest_cid);
 
     return status;
 }
 
-static
-NTSTATUS
-VIOSockEvtDeviceD0Exit(
-    IN  WDFDEVICE Device,
-    IN  WDF_POWER_DEVICE_STATE TargetState
-    )
+static NTSTATUS VIOSockEvtDeviceD0Exit(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE TargetState)
 {
     PDEVICE_CONTEXT pContext = GetDeviceContext(Device);
 
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP,"--> %s TargetState: %d\n",
-        __FUNCTION__, TargetState);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s TargetState: %d\n", __FUNCTION__, TargetState);
 
     VIOSockQueuesCleanup(Device);
 
     return STATUS_SUCCESS;
 }
 
-static
-NTSTATUS
-VIOSockEvtDeviceD0EntryPostInterruptsEnabled(
-    IN  WDFDEVICE WdfDevice,
-    IN  WDF_POWER_DEVICE_STATE PreviousState
-    )
+static NTSTATUS VIOSockEvtDeviceD0EntryPostInterruptsEnabled(IN WDFDEVICE WdfDevice,
+                                                             IN WDF_POWER_DEVICE_STATE PreviousState)
 {
-    PDEVICE_CONTEXT    pContext = GetDeviceContext(WdfDevice);
+    PDEVICE_CONTEXT pContext = GetDeviceContext(WdfDevice);
     UNREFERENCED_PARAMETER(PreviousState);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
@@ -562,11 +491,8 @@ VIOSockEvtDeviceD0EntryPostInterruptsEnabled(
     return STATUS_SUCCESS;
 }
 
-
 NTSTATUS
-VIOSockEvtDeviceSelfManagedIoSuspend(
-    IN WDFDEVICE Device
-)
+VIOSockEvtDeviceSelfManagedIoSuspend(IN WDFDEVICE Device)
 {
     PDEVICE_CONTEXT pContext = GetDeviceContext(Device);
 
@@ -578,9 +504,7 @@ VIOSockEvtDeviceSelfManagedIoSuspend(
 }
 
 NTSTATUS
-VIOSockEvtDeviceSelfManagedIoRestart(
-    IN WDFDEVICE Device
-)
+VIOSockEvtDeviceSelfManagedIoRestart(IN WDFDEVICE Device)
 {
 
     PDEVICE_CONTEXT pContext = GetDeviceContext(Device);
@@ -590,25 +514,19 @@ VIOSockEvtDeviceSelfManagedIoRestart(
     return STATUS_SUCCESS;
 }
 
-static
-NTSTATUS
-VIOSockDeviceGetConfig(
-    IN WDFREQUEST   Request,
-    OUT size_t      *pLength
-)
+static NTSTATUS VIOSockDeviceGetConfig(IN WDFREQUEST Request, OUT size_t *pLength)
 {
-    PVIRTIO_VSOCK_CONFIG    pConfig = NULL;
-    NTSTATUS                status;
+    PVIRTIO_VSOCK_CONFIG pConfig = NULL;
+    NTSTATUS status;
 
     PAGED_CODE();
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
 
-    status = WdfRequestRetrieveOutputBuffer(Request, sizeof(VIRTIO_VSOCK_CONFIG), (PVOID*)&pConfig, pLength);
+    status = WdfRequestRetrieveOutputBuffer(Request, sizeof(VIRTIO_VSOCK_CONFIG), (PVOID *)&pConfig, pLength);
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS,
-            "WdfRequestRetrieveOutputBuffer failed 0x%x\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "WdfRequestRetrieveOutputBuffer failed 0x%x\n", status);
         return status;
     }
 
@@ -621,25 +539,19 @@ VIOSockDeviceGetConfig(
     return STATUS_SUCCESS;
 }
 
-static
-NTSTATUS
-VIOSockDeviceGetAf(
-    IN WDFREQUEST   Request,
-    OUT size_t      *pLength
-)
+static NTSTATUS VIOSockDeviceGetAf(IN WDFREQUEST Request, OUT size_t *pLength)
 {
-    PULONG                  pulAF = NULL;
-    NTSTATUS                status;
+    PULONG pulAF = NULL;
+    NTSTATUS status;
 
     PAGED_CODE();
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
 
-    status = WdfRequestRetrieveOutputBuffer(Request, sizeof(*pulAF), (PVOID*)&pulAF, pLength);
+    status = WdfRequestRetrieveOutputBuffer(Request, sizeof(*pulAF), (PVOID *)&pulAF, pLength);
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS,
-            "WdfRequestRetrieveOutputBuffer failed 0x%x\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "WdfRequestRetrieveOutputBuffer failed 0x%x\n", status);
         return status;
     }
 
@@ -654,18 +566,14 @@ VIOSockDeviceGetAf(
     return STATUS_SUCCESS;
 }
 
-static
-VOID
-VIOSockEvtIoDeviceControl(
-    IN WDFQUEUE   Queue,
-    IN WDFREQUEST Request,
-    IN size_t     OutputBufferLength,
-    IN size_t     InputBufferLength,
-    IN ULONG      IoControlCode
-)
+static VOID VIOSockEvtIoDeviceControl(IN WDFQUEUE Queue,
+                                      IN WDFREQUEST Request,
+                                      IN size_t OutputBufferLength,
+                                      IN size_t InputBufferLength,
+                                      IN ULONG IoControlCode)
 {
-    size_t          Length = 0;
-    NTSTATUS        status = STATUS_SUCCESS;
+    size_t Length = 0;
+    NTSTATUS status = STATUS_SUCCESS;
 
     PAGED_CODE();
 
@@ -673,49 +581,44 @@ VIOSockEvtIoDeviceControl(
 
     switch (IoControlCode)
     {
-    case IOCTL_GET_CONFIG:
-        status = VIOSockDeviceGetConfig(Request, &Length);
-        break;
+        case IOCTL_GET_CONFIG:
+            status = VIOSockDeviceGetConfig(Request, &Length);
+            break;
 
-    case IOCTL_SELECT:
-        status = VIOSockSelect(Request, &Length);
-        break;
+        case IOCTL_SELECT:
+            status = VIOSockSelect(Request, &Length);
+            break;
 
-    case IOCTL_GET_AF:
-        status = VIOSockDeviceGetAf(Request, &Length);
-        break;
+        case IOCTL_GET_AF:
+            status = VIOSockDeviceGetAf(Request, &Length);
+            break;
 
-    default:
-        if (IsControlRequest(Request))
-        {
-            TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Invalid socket type\n");
-            status = STATUS_NOT_SOCKET;
-        }
-        else
-        {
-            status = VIOSockDeviceControl(
-                Request,
-                IoControlCode,
-                &Length);
-        }
+        default:
+            if (IsControlRequest(Request))
+            {
+                TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Invalid socket type\n");
+                status = STATUS_NOT_SOCKET;
+            }
+            else
+            {
+                status = VIOSockDeviceControl(Request, IoControlCode, &Length);
+            }
     }
 
     if (status != STATUS_PENDING)
+    {
         WdfRequestCompleteWithInformation(Request, status, Length);
+    }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s, status: 0x%08x\n", __FUNCTION__, status);
 }
 
 //////////////////////////////////////////////////////////////////////////
-static
-NTSTATUS
-VIOSockSelectInit(
-    IN PDEVICE_CONTEXT pContext
-)
+static NTSTATUS VIOSockSelectInit(IN PDEVICE_CONTEXT pContext)
 {
-    NTSTATUS                status;
-    WDF_OBJECT_ATTRIBUTES   Attributes;
-    WDF_WORKITEM_CONFIG     wrkConfig;
+    NTSTATUS status;
+    WDF_OBJECT_ATTRIBUTES Attributes;
+    WDF_WORKITEM_CONFIG wrkConfig;
 
     PAGED_CODE();
 
@@ -730,8 +633,7 @@ VIOSockSelectInit(
     status = WdfWaitLockCreate(&Attributes, &pContext->SelectLock);
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_SELECT,
-            "WdfWaitLockCreate failed (Select): 0x%x\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SELECT, "WdfWaitLockCreate failed (Select): 0x%x\n", status);
         return status;
     }
 
@@ -742,16 +644,14 @@ VIOSockSelectInit(
     status = WdfWorkItemCreate(&wrkConfig, &Attributes, &pContext->SelectWorkitem);
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_SELECT,
-            "WdfWorkItemCreate failed (Select): 0x%x\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SELECT, "WdfWorkItemCreate failed (Select): 0x%x\n", status);
         return status;
     }
 
     VIOSockTimerCreate(&pContext->SelectTimer, pContext->ThisDevice, VIOSockSelectTimerFunc);
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_SELECT,
-            "VIOSockTimerCreate failed (Select): 0x%x\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SELECT, "VIOSockTimerCreate failed (Select): 0x%x\n", status);
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "<-- %s\n", __FUNCTION__);
@@ -759,17 +659,12 @@ VIOSockSelectInit(
     return status;
 }
 
-static
-VOID
-VIOSockSelectCleanupFds(
-    IN PVIOSOCK_SELECT_PKT      pPkt,
-    IN VIRTIO_VSOCK_FDSET_TYPE  iFdSet,
-    IN ULONG                    uStartIndex
+static VOID VIOSockSelectCleanupFds(IN PVIOSOCK_SELECT_PKT pPkt, IN VIRTIO_VSOCK_FDSET_TYPE iFdSet, IN ULONG uStartIndex
 
 )
 {
     ULONG i;
-    PVIOSOCK_SELECT_HANDLE  pHandleSet = &pPkt->Fds[uStartIndex];
+    PVIOSOCK_SELECT_HANDLE pHandleSet = &pPkt->Fds[uStartIndex];
 
     PAGED_CODE();
 
@@ -777,18 +672,14 @@ VIOSockSelectCleanupFds(
     {
         ASSERT(pHandleSet[i].Socket);
 
-        InterlockedDecrement(&GetSocketContext(pHandleSet[i].Socket)->SelectRefs[iFdSet]); //dereference socket
+        InterlockedDecrement(&GetSocketContext(pHandleSet[i].Socket)->SelectRefs[iFdSet]); // dereference socket
         VioSockDereference(pHandleSet[i].Socket);
     }
 
     pPkt->FdCount[iFdSet] = 0;
 }
 
-__inline
-VOID
-VIOSockSelectCleanupPkt(
-    IN PVIOSOCK_SELECT_PKT pPkt
-)
+__inline VOID VIOSockSelectCleanupPkt(IN PVIOSOCK_SELECT_PKT pPkt)
 {
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "--> %s, status: 0x%08x\n", __FUNCTION__, pPkt->Status);
 
@@ -797,11 +688,7 @@ VIOSockSelectCleanupPkt(
     VIOSockSelectCleanupFds(pPkt, FDSET_EXCPT, pPkt->FdCount[FDSET_READ] + pPkt->FdCount[FDSET_WRITE]);
 }
 
-static
-VOID
-VIOSockSelectTimerFunc(
-    IN WDFTIMER Timer
-)
+static VOID VIOSockSelectTimerFunc(IN WDFTIMER Timer)
 {
     PDEVICE_CONTEXT pContext = GetDeviceContext(WdfTimerGetParentObject(Timer));
 
@@ -813,15 +700,11 @@ VIOSockSelectTimerFunc(
     }
 }
 
-static
-BOOLEAN
-VIOSockSelectCheckPkt(
-    IN PVIOSOCK_SELECT_PKT  pPkt
-)
+static BOOLEAN VIOSockSelectCheckPkt(IN PVIOSOCK_SELECT_PKT pPkt)
 {
     ULONG i;
-    PVIOSOCK_SELECT_HANDLE  pHandleSet;
-    PVIRTIO_VSOCK_FD_SET    pFds;
+    PVIOSOCK_SELECT_HANDLE pHandleSet;
+    PVIRTIO_VSOCK_FD_SET pFds;
 
     PAGED_CODE();
 
@@ -861,23 +744,17 @@ VIOSockSelectCheckPkt(
     for (i = 0; i < pPkt->FdCount[FDSET_EXCPT]; ++i)
     {
         PSOCKET_CONTEXT pSocket = GetSocketContext(pHandleSet[i].Socket);
-        if ((pSocket->Events & FD_CONNECT) &&
-            !NT_SUCCESS(pSocket->EventsStatus[FD_CONNECT_BIT]))
+        if ((pSocket->Events & FD_CONNECT) && !NT_SUCCESS(pSocket->EventsStatus[FD_CONNECT_BIT]))
         {
             pFds->fd_array[pFds->fd_count++] = pHandleSet[i].hSocket;
         }
     }
 
-    return pPkt->pSelect->Fdss[FDSET_READ].fd_count ||
-        pPkt->pSelect->Fdss[FDSET_WRITE].fd_count ||
-        pPkt->pSelect->Fdss[FDSET_EXCPT].fd_count;
+    return pPkt->pSelect->Fdss[FDSET_READ].fd_count || pPkt->pSelect->Fdss[FDSET_WRITE].fd_count ||
+           pPkt->pSelect->Fdss[FDSET_EXCPT].fd_count;
 }
 
-static
-VOID
-VIOSockSelectCancel(
-    IN WDFREQUEST Request
-)
+static VOID VIOSockSelectCancel(IN WDFREQUEST Request)
 {
     PDEVICE_CONTEXT pContext = GetDeviceContextFromRequest(Request);
 
@@ -889,11 +766,7 @@ VIOSockSelectCancel(
     }
 }
 
-static
-VOID
-VIOSockSelectWorkitem(
-    IN WDFWORKITEM Workitem
-)
+static VOID VIOSockSelectWorkitem(IN WDFWORKITEM Workitem)
 {
     PDEVICE_CONTEXT pContext = GetDeviceContext(WdfWorkItemGetParentObject(Workitem));
 
@@ -903,11 +776,11 @@ VIOSockSelectWorkitem(
 
     do
     {
-        LIST_ENTRY  CompletionList;
-        WDFREQUEST  Request;
-        LONGLONG    TimePassed, Timeout = LONGLONG_MAX;
+        LIST_ENTRY CompletionList;
+        WDFREQUEST Request;
+        LONGLONG TimePassed, Timeout = LONGLONG_MAX;
         PLIST_ENTRY CurrentItem;
-        BOOLEAN     bRemove;
+        BOOLEAN bRemove;
 
         InterlockedExchange(&pContext->SelectInProgress, 1);
 
@@ -917,9 +790,8 @@ VIOSockSelectWorkitem(
 
         TimePassed = VIOSockTimerPassed(&pContext->SelectTimer);
 
-        for (CurrentItem = pContext->SelectList.Flink;
-            CurrentItem != &pContext->SelectList;
-            CurrentItem = CurrentItem->Flink)
+        for (CurrentItem = pContext->SelectList.Flink; CurrentItem != &pContext->SelectList;
+             CurrentItem = CurrentItem->Flink)
         {
             PVIOSOCK_SELECT_PKT pPkt = CONTAINING_RECORD(CurrentItem, VIOSOCK_SELECT_PKT, ListEntry);
             WDFREQUEST Request = WdfObjectContextGetObject(pPkt);
@@ -951,7 +823,9 @@ VIOSockSelectWorkitem(
                     pPkt->Timeout -= TimePassed;
 
                     if (pPkt->Timeout < Timeout)
+                    {
                         Timeout = pPkt->Timeout;
+                    }
                 }
             }
 
@@ -974,21 +848,29 @@ VIOSockSelectWorkitem(
                 RemoveEntryList(&pPkt->ListEntry);
                 InsertTailList(&CompletionList, &pPkt->ListEntry);
                 if (pPkt->Timeout)
+                {
                     VIOSockTimerDeref(&pContext->SelectTimer, TRUE);
+                }
             }
         }
 
-        if(Timeout!=LONGLONG_MAX)
+        if (Timeout != LONGLONG_MAX)
+        {
             VIOSockTimerSet(&pContext->SelectTimer, Timeout);
+        }
 
         WdfWaitLockRelease(pContext->SelectLock);
 
         while (!IsListEmpty(&CompletionList))
         {
-            PVIOSOCK_SELECT_PKT pPkt = CONTAINING_RECORD(RemoveHeadList(&CompletionList), VIOSOCK_SELECT_PKT, ListEntry);
+            PVIOSOCK_SELECT_PKT pPkt = CONTAINING_RECORD(RemoveHeadList(&CompletionList),
+                                                         VIOSOCK_SELECT_PKT,
+                                                         ListEntry);
 
             VIOSockSelectCleanupPkt(pPkt);
-            WdfRequestCompleteWithInformation(WdfObjectContextGetObject(pPkt), pPkt->Status, pPkt->Status == STATUS_SUCCESS ? sizeof(VIRTIO_VSOCK_SELECT) : 0);
+            WdfRequestCompleteWithInformation(WdfObjectContextGetObject(pPkt),
+                                              pPkt->Status,
+                                              pPkt->Status == STATUS_SUCCESS ? sizeof(VIRTIO_VSOCK_SELECT) : 0);
         }
 
     } while (InterlockedCompareExchange(&pContext->SelectInProgress, 0, 1) != 1);
@@ -996,11 +878,7 @@ VIOSockSelectWorkitem(
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "<-- %s\n", __FUNCTION__);
 }
 
-_IRQL_requires_max_(DISPATCH_LEVEL)
-VOID
-VIOSockSelectRun(
-    IN PSOCKET_CONTEXT pSocket
-)
+_IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockSelectRun(IN PSOCKET_CONTEXT pSocket)
 {
     BOOLEAN bRun = FALSE;
     PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pSocket);
@@ -1015,13 +893,12 @@ VIOSockSelectRun(
     if (pSocket->SelectRefs[FDSET_WRITE])
     {
         bRun |= pSocket->Events & FD_WRITE ||
-            (pSocket->Events & FD_CONNECT) && NT_SUCCESS(pSocket->EventsStatus[FD_CONNECT_BIT]);
+                (pSocket->Events & FD_CONNECT) && NT_SUCCESS(pSocket->EventsStatus[FD_CONNECT_BIT]);
     }
 
     if (pSocket->SelectRefs[FDSET_EXCPT])
     {
-        bRun |= (pSocket->Events & FD_CONNECT) &&
-            !NT_SUCCESS(pSocket->EventsStatus[FD_CONNECT_BIT]);
+        bRun |= (pSocket->Events & FD_CONNECT) && !NT_SUCCESS(pSocket->EventsStatus[FD_CONNECT_BIT]);
     }
 
     if (bRun && InterlockedIncrement(&pContext->SelectInProgress) == 1)
@@ -1029,22 +906,17 @@ VIOSockSelectRun(
         TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "Enqueue workitem\n");
         WdfWorkItemEnqueue(pContext->SelectWorkitem);
     }
-
 }
 
-static
-BOOLEAN
-VIOSockSelectCopyFds(
-    IN PDEVICE_CONTEXT          pContext,
-    IN BOOLEAN                  bIs32BitProcess,
-    IN PVIRTIO_VSOCK_SELECT     pSelect,
-    IN PVIOSOCK_SELECT_PKT      pPkt,
-    IN VIRTIO_VSOCK_FDSET_TYPE  iFdSet,
-    IN ULONG                    uStartIndex
-)
+static BOOLEAN VIOSockSelectCopyFds(IN PDEVICE_CONTEXT pContext,
+                                    IN BOOLEAN bIs32BitProcess,
+                                    IN PVIRTIO_VSOCK_SELECT pSelect,
+                                    IN PVIOSOCK_SELECT_PKT pPkt,
+                                    IN VIRTIO_VSOCK_FDSET_TYPE iFdSet,
+                                    IN ULONG uStartIndex)
 {
-    ULONG                   i;
-    PVIOSOCK_SELECT_HANDLE  pHandleSet = &pPkt->Fds[uStartIndex];
+    ULONG i;
+    PVIOSOCK_SELECT_HANDLE pHandleSet = &pPkt->Fds[uStartIndex];
 
     PAGED_CODE();
 
@@ -1061,13 +933,17 @@ VIOSockSelectCopyFds(
 
                 pHandleSet[i].hSocket = hSocket;
                 pHandleSet[i].Socket = Socket;
-                InterlockedIncrement(&pSocket->SelectRefs[iFdSet]); //reference socket
+                InterlockedIncrement(&pSocket->SelectRefs[iFdSet]); // reference socket
             }
             else
+            {
                 break;
+            }
         }
         else
+        {
             break;
+        }
     }
 
     pPkt->FdCount[iFdSet] = i;
@@ -1075,20 +951,15 @@ VIOSockSelectCopyFds(
     return i == pSelect->Fdss[iFdSet].fd_count;
 }
 
-static
-NTSTATUS
-VIOSockSelect(
-    IN WDFREQUEST Request,
-    IN OUT size_t *pLength
-)
+static NTSTATUS VIOSockSelect(IN WDFREQUEST Request, IN OUT size_t *pLength)
 {
-    PDEVICE_CONTEXT         pContext = GetDeviceContextFromRequest(Request);
-    PVIRTIO_VSOCK_SELECT    pSelect;
-    SIZE_T                  stSelectLen;
-    NTSTATUS                status;
-    BOOLEAN                 bIs32BitProcess = FALSE;
-    WDF_OBJECT_ATTRIBUTES   Attributes;
-    PVIOSOCK_SELECT_PKT     pPkt = NULL;
+    PDEVICE_CONTEXT pContext = GetDeviceContextFromRequest(Request);
+    PVIRTIO_VSOCK_SELECT pSelect;
+    SIZE_T stSelectLen;
+    NTSTATUS status;
+    BOOLEAN bIs32BitProcess = FALSE;
+    WDF_OBJECT_ATTRIBUTES Attributes;
+    PVIOSOCK_SELECT_PKT pPkt = NULL;
 
     PAGED_CODE();
 
@@ -1116,9 +987,8 @@ VIOSockSelect(
     // minimum length guaranteed by WdfRequestRetrieveInputBuffer above
     _Analysis_assume_(stSelectLen >= sizeof(*pSelect));
 
-    if (FD_SETSIZE < pSelect->Fdss[FDSET_READ].fd_count +
-        pSelect->Fdss[FDSET_WRITE].fd_count +
-        pSelect->Fdss[FDSET_EXCPT].fd_count)
+    if (FD_SETSIZE <
+        pSelect->Fdss[FDSET_READ].fd_count + pSelect->Fdss[FDSET_WRITE].fd_count + pSelect->Fdss[FDSET_EXCPT].fd_count)
     {
         return STATUS_INVALID_PARAMETER;
     }
@@ -1127,10 +997,7 @@ VIOSockSelect(
     bIs32BitProcess = WdfRequestIsFrom32BitProcess(Request);
 #endif //_WIN64
 
-    WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(
-        &Attributes,
-        VIOSOCK_SELECT_PKT
-    );
+    WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&Attributes, VIOSOCK_SELECT_PKT);
 
     status = WdfObjectAllocateContext(Request, &Attributes, &pPkt);
     if (!NT_SUCCESS(status))
@@ -1143,8 +1010,12 @@ VIOSockSelect(
 
     if (!VIOSockSelectCopyFds(pContext, bIs32BitProcess, pSelect, pPkt, FDSET_READ, 0) ||
         !VIOSockSelectCopyFds(pContext, bIs32BitProcess, pSelect, pPkt, FDSET_WRITE, pPkt->FdCount[FDSET_READ]) ||
-        !VIOSockSelectCopyFds(pContext, bIs32BitProcess, pSelect, pPkt, FDSET_EXCPT,
-            pPkt->FdCount[FDSET_READ] + pPkt->FdCount[FDSET_WRITE]))
+        !VIOSockSelectCopyFds(pContext,
+                              bIs32BitProcess,
+                              pSelect,
+                              pPkt,
+                              FDSET_EXCPT,
+                              pPkt->FdCount[FDSET_READ] + pPkt->FdCount[FDSET_WRITE]))
     {
         TraceEvents(TRACE_LEVEL_WARNING, DBG_SELECT, "VIOSockSelectCopyFds failed\n");
         status = STATUS_INVALID_HANDLE;
@@ -1170,17 +1041,23 @@ VIOSockSelect(
                 pPkt->Timeout = pSelect->Timeout;
 
                 if (pPkt->Timeout)
+                {
                     VIOSockTimerStart(&pContext->SelectTimer, pPkt->Timeout);
+                }
             }
         }
         else
+        {
             *pLength = sizeof(*pSelect);
+        }
 
         WdfWaitLockRelease(pContext->SelectLock);
     }
 
     if (status != STATUS_PENDING)
+    {
         VIOSockSelectCleanupPkt(pPkt);
+    }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "<-- %s\n", __FUNCTION__);
 

@@ -28,77 +28,46 @@
 #ifndef __VIOWSK_TEST_MESSAGES_H__
 #define __VIOWSK_TEST_MESSAGES_H__
 
-
 #include <ntifs.h>
 #include <wsk.h>
 #include <bcrypt.h>
 
+#define VIOWSK_TEST_MSG_TAG (ULONG)'MKSW'
 
+#define VIOWSK_MSG_SIZE     64
 
-#define VIOWSK_TEST_MSG_TAG					(ULONG)'MKSW'
-
-#define VIOWSK_MSG_SIZE						64
-
-typedef struct _VIOWSK_MSG_HASH_OBJECT {
-	PVOID HashObject;
-	BCRYPT_HASH_HANDLE HashHandle;
+typedef struct _VIOWSK_MSG_HASH_OBJECT
+{
+    PVOID HashObject;
+    BCRYPT_HASH_HANDLE HashHandle;
 } VIOWSK_MSG_HASH_OBJECT, *PVIOWSK_MSG_HASH_OBJECT;
 
+NTSTATUS
+VioWskMessageGenerate(_Inout_opt_ PVIOWSK_MSG_HASH_OBJECT HashObject,
+                      _Out_ PWSK_BUF WskBuffer,
+                      _Out_ PVOID *FlatBuffer);
 
 NTSTATUS
-VioWskMessageGenerate(
-	_Inout_opt_ PVIOWSK_MSG_HASH_OBJECT HashObject,
-	_Out_ PWSK_BUF WskBuffer,
-	_Out_ PVOID* FlatBuffer
-);
+VIoWskMessageVerify(_In_ PVIOWSK_MSG_HASH_OBJECT HashObject, _In_ const WSK_BUF *WskBuf, _Out_ PBOOLEAN Verified);
 
 NTSTATUS
-VIoWskMessageVerify(
-	_In_ PVIOWSK_MSG_HASH_OBJECT HashObject,
-	_In_ const WSK_BUF* WskBuf,
-	_Out_ PBOOLEAN Verified
-);
+VIoWskMessageVerifyBuffer(_In_ PVIOWSK_MSG_HASH_OBJECT HashObject, _In_ const void *Buffer, _Out_ PBOOLEAN Verified);
+
+void VioWskMessageAdvance(_Inout_ PWSK_BUF WskBuffer, _In_ SIZE_T Length);
+
+void VioWskMessageFree(_In_ PWSK_BUF WskBuffer, _In_opt_ PVOID FlatBuffer);
 
 NTSTATUS
-VIoWskMessageVerifyBuffer(
-	_In_ PVIOWSK_MSG_HASH_OBJECT HashObject,
-	_In_ const void* Buffer,
-	_Out_ PBOOLEAN Verified
-);
-
-void
-VioWskMessageAdvance(
-	_Inout_ PWSK_BUF WskBuffer,
-	_In_ SIZE_T Length
-);
-
-void
-VioWskMessageFree(
-	_In_ PWSK_BUF WskBuffer,
-	_In_opt_ PVOID FlatBuffer
-);
+VioWskMessageCreateHashObject(_Out_ PVIOWSK_MSG_HASH_OBJECT Object);
 
 NTSTATUS
-VioWskMessageCreateHashObject(
-	_Out_ PVIOWSK_MSG_HASH_OBJECT Object
-);
+VioWskMessageRefreshHashObject(_Inout_ PVIOWSK_MSG_HASH_OBJECT Object);
 
-NTSTATUS
-VioWskMessageRefreshHashObject(
-	_Inout_ PVIOWSK_MSG_HASH_OBJECT Object
-);
-
-void
-VIoWskMessageDestroyHashObject(
-	_In_ PVIOWSK_MSG_HASH_OBJECT Object
-);
+void VIoWskMessageDestroyHashObject(_In_ PVIOWSK_MSG_HASH_OBJECT Object);
 
 NTSTATUS
 VioWskMessageModuleInit();
 
-void
-VioWskMessageModuleFinit();
-
-
+void VioWskMessageModuleFinit();
 
 #endif

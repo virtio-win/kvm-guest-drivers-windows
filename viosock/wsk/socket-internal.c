@@ -37,73 +37,83 @@
 #endif
 
 #ifdef ALLOC_PRAGMA
-#pragma alloc_text (PAGE, VioWskSocketInternal)
-#pragma alloc_text (PAGE, VioWskCloseSocketInternal)
+#pragma alloc_text(PAGE, VioWskSocketInternal)
+#pragma alloc_text(PAGE, VioWskCloseSocketInternal)
 #endif
 
-
-
-
-_Must_inspect_result_
-static
-NTSTATUS
-_VioSocketCreate(
-    _In_ PWSK_CLIENT              Client,
-    _In_opt_ PVIOWSK_SOCKET       ListenSocket,
-    _In_ ULONG                    SocketType,
-    _Out_ PHANDLE                 SocketFileHandle,
-    _Out_ PFILE_OBJECT           *SocketFileObject
-)
+_Must_inspect_result_ static NTSTATUS _VioSocketCreate(_In_ PWSK_CLIENT Client,
+                                                       _In_opt_ PVIOWSK_SOCKET ListenSocket,
+                                                       _In_ ULONG SocketType,
+                                                       _Out_ PHANDLE SocketFileHandle,
+                                                       _Out_ PFILE_OBJECT *SocketFileObject)
 {
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
     PVIOWSK_REG_CONTEXT pContext = NULL;
     PWSK_REGISTRATION reg = NULL;
     HANDLE hFile = NULL;
     OBJECT_ATTRIBUTES ObjectAttributes;
-    IO_STATUS_BLOCK Iosb = { 0 };
-    VIRTIO_VSOCK_PARAMS SockParams = { 0 };
-    UCHAR EaBuffer[sizeof(FILE_FULL_EA_INFORMATION) + sizeof(SockParams)] = { 0 };
+    IO_STATUS_BLOCK Iosb = {0};
+    VIRTIO_VSOCK_PARAMS SockParams = {0};
+    UCHAR EaBuffer[sizeof(FILE_FULL_EA_INFORMATION) + sizeof(SockParams)] = {0};
     PFILE_FULL_EA_INFORMATION pEaBuffer = (PFILE_FULL_EA_INFORMATION)EaBuffer;
-    DEBUG_ENTER_FUNCTION("Client=0x%p; ListenSocket=0x%p; Sockettype=%u; SocketFileHandle=0x%p; SocketFileObject=0x%p", Client, ListenSocket, SocketType, SocketFileHandle, SocketFileObject);
+    DEBUG_ENTER_FUNCTION("Client=0x%p; ListenSocket=0x%p; Sockettype=%u; SocketFileHandle=0x%p; SocketFileObject=0x%p",
+                         Client,
+                         ListenSocket,
+                         SocketType,
+                         SocketFileHandle,
+                         SocketFileObject);
 
     PAGED_CODE();
     reg = (PWSK_REGISTRATION)Client;
     pContext = (PVIOWSK_REG_CONTEXT)reg->ReservedRegistrationContext;
     RtlSecureZeroMemory(&SockParams, sizeof(SockParams));
     if (ListenSocket != NULL)
+    {
         SockParams.Socket = (ULONGLONG)ListenSocket->FileHandle;
+    }
 
     SockParams.Type = SocketType;
-    pEaBuffer->EaNameLength = sizeof(FILE_FULL_EA_INFORMATION) -
-        FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) - sizeof(UCHAR);
+    pEaBuffer->EaNameLength = sizeof(FILE_FULL_EA_INFORMATION) - FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) -
+                              sizeof(UCHAR);
     pEaBuffer->EaValueLength = sizeof(SockParams);
     RtlCopyMemory(&EaBuffer[sizeof(FILE_FULL_EA_INFORMATION)], &SockParams, sizeof(SockParams));
 
     InitializeObjectAttributes(&ObjectAttributes, &pContext->VIOSockLinkName, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
-    Status = ZwCreateFile(&hFile, FILE_GENERIC_READ | FILE_GENERIC_WRITE, &ObjectAttributes, &Iosb, 0, 0,
-        FILE_SHARE_READ | FILE_SHARE_WRITE, FILE_OPEN, FILE_NON_DIRECTORY_FILE, pEaBuffer,
-        pEaBuffer ? sizeof(EaBuffer) : 0);
+    Status = ZwCreateFile(&hFile,
+                          FILE_GENERIC_READ | FILE_GENERIC_WRITE,
+                          &ObjectAttributes,
+                          &Iosb,
+                          0,
+                          0,
+                          FILE_SHARE_READ | FILE_SHARE_WRITE,
+                          FILE_OPEN,
+                          FILE_NON_DIRECTORY_FILE,
+                          pEaBuffer,
+                          pEaBuffer ? sizeof(EaBuffer) : 0);
 
     if (NT_SUCCESS(Status))
     {
-        Status = ObReferenceObjectByHandle(hFile, FILE_GENERIC_READ | FILE_GENERIC_WRITE, *IoFileObjectType, KernelMode, (PVOID*)SocketFileObject, NULL);
+        Status = ObReferenceObjectByHandle(hFile,
+                                           FILE_GENERIC_READ | FILE_GENERIC_WRITE,
+                                           *IoFileObjectType,
+                                           KernelMode,
+                                           (PVOID *)SocketFileObject,
+                                           NULL);
         if (NT_SUCCESS(Status))
+        {
             *SocketFileHandle = hFile;
+        }
     }
 
-    DEBUG_EXIT_FUNCTION("0x%x, *SocketFileHandle=0x%p, *SocketFileObject=0x%p", Status, *SocketFileHandle, *SocketFileObject);
+    DEBUG_EXIT_FUNCTION("0x%x, *SocketFileHandle=0x%p, *SocketFileObject=0x%p",
+                        Status,
+                        *SocketFileHandle,
+                        *SocketFileObject);
     return Status;
 }
 
-
-static
-NTSTATUS
-_ConfigIrpComplete(
-    PDEVICE_OBJECT DeviceObject,
-    PIRP Irp,
-    PVOID Context
-)
+static NTSTATUS _ConfigIrpComplete(PDEVICE_OBJECT DeviceObject, PIRP Irp, PVOID Context)
 {
     NTSTATUS status = STATUS_UNSUCCESSFUL;
     PKEVENT event = (PKEVENT)Context;
@@ -116,20 +126,15 @@ _ConfigIrpComplete(
     return status;
 }
 
-
-_Must_inspect_result_
-NTSTATUS
-VioWskSocketInternal(
-    _In_ PWSK_CLIENT              Client,
-    _In_opt_ PVIOWSK_SOCKET       ListenSocket,
-    _In_ ULONG                    Flags,
-    _In_opt_ PVOID                SocketContext,
-    _In_opt_ CONST VOID* Dispatch,
-    _In_opt_ PEPROCESS            OwningProcess,
-    _In_opt_ PETHREAD             OwningThread,
-    _In_opt_ PSECURITY_DESCRIPTOR SecurityDescriptor,
-    _Out_ PVIOWSK_SOCKET* pNewSocket
-)
+_Must_inspect_result_ NTSTATUS VioWskSocketInternal(_In_ PWSK_CLIENT Client,
+                                                    _In_opt_ PVIOWSK_SOCKET ListenSocket,
+                                                    _In_ ULONG Flags,
+                                                    _In_opt_ PVOID SocketContext,
+                                                    _In_opt_ CONST VOID *Dispatch,
+                                                    _In_opt_ PEPROCESS OwningProcess,
+                                                    _In_opt_ PETHREAD OwningThread,
+                                                    _In_opt_ PSECURITY_DESCRIPTOR SecurityDescriptor,
+                                                    _Out_ PVIOWSK_SOCKET *pNewSocket)
 {
     PWSK_CLIENT_LISTEN_DISPATCH pListenDispatch = NULL;
     PWSK_CLIENT_CONNECTION_DISPATCH pConnectionDispatch = NULL;
@@ -140,7 +145,17 @@ VioWskSocketInternal(
     VIRTIO_VSOCK_CONFIG SocketConfig;
     PIRP ConfigIrp = NULL;
     KEVENT ConfigEvent;
-    DEBUG_ENTER_FUNCTION("Client=0x%p; ListenSocket=0x%p; Flags=0x%x; SocketContext=0x%p; Dispatch=0x%p; OwningProcess=0x%p; OwningThread=0x%p; SecurityDescriptor=0x%p; pNewSocket=0x%p", Client, ListenSocket, Flags, SocketContext, Dispatch, OwningProcess, OwningThread, SecurityDescriptor, pNewSocket);
+    DEBUG_ENTER_FUNCTION("Client=0x%p; ListenSocket=0x%p; Flags=0x%x; SocketContext=0x%p; Dispatch=0x%p; "
+                         "OwningProcess=0x%p; OwningThread=0x%p; SecurityDescriptor=0x%p; pNewSocket=0x%p",
+                         Client,
+                         ListenSocket,
+                         Flags,
+                         SocketContext,
+                         Dispatch,
+                         OwningProcess,
+                         OwningThread,
+                         SecurityDescriptor,
+                         pNewSocket);
 
     PAGED_CODE();
     UNREFERENCED_PARAMETER(OwningProcess);
@@ -152,45 +167,48 @@ VioWskSocketInternal(
 
     switch (Flags)
     {
-    case WSK_FLAG_BASIC_SOCKET:
-        pProviderDispatch = &gBasicDispatch;
-        ProviderDispatchSize = sizeof(gBasicDispatch);
-        break;
-    case WSK_FLAG_LISTEN_SOCKET:
-        pListenDispatch = (PWSK_CLIENT_LISTEN_DISPATCH)Dispatch;
-        pProviderDispatch = &gListenDispatch;
-        ProviderDispatchSize = sizeof(gListenDispatch);
-        break;
-    case WSK_FLAG_CONNECTION_SOCKET:
-        pConnectionDispatch = (PWSK_CLIENT_CONNECTION_DISPATCH)Dispatch;
-        pProviderDispatch = &gConnectionDispatch;
-        ProviderDispatchSize = sizeof(gConnectionDispatch);
-        break;
-    case WSK_FLAG_DATAGRAM_SOCKET:
-        Status = STATUS_NOT_SUPPORTED;
-        break;
+        case WSK_FLAG_BASIC_SOCKET:
+            pProviderDispatch = &gBasicDispatch;
+            ProviderDispatchSize = sizeof(gBasicDispatch);
+            break;
+        case WSK_FLAG_LISTEN_SOCKET:
+            pListenDispatch = (PWSK_CLIENT_LISTEN_DISPATCH)Dispatch;
+            pProviderDispatch = &gListenDispatch;
+            ProviderDispatchSize = sizeof(gListenDispatch);
+            break;
+        case WSK_FLAG_CONNECTION_SOCKET:
+            pConnectionDispatch = (PWSK_CLIENT_CONNECTION_DISPATCH)Dispatch;
+            pProviderDispatch = &gConnectionDispatch;
+            ProviderDispatchSize = sizeof(gConnectionDispatch);
+            break;
+        case WSK_FLAG_DATAGRAM_SOCKET:
+            Status = STATUS_NOT_SUPPORTED;
+            break;
 #if (NTDDI_VERSION >= NTDDI_WIN10_RS2)
-    case WSK_FLAG_STREAM_SOCKET:
-        if (Dispatch)
-        {
-            pListenDispatch = (PWSK_CLIENT_LISTEN_DISPATCH)((PWSK_CLIENT_STREAM_DISPATCH)Dispatch)->Listen;
-            pConnectionDispatch = (PWSK_CLIENT_CONNECTION_DISPATCH)((PWSK_CLIENT_STREAM_DISPATCH)Dispatch)->Connect;
-        }
+        case WSK_FLAG_STREAM_SOCKET:
+            if (Dispatch)
+            {
+                pListenDispatch = (PWSK_CLIENT_LISTEN_DISPATCH)((PWSK_CLIENT_STREAM_DISPATCH)Dispatch)->Listen;
+                pConnectionDispatch = (PWSK_CLIENT_CONNECTION_DISPATCH)((PWSK_CLIENT_STREAM_DISPATCH)Dispatch)->Connect;
+            }
 
-        pProviderDispatch = &gStreamDispatch;
-        ProviderDispatchSize = sizeof(gStreamDispatch);
-        break;
+            pProviderDispatch = &gStreamDispatch;
+            ProviderDispatchSize = sizeof(gStreamDispatch);
+            break;
 #endif // if (NTDDI_VERSION >= NTDDI_WIN10_RS2)
-    default:
-        Status = STATUS_INVALID_PARAMETER;
-        break;
+        default:
+            Status = STATUS_INVALID_PARAMETER;
+            break;
     }
 
     if (!NT_SUCCESS(Status))
+    {
         goto Exit;
+    }
 
     pSocket = ExAllocatePoolUninitialized(NonPagedPoolNx, sizeof(VIOWSK_SOCKET), VIOSOCK_WSK_MEMORY_TAG);
-    if (!pSocket) {
+    if (!pSocket)
+    {
         Status = STATUS_INSUFFICIENT_RESOURCES;
         goto Exit;
     }
@@ -200,18 +218,26 @@ VioWskSocketInternal(
     pSocket->SocketContext = SocketContext;
     pSocket->Type = Flags;
     if (pListenDispatch)
+    {
         RtlCopyMemory(&pSocket->ListenDispatch, pListenDispatch, sizeof(*pListenDispatch));
+    }
 
     if (pConnectionDispatch)
+    {
         RtlCopyMemory(&pSocket->ConnectionDispatch, pConnectionDispatch, sizeof(*pConnectionDispatch));
+    }
 
     if (pProviderDispatch)
+    {
         RtlCopyMemory(&pSocket->ProviderDispatch, pProviderDispatch, ProviderDispatchSize);
+    }
 
     pSocket->WskSocket.Dispatch = &pSocket->ProviderDispatch;
     Status = _VioSocketCreate(Client, ListenSocket, SOCK_STREAM, &pSocket->FileHandle, &pSocket->FileObject);
     if (!NT_SUCCESS(Status))
+    {
         goto FreeSocket;
+    }
 
     KeInitializeEvent(&ConfigEvent, NotificationEvent, FALSE);
     IoInitializeRemoveLock(&pSocket->CloseRemoveLock, VIOSOCK_WSK_MEMORY_TAG, 0, 0x7FFFFFFF);
@@ -225,20 +251,33 @@ VioWskSocketInternal(
     IoSetCompletionRoutine(ConfigIrp, _ConfigIrpComplete, &ConfigEvent, TRUE, TRUE, TRUE);
     Status = VioWskIrpAcquire(pSocket, ConfigIrp);
     if (!NT_SUCCESS(Status))
+    {
         goto FreeConfigIrp;
+    }
 
-    Status = VioWskSocketIOCTL(pSocket, IOCTL_GET_CONFIG, NULL, 0, &SocketConfig, sizeof(SocketConfig), ConfigIrp, NULL);
+    Status = VioWskSocketIOCTL(pSocket,
+                               IOCTL_GET_CONFIG,
+                               NULL,
+                               0,
+                               &SocketConfig,
+                               sizeof(SocketConfig),
+                               ConfigIrp,
+                               NULL);
     if (Status == STATUS_PENDING)
-    { 
+    {
         KeWaitForSingleObject(&ConfigEvent, Executive, KernelMode, FALSE, NULL);
         Status = ConfigIrp->IoStatus.Status;
     }
-    
+
     if (NT_SUCCESS(Status) && ConfigIrp->IoStatus.Information < sizeof(SocketConfig))
+    {
         Status = STATUS_INVALID_PARAMETER;
+    }
 
     if (!NT_SUCCESS(Status))
+    {
         goto FreeConfigIrp;
+    }
 
     pSocket->GuestId = SocketConfig.guest_cid;
     *pNewSocket = pSocket;
@@ -254,18 +293,16 @@ CloseSocket:
     }
 FreeSocket:
     if (pSocket)
+    {
         ExFreePoolWithTag(pSocket, VIOSOCK_WSK_MEMORY_TAG);
+    }
 Exit:
     DEBUG_EXIT_FUNCTION("0x%x, *pNewSocket=0x%p", Status, *pNewSocket);
     return Status;
 }
 
-
 NTSTATUS
-VioWskCloseSocketInternal(
-    _Inout_ PVIOWSK_SOCKET Socket,
-    _In_opt_ PVOID         ReleaseTag
-)
+VioWskCloseSocketInternal(_Inout_ PVIOWSK_SOCKET Socket, _In_opt_ PVOID ReleaseTag)
 {
     HANDLE fileHandle = NULL;
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
@@ -277,7 +314,9 @@ VioWskCloseSocketInternal(
     {
         Status = ZwClose(fileHandle);
         if (ReleaseTag)
+        {
             IoReleaseRemoveLockAndWait(&Socket->CloseRemoveLock, ReleaseTag);
+        }
 
         ObDereferenceObject(Socket->FileObject);
         ExFreePoolWithTag(Socket, VIOSOCK_WSK_MEMORY_TAG);

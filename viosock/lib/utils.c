@@ -40,7 +40,7 @@ ULONG g_DebugFlags;
 
 #if !defined(EVENT_TRACING)
 
-#define     TEMP_BUFFER_SIZE        256
+#define TEMP_BUFFER_SIZE 256
 
 void DebugPrintProc(const char *format, ...)
 {
@@ -58,7 +58,7 @@ void DebugPrintProc(const char *format, ...)
 void InitDebugPrints()
 {
     WPP_INIT_TRACING(NULL);
-    //TODO - Read nDebugLevel and bDebugPrint from the registry
+    // TODO - Read nDebugLevel and bDebugPrint from the registry
     g_DebugFlags = 0xffffffff;
 
     g_bDebugPrint = 1;

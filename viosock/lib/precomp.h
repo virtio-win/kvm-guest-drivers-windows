@@ -45,4 +45,4 @@
 #include "..\inc\vio_sockets.h"
 
 #include "trace.h"
-#endif //PRECOMP_H
+#endif // PRECOMP_H
