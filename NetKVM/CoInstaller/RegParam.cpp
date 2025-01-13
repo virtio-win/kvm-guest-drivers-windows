@@ -22,6 +22,7 @@
 #define REG_PARAM_INFO_DELIMITER        TEXT("-----------------------------------------------------")
 #define REG_PARAM_INFO_IDENT            TEXT("  ")
 
+// clang-format off
 static const LPCTSTR RegParamTypes[] =
 {
     TEXT("enum"),
@@ -29,6 +30,7 @@ static const LPCTSTR RegParamTypes[] =
     TEXT("long"),
     TEXT("edit")
 };
+// clang-format on
 
 static BOOL ReadStringDWord(neTKVMRegAccess &DevParamsRegKey,
                             LPCTSTR lpzValueName,
