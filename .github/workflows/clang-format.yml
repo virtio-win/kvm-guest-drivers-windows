@@ -9,7 +9,7 @@ jobs:
       matrix:
         path:
           - check: '.'
-            exclude: './.*/.*trace.h|./NetKVM|./pciserial|./viocrypt|./viofs|./viogpu|./viomem|./viorng|./vioserial|./viosock|./VirtIO'
+            exclude: './.*/.*trace.h|./NetKVM|./pciserial|./viocrypt|./viofs|./viogpu|./viorng|./vioserial|./viosock|./VirtIO'
           - check: 'VirtIO'
             exclude: ''
 
