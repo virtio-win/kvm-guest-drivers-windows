@@ -393,6 +393,7 @@ class CDeviceNotification
     }
     bool Register(CM_NOTIFY_FILTER *filter)
     {
+        // clang-format off
         CONFIGRET cr = CM_Register_Notification(filter, this,
             [](HCMNOTIFICATION h, PVOID Context, CM_NOTIFY_ACTION Action, PCM_NOTIFY_EVENT_DATA EventData, DWORD EventDataSize) -> DWORD
             {
@@ -411,6 +412,7 @@ class CDeviceNotification
             Log("%s: failed to register, cr %d", __FUNCTION__, cr);
         }
         return m_Notification != NULL;
+        // clang-format on
     }
     ~CDeviceNotification()
     {
@@ -680,6 +682,7 @@ class CVirtioAdapter
     static const tAdapterState CVirtioAdapter::m_TargetStates[];
 };
 
+// clang-format off
 const tAdapterState CVirtioAdapter::m_TargetStates[128] =
 {
     /* 0:  Virtio 0, IsStandby 0, VirtioLink 0, SuppressLink 0, Started 0, HasVf 0, VfLink 0 */ asUnknown,
@@ -811,6 +814,7 @@ const tAdapterState CVirtioAdapter::m_TargetStates[128] =
     /* 126: Virtio 0, IsStandby 1, VirtioLink 1, SuppressLink 1, Started 1, HasVf 1, VfLink 1 */ asUnknown,
     /* 127: Virtio 1, IsStandby 1, VirtioLink 1, SuppressLink 1, Started 1, HasVf 1, VfLink 1 */ asBoundActive,
 };
+// clang-format on
 
 class CVirtioAdaptersArray : public CAtlArray<CVirtioAdapter>
 {
