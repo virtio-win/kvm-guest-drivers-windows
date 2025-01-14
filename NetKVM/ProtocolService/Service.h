@@ -438,6 +438,7 @@ class CServiceImplementation
     CServiceState m_State;
     void ServiceMain(_In_ ULONG dwArgc, _In_ LPTSTR *lpszArgv)
     {
+        // clang-format off
         UNREFERENCED_PARAMETER(dwArgc);
         UNREFERENCED_PARAMETER(lpszArgv);
         m_State.hService = RegisterServiceCtrlHandlerEx(
@@ -463,6 +464,7 @@ class CServiceImplementation
         {
             Log("Failed to register %S service, error %d", ServiceName(), GetLastError());
         }
+        // clang-format on
     }
     virtual DWORD ControlHandler(ULONG dwControl, ULONG dwEventType, LPVOID lpEventData)
     {

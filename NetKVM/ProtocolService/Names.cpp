@@ -50,6 +50,7 @@ static LPCSTR GetName(const tNamedEntry *table, UINT size, ULONG val)
 
 LPCSTR GetName(const eServiceControl &val)
 {
+    // clang-format off
     static tNamedEntry names[] = {
         MAKE_ENTRY(SERVICE_CONTROL_STOP)
         MAKE_ENTRY(SERVICE_CONTROL_PAUSE)
@@ -70,10 +71,12 @@ LPCSTR GetName(const eServiceControl &val)
         MAKE_ENTRY(SERVICE_CONTROL_TRIGGEREVENT)
     };
     return GET_NAME(names, val);
+    // clang-format on
 }
 
 LPCSTR GetName(const tAdapterState &val)
 {
+    // clang-format off
     static tNamedEntry names[] = {
         MAKE_ENTRY(asAbsent)
         MAKE_ENTRY(asStandalone)
@@ -85,10 +88,12 @@ LPCSTR GetName(const tAdapterState &val)
         MAKE_ENTRY(asUnknown)
     };
     return GET_NAME(names, val);
+    // clang-format on
 }
 
 LPCSTR GetName(const IF_OPER_STATUS &val)
 {
+    // clang-format off
     static tNamedEntry names[] = {
         MAKE_ENTRY(IfOperStatusUp)
         MAKE_ENTRY(IfOperStatusDown)
@@ -99,6 +104,7 @@ LPCSTR GetName(const IF_OPER_STATUS &val)
         MAKE_ENTRY(IfOperStatusLowerLayerDown)
     };
     return GET_NAME(names, val);
+    // clang-format on
 }
 
 LPCSTR GetName(const CM_NOTIFY_ACTION &val)
