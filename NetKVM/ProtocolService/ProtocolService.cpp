@@ -41,26 +41,30 @@
       is not present and reconnect via VF when the VF comes
     - enable all other protocols on VF when the netkvm is disabled
 */
-#define SERVICE_EXEFILE  L"netkvmps.exe"
-#define SERVICE_ORGFILE  L"netkvmp.exe"
+#define SERVICE_EXEFILE L"netkvmps.exe"
+#define SERVICE_ORGFILE L"netkvmp.exe"
 
 class CNetCfg
 {
-public:
+  public:
     CNetCfg()
     {
-        hr = CoCreateInstance(CLSID_CNetCfg, NULL, CLSCTX_SERVER, IID_INetCfg, (LPVOID*)&m_NetCfg);
-        if (!m_NetCfg) {
+        hr = CoCreateInstance(CLSID_CNetCfg, NULL, CLSCTX_SERVER, IID_INetCfg, (LPVOID *)&m_NetCfg);
+        if (!m_NetCfg)
+        {
             return;
         }
-        hr = m_NetCfg->QueryInterface(IID_INetCfgLock, (LPVOID*)&m_NetCfgLock);
-        if (!m_NetCfgLock) {
+        hr = m_NetCfg->QueryInterface(IID_INetCfgLock, (LPVOID *)&m_NetCfgLock);
+        if (!m_NetCfgLock)
+        {
             return;
         }
         m_Usable = m_NetCfgLock->AcquireWriteLock(5000, L"netkvmp service", NULL) == S_OK;
-        if (m_Usable) {
+        if (m_Usable)
+        {
             hr = m_NetCfg->Initialize(NULL);
-            if (hr != S_OK) {
+            if (hr != S_OK)
+            {
                 m_NetCfgLock->ReleaseWriteLock();
                 m_Usable = false;
             }
@@ -68,7 +72,8 @@ public:
     }
     ~CNetCfg()
     {
-        if (!m_Usable) {
+        if (!m_Usable)
+        {
             return;
         }
         if (m_Modified)
@@ -79,59 +84,76 @@ public:
         m_NetCfg->Uninitialize();
         m_NetCfgLock->ReleaseWriteLock();
     }
-    bool Usable() const { return m_Usable; }
+    bool Usable() const
+    {
+        return m_Usable;
+    }
     bool Find(LPCWSTR Name)
     {
         if (!Usable())
+        {
             return false;
+        }
         CComPtr<INetCfgComponent> component;
         hr = m_NetCfg->FindComponent(Name, &component);
         Log("%sound component %S(hr %X)", hr == S_OK ? "F" : "Not f", Name, hr);
         return hr == S_OK;
     }
-    void EnableComponents(const CString& Name, tBindingState State)
+    void EnableComponents(const CString &Name, tBindingState State)
     {
         if (!Usable())
+        {
             return;
+        }
         CComPtr<INetCfgClass> netClass;
-        hr = m_NetCfg->QueryNetCfgClass(&GUID_DEVCLASS_NET, IID_INetCfgClass, (LPVOID*)&netClass);
-        if (hr != S_OK) {
+        hr = m_NetCfg->QueryNetCfgClass(&GUID_DEVCLASS_NET, IID_INetCfgClass, (LPVOID *)&netClass);
+        if (hr != S_OK)
+        {
             return;
         }
         CComPtr<IEnumNetCfgComponent> netEnum;
         hr = netClass->EnumComponents(&netEnum);
-        if (hr != S_OK) {
+        if (hr != S_OK)
+        {
             return;
         }
-        do {
+        do
+        {
             CComPtr<INetCfgComponent> adapter;
             hr = netEnum->Next(1, &adapter, NULL);
-            if (hr != S_OK) {
+            if (hr != S_OK)
+            {
                 break;
             }
             LPWSTR id = NULL;
             hr = adapter->GetDisplayName(&id);
-            if (hr != S_OK) {
+            if (hr != S_OK)
+            {
                 continue;
             }
             bool found = !Name.CompareNoCase(id);
             CoTaskMemFree(id);
-            if (found) {
+            if (found)
+            {
                 Log("found %S", Name.GetString());
                 CComPtr<INetCfgComponentBindings> bindings;
                 CComPtr<IEnumNetCfgBindingPath> paths;
-                hr = adapter->QueryInterface(IID_INetCfgComponentBindings, (LPVOID*)&bindings);
-                if (hr != S_OK) {
+                hr = adapter->QueryInterface(IID_INetCfgComponentBindings, (LPVOID *)&bindings);
+                if (hr != S_OK)
+                {
                     break;
                 }
                 hr = bindings->EnumBindingPaths(EBP_ABOVE, &paths);
-                if (!paths) {
+                if (!paths)
+                {
                     break;
                 }
-                while (true) {
+                while (true)
+                {
                     CComPtr<INetCfgBindingPath> path;
                     hr = paths->Next(1, &path, NULL);
-                    if (hr != S_OK) {
+                    if (hr != S_OK)
+                    {
                         break;
                     }
                     ProcessAdapterPath(adapter, path, State);
@@ -140,34 +162,44 @@ public:
             }
         } while (true);
     }
-private:
+
+  private:
     CComPtr<INetCfg> m_NetCfg;
     CComPtr<INetCfgLock> m_NetCfgLock;
     bool m_Usable = false;
     bool m_Modified = false;
     HRESULT hr;
-    void ProcessAdapterPath(INetCfgComponent* Adapter, INetCfgBindingPath* path, tBindingState State)
+    void ProcessAdapterPath(INetCfgComponent *Adapter, INetCfgBindingPath *path, tBindingState State)
     {
         CString sVioProt = L"vioprot";
         CString sTcpip = L"ms_tcpip";
         bool enabled = path->IsEnabled() == S_OK;
         CComPtr<IEnumNetCfgBindingInterface> enumBindingIf;
         hr = path->EnumBindingInterfaces(&enumBindingIf);
-        if (hr != S_OK) {
+        if (hr != S_OK)
+        {
             return;
         }
         CComPtr<INetCfgBindingInterface> bindingIf;
         hr = enumBindingIf->Next(1, &bindingIf, NULL);
-        if (hr != S_OK) {
+        if (hr != S_OK)
+        {
             return;
         }
         LPWSTR upperId = NULL, lowerId = NULL;
         CComPtr<INetCfgComponent> upper, lower;
         bindingIf->GetUpperComponent(&upper);
         bindingIf->GetLowerComponent(&lower);
-        if (upper) upper->GetId(&upperId);
-        if (lower) lower->GetId(&lowerId);
-        if (!upperId || !lowerId || lower != Adapter) {
+        if (upper)
+        {
+            upper->GetId(&upperId);
+        }
+        if (lower)
+        {
+            lower->GetId(&lowerId);
+        }
+        if (!upperId || !lowerId || lower != Adapter)
+        {
             CoTaskMemFree(upperId);
             CoTaskMemFree(lowerId);
             return;
@@ -202,7 +234,9 @@ private:
                 break;
         }
         Log("%sabled U:%S L:%S (should be %sabled)",
-            enabled ? "en" : "dis", upperId, lowerId,
+            enabled ? "en" : "dis",
+            upperId,
+            lowerId,
             bShouldBeEnabled ? "en" : "dis");
         if (bShouldBeEnabled != enabled)
         {
@@ -229,8 +263,8 @@ static bool IsVioProtInstalled()
 
 class CMACString
 {
-public:
-    CMACString(const UCHAR* Address)
+  public:
+    CMACString(const UCHAR *Address)
     {
         const char chars[] = "0123456789ABCDEF";
         for (int i = 0; i < 6; ++i)
@@ -242,14 +276,18 @@ public:
         }
         m_Buffer[sizeof(m_Buffer) - 1] = 0;
     }
-    const char* Get() { return m_Buffer; }
-private:
+    const char *Get()
+    {
+        return m_Buffer;
+    }
+
+  private:
     char m_Buffer[6 * 3] = {};
 };
 
 class CInterfaceTable
 {
-public:
+  public:
     CInterfaceTable()
     {
         // we can't use GetAdaptersTable as it does not allow to enumerate adapters
@@ -257,17 +295,16 @@ public:
         // GetIfTable2 provides all the adapters including disabled ones
         GetIfTable2(&m_Table);
     }
-private:
-    template<typename TWorker> void TraverseTable(
-        ULONG Index, UCHAR* Mac, bool Equal,
-        tBindingState State, bool Existing, TWorker Worker)
+
+  private:
+    template <typename TWorker>
+    void TraverseTable(ULONG Index, UCHAR *Mac, bool Equal, tBindingState State, bool Existing, TWorker Worker)
     {
         CNetCfg cfg;
         for (ULONG i = 0; m_Table && i < m_Table->NumEntries; ++i)
         {
-            auto& row = m_Table->Table[i];
-            auto Compare = [&](const MIB_IF_ROW2& row) -> bool
-            {
+            auto &row = m_Table->Table[i];
+            auto Compare = [&](const MIB_IF_ROW2 &row) -> bool {
                 bool res = row.Type == IF_TYPE_ETHERNET_CSMACD;
                 res = res && !row.InterfaceAndOperStatusFlags.FilterInterface;
                 if (Existing)
@@ -298,10 +335,11 @@ private:
             }
         }
     }
-public:
-    void CheckBinding(ULONG Index, UCHAR* Mac, bool Equal, tBindingState State, bool Existing)
+
+  public:
+    void CheckBinding(ULONG Index, UCHAR *Mac, bool Equal, tBindingState State, bool Existing)
     {
-        TraverseTable(Index, Mac, Equal, State, Existing, [](const MIB_IF_ROW2&){});
+        TraverseTable(Index, Mac, Equal, State, Existing, [](const MIB_IF_ROW2 &) {});
     }
     // turn on-off TCPIP on existing adater, whose index is
     // equal or not equal to the known one
@@ -317,14 +355,14 @@ public:
     }
     void Dump()
     {
-        TraverseTable(INFINITE, NULL, false, bsBindNoChange, false,
-        [](const MIB_IF_ROW2& row)
-        {
+        TraverseTable(INFINITE, NULL, false, bsBindNoChange, false, [](const MIB_IF_ROW2 &row) {
             CMACString sMac(row.PhysicalAddress);
-            auto& fl = row.InterfaceAndOperStatusFlags;
+            auto &fl = row.InterfaceAndOperStatusFlags;
             Log("[%s]  hw %d, paused %d, lp %d, %s",
                 sMac.Get(),
-                fl.HardwareInterface, fl.Paused, fl.LowPower,
+                fl.HardwareInterface,
+                fl.Paused,
+                fl.LowPower,
                 Name<IF_OPER_STATUS>(row.OperStatus));
         });
     }
@@ -332,26 +370,28 @@ public:
     {
         FreeMibTable(m_Table);
     }
-private:
+
+  private:
     PMIB_IF_TABLE2 m_Table = NULL;
 };
 
 class CDeviceNotificationOwner
 {
-public:
-    CDeviceNotificationOwner() {}
+  public:
+    CDeviceNotificationOwner()
+    {
+    }
     // return false only on CM_NOTIFY_ACTION_DEVICEQUERYREMOVE and only when needed
     virtual bool Notification(CM_NOTIFY_ACTION action, PCM_NOTIFY_EVENT_DATA data, DWORD dataSize) = 0;
 };
 
 class CDeviceNotification
 {
-public:
-    CDeviceNotification(CDeviceNotificationOwner& owner) :
-        m_Owner(owner)
+  public:
+    CDeviceNotification(CDeviceNotificationOwner &owner) : m_Owner(owner)
     {
     }
-    bool Register(CM_NOTIFY_FILTER* filter)
+    bool Register(CM_NOTIFY_FILTER *filter)
     {
         CONFIGRET cr = CM_Register_Notification(filter, this,
             [](HCMNOTIFICATION h, PVOID Context, CM_NOTIFY_ACTION Action, PCM_NOTIFY_EVENT_DATA EventData, DWORD EventDataSize) -> DWORD
@@ -385,16 +425,16 @@ public:
         Log("%s: action %s", __FUNCTION__, Name<CM_NOTIFY_ACTION>(action));
         return m_Owner.Notification(action, data, dataSize);
     }
-private:
+
+  private:
     HCMNOTIFICATION m_Notification = NULL;
-    CDeviceNotificationOwner& m_Owner;
+    CDeviceNotificationOwner &m_Owner;
 };
 
 class CNetworkDeviceNotification : public CDeviceNotification
 {
-public:
-    CNetworkDeviceNotification(CDeviceNotificationOwner& owner) :
-        CDeviceNotification(owner)
+  public:
+    CNetworkDeviceNotification(CDeviceNotificationOwner &owner) : CDeviceNotification(owner)
     {
         m_Filter.cbSize = sizeof(m_Filter);
         m_Filter.FilterType = CM_NOTIFY_FILTER_TYPE_DEVICEINTERFACE;
@@ -406,21 +446,22 @@ public:
 
 class CNetkvmDeviceFile
 {
-public:
+  public:
     CNetkvmDeviceFile()
     {
         LPCWSTR devName = L"\\\\.\\" NETKVM_DEVICE_NAME;
         ULONG access = GENERIC_READ | GENERIC_WRITE, share = FILE_SHARE_READ | FILE_SHARE_WRITE;
-        m_Handle = CreateFile(devName, access, share,
-            NULL, OPEN_EXISTING, 0, NULL);
-        if (m_Handle == INVALID_HANDLE_VALUE) {
-            //Log("can't open %S(%d)\n", devName, GetLastError());
+        m_Handle = CreateFile(devName, access, share, NULL, OPEN_EXISTING, 0, NULL);
+        if (m_Handle == INVALID_HANDLE_VALUE)
+        {
+            // Log("can't open %S(%d)\n", devName, GetLastError());
             m_Handle = NULL;
         }
     }
     ~CNetkvmDeviceFile()
     {
-        if (m_Handle) {
+        if (m_Handle)
+        {
             CloseHandle(m_Handle);
         }
     }
@@ -436,9 +477,16 @@ public:
     {
         return DeviceIoControl(m_Handle, Code, InBuf, InSize, OutBuf, OutSize, &m_Returned, NULL);
     }
-    bool Usable() const { return m_Handle; }
-    ULONG Returned() const { return m_Returned; }
-protected:
+    bool Usable() const
+    {
+        return m_Handle;
+    }
+    ULONG Returned() const
+    {
+        return m_Returned;
+    }
+
+  protected:
     HANDLE m_Handle;
     ULONG m_Returned = 0;
 };
@@ -451,7 +499,7 @@ static void CheckBinding(ULONG Index, tBindingState State)
 
 class CVirtioAdapter
 {
-public:
+  public:
     CVirtioAdapter(UCHAR *Mac = NULL)
     {
         if (Mac)
@@ -460,15 +508,20 @@ public:
         }
     }
     ULONG m_Count = 0;
-    typedef enum _tAction { acNone, acOn, acOff } tAction;
+    typedef enum _tAction
+    {
+        acNone,
+        acOn,
+        acOff
+    } tAction;
     tAdapterState m_State = asUnknown;
     UCHAR m_MacAddress[6];
     ULONG m_VfIndex = INFINITE;
-    bool Match(UCHAR* Mac)
+    bool Match(UCHAR *Mac)
     {
         return !memcmp(m_MacAddress, Mac, sizeof(m_MacAddress));
     }
-    void SetState(tAdapterState State, const NETKVMD_ADAPTER& a)
+    void SetState(tAdapterState State, const NETKVMD_ADAPTER &a)
     {
         tAction action = acNone;
         m_Count = 0;
@@ -481,18 +534,27 @@ public:
             case asAloneInactive:
                 // virtio and standby are on, no vf, virtio link is off
                 // if Suppressed is set, better to clear it
-                if (a.SuppressLink) action = acOn;
+                if (a.SuppressLink)
+                {
+                    action = acOn;
+                }
                 break;
             case asAloneActive:
                 // virtio, standby, virtio link are on, no vf
                 // if Suppressed is set, must clear it
-                if (a.SuppressLink) action = acOn;
+                if (a.SuppressLink)
+                {
+                    action = acOn;
+                }
                 break;
             case asBoundInactive:
                 // virtio, standby, vf, but virtio link is off
                 // wait for carrier
                 // if suppressed is set, need to clear it
-                if (a.SuppressLink) action = acOn;
+                if (a.SuppressLink)
+                {
+                    action = acOn;
+                }
                 break;
             case asBoundInitial:
                 // virtio, standby, vf, suppress, not started
@@ -521,18 +583,33 @@ public:
         m_State = State;
         SetLink(action);
     }
-    void Update(const NETKVMD_ADAPTER& a)
+    void Update(const NETKVMD_ADAPTER &a)
     {
         ULONG index = 0;
         CMACString s(a.MacAddress);
 
         // here we convert seven booleans to 7-bit index
         // state is determined as m_TargetStates[index]
-        if (a.Virtio) index |= 1;
-        if (a.IsStandby) index |= 2;
-        if (a.VirtioLink) index |= 4;
-        if (a.SuppressLink) index |= 8;
-        if (a.Started) index |= 16;
+        if (a.Virtio)
+        {
+            index |= 1;
+        }
+        if (a.IsStandby)
+        {
+            index |= 2;
+        }
+        if (a.VirtioLink)
+        {
+            index |= 4;
+        }
+        if (a.SuppressLink)
+        {
+            index |= 8;
+        }
+        if (a.Started)
+        {
+            index |= 16;
+        }
         if (a.HasVf)
         {
             index |= 32;
@@ -552,12 +629,23 @@ public:
             // protocol is uninstalled, this is the last round of update
             // the rest will be done by the tail of the thread
         }
-        if (a.VfLink) index |= 64;
+        if (a.VfLink)
+        {
+            index |= 64;
+        }
         tAdapterState State = m_TargetStates[index];
         if (State != m_State || m_Count == INFINITE)
         {
             Log("[%s] v%d, sb%d, l%d, su%d, st%d, vf%d, vfidx %d, vl%d",
-                s.Get(), a.Virtio, a.IsStandby, a.VirtioLink, a.SuppressLink, a.Started, a.HasVf, a.VfIfIndex, a.VfLink);
+                s.Get(),
+                a.Virtio,
+                a.IsStandby,
+                a.VirtioLink,
+                a.SuppressLink,
+                a.Started,
+                a.HasVf,
+                a.VfIfIndex,
+                a.VfLink);
             Log("[%s] %s => %s", s.Get(), Name<tAdapterState>(m_State), Name<tAdapterState>(State));
             SetState(State, a);
         }
@@ -574,7 +662,9 @@ public:
     void SetLink(tAction Action)
     {
         if (Action == acNone)
+        {
             return;
+        }
         NETKVMD_SET_LINK sl;
         RtlCopyMemory(sl.MacAddress, m_MacAddress, sizeof(m_MacAddress));
         sl.LinkOn = Action == acOn ? 1 : 0;
@@ -585,7 +675,8 @@ public:
     {
         CheckBinding(m_VfIndex, State);
     }
-private:
+
+  private:
     static const tAdapterState CVirtioAdapter::m_TargetStates[];
 };
 
@@ -723,10 +814,10 @@ const tAdapterState CVirtioAdapter::m_TargetStates[128] =
 
 class CVirtioAdaptersArray : public CAtlArray<CVirtioAdapter>
 {
-public:
+  public:
     void RemoveAdapter(UINT Index, tBindingState State)
     {
-        CVirtioAdapter& a = GetAt(Index);
+        CVirtioAdapter &a = GetAt(Index);
         a.PreRemove(State);
         RemoveAt(Index);
     }
@@ -734,7 +825,7 @@ public:
     {
         for (UINT i = 0; i < GetCount(); ++i)
         {
-            CVirtioAdapter& a = GetAt(i);
+            CVirtioAdapter &a = GetAt(i);
             a.PreRemove(State);
         }
         RemoveAll();
@@ -743,30 +834,33 @@ public:
 
 class CFileFinder
 {
-public:
-    CFileFinder(const CString& WildCard) : m_WildCard(WildCard) {};
-    template<typename T> bool Process(T Functor)
+  public:
+    CFileFinder(const CString &WildCard) : m_WildCard(WildCard){};
+    template <typename T> bool Process(T Functor)
     {
         HANDLE h = FindFirstFile(m_WildCard, &m_fd);
         if (h == INVALID_HANDLE_VALUE)
         {
             return false;
         }
-        while (Functor(m_fd.cFileName) && FindNextFile(h, &m_fd)) {}
+        while (Functor(m_fd.cFileName) && FindNextFile(h, &m_fd))
+        {
+        }
         FindClose(h);
         return true;
     }
-private:
+
+  private:
     WIN32_FIND_DATA m_fd = {};
-    const CString& m_WildCard;
+    const CString &m_WildCard;
 };
 
 class CInfDirectory : public CString
 {
-public:
+  public:
     CInfDirectory()
     {
-        WCHAR* p = new WCHAR[MAX_PATH];
+        WCHAR *p = new WCHAR[MAX_PATH];
         if (p)
         {
             if (GetWindowsDirectory(p, MAX_PATH))
@@ -781,10 +875,10 @@ public:
 
 class CSystemDirectory : public CString
 {
-public:
+  public:
     CSystemDirectory()
     {
-        WCHAR* p = new WCHAR[MAX_PATH];
+        WCHAR *p = new WCHAR[MAX_PATH];
         if (p)
         {
             if (GetSystemDirectory(p, MAX_PATH))
@@ -804,7 +898,7 @@ static bool CopySelf()
     CSystemDirectory s;
     s += SERVICE_EXEFILE;
     bool done;
-    int  retries = 0;
+    int retries = 0;
     do
     {
         done = CopyFile(CServiceImplementation::BinaryPath(), s, false);
@@ -822,18 +916,20 @@ static bool CopySelf()
     return done;
 }
 
-class CProtocolServiceImplementation :
-    public CServiceImplementation,
-    public CThreadOwner,
-    public CDeviceNotificationOwner
+class CProtocolServiceImplementation : public CServiceImplementation,
+                                       public CThreadOwner,
+                                       public CDeviceNotificationOwner
 {
-public:
-    CProtocolServiceImplementation() :
-        CServiceImplementation(_T("netkvmp")),
-        m_ThreadEvent(false)
-        {}
-    enum { ctlDump = 128 };
-protected:
+  public:
+    CProtocolServiceImplementation() : CServiceImplementation(_T("netkvmp")), m_ThreadEvent(false)
+    {
+    }
+    enum
+    {
+        ctlDump = 128
+    };
+
+  protected:
     virtual bool OnStart() override
     {
         StartThread();
@@ -867,10 +963,13 @@ protected:
         CNetworkDeviceNotification dn(*this);
         CoInitialize(NULL);
 
-        do {
+        do
+        {
             SyncVirtioAdapters();
             if (ThreadState() != tsRunning)
+            {
                 break;
+            }
             if (m_ThreadEvent.Wait(3000) == ERROR_SUCCESS)
             {
                 // in most of cases this is network change
@@ -902,9 +1001,11 @@ protected:
             CInterfaceTable t;
             for (UINT i = 0; i < m_Adapters.GetCount(); ++i)
             {
-                CVirtioAdapter& a = m_Adapters[i];
+                CVirtioAdapter &a = m_Adapters[i];
                 if (a.m_VfIndex == INFINITE)
+                {
                     continue;
+                }
                 switch (a.m_State)
                 {
                     case asBoundInactive:
@@ -944,7 +1045,8 @@ protected:
         }
         Log("Done (%d adapters)", m_Adapters.GetCount());
     }
-private:
+
+  private:
     CEvent m_ThreadEvent;
     CVirtioAdaptersArray m_Adapters;
     CMutex m_AdaptersMutex;
@@ -957,17 +1059,19 @@ private:
         m_ThreadEvent.Set();
         return true;
     }
-private:
+
+  private:
     NETKVMD_ADAPTER m_IoctlBuffer[256];
     void SyncVirtioAdapters()
     {
         CMutexProtect pr(m_AdaptersMutex);
-        NETKVMD_ADAPTER* adapters = m_IoctlBuffer;
+        NETKVMD_ADAPTER *adapters = m_IoctlBuffer;
         ULONG n = 0;
         // device open-close scope
         {
             CNetkvmDeviceFile d;
-            if (!d.Usable()) {
+            if (!d.Usable())
+            {
                 m_Adapters.RemoveAllAdapters(bsBindAll);
             }
             if (!d.ControlGet(IOCTL_NETKVMD_QUERY_ADAPTERS, m_IoctlBuffer, sizeof(m_IoctlBuffer)))
@@ -986,10 +1090,16 @@ private:
             for (ULONG j = 0; !found && j < m_Adapters.GetCount(); ++j)
             {
                 found = m_Adapters[j].Match(adapters[i].MacAddress);
-                if (!found) continue;
+                if (!found)
+                {
+                    continue;
+                }
                 m_Adapters[j].Update(adapters[i]);
             }
-            if (found) continue;
+            if (found)
+            {
+                continue;
+            }
             CVirtioAdapter a(adapters[i].MacAddress);
             a.Update(adapters[i]);
             m_Adapters.Add(a);
@@ -1002,7 +1112,10 @@ private:
             {
                 found = m_Adapters[i].Match(adapters[j].MacAddress);
             }
-            if (found) continue;
+            if (found)
+            {
+                continue;
+            }
             m_Adapters.RemoveAdapter(i, bsBindAll);
             i--;
         }
@@ -1018,33 +1131,32 @@ static void UninstallProtocol()
     CInfDirectory dir;
     puts("Scan for protocol INF file...");
     CFileFinder f(dir + L"oem*.inf");
-    f.Process([&](const TCHAR* Name)
+    f.Process([&](const TCHAR *Name) {
+        CString completeName = dir + Name;
+        // printf("Checking %S...\n", Name);
+        CString s;
+        s.Format(L"type %s | findstr /i vioprot.cat", completeName.GetString());
+        int res = _wsystem(s);
+        if (!res)
         {
-            CString completeName = dir + Name;
-            //printf("Checking %S...\n", Name);
-            CString s;
-            s.Format(L"type %s | findstr /i vioprot.cat", completeName.GetString());
-            int res = _wsystem(s);
-            if (!res)
+            printf("Uninstalling %S... ", Name);
+            res = SetupUninstallOEMInf(Name, SUOI_FORCEDELETE, NULL);
+            if (res)
             {
-                printf("Uninstalling %S... ", Name);
-                res = SetupUninstallOEMInf(Name, SUOI_FORCEDELETE, NULL);
-                if (res)
-                {
-                    puts("Done");
-                }
-                else
-                {
-                    printf("Not done, error, error %d", GetLastError());
-                }
+                puts("Done");
             }
-            return true;
-        });
+            else
+            {
+                printf("Not done, error, error %d", GetLastError());
+            }
+        }
+        return true;
+    });
 }
 
 static bool InstallProtocol()
 {
-    FILE* f = NULL;
+    FILE *f = NULL;
     fopen_s(&f, "vioprot.inf", "r");
     if (f)
     {
@@ -1074,7 +1186,7 @@ int __cdecl main(int argc, char **argv)
     CStringA s;
     if (argc > 1)
     {
-       s = argv[1];
+        s = argv[1];
     }
     if (!s.CompareNoCase("restartservice"))
     {
