@@ -19,9 +19,9 @@
 #include <setupapi.h>
 #include <ShlObj.h>
 
-#define _ATL_CSTRING_EXPLICIT_CONSTRUCTORS      // some CString constructors will be explicit
-//#include <atlbase.h>
-//#include <atlcoll.h>
+#define _ATL_CSTRING_EXPLICIT_CONSTRUCTORS // some CString constructors will be explicit
+// #include <atlbase.h>
+// #include <atlcoll.h>
 #include <atlstr.h>
 #include <atlcoll.h>
 
