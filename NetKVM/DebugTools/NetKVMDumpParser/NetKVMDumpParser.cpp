@@ -76,6 +76,7 @@ CString ErrorToString(HRESULT hr)
     return s;
 }
 
+// clang-format off
 static const LPCSTR OpNames[] = {
     "PowerOff             ",
     "PowerOn              ",
@@ -103,6 +104,7 @@ static const LPCSTR OpNames[] = {
     "OidRequest           ",
     "PnpEvent             ",
 };
+// clang-format on
 
 static CString HistoryOperationName(ULONG op)
 {
