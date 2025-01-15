@@ -120,6 +120,7 @@ static NDIS_STATUS RSSSetReceiveHash(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 
 #endif
 
+// clang-format off
 /**********************************************************
 Structure defining how to support each OID
 ***********************************************************/
@@ -236,6 +237,7 @@ OIDENTRYPROC(OID_VENDOR_5,                      0,0,0, ohfQueryStat | ohfSet | o
 // last entry, do not remove
 OIDENTRY(0,                                     4,4,4, 0),
 };
+// clang-format on
 
 static NDIS_OID SupportedOids[] = {OID_GEN_SUPPORTED_LIST,
                                    OID_GEN_HARDWARE_STATUS,
@@ -288,6 +290,7 @@ static NDIS_OID SupportedOids[] = {OID_GEN_SUPPORTED_LIST,
 #endif
 };
 
+// clang-format off
 static const NDIS_GUID supportedGUIDs[] =
 {
     { NetKvm_LoggingGuid,    OID_VENDOR_1, NetKvm_Logging_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_READ | fNDIS_GUID_ALLOW_WRITE },
@@ -296,6 +299,7 @@ static const NDIS_GUID supportedGUIDs[] =
     { NetKvm_DiagResetGuid,  OID_VENDOR_4, NetKvm_DiagReset_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_WRITE | fNDIS_GUID_ALLOW_READ },
     { NetKvm_DeviceRssGuid,  OID_VENDOR_5, NetKvm_DeviceRss_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_WRITE | fNDIS_GUID_ALLOW_READ},
 };
+// clang-format on
 
 /**********************************************************
         For statistics header
