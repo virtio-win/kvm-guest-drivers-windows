@@ -30,12 +30,12 @@
 #define _CRT_SECURE_NO_WARNINGS
 
 #include "stdafx.h"
-extern "C" {
+extern "C"
+{
 #include "ndis56common.h"
 }
 
 BYTE buf[0x10000];
-
 
 bool ProcessFile(FILE *f, ULONG flags, ULONG result[4])
 {
@@ -48,14 +48,17 @@ bool ProcessFile(FILE *f, ULONG flags, ULONG result[4])
         char s[3];
         if (fread(s, 1, 1, f) == 1)
         {
-            if (isxdigit(s[0]) && fread(s+1, 1, 1, f) == 1 && isxdigit(s[1]))
+            if (isxdigit(s[0]) && fread(s + 1, 1, 1, f) == 1 && isxdigit(s[1]))
             {
                 ULONG val;
                 s[2] = 0;
                 sscanf(s, "%x", &val);
                 buf[offset++] = (UCHAR)val;
             }
-            else if (isalpha(s[0])) bContinue = FALSE;
+            else if (isalpha(s[0]))
+            {
+                bContinue = FALSE;
+            }
         }
     }
     bContinue = false;
@@ -151,14 +154,14 @@ struct
     { "udpv6-cs.txt",  pcrFixPHChecksum | pcrFixIPChecksum, { 0x3028038B, 0x302803AB, 0x30280BBB, 0x3028039B }  },
 };
 
-int _tmain(int argc, _TCHAR* argv[])
+int _tmain(int argc, _TCHAR *argv[])
 {
     bool bOK = true;
     int i;
     FILE *f;
-    for (i = 0; bOK && i < sizeof(Jobs)/sizeof(Jobs[0]); ++i)
+    for (i = 0; bOK && i < sizeof(Jobs) / sizeof(Jobs[0]); ++i)
     {
-        f = fopen(Jobs[i].file,"rt");
+        f = fopen(Jobs[i].file, "rt");
         if (f)
         {
             DPrintf(0, ("Processing file %s started", Jobs[i].file));
@@ -171,7 +174,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
     DPrintf(0, ("Unit test %s", bOK ? "PASSED" : "FAILED"));
 
-    //getchar();
+    // getchar();
 
     return 0;
 }

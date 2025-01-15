@@ -28,7 +28,6 @@
  * SUCH DAMAGE.
  */
 
-
 #include "resource.h"
 
-extern int ParseDumpFile(int argc, TCHAR* argv[]);
+extern int ParseDumpFile(int argc, TCHAR *argv[]);
