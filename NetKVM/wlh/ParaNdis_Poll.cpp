@@ -77,6 +77,7 @@ void ParaNdisPollSetAffinity(PARANDIS_ADAPTER *pContext)
 
     if (needUpdate)
     {
+        // clang-format off
         NDIS_HANDLE hwo = NdisAllocateIoWorkItem(pContext->MiniportHandle);
         if (hwo)
         {
@@ -89,6 +90,7 @@ void ParaNdisPollSetAffinity(PARANDIS_ADAPTER *pContext)
                 },
                 pContext);
         }
+        // clang-format on
     }
 }
 
