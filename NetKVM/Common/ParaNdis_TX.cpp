@@ -6,12 +6,13 @@
 #include "ParaNdis_TX.tmh"
 #endif
 
-CNBL::CNBL(PNET_BUFFER_LIST NBL, PPARANDIS_ADAPTER Context, CParaNdisTX &ParentTXPath, CAllocationHelper<CNBL> *NBLAllocator, CAllocationHelper<CNB> *NBAllocator)
-    : m_NBL(NBL)
-    , m_Context(Context)
-    , m_ParentTXPath(&ParentTXPath)
-    , CNdisAllocatableViaHelper<CNBL>(NBLAllocator)
-    , m_NBAllocator(NBAllocator)
+CNBL::CNBL(PNET_BUFFER_LIST NBL,
+           PPARANDIS_ADAPTER Context,
+           CParaNdisTX &ParentTXPath,
+           CAllocationHelper<CNBL> *NBLAllocator,
+           CAllocationHelper<CNB> *NBAllocator)
+    : m_NBL(NBL), m_Context(Context), m_ParentTXPath(&ParentTXPath), CNdisAllocatableViaHelper<CNBL>(NBLAllocator),
+      m_NBAllocator(NBAllocator)
 {
     m_NBL->Scratch = this;
     m_LsoInfo.Value = NET_BUFFER_LIST_INFO(m_NBL, TcpLargeSendNetBufferListInfo);
@@ -26,17 +27,17 @@ CNBL::~CNBL()
 {
     CDpcIrqlRaiser OnDpc;
 
-    m_Buffers.ForEachDetached([this](CNB *NB)
-                              { CNB::Destroy(NB); });
+    m_Buffers.ForEachDetached([this](CNB *NB) { CNB::Destroy(NB); });
 
-    if(m_NBL)
+    if (m_NBL)
     {
         auto NBL = DetachInternalObject();
         NETKVM_ASSERT(NET_BUFFER_LIST_NEXT_NBL(NBL) == nullptr);
         if (CallCompletionForNBL(m_Context, NBL))
         {
             m_ParentTXPath->CompleteOutstandingNBLChain(NBL);
-        } else
+        }
+        else
         {
             m_ParentTXPath->CompleteOutstandingInternalNBL(NBL);
         }
@@ -46,8 +47,8 @@ CNBL::~CNBL()
 bool CNBL::ParsePriority()
 {
     NDIS_NET_BUFFER_LIST_8021Q_INFO priorityInfo;
-    priorityInfo.Value = m_Context->ulPriorityVlanSetting ?
-        NET_BUFFER_LIST_INFO(m_NBL, Ieee8021QNetBufferListInfo) : nullptr;
+    priorityInfo.Value = m_Context->ulPriorityVlanSetting ? NET_BUFFER_LIST_INFO(m_NBL, Ieee8021QNetBufferListInfo)
+                                                          : nullptr;
 
     if (!priorityInfo.TagHeader.VlanId)
     {
@@ -63,10 +64,14 @@ bool CNBL::ParsePriority()
     {
         // ignore priority, if configured
         if (!IsPrioritySupported(m_Context))
+        {
             priorityInfo.TagHeader.UserPriority = 0;
+        }
         // ignore VlanId, if specified
         if (!IsVlanSupported(m_Context))
+        {
             priorityInfo.TagHeader.VlanId = 0;
+        }
         if (priorityInfo.Value)
         {
             m_TCI = static_cast<UINT16>(priorityInfo.TagHeader.UserPriority << 13 | priorityInfo.TagHeader.VlanId);
@@ -101,7 +106,7 @@ bool CNBL::ParseBuffers()
     {
         CNB *NBHolder = new (pNBAllocator) CNB(NB, this, m_Context, pNBAllocator);
         pNBAllocator = m_NBAllocator;
-        if(!NBHolder || !NBHolder->IsValid())
+        if (!NBHolder || !NBHolder->IsValid())
         {
             return false;
         }
@@ -109,7 +114,7 @@ bool CNBL::ParseBuffers()
         m_MaxDataLength = max(m_MaxDataLength, NBHolder->GetDataLength());
     }
 
-    if(m_MaxDataLength == 0)
+    if (m_MaxDataLength == 0)
     {
         DPrintf(0, "[%s] - Empty NBL (%p) dropped\n", __FUNCTION__, m_NBL);
         return false;
@@ -138,9 +143,7 @@ bool CNBL::ParseLSO()
         return false;
     }
 
-    if (NeedsLSO() &&
-        (!m_LsoInfo.LsoV2Transmit.MSS ||
-         !m_LsoInfo.LsoV2Transmit.TcpHeaderOffset))
+    if (NeedsLSO() && (!m_LsoInfo.LsoV2Transmit.MSS || !m_LsoInfo.LsoV2Transmit.TcpHeaderOffset))
     {
         return false;
     }
@@ -175,13 +178,21 @@ bool CNBL::ParseLSO()
 bool CNBL::ParseUSO()
 {
     if (m_MaxDataLength > PARANDIS_MAX_USO_SIZE + (ULONGLONG)m_UsoInfo.Transmit.UdpHeaderOffset + sizeof(UDPHeader))
+    {
         return false;
+    }
     if (!m_UsoInfo.Transmit.MSS || !m_UsoInfo.Transmit.UdpHeaderOffset)
+    {
         return false;
+    }
     if (m_UsoInfo.Transmit.IPVersion == NDIS_UDP_SEGMENTATION_OFFLOAD_IPV4 && !m_Context->Offload.flags.fUsov4)
+    {
         return false;
+    }
     if (m_UsoInfo.Transmit.IPVersion == NDIS_UDP_SEGMENTATION_OFFLOAD_IPV6 && !m_Context->Offload.flags.fUsov6)
+    {
         return false;
+    }
     return true;
 }
 #else
@@ -192,15 +203,14 @@ bool CNBL::ParseUSO()
 #endif
 
 template <typename TClassPred, typename TOffloadPred, typename TSupportedPred>
-bool CNBL::ParseCSO(TClassPred IsClass, TOffloadPred IsOffload,
-                    TSupportedPred IsSupported, LPSTR OffloadName)
+bool CNBL::ParseCSO(TClassPred IsClass, TOffloadPred IsOffload, TSupportedPred IsSupported, LPSTR OffloadName)
 {
     NETKVM_ASSERT(IsClass());
     UNREFERENCED_PARAMETER(IsClass);
 
     if (IsOffload())
     {
-        if(!IsSupported())
+        if (!IsSupported())
         {
             DPrintf(0, "[%s] %s request when it is not supported\n", __FUNCTION__, OffloadName);
 #if FAIL_UNEXPECTED
@@ -216,7 +226,7 @@ bool CNBL::ParseOffloads()
 {
     if (IsLSO())
     {
-        if(!ParseLSO())
+        if (!ParseLSO())
         {
             return false;
         }
@@ -230,42 +240,52 @@ bool CNBL::ParseOffloads()
     }
     else if (IsIP4CSO())
     {
-        if(!ParseCSO([this] () -> bool { return IsIP4CSO(); },
-                     [this] () -> bool { return m_CsoInfo.Transmit.TcpChecksum; },
-                     [this] () -> bool { return m_Context->Offload.flags.fTxTCPChecksum && m_Context->bOffloadv4Enabled; },
-                     "TCP4 CSO"))
+        if (!ParseCSO([this]() -> bool { return IsIP4CSO(); },
+                      [this]() -> bool { return m_CsoInfo.Transmit.TcpChecksum; },
+                      [this]() -> bool {
+                          return m_Context->Offload.flags.fTxTCPChecksum && m_Context->bOffloadv4Enabled;
+                      },
+                      "TCP4 CSO"))
         {
             return false;
         }
-        else if(!ParseCSO([this] () -> bool { return IsIP4CSO(); },
-                          [this] () -> bool { return m_CsoInfo.Transmit.UdpChecksum; },
-                          [this] () -> bool { return m_Context->Offload.flags.fTxUDPChecksum && m_Context->bOffloadv4Enabled; },
-                          "UDP4 CSO"))
+        else if (!ParseCSO([this]() -> bool { return IsIP4CSO(); },
+                           [this]() -> bool { return m_CsoInfo.Transmit.UdpChecksum; },
+                           [this]() -> bool {
+                               return m_Context->Offload.flags.fTxUDPChecksum && m_Context->bOffloadv4Enabled;
+                           },
+                           "UDP4 CSO"))
         {
             return false;
         }
 
-        if(!ParseCSO([this] () -> bool { return IsIP4CSO(); },
-                     [this] () -> bool { return m_CsoInfo.Transmit.IpHeaderChecksum; },
-                     [this] () -> bool { return m_Context->Offload.flags.fTxIPChecksum && m_Context->bOffloadv4Enabled; },
-                     "IP4 CSO"))
+        if (!ParseCSO([this]() -> bool { return IsIP4CSO(); },
+                      [this]() -> bool { return m_CsoInfo.Transmit.IpHeaderChecksum; },
+                      [this]() -> bool {
+                          return m_Context->Offload.flags.fTxIPChecksum && m_Context->bOffloadv4Enabled;
+                      },
+                      "IP4 CSO"))
         {
             return false;
         }
     }
     else if (IsIP6CSO())
     {
-        if(!ParseCSO([this] () -> bool { return IsIP6CSO(); },
-                     [this] () -> bool { return m_CsoInfo.Transmit.TcpChecksum; },
-                     [this] () -> bool { return m_Context->Offload.flags.fTxTCPv6Checksum && m_Context->bOffloadv6Enabled; },
-                     "TCP6 CSO"))
+        if (!ParseCSO([this]() -> bool { return IsIP6CSO(); },
+                      [this]() -> bool { return m_CsoInfo.Transmit.TcpChecksum; },
+                      [this]() -> bool {
+                          return m_Context->Offload.flags.fTxTCPv6Checksum && m_Context->bOffloadv6Enabled;
+                      },
+                      "TCP6 CSO"))
         {
             return false;
         }
-        else if(!ParseCSO([this] () -> bool { return IsIP6CSO(); },
-                          [this] () -> bool { return m_CsoInfo.Transmit.UdpChecksum; },
-                          [this] () -> bool { return m_Context->Offload.flags.fTxUDPv6Checksum && m_Context->bOffloadv6Enabled; },
-                          "UDP6 CSO"))
+        else if (!ParseCSO([this]() -> bool { return IsIP6CSO(); },
+                           [this]() -> bool { return m_CsoInfo.Transmit.UdpChecksum; },
+                           [this]() -> bool {
+                               return m_Context->Offload.flags.fTxUDPv6Checksum && m_Context->bOffloadv6Enabled;
+                           },
+                           "UDP6 CSO"))
         {
             return false;
         }
@@ -280,14 +300,13 @@ void CNBL::StartMapping()
 
     AddRef();
 
-    m_Buffers.ForEach([this](CNB *NB)
-                              {
-                                  if (!NB->ScheduleBuildSGListForTx())
-                                  {
-                                      m_HaveFailedMappings = true;
-                                      NB->MappingDone(nullptr);
-                                  }
-                              });
+    m_Buffers.ForEach([this](CNB *NB) {
+        if (!NB->ScheduleBuildSGListForTx())
+        {
+            m_HaveFailedMappings = true;
+            NB->MappingDone(nullptr);
+        }
+    });
 
     Release();
 }
@@ -301,7 +320,7 @@ CParaNdisTX::~CParaNdisTX()
 {
 
     TPassiveSpinLocker LockedContext(m_Lock);
-    CNBL* NBL = nullptr;
+    CNBL *NBL = nullptr;
 
     NBL = m_SendQueue.Dequeue();
 
@@ -341,13 +360,14 @@ bool CParaNdisTX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
     }
 
     return m_VirtQueue.Create(DeviceQueueIndex,
-        &m_Context->IODevice,
-        m_Context->MiniportHandle,
-        m_Context->maxFreeTxDescriptors,
-        m_Context->nVirtioHeaderSize,
-        m_Context) &&
-        m_SendQueue.Create(Context, IsPowerOfTwo(m_Context->maxFreeTxDescriptors) ?
-            8 * m_Context->maxFreeTxDescriptors : PARANDIS_TX_LOCK_FREE_QUEUE_DEFAULT_SIZE);
+                              &m_Context->IODevice,
+                              m_Context->MiniportHandle,
+                              m_Context->maxFreeTxDescriptors,
+                              m_Context->nVirtioHeaderSize,
+                              m_Context) &&
+           m_SendQueue.Create(Context,
+                              IsPowerOfTwo(m_Context->maxFreeTxDescriptors) ? 8 * m_Context->maxFreeTxDescriptors
+                                                                            : PARANDIS_TX_LOCK_FREE_QUEUE_DEFAULT_SIZE);
 }
 
 void CParaNdisTX::CompleteOutstandingNBLChain(PNET_BUFFER_LIST NBL, ULONG Flags)
@@ -391,7 +411,7 @@ void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
         return;
     }
 
-    for(auto currNBL = NBL; currNBL != nullptr; currNBL = nextNBL)
+    for (auto currNBL = NBL; currNBL != nullptr; currNBL = nextNBL)
     {
         nextNBL = NET_BUFFER_LIST_NEXT_NBL(currNBL);
         NET_BUFFER_LIST_NEXT_NBL(currNBL) = nullptr;
@@ -413,8 +433,7 @@ void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
             continue;
         }
 
-        if(NBLHolder->Prepare() &&
-           ParaNdis_IsTxRxPossible(m_Context))
+        if (NBLHolder->Prepare() && ParaNdis_IsTxRxPossible(m_Context))
         {
             NBLHolder->StartMapping();
         }
@@ -472,8 +491,9 @@ bool CParaNdisTX::AllocateExtraPages()
 
 void CParaNdisTX::FreeExtraPages()
 {
-    m_ExtraPages.ForEachDetached([this](CNdisSharedMemory* e)
-                                     { CNdisSharedMemory::Destroy(e, m_Context->MiniportHandle); });
+    m_ExtraPages.ForEachDetached([this](CNdisSharedMemory *e) {
+        CNdisSharedMemory::Destroy(e, m_Context->MiniportHandle);
+    });
 }
 
 bool CParaNdisTX::BorrowPages(CExtendedNBStorage *extraNBStorage, ULONG NeedPages)
@@ -527,10 +547,7 @@ bool CNBL::IsSendDone()
 
 PNET_BUFFER_LIST CNBL::DetachInternalObject()
 {
-    m_Buffers.ForEach([this](CNB *NB)
-    {
-        NB->ReleaseResources();
-    });
+    m_Buffers.ForEach([this](CNB *NB) { NB->ReleaseResources(); });
 
     // do it for both LsoV1 and LsoV2
     if (IsLSO())
@@ -538,7 +555,7 @@ PNET_BUFFER_LIST CNBL::DetachInternalObject()
         m_LsoInfo.LsoV1TransmitComplete.TcpPayload = m_TransferSize;
     }
 
-    //Flush changes made in LSO structures
+    // Flush changes made in LSO structures
     NET_BUFFER_LIST_INFO(m_NBL, TcpLargeSendNetBufferListInfo) = m_LsoInfo.Value;
 
     auto Res = m_NBL;
@@ -547,7 +564,7 @@ PNET_BUFFER_LIST CNBL::DetachInternalObject()
     return Res;
 }
 
-PNET_BUFFER_LIST CParaNdisTX::ProcessWaitingList(CRawCNBLList& completed)
+PNET_BUFFER_LIST CParaNdisTX::ProcessWaitingList(CRawCNBLList &completed)
 {
     PNET_BUFFER_LIST CompletedNBLs = nullptr;
 
@@ -555,22 +572,15 @@ PNET_BUFFER_LIST CParaNdisTX::ProcessWaitingList(CRawCNBLList& completed)
     {
         TDPCSpinLocker LockedContext(m_WaitingListLock);
 
-        completed.ForEachDetachedIf([](CNBL* NBL) { return !NBL->IsSendDone(); },
-            [&](CNBL* NBL)
-        {
-            m_WaitingList.PushBack(NBL);
-        });
+        completed.ForEachDetachedIf([](CNBL *NBL) { return !NBL->IsSendDone(); },
+                                    [&](CNBL *NBL) { m_WaitingList.PushBack(NBL); });
 
-        m_WaitingList.ForEachDetachedIf([](CNBL* NBL) { return NBL->IsSendDone(); },
-            [&](CNBL* NBL)
-        {
-            completed.PushBack(NBL);
-        });
+        m_WaitingList.ForEachDetachedIf([](CNBL *NBL) { return NBL->IsSendDone(); },
+                                        [&](CNBL *NBL) { completed.PushBack(NBL); });
     }
     // end of locked part under waiting list lock
 
-    completed.ForEachDetached([&](CNBL* NBL)
-    {
+    completed.ForEachDetached([&](CNBL *NBL) {
         NBL->SetStatus(NDIS_STATUS_SUCCESS);
         auto RawNBL = NBL->DetachInternalObject();
         NBL->Release();
@@ -590,7 +600,7 @@ PNET_BUFFER_LIST CParaNdisTX::ProcessWaitingList(CRawCNBLList& completed)
 
 void CParaNdisTX::Notify(SMNotifications message)
 {
-    CRawCNBList  nbToFree;
+    CRawCNBList nbToFree;
     CRawCNBLList completedNBLs;
 
     __super::Notify(message);
@@ -604,8 +614,7 @@ void CParaNdisTX::Notify(SMNotifications message)
     CDpcIrqlRaiser OnDpc;
 
     // pause follows after we return all the NBLs
-    DoWithTXLock([&]()
-    {
+    DoWithTXLock([&]() {
         //
         m_VirtQueue.ProcessTXCompletions(nbToFree, true);
 
@@ -636,25 +645,23 @@ void CParaNdisTX::CancelNBLs(PVOID CancelId)
     DPrintf(0, "[%s] not supported\n", __FUNCTION__);
 }
 
-//called with TX lock held
+// called with TX lock held
 bool CParaNdisTX::RestartQueue()
 {
-    auto res = ParaNdis_SynchronizeWithInterrupt(m_Context,
-                                                 m_messageIndex,
-                                                 RestartQueueSynchronously,
-                                                 this) ? true : false;
+    auto res = ParaNdis_SynchronizeWithInterrupt(m_Context, m_messageIndex, RestartQueueSynchronously, this) ? true
+                                                                                                             : false;
     return res;
 }
 
-//called with TX lock held
-//returns queue restart status
-bool CParaNdisTX::SendMapped(bool IsInterrupt, CRawCNBLList& toWaitingList)
+// called with TX lock held
+// returns queue restart status
+bool CParaNdisTX::SendMapped(bool IsInterrupt, CRawCNBLList &toWaitingList)
 {
     bool SentOutSomeBuffers = false;
     bool bRestartStatus = false;
     bool HaveBuffers = true;
 
-    if(ParaNdis_IsTxRxPossible(m_Context))
+    if (ParaNdis_IsTxRxPossible(m_Context))
     {
 
         while (HaveBuffers && HaveMappedNBLs())
@@ -668,45 +675,45 @@ bool CParaNdisTX::SendMapped(bool IsInterrupt, CRawCNBLList& toWaitingList)
 
                 switch (result)
                 {
-                case SubmitTxPacketResult::SUBMIT_NO_PLACE_IN_QUEUE:
-                    NBLHolder->PushMappedNB(NBHolder);
-                    HaveBuffers = false;
-                    // break the loop, allow to kick and free some buffers
-                    break;
+                    case SubmitTxPacketResult::SUBMIT_NO_PLACE_IN_QUEUE:
+                        NBLHolder->PushMappedNB(NBHolder);
+                        HaveBuffers = false;
+                        // break the loop, allow to kick and free some buffers
+                        break;
 
-                case SubmitTxPacketResult::SUBMIT_FAILURE:
-                    __fallthrough;
-                case SubmitTxPacketResult::SUBMIT_SUCCESS:
-                    __fallthrough;
-                case SubmitTxPacketResult::SUBMIT_PACKET_TOO_LARGE:
-                    // if this NBL finished?
-                    if (!NBLHolder->HaveMappedBuffers())
-                    {
-                        /* We use PeekMappedNBL method to get the current NBL
-                         * that should be processed from the queue, when we finish
-                         * sending all it's NBs, we should pop it from the queue.
-                         */
-                        PopMappedNBL();
-                        toWaitingList.Push(NBLHolder);
-                    }
-                    else
-                    {
-                        // no, keep it in the queue
-                    }
+                    case SubmitTxPacketResult::SUBMIT_FAILURE:
+                        __fallthrough;
+                    case SubmitTxPacketResult::SUBMIT_SUCCESS:
+                        __fallthrough;
+                    case SubmitTxPacketResult::SUBMIT_PACKET_TOO_LARGE:
+                        // if this NBL finished?
+                        if (!NBLHolder->HaveMappedBuffers())
+                        {
+                            /* We use PeekMappedNBL method to get the current NBL
+                             * that should be processed from the queue, when we finish
+                             * sending all it's NBs, we should pop it from the queue.
+                             */
+                            PopMappedNBL();
+                            toWaitingList.Push(NBLHolder);
+                        }
+                        else
+                        {
+                            // no, keep it in the queue
+                        }
 
-                    if (result == SubmitTxPacketResult::SUBMIT_SUCCESS)
-                    {
-                        SentOutSomeBuffers = true;
-                    }
-                    else
-                    {
-                        CNB::Destroy(NBHolder);
-                        NBLHolder->NBComplete();
-                    }
-                    break;
-                default:
-                    NETKVM_ASSERT(false);
-                    break;
+                        if (result == SubmitTxPacketResult::SUBMIT_SUCCESS)
+                        {
+                            SentOutSomeBuffers = true;
+                        }
+                        else
+                        {
+                            CNB::Destroy(NBHolder);
+                            NBLHolder->NBComplete();
+                        }
+                        break;
+                    default:
+                        NETKVM_ASSERT(false);
+                        break;
                 }
             }
             else
@@ -729,20 +736,16 @@ bool CParaNdisTX::SendMapped(bool IsInterrupt, CRawCNBLList& toWaitingList)
     return bRestartStatus;
 }
 
-void CParaNdisTX::PostProcessPendingTask(
-    CRawCNBList& nbToFree,
-    CRawCNBLList& completedNBLs)
+void CParaNdisTX::PostProcessPendingTask(CRawCNBList &nbToFree, CRawCNBLList &completedNBLs)
 {
     PNET_BUFFER_LIST pNBLReturnNow = nullptr;
     if (!nbToFree.IsEmpty() || !completedNBLs.IsEmpty())
     {
-        nbToFree.ForEachDetached([](CNB *NB)
-        {
+        nbToFree.ForEachDetached([](CNB *NB) {
             CNBL *NBL = NB->GetParentNBL();
             CNB::Destroy(NB);
             NBL->NBComplete();
-        }
-        );
+        });
 
         pNBLReturnNow = ProcessWaitingList(completedNBLs);
         if (pNBLReturnNow)
@@ -760,19 +763,18 @@ void CParaNdisTX::PostProcessPendingTask(
 ULONG CParaNdisTX::IsStuck()
 {
     ULONG ret = 0;
-    DoWithTXLock([&]()
-        {
-            TDPCSpinLocker LockedContext(m_WaitingListLock);
-            ret |= m_WaitingList.IsEmpty() ? 0 : 1;
-            ret |= m_SendQueue.IsEmpty() ? 0 : 2;
-        });
+    DoWithTXLock([&]() {
+        TDPCSpinLocker LockedContext(m_WaitingListLock);
+        ret |= m_WaitingList.IsEmpty() ? 0 : 1;
+        ret |= m_SendQueue.IsEmpty() ? 0 : 2;
+    });
     return ret;
 }
 
 void CParaNdisTX::CheckStuckPackets(ULONG GraceTimeMillies)
 {
     // skip if less than N sec ago TX was serviced
-    ULONGLONG& timeStamp = m_AuditState.LastAudit;
+    ULONGLONG &timeStamp = m_AuditState.LastAudit;
     ULONGLONG diff, threshold = (ULONGLONG)GraceTimeMillies * 1000L * 10L;
 
     UpdateTimestamp(timeStamp);
@@ -799,7 +801,7 @@ bool CParaNdisTX::DoPendingTasks(CNBL *nblHolder)
 {
     bool bRestartQueueStatus = false;
     bool bFromDpc = nblHolder == nullptr;
-    CRawCNBList  nbToFree;
+    CRawCNBList nbToFree;
     CRawCNBLList completedNBLs;
 
     if (bFromDpc)
@@ -807,8 +809,7 @@ bool CParaNdisTX::DoPendingTasks(CNBL *nblHolder)
         m_DpcWaiting.AddRef();
     }
 
-    DoWithTXLock([&]()
-    {
+    DoWithTXLock([&]() {
         m_VirtQueue.ProcessTXCompletions(nbToFree);
 
         if (bFromDpc)
@@ -828,7 +829,8 @@ bool CParaNdisTX::DoPendingTasks(CNBL *nblHolder)
                 bRestartQueueStatus = SendMapped(true, completedNBLs);
             }
             UpdateTimestamp(m_AuditState.LastTxProcess);
-        } else
+        }
+        else
         {
             // the call initiated by Send(), we can give up
             // and let pending DPC do the job instead of wait
@@ -850,7 +852,7 @@ CNB::~CNB()
 {
     NETKVM_ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
 
-    if(m_SGL != nullptr)
+    if (m_SGL != nullptr)
     {
         NdisMFreeNetBufferSGList(m_Context->DmaHandle, m_SGL, m_NB);
     }
@@ -874,8 +876,8 @@ bool CNB::ScheduleBuildSGListForTx()
 {
     NETKVM_ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
 
-    return NdisMAllocateNetBufferSGList(m_Context->DmaHandle, m_NB, this,
-                                        NDIS_SG_LIST_WRITE_TO_DEVICE, nullptr, 0) == NDIS_STATUS_SUCCESS;
+    return NdisMAllocateNetBufferSGList(m_Context->DmaHandle, m_NB, this, NDIS_SG_LIST_WRITE_TO_DEVICE, nullptr, 0) ==
+           NDIS_STATUS_SUCCESS;
 }
 
 void CNB::PopulateIPLength(IPHeader *IpHeader, USHORT IpLength) const
@@ -902,23 +904,25 @@ void CNB::PopulateIPLength(IPHeader *IpHeader, USHORT IpLength) const
 
 void CNB::SetupLSO(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloadLength) const
 {
-    PopulateIPLength(reinterpret_cast<IPHeader*>(IpHeader), static_cast<USHORT>(EthPayloadLength));
+    PopulateIPLength(reinterpret_cast<IPHeader *>(IpHeader), static_cast<USHORT>(EthPayloadLength));
 
     tTcpIpPacketParsingResult packetReview;
-    packetReview = ParaNdis_CheckSumVerifyFlat(reinterpret_cast<IPv4Header*>(IpHeader), EthPayloadLength,
-                                               tPacketOffloadRequest::pcrIpChecksum | tPacketOffloadRequest::pcrFixIPChecksum |
-                                               tPacketOffloadRequest::pcrTcpChecksum | tPacketOffloadRequest::pcrFixPHChecksum,
+    packetReview = ParaNdis_CheckSumVerifyFlat(reinterpret_cast<IPv4Header *>(IpHeader),
+                                               EthPayloadLength,
+                                               tPacketOffloadRequest::pcrIpChecksum | tPacketOffloadRequest::pcrFixIPChecksum | tPacketOffloadRequest::pcrTcpChecksum |
+                                                                                                                                                   tPacketOffloadRequest::pcrFixPHChecksum,
                                                FALSE,
                                                __FUNCTION__);
 
     if (packetReview.xxpCheckSum == ppResult::ppresPCSOK || packetReview.fixedXxpCS)
     {
         auto IpHeaderOffset = m_Context->Offload.ipHeaderOffset;
-        auto VHeader = static_cast<virtio_net_hdr*>(VirtioHeader);
+        auto VHeader = static_cast<virtio_net_hdr *>(VirtioHeader);
         auto PriorityHdrLen = (m_ParentNBL->TCI() != 0) ? ETH_PRIORITY_HEADER_SIZE : 0;
 
         VHeader->flags = VIRTIO_NET_HDR_F_NEEDS_CSUM;
-        VHeader->gso_type = packetReview.ipStatus == ppResult::ppresIPV4 ? VIRTIO_NET_HDR_GSO_TCPV4 : VIRTIO_NET_HDR_GSO_TCPV6;
+        VHeader->gso_type = packetReview.ipStatus == ppResult::ppresIPV4 ? VIRTIO_NET_HDR_GSO_TCPV4
+                                                                         : VIRTIO_NET_HDR_GSO_TCPV6;
         VHeader->hdr_len = (USHORT)(packetReview.XxpIpHeaderSize + IpHeaderOffset + PriorityHdrLen);
         VHeader->gso_size = (USHORT)m_ParentNBL->MSS();
         VHeader->csum_start = (USHORT)(m_ParentNBL->TCPHeaderOffset() + PriorityHdrLen);
@@ -928,19 +932,20 @@ void CNB::SetupLSO(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloa
 
 void CNB::SetupUSO(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloadLength) const
 {
-    PopulateIPLength(reinterpret_cast<IPHeader*>(IpHeader), static_cast<USHORT>(EthPayloadLength));
+    PopulateIPLength(reinterpret_cast<IPHeader *>(IpHeader), static_cast<USHORT>(EthPayloadLength));
 
     tTcpIpPacketParsingResult packetReview;
-    packetReview = ParaNdis_CheckSumVerifyFlat(reinterpret_cast<IPv4Header*>(IpHeader), EthPayloadLength,
-        tPacketOffloadRequest::pcrIpChecksum | tPacketOffloadRequest::pcrFixIPChecksum | 
-        tPacketOffloadRequest::pcrUdpChecksum | tPacketOffloadRequest::pcrFixPHChecksum,
-        FALSE,
-        __FUNCTION__);
+    packetReview = ParaNdis_CheckSumVerifyFlat(reinterpret_cast<IPv4Header *>(IpHeader),
+                                               EthPayloadLength,
+                                               tPacketOffloadRequest::pcrIpChecksum | tPacketOffloadRequest::pcrFixIPChecksum | tPacketOffloadRequest::pcrUdpChecksum |
+                                                                                                                                                   tPacketOffloadRequest::pcrFixPHChecksum,
+                                               FALSE,
+                                               __FUNCTION__);
 
     if (packetReview.xxpCheckSum == ppResult::ppresPCSOK || packetReview.fixedXxpCS)
     {
         auto IpHeaderOffset = m_Context->Offload.ipHeaderOffset;
-        auto VHeader = static_cast<virtio_net_hdr*>(VirtioHeader);
+        auto VHeader = static_cast<virtio_net_hdr *>(VirtioHeader);
         auto PriorityHdrLen = (m_ParentNBL->TCI() != 0) ? ETH_PRIORITY_HEADER_SIZE : 0;
 
         VHeader->flags = VIRTIO_NET_HDR_F_NEEDS_CSUM;
@@ -949,7 +954,12 @@ void CNB::SetupUSO(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloa
         VHeader->gso_size = (USHORT)m_ParentNBL->UsoMSS();
         VHeader->csum_start = (USHORT)(m_ParentNBL->UsoHeaderOffset() + PriorityHdrLen);
         VHeader->csum_offset = UDP_CHECKSUM_OFFSET;
-        DPrintf(0, "[%s] mss %d, hdr %d, total %d!\n", __FUNCTION__, VHeader->gso_size, VHeader->hdr_len, GetDataLength());
+        DPrintf(0,
+                "[%s] mss %d, hdr %d, total %d!\n",
+                __FUNCTION__,
+                VHeader->gso_size,
+                VHeader->hdr_len,
+                GetDataLength());
     }
 }
 
@@ -957,7 +967,9 @@ USHORT CNB::QueryL4HeaderOffset(PVOID PacketData, ULONG IpHeaderOffset) const
 {
     USHORT Res;
     auto ppr = ParaNdis_ReviewIPPacket(RtlOffsetToPointer(PacketData, IpHeaderOffset),
-                                       GetDataLength(), FALSE, __FUNCTION__);
+                                       GetDataLength(),
+                                       FALSE,
+                                       __FUNCTION__);
     if (ppr.ipStatus != ppResult::ppresNotIP)
     {
         Res = static_cast<USHORT>(IpHeaderOffset + ppr.ipHeaderSize);
@@ -984,7 +996,8 @@ void CNB::DoIPHdrCSO(PVOID IpHeader, ULONG EthPayloadLength) const
     ParaNdis_CheckSumVerifyFlat(IpHeader,
                                 EthPayloadLength,
                                 tPacketOffloadRequest::pcrIpChecksum | tPacketOffloadRequest::pcrFixIPChecksum,
-                                FALSE, __FUNCTION__);
+                                FALSE,
+                                __FUNCTION__);
 }
 
 NBMappingStatus CNB::FillDescriptorSGList(CTXDescriptor &Descriptor, ULONG ParsedHeadersLength)
@@ -1080,7 +1093,10 @@ void CNB::BuildPriorityHeader(PETH_HEADER EthHeader, PVLAN_HEADER VlanHeader) co
     }
 }
 
-void CNB::PrepareOffloads(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloadLength, ULONG L4HeaderOffset) const
+void CNB::PrepareOffloads(virtio_net_hdr *VirtioHeader,
+                          PVOID IpHeader,
+                          ULONG EthPayloadLength,
+                          ULONG L4HeaderOffset) const
 {
     *VirtioHeader = {};
 
@@ -1105,9 +1121,13 @@ void CNB::PrepareOffloads(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG Et
 
 void CNB::Report(int level, bool Success)
 {
-    DPrintf(level, "[%s]:%s packet of %d:%d bytes:frag (NBL of %d)\n", __FUNCTION__,
-        Success ? "OK" : "Failed",
-        GetDataLength(), GetSGLLength(), m_ParentNBL->NumberOfBuffers());
+    DPrintf(level,
+            "[%s]:%s packet of %d:%d bytes:frag (NBL of %d)\n",
+            __FUNCTION__,
+            Success ? "OK" : "Failed",
+            GetDataLength(),
+            GetSGLLength(),
+            m_ParentNBL->NumberOfBuffers());
     if (!Success)
     {
         m_Context->extraStatistics.droppedTxPackets++;
@@ -1149,9 +1169,7 @@ ULONG CNB::Copy(PVOID Dst, ULONG Length) const
 
     Length = min(Length, NET_BUFFER_DATA_LENGTH(m_NB));
 
-    for (PMDL CurrMDL = NET_BUFFER_CURRENT_MDL(m_NB);
-         CurrMDL != nullptr && Copied < Length;
-         CurrMDL = CurrMDL->Next)
+    for (PMDL CurrMDL = NET_BUFFER_CURRENT_MDL(m_NB); CurrMDL != nullptr && Copied < Length; CurrMDL = CurrMDL->Next)
     {
         ULONG CurrLen;
         PVOID CurrAddr = nullptr;
@@ -1169,9 +1187,7 @@ ULONG CNB::Copy(PVOID Dst, ULONG Length) const
 
         CurrLen = min(CurrLen - CurrOffset, Length - Copied);
 
-        NdisMoveMemory(RtlOffsetToPointer(Dst, Copied),
-                       RtlOffsetToPointer(CurrAddr, CurrOffset),
-                       CurrLen);
+        NdisMoveMemory(RtlOffsetToPointer(Dst, Copied), RtlOffsetToPointer(CurrAddr, CurrOffset), CurrLen);
 
         Copied += CurrLen;
         CurrOffset = 0;
@@ -1197,11 +1213,12 @@ ULONG CNB::Copy(PVOID Dst, ULONG Length) const
  *       'Offset' is updated to reflect the position within the current MDL after the copy
  *       operation. If the end of the MDL is reached, 'Offset' will be set to zero to indicate
  *       the start of the next MDL in the chain.
-*/
+ */
 ULONG CNB::CopyFromMdlChain(PVOID Dst, ULONG Length, PMDL &Source, ULONG &Offset)
 {
     /*Skip over MDLs until we reach the one that contains the offset we're interested in*/
-    while (Source && MmGetMdlByteCount(Source) < Offset) {
+    while (Source && MmGetMdlByteCount(Source) < Offset)
+    {
         Offset -= MmGetMdlByteCount(Source);
         Source = Source->Next;
     }
@@ -1221,9 +1238,7 @@ ULONG CNB::CopyFromMdlChain(PVOID Dst, ULONG Length, PMDL &Source, ULONG &Offset
         }
 
         ULONG toCopyNow = min(CurrLen - Offset, Length - Copied);
-        NdisMoveMemory(RtlOffsetToPointer(Dst, Copied),
-            RtlOffsetToPointer(CurrAddr, Offset),
-            toCopyNow);
+        NdisMoveMemory(RtlOffsetToPointer(Dst, Copied), RtlOffsetToPointer(CurrAddr, Offset), toCopyNow);
 
         if (Length - Copied < CurrLen - Offset)
         {
@@ -1260,7 +1275,7 @@ NBMappingStatus CNB::AllocateAndFillCopySGL(ULONG ParsedHeadersLength)
     ULONG DataLength = GetDataLength() - ParsedHeadersLength;
     ULONG Pages = (DataLength + PAGE_SIZE - 1) / PAGE_SIZE;
 
-    m_ExtraNBStorage = (CExtendedNBStorage*)ParaNdis_AllocateMemory(m_Context, sizeof(CExtendedNBStorage));
+    m_ExtraNBStorage = (CExtendedNBStorage *)ParaNdis_AllocateMemory(m_Context, sizeof(CExtendedNBStorage));
 
     if (m_ExtraNBStorage == nullptr)
     {

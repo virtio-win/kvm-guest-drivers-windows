@@ -2,8 +2,9 @@
 #include "ParaNdis-VirtQueue.h"
 #include "ParaNdis-AbstractPath.h"
 
-class CParaNdisRX : public CParaNdisTemplatePath<CVirtQueue>, public CNdisAllocatable < CParaNdisRX, 'XRHR' > {
-public:
+class CParaNdisRX : public CParaNdisTemplatePath<CVirtQueue>, public CNdisAllocatable<CParaNdisRX, 'XRHR'>
+{
+  public:
     CParaNdisRX();
     ~CParaNdisRX();
 
@@ -22,7 +23,10 @@ public:
         ReuseReceiveBufferNoLock(pBuffersDescriptor);
     }
 
-    BOOLEAN IsRxBuffersShortage() { return m_NetNofReceiveBuffers < m_MinRxBufferLimit; }
+    BOOLEAN IsRxBuffersShortage()
+    {
+        return m_NetNofReceiveBuffers < m_MinRxBufferLimit;
+    }
 
     VOID ProcessRxRing(CCHAR nCurrCpuReceiveQueue);
 
@@ -38,15 +42,22 @@ public:
 
     void KickRXRing();
 
-    PARANDIS_RECEIVE_QUEUE &UnclassifiedPacketsQueue() { return m_UnclassifiedPacketsQueue;  }
-    UINT GetFreeRxBuffers() const { return m_NetNofReceiveBuffers; }
+    PARANDIS_RECEIVE_QUEUE &UnclassifiedPacketsQueue()
+    {
+        return m_UnclassifiedPacketsQueue;
+    }
+    UINT GetFreeRxBuffers() const
+    {
+        return m_NetNofReceiveBuffers;
+    }
     BOOLEAN AllocateMore();
-private:
+
+  private:
     /* list of Rx buffers available for data (under VIRTIO management) */
-    LIST_ENTRY              m_NetReceiveBuffers;
-    UINT                    m_NetNofReceiveBuffers = 0;
-    UINT                    m_NetMaxReceiveBuffers = 0;
-    UINT                    m_MinRxBufferLimit;
+    LIST_ENTRY m_NetReceiveBuffers;
+    UINT m_NetNofReceiveBuffers = 0;
+    UINT m_NetMaxReceiveBuffers = 0;
+    UINT m_MinRxBufferLimit;
 
     UINT m_nReusedRxBuffersCounter = 0;
     UINT m_nReusedRxBuffersLimit = 0;
@@ -56,13 +67,13 @@ private:
     PARANDIS_RECEIVE_QUEUE m_UnclassifiedPacketsQueue;
 
     void ReuseReceiveBufferNoLock(pRxNetDescriptor pBuffersDescriptor);
-private:
+
+  private:
     int PrepareReceiveBuffers();
     pRxNetDescriptor CreateRxDescriptorOnInit();
     void RecalculateLimits();
 };
 
 #ifdef PARANDIS_SUPPORT_RSS
-VOID ParaNdis_ResetRxClassification(
-    PARANDIS_ADAPTER *pContext);
+VOID ParaNdis_ResetRxClassification(PARANDIS_ADAPTER *pContext);
 #endif

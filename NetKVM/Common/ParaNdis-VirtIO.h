@@ -6,18 +6,16 @@ extern VirtIOSystemOps ParaNdisSystemOps;
 
 class CPciBar
 {
-public:
+  public:
     CPciBar(NDIS_PHYSICAL_ADDRESS BasePA, ULONG uSize, bool bPortSpace)
-        : m_BasePA(BasePA)
-        , m_uSize(uSize)
-        , m_BaseVA(nullptr)
-        , m_bPortSpace(bPortSpace)
+        : m_BasePA(BasePA), m_uSize(uSize), m_BaseVA(nullptr), m_bPortSpace(bPortSpace)
     {
         ASSERT(!m_bPortSpace || m_BasePA.HighPart == 0);
     }
 
     CPciBar() : CPciBar(NDIS_PHYSICAL_ADDRESS(), 0, false)
-    { }
+    {
+    }
 
     ~CPciBar()
     {
@@ -45,20 +43,19 @@ public:
     // Undoes the effect of GetVA
     void Unmap(NDIS_HANDLE DrvHandle);
 
-private:
+  private:
     NDIS_PHYSICAL_ADDRESS m_BasePA;
-    ULONG                 m_uSize;
-    PVOID                 m_BaseVA;
-    bool                  m_bPortSpace;
+    ULONG m_uSize;
+    PVOID m_BaseVA;
+    bool m_bPortSpace;
 };
 
 class CPciResources
 {
-public:
-    CPciResources()
-        : m_DrvHandle(nullptr),
-          m_InterruptFlags(0)
-    { }
+  public:
+    CPciResources() : m_DrvHandle(nullptr), m_InterruptFlags(0)
+    {
+    }
 
     ~CPciResources()
     {
@@ -96,8 +93,8 @@ public:
     // NdisRawWritePort / NdisRawReadPort (port I/O) family of functions.
     PVOID GetMappedAddress(UINT bar, ULONG uOffset);
 
-private:
+  private:
     NDIS_HANDLE m_DrvHandle;
-    USHORT      m_InterruptFlags;
-    CPciBar     m_Bars[PCI_TYPE0_ADDRESSES];
+    USHORT m_InterruptFlags;
+    CPciBar m_Bars[PCI_TYPE0_ADDRESSES];
 };

@@ -10,11 +10,7 @@ void NetKvmAssert(bool Statement, ULONG Code)
 {
     if (!Statement)
     {
-        KeBugCheckEx(0x0ABCDEF0,
-                     0x0ABCDEF0,
-                     Code,
-                     NDIS_MINIPORT_MAJOR_VERSION,
-                     NDIS_MINIPORT_MINOR_VERSION);
+        KeBugCheckEx(0x0ABCDEF0, 0x0ABCDEF0, Code, NDIS_MINIPORT_MAJOR_VERSION, NDIS_MINIPORT_MINOR_VERSION);
     }
 }
 #endif
@@ -29,15 +25,15 @@ bool CNdisSharedMemory::Allocate(ULONG Size, bool IsCached)
 
 CNdisSharedMemory::~CNdisSharedMemory()
 {
-    if(m_VA != nullptr)
+    if (m_VA != nullptr)
     {
         NdisMFreeSharedMemory(m_DrvHandle, m_Size, m_IsCached, m_VA, m_PA);
         m_VA = nullptr;
     }
 }
 
-//Generic delete operators
-//Must never be called
+// Generic delete operators
+// Must never be called
 void __CRTDECL operator delete(void *) throw()
 {
     NETKVM_ASSERT(FALSE);
@@ -50,7 +46,7 @@ void __CRTDECL operator delete(void *, UINT64) throw()
 {
     ASSERT(FALSE);
 #ifdef DBG
-   KeBugCheck(100);
+    KeBugCheck(100);
 #endif
 }
 
@@ -71,7 +67,8 @@ void __CRTDECL operator delete[](void *) throw()
 }
 
 #ifdef RW_LOCK_62
-bool CNdisRWLock::Create(NDIS_HANDLE miniportHandle) {
+bool CNdisRWLock::Create(NDIS_HANDLE miniportHandle)
+{
     m_pLock = NdisAllocateRWLock(miniportHandle);
     if (!m_pLock)
     {
@@ -80,7 +77,6 @@ bool CNdisRWLock::Create(NDIS_HANDLE miniportHandle) {
     return m_pLock != 0;
 }
 #endif
-
 
 ULONG ParaNdis_GetIndexFromAffinity(KAFFINITY affinity)
 {
@@ -129,13 +125,15 @@ bool CSystemThread::Start(PVOID Context)
 {
     m_Context = Context;
     UpdateTimestamp(m_StartTime);
-    NTSTATUS status = PsCreateSystemThread(
-        &m_hThread, GENERIC_READ, NULL, NULL, NULL,
-        [](PVOID Ctx)
-        {
-            ((CSystemThread*)Ctx)->ThreadProc();
-        },
-        this);
+    NTSTATUS status = PsCreateSystemThread(&m_hThread,
+                                           GENERIC_READ,
+                                           NULL,
+                                           NULL,
+                                           NULL,
+                                           [](PVOID Ctx) {
+                                               ((CSystemThread *)Ctx)->ThreadProc();
+                                           },
+                                           this);
     if (!NT_SUCCESS(status))
     {
         DPrintf(0, "Failed to start, status %X", status);
@@ -156,7 +154,7 @@ void CSystemThread::Stop()
 
 void CSystemThread::ThreadProc()
 {
-    PARANDIS_ADAPTER* context = (PARANDIS_ADAPTER*)m_Context;
+    PARANDIS_ADAPTER *context = (PARANDIS_ADAPTER *)m_Context;
     context->extraStatistics.lazyAllocTime = -1;
     while (!m_Event.Wait(1))
     {
@@ -174,7 +172,7 @@ void CSystemThread::ThreadProc()
             m_Event.Notify();
             ULONGLONG endTimestamp;
             UpdateTimestamp(endTimestamp);
-            context->extraStatistics.lazyAllocTime = (LONG)((endTimestamp - m_StartTime)/10000);
+            context->extraStatistics.lazyAllocTime = (LONG)((endTimestamp - m_StartTime) / 10000);
         }
     }
     m_hThread = NULL;

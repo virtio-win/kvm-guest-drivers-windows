@@ -4,17 +4,19 @@
 
 class CParaNdisAbstractPath
 {
-public:
+  public:
 #if NDIS_SUPPORT_NDIS620
     CParaNdisAbstractPath()
     {
         memset(&DPCAffinity, 0, sizeof(DPCAffinity));
     }
 #else
-    CParaNdisAbstractPath() : DPCTargetProcessor(0) {}
+    CParaNdisAbstractPath() : DPCTargetProcessor(0)
+    {
+    }
 #endif
 
-    bool WasInterruptReported() 
+    bool WasInterruptReported()
     {
         return m_interruptReported;
     }
@@ -24,15 +26,18 @@ public:
         m_interruptReported = false;
     }
 
-    void ReportInterrupt() {
+    void ReportInterrupt()
+    {
         m_interruptReported = true;
     }
 
-    UINT getMessageIndex() {
+    UINT getMessageIndex()
+    {
         return m_messageIndex;
     }
 
-    UINT getQueueIndex() {
+    UINT getQueueIndex()
+    {
         return m_queueIndex;
     }
 
@@ -70,7 +75,7 @@ public:
 
     virtual bool FireDPC(ULONG messageId) = 0;
 
-protected:
+  protected:
     PPARANDIS_ADAPTER m_Context;
     CVirtQueue *m_pVirtQueue;
     LARGE_INTEGER m_LastInterruptTimeStamp;
@@ -80,10 +85,11 @@ protected:
     bool m_interruptReported;
 };
 
-
-template <class VQ> class CParaNdisTemplatePath : public CParaNdisAbstractPath, public CObserver<SMNotifications>{
-public:
-    CParaNdisTemplatePath() : m_ObserverAdded(false) {
+template <class VQ> class CParaNdisTemplatePath : public CParaNdisAbstractPath, public CObserver<SMNotifications>
+{
+  public:
+    CParaNdisTemplatePath() : m_ObserverAdded(false)
+    {
         m_pVirtQueue = &m_VirtQueue;
     }
 
@@ -93,7 +99,8 @@ public:
         return true;
     }
 
-    ~CParaNdisTemplatePath() {
+    ~CParaNdisTemplatePath()
+    {
         if (m_ObserverAdded)
         {
             m_Context->m_StateMachine.Remove(this);
@@ -106,10 +113,9 @@ public:
         m_VirtQueue.Shutdown();
     }
 
-    static BOOLEAN _Function_class_(MINIPORT_SYNCHRONIZE_INTERRUPT)
-    RestartQueueSynchronously(PVOID ctx)
+    static BOOLEAN _Function_class_(MINIPORT_SYNCHRONIZE_INTERRUPT) RestartQueueSynchronously(PVOID ctx)
     {
-        auto This = static_cast<CParaNdisTemplatePath<VQ>*>(ctx);
+        auto This = static_cast<CParaNdisTemplatePath<VQ> *>(ctx);
         return !This->m_VirtQueue.Restart();
     }
 
@@ -134,7 +140,7 @@ public:
 #if PARANDIS_SUPPORT_POLL
         if (m_Context->bPollModeEnabled)
         {
-            //rx index is 2*n, tx index is 2*n+1
+            // rx index is 2*n, tx index is 2*n+1
             ParaNdisPollNotify(m_Context, m_queueIndex / 2, (m_queueIndex % 2) ? "TX" : "RX");
             return TRUE;
         }
@@ -149,7 +155,8 @@ public:
 #endif
         return FALSE;
     }
-protected:
+
+  protected:
     CNdisSpinLock m_Lock;
     bool m_ObserverAdded;
     VQ m_VirtQueue;

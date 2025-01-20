@@ -12,7 +12,7 @@ NDIS_STATUS CParaNdisAbstractPath::SetupMessageIndex(u16 vector)
 
     if (val != vector)
     {
-        DPrintf(0, "[%s] - read/write mismatch, %u vs %u\n",__FUNCTION__ , val, vector);
+        DPrintf(0, "[%s] - read/write mismatch, %u vs %u\n", __FUNCTION__, val, vector);
         return NDIS_STATUS_DEVICE_FAILED;
     }
 
@@ -23,7 +23,7 @@ NDIS_STATUS CParaNdisAbstractPath::SetupMessageIndex(u16 vector)
 ULONG CParaNdisAbstractPath::getCPUIndex()
 {
 #if NDIS_SUPPORT_NDIS620
-    PROCESSOR_NUMBER procNumber = { 0 };
+    PROCESSOR_NUMBER procNumber = {0};
 
     procNumber.Group = DPCAffinity.Group;
     ULONG number = ParaNdis_GetIndexFromAffinity(DPCAffinity.Mask);
