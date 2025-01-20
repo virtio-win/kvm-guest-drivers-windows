@@ -111,6 +111,7 @@ typedef struct _tagConfigurationEntries
     tConfigurationEntry PollMode;
 } tConfigurationEntries;
 
+// clang-format off
 static const tConfigurationEntries defaultConfiguration =
 {
     { "*PhysicalMediaType", 0,  0,  0xff },
@@ -163,6 +164,7 @@ static void ParaNdis_ResetVirtIONetDevice(PARANDIS_ADAPTER *pContext)
     /* reset all the features in the device */
     pContext->ulCurrentVlansFilterSet = 0;
 }
+// clang-format on
 
 /**********************************************************
 Gets integer value for specifies in pEntry->Name name
@@ -474,6 +476,7 @@ void ParaNdis_ResetOffloadSettings(PARANDIS_ADAPTER *pContext, tOffloadSettingsF
     pDest->fUsov6 = !!(*from & osbT6Uso);
 }
 
+// clang-format off
 static void DumpVirtIOFeatures(PPARANDIS_ADAPTER pContext)
 {
     static const struct {  ULONG bitmask;  PCHAR Name; } Features[] =
@@ -523,6 +526,7 @@ static void DumpVirtIOFeatures(PPARANDIS_ADAPTER pContext)
         }
     }
 }
+// clang-format on
 
 static BOOLEAN AckFeature(PPARANDIS_ADAPTER pContext, UINT64 Feature)
 {

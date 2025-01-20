@@ -503,7 +503,9 @@ class CNdisList : private TAccessStrategy, public TCountingStrategy
 
     template <typename TPredicate, typename TFunctor> void ForEachDetachedIf(TPredicate Predicate, TFunctor Functor)
     {
+        // clang-format off
         ForEachPrepareIf(Predicate, [this](PLIST_ENTRY Entry){ Remove_LockLess(Entry); }, Functor);
+        // clang-format on
     }
 
     template <typename TFunctor> void ForEach(TFunctor Functor)
@@ -561,7 +563,7 @@ class CNdisList : private TAccessStrategy, public TCountingStrategy
 class CDpcIrqlRaiser
 {
   public:
-
+    // clang-format off
     _IRQL_requires_max_(DISPATCH_LEVEL)
     _IRQL_raises_(DISPATCH_LEVEL)
     _IRQL_saves_global_(OldIrql, this->m_OriginalIRQL)
@@ -575,7 +577,7 @@ class CDpcIrqlRaiser
     }
     CDpcIrqlRaiser(const CDpcIrqlRaiser &) = delete;
     CDpcIrqlRaiser &operator=(const CDpcIrqlRaiser &) = delete;
-
+    // clang-format on
   private:
     KIRQL m_OriginalIRQL;
 };
