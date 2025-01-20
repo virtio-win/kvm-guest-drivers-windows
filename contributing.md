@@ -47,29 +47,53 @@ People *love* thorough bug reports.
 ## Use a Consistent Coding Style
 
 * We use clang-format tool to check code style.
-* In project we have two different code style:
-   - Style config file for Windows driver /.clang-format
-   - Style config file for VirtIO library /VirtIO/.clang-format
-* To run code style check locally on Linux or Windows (with MSYS or cygwin) use `Tools/clang-format-helper.sh` helper
-   - on Linux helper uses `clang-format-16` from PATH (because EWDK Win11 24H2 contains clang-format version 16.0.5)
-   - on Windows helper uses `clang-format` from EWDK Win11 24H2
-   - CLI:
-      - For all Windows drivers
-      ```bash
-      bash Tools/clang-format-helper.sh check '.' '' './VirtIO'
-      ```
-      - For VirtIO library
-      ```bash
-      bash Tools/clang-format-helper.sh check 'VirtIO' '' ''
-      ```
-* Tools/clang-format-helper.sh uses positional arguments
-   1. Action: `check` or `format`
-   1. Directory where needs to check format
-   1. Path to .clang-format file (default: `${2}/.clang-format`)
-   1. Exclude regexp (default: `^$`)
-   1. Include regexp (default: `^.*\.((((c|C)(c|pp|xx|\+\+)?$)|((h|H)h?(pp|xx|\+\+)?$)))$`)
+* In project we have two different code styles:
+   - Style config file for Windows driver: `/.clang-format`
+   - Style config file for VirtIO library: `/VirtIO/.clang-format`
+* To run code style check locally on Linux or Windows (with MSYS or cygwin) use the `Tools/clang-format-helper.sh` helper
+   - on Linux, the helper uses `clang-format-16` from PATH (because EWDK Win11 24H2 contains clang-format version 16.0.5)
+   - on Windows, the helper uses `clang-format` from EWDK Win11 24H2
 
-   - To use default just put '' as argument
+* Usage for clang-format helper tool:
+   ```bash
+   bash Tools/clang-format-helper.sh <check|format> <target directory> <path to .clang-format file> <exclude regexp> <include regexp>
+   ```
+
+   <details>
+   <summary>More information on positional arguments and defaults...</summary>
+   <br>
+
+   Positional parameters:
+
+   * 1\. Action: `check` or `format`. Required.
+   * 2\. Directory to perform action. Required.
+   * 3\. Path to .clang-format file (default: `${2}/.clang-format`)
+   * 4\. Exclude regexp (default: `^$`)
+   * 5\. Include regexp (default: `^.*\.((((c|C)(c|pp|xx|\+\+)?$)|((h|H)h?(pp|xx|\+\+)?$)))$`)
+   
+     Note: to use a default parameter use two single quotes, i.e. `''`
+   </details>
+
+   <details>
+   <summary>Usage Examples</summary>
+   <br>
+
+   For all Windows drivers:
+   
+   ```bash
+   bash Tools/clang-format-helper.sh check '.' '' './VirtIO'
+   ```
+   For `vioscsi` driver:
+   
+   ```bash
+   bash Tools/clang-format-helper.sh check './vioscsi' './.clang-format' '.*/*trace.h|.*/wpp_.*_path.*.h' ''
+   ```
+   For `VirtIO` library:
+   
+   ```bash
+   bash Tools/clang-format-helper.sh check 'VirtIO' '' ''
+   ```
+   </details>
 
 ## HCK\HLK tests
 * The contributions should pass Microsoft certification tests. We are running CI to check that the changes in the pull request can pass. If you submit a lot of PRs, you can setup AutoHCK on your premises to test your code changes: [auto-hck setup](https://github.com/HCK-CI/HCK-CI-DOCS/blob/master/installing-hck-ci-from-scratch.txt)
