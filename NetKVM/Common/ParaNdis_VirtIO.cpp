@@ -41,11 +41,7 @@ PVOID CPciBar::GetVA(NDIS_HANDLE DrvHandle)
     {
         if (m_bPortSpace)
         {
-            if (NDIS_STATUS_SUCCESS == NdisMRegisterIoPortRange(
-                &m_BaseVA,
-                DrvHandle,
-                m_BasePA.LowPart,
-                m_uSize))
+            if (NDIS_STATUS_SUCCESS == NdisMRegisterIoPortRange(&m_BaseVA, DrvHandle, m_BasePA.LowPart, m_uSize))
             {
                 DPrintf(6, "[%s] mapped port BAR at %x\n", __FUNCTION__, m_BasePA.LowPart);
             }
@@ -57,11 +53,7 @@ PVOID CPciBar::GetVA(NDIS_HANDLE DrvHandle)
         }
         else
         {
-            if (NDIS_STATUS_SUCCESS == NdisMMapIoSpace(
-                &m_BaseVA,
-                DrvHandle,
-                m_BasePA,
-                m_uSize))
+            if (NDIS_STATUS_SUCCESS == NdisMMapIoSpace(&m_BaseVA, DrvHandle, m_BasePA, m_uSize))
             {
                 DPrintf(6, "[%s] mapped memory BAR at %I64x\n", __FUNCTION__, m_BasePA.QuadPart);
             }
@@ -81,18 +73,11 @@ void CPciBar::Unmap(NDIS_HANDLE DrvHandle)
     {
         if (m_bPortSpace)
         {
-            NdisMDeregisterIoPortRange(
-                DrvHandle,
-                m_BasePA.LowPart,
-                m_uSize,
-                m_BaseVA);
+            NdisMDeregisterIoPortRange(DrvHandle, m_BasePA.LowPart, m_uSize, m_BaseVA);
         }
         else
         {
-            NdisMUnmapIoSpace(
-                DrvHandle,
-                m_BaseVA,
-                m_uSize);
+            NdisMUnmapIoSpace(DrvHandle, m_BaseVA, m_uSize);
         }
         m_BaseVA = nullptr;
     }
@@ -106,12 +91,7 @@ bool CPciResources::Init(NDIS_HANDLE DrvHandle, PNDIS_RESOURCE_LIST RList)
 
     m_DrvHandle = DrvHandle;
 
-    ULONG read = NdisMGetBusData(
-        m_DrvHandle,
-        PCI_WHICHSPACE_CONFIG,
-        0,
-        &pci_config,
-        sizeof(pci_config));
+    ULONG read = NdisMGetBusData(m_DrvHandle, PCI_WHICHSPACE_CONFIG, 0, &pci_config, sizeof(pci_config));
     if (read != sizeof(pci_config))
     {
         DPrintf(0, "[%s] could not read PCI config space\n", __FUNCTION__);
@@ -148,11 +128,12 @@ bool CPciResources::Init(NDIS_HANDLE DrvHandle, PNDIS_RESOURCE_LIST RList)
         else if (type == CmResourceTypeInterrupt)
         {
             m_InterruptFlags = RList->PartialDescriptors[i].Flags;
-            DPrintf(0, "Found Interrupt vector %d, level %d, affinity 0x%X, flags %X\n",
-                RList->PartialDescriptors[i].u.Interrupt.Vector,
-                RList->PartialDescriptors[i].u.Interrupt.Level,
-                (ULONG)RList->PartialDescriptors[i].u.Interrupt.Affinity,
-                RList->PartialDescriptors[i].Flags);
+            DPrintf(0,
+                    "Found Interrupt vector %d, level %d, affinity 0x%X, flags %X\n",
+                    RList->PartialDescriptors[i].u.Interrupt.Vector,
+                    RList->PartialDescriptors[i].u.Interrupt.Level,
+                    (ULONG)RList->PartialDescriptors[i].u.Interrupt.Affinity,
+                    RList->PartialDescriptors[i].Flags);
             interrupt_found = true;
         }
     }
@@ -210,9 +191,12 @@ static u32 ReadVirtIODeviceRegister(ULONG_PTR ulRegister)
 {
     ULONG ulValue;
 
-    if (ulRegister & ~PORT_MASK) {
+    if (ulRegister & ~PORT_MASK)
+    {
         NdisReadRegisterUlong(ulRegister, &ulValue);
-    } else {
+    }
+    else
+    {
         NdisRawReadPortUlong(ulRegister, &ulValue);
     }
 
@@ -224,9 +208,12 @@ static void WriteVirtIODeviceRegister(ULONG_PTR ulRegister, u32 ulValue)
 {
     DPrintf(6, "[%s]R[%x]=%x\n", __FUNCTION__, (ULONG)ulRegister, ulValue);
 
-    if (ulRegister & ~PORT_MASK) {
+    if (ulRegister & ~PORT_MASK)
+    {
         NdisWriteRegisterUlong((PULONG)ulRegister, ulValue);
-    } else {
+    }
+    else
+    {
         NdisRawWritePortUlong(ulRegister, ulValue);
     }
 }
@@ -235,9 +222,12 @@ static u8 ReadVirtIODeviceByte(ULONG_PTR ulRegister)
 {
     u8 bValue;
 
-    if (ulRegister & ~PORT_MASK) {
+    if (ulRegister & ~PORT_MASK)
+    {
         NdisReadRegisterUchar(ulRegister, &bValue);
-    } else {
+    }
+    else
+    {
         NdisRawReadPortUchar(ulRegister, &bValue);
     }
 
@@ -250,9 +240,12 @@ static void WriteVirtIODeviceByte(ULONG_PTR ulRegister, u8 bValue)
 {
     DPrintf(6, "[%s]R[%x]=%x\n", __FUNCTION__, (ULONG)ulRegister, bValue);
 
-    if (ulRegister & ~PORT_MASK) {
+    if (ulRegister & ~PORT_MASK)
+    {
         NdisWriteRegisterUchar((PUCHAR)ulRegister, bValue);
-    } else {
+    }
+    else
+    {
         NdisRawWritePortUchar(ulRegister, bValue);
     }
 }
@@ -261,9 +254,12 @@ static u16 ReadVirtIODeviceWord(ULONG_PTR ulRegister)
 {
     u16 wValue;
 
-    if (ulRegister & ~PORT_MASK) {
+    if (ulRegister & ~PORT_MASK)
+    {
         NdisReadRegisterUshort(ulRegister, &wValue);
-    } else {
+    }
+    else
+    {
         NdisRawReadPortUshort(ulRegister, &wValue);
     }
 
@@ -275,9 +271,12 @@ static u16 ReadVirtIODeviceWord(ULONG_PTR ulRegister)
 static void WriteVirtIODeviceWord(ULONG_PTR ulRegister, u16 wValue)
 {
 #if 1
-    if (ulRegister & ~PORT_MASK) {
+    if (ulRegister & ~PORT_MASK)
+    {
         NdisWriteRegisterUshort((PUSHORT)ulRegister, wValue);
-    } else {
+    }
+    else
+    {
         NdisRawWritePortUshort(ulRegister, wValue);
     }
 #else
@@ -292,7 +291,10 @@ static void WriteVirtIODeviceWord(ULONG_PTR ulRegister, u16 wValue)
         nCounterToFail++;
         bFail = nCounterToFail >= StartFail && nCounterToFail < StopFail;
     }
-    if (!bFail) NdisRawWritePortUshort(ulRegister, wValue);
+    if (!bFail)
+    {
+        NdisRawWritePortUshort(ulRegister, wValue);
+    }
     else
     {
         DPrintf(0, "%s> FAILING R[%x] = %x\n", __FUNCTION__, (ULONG)ulRegister, wValue);
@@ -358,11 +360,10 @@ static void *mem_alloc_nonpaged_block(void *context, size_t size)
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)context;
     PVOID retVal;
 
-    retVal = NdisAllocateMemoryWithTagPriority(
-        pContext->MiniportHandle,
-        (UINT)size,
-        PARANDIS_MEMORY_TAG,
-        NormalPoolPriority);
+    retVal = NdisAllocateMemoryWithTagPriority(pContext->MiniportHandle,
+                                               (UINT)size,
+                                               PARANDIS_MEMORY_TAG,
+                                               NormalPoolPriority);
 
     if (retVal)
     {
@@ -384,20 +385,11 @@ static void mem_free_nonpaged_block(void *context, void *addr)
     NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, addr, PARANDIS_MEMORY_TAG);
 }
 
-static int PCIReadConfig(
-    PPARANDIS_ADAPTER pContext,
-    int where,
-    void *buffer,
-    size_t length)
+static int PCIReadConfig(PPARANDIS_ADAPTER pContext, int where, void *buffer, size_t length)
 {
     ULONG read;
 
-    read = NdisMGetBusData(
-        pContext->MiniportHandle,
-        PCI_WHICHSPACE_CONFIG,
-        where,
-        buffer,
-        (ULONG)length);
+    read = NdisMGetBusData(pContext->MiniportHandle, PCI_WHICHSPACE_CONFIG, where, buffer, (ULONG)length);
 
     if (read == length)
     {
@@ -430,7 +422,8 @@ static size_t pci_get_resource_len(void *context, int bar)
 {
     PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)context;
 
-    if (bar < PCI_TYPE0_ADDRESSES) {
+    if (bar < PCI_TYPE0_ADDRESSES)
+    {
         return pContext->PciResources.GetBarSize(bar);
     }
 
@@ -447,7 +440,7 @@ static void *pci_map_address_range(void *context, int bar, size_t offset, size_t
     if (bar < PCI_TYPE0_ADDRESSES)
     {
         return pContext->PciResources.GetMappedAddress(bar, (ULONG)offset);
-    } 
+    }
 
     DPrintf(0, "[%s] queried invalid BAR %d\n", __FUNCTION__, bar);
     return nullptr;

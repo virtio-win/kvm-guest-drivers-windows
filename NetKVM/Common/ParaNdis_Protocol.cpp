@@ -80,8 +80,10 @@ static void TracePnpId(PDEVICE_OBJECT pdo, PARANDIS_ADAPTER *Adapter)
 
 class CInternalNblEntry : public CNdisAllocatable<CInternalNblEntry, 'NORP'>
 {
-public:
-    CInternalNblEntry(PNET_BUFFER_LIST Nbl) : m_Nbl(Nbl), m_KeepReserved(Nbl->MiniportReserved[0]) { }
+  public:
+    CInternalNblEntry(PNET_BUFFER_LIST Nbl) : m_Nbl(Nbl), m_KeepReserved(Nbl->MiniportReserved[0])
+    {
+    }
     bool Match(PNET_BUFFER_LIST Nbl)
     {
         if (Nbl == m_Nbl)
@@ -92,7 +94,8 @@ public:
         }
         return false;
     }
-private:
+
+  private:
     PVOID m_KeepReserved;
     PNET_BUFFER_LIST m_Nbl;
     DECLARE_CNDISLIST_ENTRY(CInternalNblEntry);
@@ -100,7 +103,7 @@ private:
 
 class CAdapterEntry : public CNdisAllocatable<CAdapterEntry, '1ORP'>
 {
-public:
+  public:
     CAdapterEntry(PARANDIS_ADAPTER *pContext) : m_Adapter(pContext), m_Binding(NULL)
     {
         NdisMoveMemory(m_MacAddress, pContext->CurrentMacAddress, sizeof(m_MacAddress));
@@ -127,11 +130,12 @@ public:
     {
         Notifier(m_Binding, NotifyEvent::Detach);
     }
-    void GetData(NETKVMD_ADAPTER* ad);
+    void GetData(NETKVMD_ADAPTER *ad);
     void SetLink(bool LinkOn);
     PARANDIS_ADAPTER *m_Adapter;
     PVOID m_Binding;
-private:
+
+  private:
     enum class NotifyEvent
     {
         Arrival,
@@ -143,9 +147,9 @@ private:
     DECLARE_CNDISLIST_ENTRY(CAdapterEntry);
 };
 
-class COidWrapper : public CNdisAllocatable <COidWrapper, '2ORP'>
+class COidWrapper : public CNdisAllocatable<COidWrapper, '2ORP'>
 {
-public:
+  public:
     COidWrapper(NDIS_REQUEST_TYPE RequestType, NDIS_OID oid)
     {
         NdisZeroMemory(&m_Request, sizeof(m_Request));
@@ -161,13 +165,23 @@ public:
     virtual void Complete(NDIS_STATUS status)
     {
         LPCSTR reqType = m_Request.RequestType == NdisRequestSetInformation ? "Set" : "Query";
-        if (status) {
-            TraceNoPrefix(0, "[%s] (%s)%s = %X\n", __FUNCTION__, reqType, ParaNdis_OidName(m_Request.DATA.SET_INFORMATION.Oid), status);
+        if (status)
+        {
+            TraceNoPrefix(0,
+                          "[%s] (%s)%s = %X\n",
+                          __FUNCTION__,
+                          reqType,
+                          ParaNdis_OidName(m_Request.DATA.SET_INFORMATION.Oid),
+                          status);
         }
-        else {
-            TraceNoPrefix(m_Silent ? 2 : 0, "[%s] (%s)%s OK, %d bytes\n", __FUNCTION__, reqType,
-                ParaNdis_OidName(m_Request.DATA.SET_INFORMATION.Oid),
-                m_Request.DATA.QUERY_INFORMATION.BytesWritten);
+        else
+        {
+            TraceNoPrefix(m_Silent ? 2 : 0,
+                          "[%s] (%s)%s OK, %d bytes\n",
+                          __FUNCTION__,
+                          reqType,
+                          ParaNdis_OidName(m_Request.DATA.SET_INFORMATION.Oid),
+                          m_Request.DATA.QUERY_INFORMATION.BytesWritten);
         }
         m_Status = status;
         m_Event.Notify();
@@ -189,14 +203,21 @@ public:
             Complete(status);
         }
     }
-    NDIS_STATUS Status() const { return m_Status; }
+    NDIS_STATUS Status() const
+    {
+        return m_Status;
+    }
     NDIS_OID_REQUEST m_Request;
-    virtual ~COidWrapper() { }
-protected:
+    virtual ~COidWrapper()
+    {
+    }
+
+  protected:
     bool m_Synchronous = true;
     bool m_Silent = false;
     NDIS_STATUS m_SkipRun = NDIS_STATUS_SUCCESS;
-private:
+
+  private:
     void Wait()
     {
         m_Event.Wait();
@@ -207,12 +228,9 @@ private:
 
 class COidWrapperAsync : public COidWrapper
 {
-public:
-    COidWrapperAsync(PARANDIS_ADAPTER *Adapter, NDIS_REQUEST_TYPE RequestType, NDIS_OID oid, PVOID buffer, ULONG length) :
-        COidWrapper(RequestType, oid),
-        m_Length(length),
-        m_Adapter(Adapter),
-        m_Handle(Adapter->MiniportHandle)
+  public:
+    COidWrapperAsync(PARANDIS_ADAPTER *Adapter, NDIS_REQUEST_TYPE RequestType, NDIS_OID oid, PVOID buffer, ULONG length)
+        : COidWrapper(RequestType, oid), m_Length(length), m_Adapter(Adapter), m_Handle(Adapter->MiniportHandle)
     {
         m_Synchronous = false;
         if (m_Length)
@@ -246,9 +264,11 @@ public:
             NdisFreeMemoryWithTagPriority(m_Handle, m_Data, DataTag);
         }
     }
-protected:
-    PARANDIS_ADAPTER* m_Adapter;
-private:
+
+  protected:
+    PARANDIS_ADAPTER *m_Adapter;
+
+  private:
     const ULONG DataTag = '3ORP';
     PVOID m_Data = NULL;
     ULONG m_Length = 0;
@@ -257,22 +277,28 @@ private:
 
 class CStatisticsWrapper : public COidWrapperAsync
 {
-public:
-    CStatisticsWrapper(PARANDIS_ADAPTER* Adapter, bool Initial) :
-        COidWrapperAsync(Adapter, NdisRequestQueryInformation, OID_GEN_STATISTICS, NULL, sizeof(Adapter->VfStatistics)),
-        m_Initial(Initial)
+  public:
+    CStatisticsWrapper(PARANDIS_ADAPTER *Adapter, bool Initial)
+        : COidWrapperAsync(Adapter,
+                           NdisRequestQueryInformation,
+                           OID_GEN_STATISTICS,
+                           NULL,
+                           sizeof(Adapter->VfStatistics)),
+          m_Initial(Initial)
     {
         m_Silent = true;
     }
     void Complete(NDIS_STATUS status) override
     {
-        NDIS_STATISTICS_INFO* pNew = (NDIS_STATISTICS_INFO*)m_Request.DATA.QUERY_INFORMATION.InformationBuffer;
-        NDIS_STATISTICS_INFO* pOld = &m_Adapter->VfStatistics;
+        NDIS_STATISTICS_INFO *pNew = (NDIS_STATISTICS_INFO *)m_Request.DATA.QUERY_INFORMATION.InformationBuffer;
+        NDIS_STATISTICS_INFO *pOld = &m_Adapter->VfStatistics;
         if (NT_SUCCESS(status))
         {
             if (!m_Initial)
             {
-            #define UPDATE_FIELD(f) m_Adapter->Statistics.##f += (pNew->##f - pOld->##f); pOld->##f = pNew->##f;
+#define UPDATE_FIELD(f)                                                                                                \
+    m_Adapter->Statistics.##f += (pNew->##f - pOld->##f);                                                              \
+    pOld->##f = pNew->##f;
                 UPDATE_FIELD(ifHCInOctets);
                 UPDATE_FIELD(ifHCInUcastOctets);
                 UPDATE_FIELD(ifHCInMulticastOctets);
@@ -291,42 +317,62 @@ public:
             else
             {
                 *pOld = *pNew;
-                TraceNoPrefix(0, "[%s] Supported VF statistics %X(kvm statistics %X)\n", __FUNCTION__,
-                    pNew->SupportedStatistics, m_Adapter->Statistics.SupportedStatistics);
+                TraceNoPrefix(0,
+                              "[%s] Supported VF statistics %X(kvm statistics %X)\n",
+                              __FUNCTION__,
+                              pNew->SupportedStatistics,
+                              m_Adapter->Statistics.SupportedStatistics);
             }
         }
         __super::Complete(status);
     }
-protected:
+
+  protected:
     bool m_Initial;
 };
 
-static void PrintOffload(LPCSTR caller, NDIS_OFFLOAD& current)
+static void PrintOffload(LPCSTR caller, NDIS_OFFLOAD &current)
 {
     TraceNoPrefix(0, "[%s] Offload data v%d:\n", caller, current.Header.Revision);
-    NDIS_TCP_LARGE_SEND_OFFLOAD_V2& lso = current.LsoV2;
-    TraceNoPrefix(0, "LSOv2: v4 e:%X seg:%d, v6 e:%X seg:%d iph:%d opt:%d\n",
-        lso.IPv4.Encapsulation, lso.IPv4.MaxOffLoadSize,
-        lso.IPv6.Encapsulation, lso.IPv6.MaxOffLoadSize, lso.IPv6.IpExtensionHeadersSupported, lso.IPv6.TcpOptionsSupported);
-    NDIS_TCP_IP_CHECKSUM_OFFLOAD& cso = current.Checksum;
-    TraceNoPrefix(0, "Checksum4 RX: ip %d%c, tcp %d%c, udp %d\n",
-        cso.IPv4Receive.IpChecksum, cso.IPv4Receive.IpOptionsSupported ? '+' : ' ',
-        cso.IPv4Receive.TcpChecksum, cso.IPv4Receive.TcpOptionsSupported ? '+' : ' ',
-        cso.IPv4Receive.UdpChecksum);
-    TraceNoPrefix(0, "Checksum4 TX: ip %d%c, tcp %d%c, udp %d\n",
-        cso.IPv4Transmit.IpChecksum, cso.IPv4Transmit.IpOptionsSupported ? '+' : ' ',
-        cso.IPv4Transmit.TcpChecksum, cso.IPv4Transmit.TcpOptionsSupported ? '+' : ' ',
-        cso.IPv4Transmit.UdpChecksum);
-    TraceNoPrefix(0, "Checksum6 RX: ipx %d, tcp %d%c, udp %d\n",
-        cso.IPv6Receive.IpExtensionHeadersSupported,
-        cso.IPv6Receive.TcpChecksum, cso.IPv6Receive.TcpOptionsSupported ? '+' : ' ',
-        cso.IPv6Receive.UdpChecksum);
-    TraceNoPrefix(0, "Checksum6 TX: ipx %d, tcp %d%c, udp %d\n",
-        cso.IPv6Transmit.IpExtensionHeadersSupported,
-        cso.IPv6Transmit.TcpChecksum, cso.IPv6Transmit.TcpOptionsSupported ? '+' : ' ',
-        cso.IPv6Transmit.UdpChecksum);
-    if (current.Header.Revision > NDIS_OFFLOAD_REVISION_2) {
-        NDIS_TCP_RECV_SEG_COALESCE_OFFLOAD& rsc = current.Rsc;
+    NDIS_TCP_LARGE_SEND_OFFLOAD_V2 &lso = current.LsoV2;
+    TraceNoPrefix(0,
+                  "LSOv2: v4 e:%X seg:%d, v6 e:%X seg:%d iph:%d opt:%d\n",
+                  lso.IPv4.Encapsulation,
+                  lso.IPv4.MaxOffLoadSize,
+                  lso.IPv6.Encapsulation,
+                  lso.IPv6.MaxOffLoadSize,
+                  lso.IPv6.IpExtensionHeadersSupported,
+                  lso.IPv6.TcpOptionsSupported);
+    NDIS_TCP_IP_CHECKSUM_OFFLOAD &cso = current.Checksum;
+    TraceNoPrefix(0,
+                  "Checksum4 RX: ip %d%c, tcp %d%c, udp %d\n",
+                  cso.IPv4Receive.IpChecksum,
+                  cso.IPv4Receive.IpOptionsSupported ? '+' : ' ',
+                  cso.IPv4Receive.TcpChecksum,
+                  cso.IPv4Receive.TcpOptionsSupported ? '+' : ' ',
+                  cso.IPv4Receive.UdpChecksum);
+    TraceNoPrefix(0,
+                  "Checksum4 TX: ip %d%c, tcp %d%c, udp %d\n",
+                  cso.IPv4Transmit.IpChecksum,
+                  cso.IPv4Transmit.IpOptionsSupported ? '+' : ' ',
+                  cso.IPv4Transmit.TcpChecksum,
+                  cso.IPv4Transmit.TcpOptionsSupported ? '+' : ' ',
+                  cso.IPv4Transmit.UdpChecksum);
+    TraceNoPrefix(0,
+                  "Checksum6 RX: ipx %d, tcp %d%c, udp %d\n",
+                  cso.IPv6Receive.IpExtensionHeadersSupported,
+                  cso.IPv6Receive.TcpChecksum,
+                  cso.IPv6Receive.TcpOptionsSupported ? '+' : ' ',
+                  cso.IPv6Receive.UdpChecksum);
+    TraceNoPrefix(0,
+                  "Checksum6 TX: ipx %d, tcp %d%c, udp %d\n",
+                  cso.IPv6Transmit.IpExtensionHeadersSupported,
+                  cso.IPv6Transmit.TcpChecksum,
+                  cso.IPv6Transmit.TcpOptionsSupported ? '+' : ' ',
+                  cso.IPv6Transmit.UdpChecksum);
+    if (current.Header.Revision > NDIS_OFFLOAD_REVISION_2)
+    {
+        NDIS_TCP_RECV_SEG_COALESCE_OFFLOAD &rsc = current.Rsc;
         TraceNoPrefix(0, "RSCv4 %d, RSCv6 %d\n", rsc.IPv4.Enabled, rsc.IPv6.Enabled);
     }
 }
@@ -335,13 +381,10 @@ class CParaNdisProtocol;
 
 class CProtocolBinding : public CNdisAllocatable<CProtocolBinding, 'TORP'>, public CRefCountingObject
 {
-public:
-    CProtocolBinding(CParaNdisProtocol& Protocol, NDIS_HANDLE BindContext) :
-        m_Protocol(Protocol),
-        m_BindContext(BindContext),
-        m_Status(NDIS_STATUS_ADAPTER_NOT_OPEN),
-        m_BindingHandle(NULL),
-        m_BoundAdapter(NULL)
+  public:
+    CProtocolBinding(CParaNdisProtocol &Protocol, NDIS_HANDLE BindContext)
+        : m_Protocol(Protocol), m_BindContext(BindContext), m_Status(NDIS_STATUS_ADAPTER_NOT_OPEN),
+          m_BindingHandle(NULL), m_BoundAdapter(NULL)
     {
         TraceNoPrefix(0, "[%s] %p\n", __FUNCTION__, this);
     }
@@ -389,8 +432,9 @@ public:
         TraceNoPrefix(0, "[%s] %p\n", __FUNCTION__, m_BoundAdapter);
         if (m_BoundAdapter->MulticastData.nofMulticastEntries)
         {
-            SetOid(OID_802_3_MULTICAST_LIST, m_BoundAdapter->MulticastData.MulticastList,
-                ETH_ALEN * m_BoundAdapter->MulticastData.nofMulticastEntries);
+            SetOid(OID_802_3_MULTICAST_LIST,
+                   m_BoundAdapter->MulticastData.MulticastList,
+                   ETH_ALEN * m_BoundAdapter->MulticastData.nofMulticastEntries);
         }
         m_BoundAdapter->m_StateMachine.NotifyBindSriov(this);
 
@@ -440,8 +484,11 @@ public:
     {
         if (m_Capabilies.MtuSize != Adapter->MaxPacketSize.nMaxDataSize)
         {
-            TraceNoPrefix(0, "[%s] MTU size is not compatible: %d != %d\n", __FUNCTION__,
-                m_Capabilies.MtuSize, Adapter->MaxPacketSize.nMaxDataSize);
+            TraceNoPrefix(0,
+                          "[%s] MTU size is not compatible: %d != %d\n",
+                          __FUNCTION__,
+                          m_Capabilies.MtuSize,
+                          Adapter->MaxPacketSize.nMaxDataSize);
             return false;
         }
         return true;
@@ -459,8 +506,10 @@ public:
                         if (state != m_Operational)
                         {
                             m_Operational = state;
-                            TraceNoPrefix(0, "[%s] the adapter is %sperational\n",
-                                __FUNCTION__, m_Operational ? "O" : "NOT O");
+                            TraceNoPrefix(0,
+                                          "[%s] the adapter is %sperational\n",
+                                          __FUNCTION__,
+                                          m_Operational ? "O" : "NOT O");
                         }
                     }
                 }
@@ -475,19 +524,24 @@ public:
                         GUESS_VERSION(m_Capabilies.NdisMinor, 30);
                         if (m_Capabilies.NdisMinor != knownMinor)
                         {
-                            TraceNoPrefix(0, "[%s] Best guess for NDIS revision: 6.%d\n", __FUNCTION__, m_Capabilies.NdisMinor);
+                            TraceNoPrefix(0,
+                                          "[%s] Best guess for NDIS revision: 6.%d\n",
+                                          __FUNCTION__,
+                                          m_Capabilies.NdisMinor);
                         }
                     }
                 }
                 break;
             case NDIS_STATUS_LINK_STATE:
                 {
-                    const char *states[] = { "Unknown", "Connected", "Disconnected" };
+                    const char *states[] = {"Unknown", "Connected", "Disconnected"};
                     NDIS_LINK_STATE *ls = (NDIS_LINK_STATE *)StatusIndication->StatusBuffer;
                     ULONG state = ls->MediaConnectState;
-                    TraceNoPrefix(0, "[%s] link state %s(%d)\n", __FUNCTION__,
-                        state <= MediaConnectStateDisconnected ? states[state] : "Invalid",
-                        state);
+                    TraceNoPrefix(0,
+                                  "[%s] link state %s(%d)\n",
+                                  __FUNCTION__,
+                                  state <= MediaConnectStateDisconnected ? states[state] : "Invalid",
+                                  state);
                 }
                 break;
             default:
@@ -509,53 +563,58 @@ public:
     void SetOffloadEncapsulation();
     void SetOffloadParameters();
     void QueryStatistics();
-    bool IsOperational() const { return m_Operational; }
-    ULONG VfInterfaceIndex() const { return m_Capabilies.ifIndex; }
-    bool IsStarted() const { return m_Started; }
-private:
+    bool IsOperational() const
+    {
+        return m_Operational;
+    }
+    ULONG VfInterfaceIndex() const
+    {
+        return m_Capabilies.ifIndex;
+    }
+    bool IsStarted() const
+    {
+        return m_Started;
+    }
+
+  private:
     void QueryCurrentOffload();
     void QueryCurrentRSS();
     bool QueryOid(ULONG oid, PVOID data, ULONG size);
     void CompleteInternalNbl(PNET_BUFFER_LIST Nbl)
     {
-        m_InternalNbls.ForEachDetachedIf(
-            [Nbl](CInternalNblEntry *e)
-            {
-                return e->Match(Nbl);
-            },
-            [&](CInternalNblEntry *e)
-            {
-                e->Destroy(e, m_BindingHandle);
-                CGuestAnnouncePackets::NblCompletionCallback(Nbl);
-                return false;
-            }
-        );
+        m_InternalNbls.ForEachDetachedIf([Nbl](CInternalNblEntry *e) { return e->Match(Nbl); },
+                                         [&](CInternalNblEntry *e) {
+                                             e->Destroy(e, m_BindingHandle);
+                                             CGuestAnnouncePackets::NblCompletionCallback(Nbl);
+                                             return false;
+                                         });
     }
     void OnLastReferenceGone() override;
-    CParaNdisProtocol& m_Protocol;
+    CParaNdisProtocol &m_Protocol;
     NDIS_HANDLE m_BindContext;
     NDIS_HANDLE m_BindingHandle;
     // set under protocol mutex
     // clear under protocol mutex and m_OpStateLock
     PARANDIS_ADAPTER *m_BoundAdapter;
     CNdisEvent m_Event;
-    bool       m_Operational = false;
+    bool m_Operational = false;
     // set and clear under protocol mutex
-    bool       m_Started = false;
-    bool       m_GotStatistics = false;
+    bool m_Started = false;
+    bool m_GotStatistics = false;
     PDEVICE_OBJECT m_Pdo = NULL;
     NDIS_STATUS m_Status;
     struct
     {
         UCHAR NdisMinor;
         ULONG MtuSize;
-        struct {
+        struct
+        {
             ULONG queues;
             ULONG vectors;
             ULONG tableSize;
-            bool  v4;
-            bool  v6;
-            bool  v6ex;
+            bool v4;
+            bool v6;
+            bool v6ex;
         } rss;
         struct
         {
@@ -573,8 +632,8 @@ private:
             {
                 ULONG maxPayload;
                 ULONG minSegments;
-                bool  extHeaders;
-                bool  tcpOptions;
+                bool extHeaders;
+                bool tcpOptions;
             } v6;
         } lsov2;
         struct
@@ -598,21 +657,17 @@ private:
 
 static CParaNdisProtocol *ProtocolData = NULL;
 
-class CParaNdisProtocol :
-    public CNdisAllocatable<CParaNdisProtocol, 'TORP'>,
-    public CRefCountingObject
+class CParaNdisProtocol : public CNdisAllocatable<CParaNdisProtocol, 'TORP'>, public CRefCountingObject
 {
-public:
-    CParaNdisProtocol(NDIS_HANDLE DriverHandle) :
-        m_DriverHandle(DriverHandle),
-        m_ProtocolHandle(NULL)
+  public:
+    CParaNdisProtocol(NDIS_HANDLE DriverHandle) : m_DriverHandle(DriverHandle), m_ProtocolHandle(NULL)
     {
     }
     NDIS_STATUS RegisterDriver()
     {
         NDIS_PROTOCOL_DRIVER_CHARACTERISTICS pchs = {};
         pchs.Name = NDIS_STRING_CONST("netkvmp");
-        //pchs.Name = NDIS_STRING_CONST("NDISPROT");
+        // pchs.Name = NDIS_STRING_CONST("NDISPROT");
         pchs.Header.Type = NDIS_OBJECT_TYPE_PROTOCOL_DRIVER_CHARACTERISTICS;
         pchs.Header.Revision = NDIS_PROTOCOL_DRIVER_CHARACTERISTICS_REVISION_2;
         pchs.Header.Size = NDIS_SIZEOF_PROTOCOL_DRIVER_CHARACTERISTICS_REVISION_2;
@@ -620,83 +675,58 @@ public:
         pchs.MinorNdisVersion = 30;
         pchs.MajorDriverVersion = (UCHAR)(PARANDIS_MAJOR_DRIVER_VERSION & 0xFF);
         pchs.MinorDriverVersion = (UCHAR)(PARANDIS_MINOR_DRIVER_VERSION & 0xFF);
-        pchs.BindAdapterHandlerEx = [](
-            _In_ NDIS_HANDLE ProtocolDriverContext,
-            _In_ NDIS_HANDLE BindContext,
-            _In_ PNDIS_BIND_PARAMETERS BindParameters)
-        {
+        pchs.BindAdapterHandlerEx = [](_In_ NDIS_HANDLE ProtocolDriverContext,
+                                       _In_ NDIS_HANDLE BindContext,
+                                       _In_ PNDIS_BIND_PARAMETERS BindParameters) {
             TraceNoPrefix(0, "[BindAdapterHandlerEx] binding %p\n", BindContext);
             ParaNdis_ProtocolActive();
             return ((CParaNdisProtocol *)ProtocolDriverContext)->OnBindAdapter(BindContext, BindParameters);
         };
-        pchs.OpenAdapterCompleteHandlerEx = [](
-            _In_ NDIS_HANDLE ProtocolBindingContext,
-            _In_ NDIS_STATUS Status)
-        {
+        pchs.OpenAdapterCompleteHandlerEx = [](_In_ NDIS_HANDLE ProtocolBindingContext, _In_ NDIS_STATUS Status) {
             TraceNoPrefix(0, "[OpenAdapterCompleteHandlerEx] %X, ctx %p\n", Status, ProtocolBindingContext);
             CProtocolBinding *binding = (CProtocolBinding *)ProtocolBindingContext;
             binding->Complete(Status);
         };
-        pchs.UnbindAdapterHandlerEx = [](
-            _In_ NDIS_HANDLE UnbindContext,
-            _In_ NDIS_HANDLE ProtocolBindingContext)
-        {
+        pchs.UnbindAdapterHandlerEx = [](_In_ NDIS_HANDLE UnbindContext, _In_ NDIS_HANDLE ProtocolBindingContext) {
             TraceNoPrefix(0, "[UnbindAdapterHandlerEx] ctx %p, binding %p\n", UnbindContext, ProtocolBindingContext);
             CProtocolBinding *binding = (CProtocolBinding *)ProtocolBindingContext;
             return binding->Unbind(UnbindContext);
         };
-        pchs.CloseAdapterCompleteHandlerEx = [](
-            _In_ NDIS_HANDLE ProtocolBindingContext)
-        {
+        pchs.CloseAdapterCompleteHandlerEx = [](_In_ NDIS_HANDLE ProtocolBindingContext) {
             TraceNoPrefix(0, "[CloseAdapterCompleteHandlerEx] ctx %p\n", ProtocolBindingContext);
             CProtocolBinding *binding = (CProtocolBinding *)ProtocolBindingContext;
             binding->Complete(NDIS_STATUS_SUCCESS);
         };
-        pchs.SendNetBufferListsCompleteHandler = [](
-            _In_  NDIS_HANDLE             ProtocolBindingContext,
-            _In_  PNET_BUFFER_LIST        NetBufferList,
-            _In_  ULONG                   SendCompleteFlags)
-        {
+        pchs.SendNetBufferListsCompleteHandler = [](_In_ NDIS_HANDLE ProtocolBindingContext,
+                                                    _In_ PNET_BUFFER_LIST NetBufferList,
+                                                    _In_ ULONG SendCompleteFlags) {
             TraceNoPrefix(2, "[SendNetBufferListsCompleteHandler] ctx %p\n", ProtocolBindingContext);
             CProtocolBinding *binding = (CProtocolBinding *)ProtocolBindingContext;
             binding->OnSendCompletion(NetBufferList, SendCompleteFlags);
         };
-        pchs.ReceiveNetBufferListsHandler = [](
-            _In_  NDIS_HANDLE             ProtocolBindingContext,
-            _In_  PNET_BUFFER_LIST        NetBufferLists,
-            _In_  NDIS_PORT_NUMBER        PortNumber,
-            _In_  ULONG                   NumberOfNetBufferLists,
-            _In_  ULONG                   ReceiveFlags)
-        {
+        pchs.ReceiveNetBufferListsHandler = [](_In_ NDIS_HANDLE ProtocolBindingContext,
+                                               _In_ PNET_BUFFER_LIST NetBufferLists,
+                                               _In_ NDIS_PORT_NUMBER PortNumber,
+                                               _In_ ULONG NumberOfNetBufferLists,
+                                               _In_ ULONG ReceiveFlags) {
             UNREFERENCED_PARAMETER(PortNumber);
             CProtocolBinding *binding = (CProtocolBinding *)ProtocolBindingContext;
             binding->OnReceive(NetBufferLists, NumberOfNetBufferLists, ReceiveFlags);
         };
-        pchs.OidRequestCompleteHandler = [](
-            _In_  NDIS_HANDLE             ProtocolBindingContext,
-            _In_  PNDIS_OID_REQUEST       OidRequest,
-            _In_  NDIS_STATUS             Status
-            )
-        {
+        pchs.OidRequestCompleteHandler = [](_In_ NDIS_HANDLE ProtocolBindingContext,
+                                            _In_ PNDIS_OID_REQUEST OidRequest,
+                                            _In_ NDIS_STATUS Status) {
             CProtocolBinding *binding = (CProtocolBinding *)ProtocolBindingContext;
             binding->OidComplete(OidRequest, Status);
         };
-        pchs.UninstallHandler = []()
-        {
-        };
-        pchs.StatusHandlerEx = [](
-            _In_  NDIS_HANDLE             ProtocolBindingContext,
-            _In_  PNDIS_STATUS_INDICATION StatusIndication
-            )
-        {
+        pchs.UninstallHandler = []() {};
+        pchs.StatusHandlerEx = [](_In_ NDIS_HANDLE ProtocolBindingContext,
+                                  _In_ PNDIS_STATUS_INDICATION StatusIndication) {
             CProtocolBinding *binding = (CProtocolBinding *)ProtocolBindingContext;
             binding->OnStatusIndication(StatusIndication);
         };
-        pchs.NetPnPEventHandler = [](
-            _In_  NDIS_HANDLE                 ProtocolBindingContext,
-            _In_  PNET_PNP_EVENT_NOTIFICATION NetPnPEventNotification
-            )
-        {
+        pchs.NetPnPEventHandler = [](_In_ NDIS_HANDLE ProtocolBindingContext,
+                                     _In_ PNET_PNP_EVENT_NOTIFICATION NetPnPEventNotification) {
             CProtocolBinding *binding = (CProtocolBinding *)ProtocolBindingContext;
             binding->OnPnPEvent(NetPnPEventNotification);
             return NDIS_STATUS_SUCCESS;
@@ -720,7 +750,7 @@ public:
     }
     NDIS_STATUS OnBindAdapter(_In_ NDIS_HANDLE BindContext, _In_ PNDIS_BIND_PARAMETERS BindParameters)
     {
-        CProtocolBinding *binding = new (m_DriverHandle)CProtocolBinding(*this, BindContext);
+        CProtocolBinding *binding = new (m_DriverHandle) CProtocolBinding(*this, BindContext);
         if (!binding)
         {
             return NDIS_STATUS_RESOURCES;
@@ -736,8 +766,7 @@ public:
         CMutexLockedContext protect(m_Mutex);
 
         // find existing entry, if binding exists
-        m_Adapters.ForEach([&](CAdapterEntry *e)
-        {
+        m_Adapters.ForEach([&](CAdapterEntry *e) {
             if (e->MatchMac(pContext->CurrentMacAddress))
             {
                 if (!e->m_Adapter)
@@ -750,8 +779,12 @@ public:
                 }
                 else
                 {
-                    TraceNoPrefix(0, "[%s] duplicated MAC entry %p for adapter %p, existing %p\n",
-                        func, e, pContext, e->m_Adapter);
+                    TraceNoPrefix(0,
+                                  "[%s] duplicated MAC entry %p for adapter %p, existing %p\n",
+                                  func,
+                                  e,
+                                  pContext,
+                                  e->m_Adapter);
                 }
             }
             return true;
@@ -762,12 +795,21 @@ public:
         }
 
         // create a new one, if binding does not exists
-        CAdapterEntry *e = new (m_DriverHandle)CAdapterEntry(pContext);
+        CAdapterEntry *e = new (m_DriverHandle) CAdapterEntry(pContext);
         if (e)
         {
             UCHAR *mac = pContext->CurrentMacAddress;
-            TraceNoPrefix(0, "[%s] new entry %p for adapter %p, mac %02X-%02X-%02X-%02X-%02X-%02X\n",
-                func, e, pContext, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+            TraceNoPrefix(0,
+                          "[%s] new entry %p for adapter %p, mac %02X-%02X-%02X-%02X-%02X-%02X\n",
+                          func,
+                          e,
+                          pContext,
+                          mac[0],
+                          mac[1],
+                          mac[2],
+                          mac[3],
+                          mac[4],
+                          mac[5]);
             m_Adapters.PushBack(e);
         }
     }
@@ -777,16 +819,19 @@ public:
 
         CMutexLockedContext protect(m_Mutex);
 
-        m_Adapters.ForEach([&](CAdapterEntry *e)
-        {
-            if (e->m_Adapter != pContext) {
+        m_Adapters.ForEach([&](CAdapterEntry *e) {
+            if (e->m_Adapter != pContext)
+            {
                 return true;
             }
             e->m_Adapter = NULL;
-            if (e->m_Binding) {
+            if (e->m_Binding)
+            {
                 TraceNoPrefix(0, "[%s] bound entry %p for adapter %p\n", func, e, pContext);
                 e->NotifyAdapterRemoval();
-            } else {
+            }
+            else
+            {
                 TraceNoPrefix(0, "[%s] unbound entry %p for adapter %p\n", func, e, pContext);
                 m_Adapters.Remove(e);
                 e->Destroy(e, m_DriverHandle);
@@ -794,8 +839,7 @@ public:
             return false;
         });
         bool bNoMore = true;
-        m_Adapters.ForEach([&](CAdapterEntry *e)
-        {
+        m_Adapters.ForEach([&](CAdapterEntry *e) {
             if (e->m_Adapter)
             {
                 TraceNoPrefix(0, "[%s] still present entry %p for adapter %p\n", func, e, e->m_Adapter);
@@ -811,12 +855,13 @@ public:
     bool FindAdapterPdo(PDEVICE_OBJECT Pdo)
     {
         bool found = false;
-        m_Adapters.ForEach([&](CAdapterEntry *e)
-        {
-            if (e->m_Adapter) {
+        m_Adapters.ForEach([&](CAdapterEntry *e) {
+            if (e->m_Adapter)
+            {
                 PDEVICE_OBJECT pdo = NULL;
                 NdisMGetDeviceProperty(e->m_Adapter->MiniportHandle, &pdo, NULL, NULL, NULL, NULL);
-                if (pdo == Pdo) {
+                if (pdo == Pdo)
+                {
                     found = true;
                     return false;
                 }
@@ -832,14 +877,14 @@ public:
 
         CMutexLockedContext protect(m_Mutex);
 
-        m_Adapters.ForEach([&](CAdapterEntry *e)
-        {
-            if (!e->MatchMac(MacAddress)) {
+        m_Adapters.ForEach([&](CAdapterEntry *e) {
+            if (!e->MatchMac(MacAddress))
+            {
                 return true;
             }
-            if (e->m_Binding) {
-                TraceNoPrefix(0, "[%s] already present binding %p with adapter %p\n",
-                    func, e->m_Binding, e->m_Adapter);
+            if (e->m_Binding)
+            {
+                TraceNoPrefix(0, "[%s] already present binding %p with adapter %p\n", func, e->m_Binding, e->m_Adapter);
                 Done = true;
                 return false;
             }
@@ -848,14 +893,24 @@ public:
             Done = true;
             return false;
         });
-        if (Done) {
+        if (Done)
+        {
             return;
         }
-        CAdapterEntry *e = new (m_DriverHandle)CAdapterEntry(Binding, MacAddress);
+        CAdapterEntry *e = new (m_DriverHandle) CAdapterEntry(Binding, MacAddress);
         if (e)
         {
-            TraceNoPrefix(0, "[%s] new entry %p for binding %p, mac %02X-%02X-%02X-%02X-%02X-%02X\n",
-                func, e, Binding, MacAddress[0], MacAddress[1], MacAddress[2], MacAddress[3], MacAddress[4], MacAddress[5]);
+            TraceNoPrefix(0,
+                          "[%s] new entry %p for binding %p, mac %02X-%02X-%02X-%02X-%02X-%02X\n",
+                          func,
+                          e,
+                          Binding,
+                          MacAddress[0],
+                          MacAddress[1],
+                          MacAddress[2],
+                          MacAddress[3],
+                          MacAddress[4],
+                          MacAddress[5]);
             m_Adapters.PushBack(e);
         }
     }
@@ -865,16 +920,19 @@ public:
 
         CMutexLockedContext protect(m_Mutex);
 
-        m_Adapters.ForEach([&](CAdapterEntry *e)
-        {
-            if (e->m_Binding != Binding) {
+        m_Adapters.ForEach([&](CAdapterEntry *e) {
+            if (e->m_Binding != Binding)
+            {
                 return true;
             }
-            if (e->m_Adapter) {
+            if (e->m_Adapter)
+            {
                 TraceNoPrefix(0, "[%s] bound entry %p for binding %p\n", func, e, Binding);
                 e->NotifyAdapterDetach();
                 e->m_Binding = NULL;
-            } else {
+            }
+            else
+            {
                 TraceNoPrefix(0, "[%s] unbound entry %p for binding %p\n", func, e, Binding);
                 // the list uses mutex for sync, so we can use 'Remove' here
                 m_Adapters.Remove(e);
@@ -906,20 +964,32 @@ public:
         dispatchTable[IRP_MJ_DEVICE_CONTROL] = OnDeviceIoctl;
 
         NDIS_STATUS status = NdisRegisterDeviceEx(m_DriverHandle, &a, &m_DeviceObject, &m_DeviceHandle);
-        if (status == NDIS_STATUS_SUCCESS) {
-            PVOID* p = (PVOID*)NdisGetDeviceReservedExtension(m_DeviceObject);
+        if (status == NDIS_STATUS_SUCCESS)
+        {
+            PVOID *p = (PVOID *)NdisGetDeviceReservedExtension(m_DeviceObject);
             *p = this;
             TraceNoPrefix(0, "[%s] OK", __FUNCTION__);
         }
-        else {
+        else
+        {
             TraceNoPrefix(0, "[%s] Device registration = %X", __FUNCTION__, status);
         }
         return status;
     }
-    NDIS_HANDLE DriverHandle() const { return m_DriverHandle; }
-    NDIS_HANDLE ProtocolHandle() const { return m_ProtocolHandle; }
-    operator CMutexProtectedAccess& () { return m_Mutex; }
-private:
+    NDIS_HANDLE DriverHandle() const
+    {
+        return m_DriverHandle;
+    }
+    NDIS_HANDLE ProtocolHandle() const
+    {
+        return m_ProtocolHandle;
+    }
+    operator CMutexProtectedAccess &()
+    {
+        return m_Mutex;
+    }
+
+  private:
     CNdisList<CAdapterEntry, CRawAccess, CCountingObject> m_Adapters;
     // there are procedures with several operations on the list,
     // we need to protected them together, so use separate mutex
@@ -955,7 +1025,7 @@ private:
         return status;
     }
     static NTSTATUS OnDeviceIoctl(PDEVICE_OBJECT DeviceObject, PIRP Irp);
-    NTSTATUS QueryAdapters(PVOID Buffer, ULONG Size, ULONG_PTR& Written);
+    NTSTATUS QueryAdapters(PVOID Buffer, ULONG Size, ULONG_PTR &Written);
     NTSTATUS SetLink(PVOID Buffer, ULONG Size);
 };
 
@@ -982,14 +1052,18 @@ NDIS_STATUS ParaNdis_ProtocolInitialize(NDIS_HANDLE DriverHandle)
 void ParaNdis_ProtocolRegisterAdapter(PARANDIS_ADAPTER *pContext)
 {
     if (!ProtocolData)
+    {
         return;
+    }
     ProtocolData->AddAdapter(pContext);
 }
 
 void ParaNdis_ProtocolUnregisterAdapter(PARANDIS_ADAPTER *pContext, bool UnregisterOnLast)
 {
     if (!ProtocolData)
+    {
         return;
+    }
     if (ProtocolData->RemoveAdapter(pContext) && UnregisterOnLast)
     {
         ProtocolData->Release();
@@ -1002,15 +1076,22 @@ NTSTATUS CParaNdisProtocol::OnDeviceIoctl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     NTSTATUS status = STATUS_NOT_SUPPORTED;
 
     PIO_STACK_LOCATION irpStack;
-    CParaNdisProtocol* prot = *(CParaNdisProtocol**)NdisGetDeviceReservedExtension(DeviceObject);
+    CParaNdisProtocol *prot = *(CParaNdisProtocol **)NdisGetDeviceReservedExtension(DeviceObject);
     irpStack = IoGetCurrentIrpStackLocation(Irp);
     ULONG code = irpStack->Parameters.DeviceIoControl.IoControlCode;
     ULONG inSize = irpStack->Parameters.DeviceIoControl.InputBufferLength;
     ULONG outSize = irpStack->Parameters.DeviceIoControl.OutputBufferLength;
     PVOID buffer = Irp->AssociatedIrp.SystemBuffer;
-    TraceNoPrefix(0, "[%s] code %d, buf %p, in %d, out %d\n", __FUNCTION__, (code >> 2) & 0xfff, buffer, inSize, outSize);
+    TraceNoPrefix(0,
+                  "[%s] code %d, buf %p, in %d, out %d\n",
+                  __FUNCTION__,
+                  (code >> 2) & 0xfff,
+                  buffer,
+                  inSize,
+                  outSize);
     Irp->IoStatus.Information = 0;
-    switch (code) {
+    switch (code)
+    {
         case IOCTL_NETKVMD_QUERY_ADAPTERS:
             status = prot->QueryAdapters(buffer, outSize, Irp->IoStatus.Information);
             break;
@@ -1022,26 +1103,28 @@ NTSTATUS CParaNdisProtocol::OnDeviceIoctl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     }
 
     Irp->IoStatus.Status = status;
-    if (status != STATUS_PENDING) {
+    if (status != STATUS_PENDING)
+    {
         IoCompleteRequest(Irp, IO_NO_INCREMENT);
     }
-    else {
+    else
+    {
         IoMarkIrpPending(Irp);
     }
     return status;
 }
 
-NTSTATUS CParaNdisProtocol::QueryAdapters(PVOID Buffer, ULONG Size, ULONG_PTR& Written)
+NTSTATUS CParaNdisProtocol::QueryAdapters(PVOID Buffer, ULONG Size, ULONG_PTR &Written)
 {
-    NETKVMD_ADAPTER* ad = (NETKVMD_ADAPTER*)Buffer;
+    NETKVMD_ADAPTER *ad = (NETKVMD_ADAPTER *)Buffer;
     NTSTATUS status = STATUS_SUCCESS;
     Written = 0;
 
     CMutexLockedContext protect(m_Mutex);
 
-    m_Adapters.ForEach([&](CAdapterEntry* e)
-    {
-        if (Size < sizeof(NETKVMD_ADAPTER)) {
+    m_Adapters.ForEach([&](CAdapterEntry *e) {
+        if (Size < sizeof(NETKVMD_ADAPTER))
+        {
             status = STATUS_BUFFER_TOO_SMALL;
             return false;
         }
@@ -1057,18 +1140,18 @@ NTSTATUS CParaNdisProtocol::QueryAdapters(PVOID Buffer, ULONG Size, ULONG_PTR& W
 
 NTSTATUS CParaNdisProtocol::SetLink(PVOID Buffer, ULONG Size)
 {
-    NETKVMD_SET_LINK* sl = (NETKVMD_SET_LINK*)Buffer;
+    NETKVMD_SET_LINK *sl = (NETKVMD_SET_LINK *)Buffer;
     NTSTATUS status = STATUS_SUCCESS;
 
-    if (Size < sizeof(NETKVMD_SET_LINK)) {
+    if (Size < sizeof(NETKVMD_SET_LINK))
+    {
         return STATUS_BUFFER_TOO_SMALL;
     }
 
     TraceNoPrefix(0, "[%s] %s\n", __FUNCTION__, sl->LinkOn ? "on" : "off");
     CMutexLockedContext protect(m_Mutex);
 
-    m_Adapters.ForEach([&](CAdapterEntry* e)
-    {
+    m_Adapters.ForEach([&](CAdapterEntry *e) {
         if (!e->MatchMac(sl->MacAddress) || !e->m_Adapter)
         {
             return true;
@@ -1085,7 +1168,7 @@ NDIS_STATUS CProtocolBinding::Bind(PNDIS_BIND_PARAMETERS BindParameters)
     NDIS_OPEN_PARAMETERS openParams = {};
     NDIS_MEDIUM medium = NdisMedium802_3;
     UINT mediumIndex;
-    NET_FRAME_TYPE frameTypes[2] = { NDIS_ETH_TYPE_802_1X, NDIS_ETH_TYPE_802_1Q };
+    NET_FRAME_TYPE frameTypes[2] = {NDIS_ETH_TYPE_802_1X, NDIS_ETH_TYPE_802_1Q};
 
     AddRef();
 
@@ -1108,7 +1191,11 @@ NDIS_STATUS CProtocolBinding::Bind(PNDIS_BIND_PARAMETERS BindParameters)
     openParams.FrameTypeArray = frameTypes;
     openParams.FrameTypeArraySize = ARRAYSIZE(frameTypes);
 
-    NDIS_STATUS status = NdisOpenAdapterEx(m_Protocol.ProtocolHandle(), this, &openParams, m_BindContext, &m_BindingHandle);
+    NDIS_STATUS status = NdisOpenAdapterEx(m_Protocol.ProtocolHandle(),
+                                           this,
+                                           &openParams,
+                                           m_BindContext,
+                                           &m_BindingHandle);
 
     if (status == STATUS_SUCCESS)
     {
@@ -1190,9 +1277,11 @@ void CProtocolBinding::OnReceive(PNET_BUFFER_LIST Nbls, ULONG NofNbls, ULONG Fla
         if (m_BoundAdapter)
         {
             TraceNoPrefix(1, "[%s] %d NBLs\n", __FUNCTION__, NofNbls);
-            NdisMIndicateReceiveNetBufferLists(
-                m_BoundAdapter->MiniportHandle, Nbls,
-                NDIS_DEFAULT_PORT_NUMBER, NofNbls, Flags);
+            NdisMIndicateReceiveNetBufferLists(m_BoundAdapter->MiniportHandle,
+                                               Nbls,
+                                               NDIS_DEFAULT_PORT_NUMBER,
+                                               NofNbls,
+                                               Flags);
             if (bResources)
             {
                 m_RxStateMachine.UnregisterOutstandingItems(NofNbls);
@@ -1209,8 +1298,9 @@ void CProtocolBinding::OnReceive(PNET_BUFFER_LIST Nbls, ULONG NofNbls, ULONG Fla
     if (bDrop && !bResources)
     {
         TraceNoPrefix(0, "[%s] dropped %d NBLs\n", __FUNCTION__, NofNbls);
-        NdisReturnNetBufferLists(m_BindingHandle, Nbls,
-            (Flags & NDIS_RECEIVE_FLAGS_DISPATCH_LEVEL) ? NDIS_RETURN_FLAGS_DISPATCH_LEVEL : 0);
+        NdisReturnNetBufferLists(m_BindingHandle,
+                                 Nbls,
+                                 (Flags & NDIS_RECEIVE_FLAGS_DISPATCH_LEVEL) ? NDIS_RETURN_FLAGS_DISPATCH_LEVEL : 0);
     }
 }
 
@@ -1265,7 +1355,8 @@ void CProtocolBinding::QueryCurrentRSS()
         UCHAR indirection[NDIS_RSS_INDIRECTION_TABLE_MAX_SIZE_REVISION_2];
     };
     auto current = new (m_Protocol.DriverHandle()) RSSQuery;
-    if (!current) {
+    if (!current)
+    {
         return;
     }
     if (QueryOid(OID_GEN_RECEIVE_SCALE_PARAMETERS, current, sizeof(*current)))
@@ -1305,7 +1396,11 @@ void CProtocolBinding::SetOid(ULONG oid, PVOID data, ULONG size)
 
 void CProtocolBinding::SetOidAsync(ULONG oid, PVOID data, ULONG size)
 {
-    COidWrapperAsync *p = new (m_Protocol.DriverHandle()) COidWrapperAsync(m_BoundAdapter, NdisRequestSetInformation, oid, data, size);
+    COidWrapperAsync *p = new (m_Protocol.DriverHandle()) COidWrapperAsync(m_BoundAdapter,
+                                                                           NdisRequestSetInformation,
+                                                                           oid,
+                                                                           data,
+                                                                           size);
     if (!p)
     {
         return;
@@ -1315,7 +1410,7 @@ void CProtocolBinding::SetOidAsync(ULONG oid, PVOID data, ULONG size)
 
 void CProtocolBinding::QueryStatistics()
 {
-    CStatisticsWrapper* p = new (m_Protocol.DriverHandle()) CStatisticsWrapper(m_BoundAdapter, !m_GotStatistics);
+    CStatisticsWrapper *p = new (m_Protocol.DriverHandle()) CStatisticsWrapper(m_BoundAdapter, !m_GotStatistics);
     if (!p)
     {
         ParaNdis_DereferenceBinding(m_BoundAdapter);
@@ -1366,15 +1461,14 @@ bool CProtocolBinding::Send(PNET_BUFFER_LIST Nbl, ULONG Count)
 
     if (!CallCompletionForNBL(m_BoundAdapter, Nbl))
     {
-        CInternalNblEntry *e = new (m_BindingHandle)CInternalNblEntry(Nbl);
+        CInternalNblEntry *e = new (m_BindingHandle) CInternalNblEntry(Nbl);
         if (!e)
         {
             m_TxStateMachine.UnregisterOutstandingItems(Count);
             return false;
         }
         m_InternalNbls.PushBack(e);
-        TraceNoPrefix(0, "[%s] internal NBL %p, reserved %p\n",
-            __FUNCTION__, Nbl, Nbl->MiniportReserved[0]);
+        TraceNoPrefix(0, "[%s] internal NBL %p, reserved %p\n", __FUNCTION__, Nbl, Nbl->MiniportReserved[0]);
     }
 
     while (current)
@@ -1411,7 +1505,9 @@ void CProtocolBinding::OnSendCompletion(PNET_BUFFER_LIST Nbls, ULONG Flags)
     {
         count++;
         if (NET_BUFFER_LIST_STATUS(current) != NDIS_STATUS_SUCCESS)
+        {
             errors++;
+        }
         if (!CallCompletionForNBL(m_BoundAdapter, current))
         {
             // remove the NBL from the chain
@@ -1527,8 +1623,14 @@ void CProtocolBinding::QueryCapabilities(PNDIS_BIND_PARAMETERS BindParameters)
             hds.maxHeader = BindParameters->HDSplitCurrentConfig->MaxHeaderSize;
             hds.backfill = BindParameters->HDSplitCurrentConfig->BackfillSize;
             GUESS_VERSION(m_Capabilies.NdisMinor, 10);
-            TraceNoPrefix(0, "[%s] HDS: ipv4opt:%d, ipv6ext:%d, tcpopt:%d, max header:%d, backfill %d\n",
-                __FUNCTION__, hds.ipv4opt, hds.ipv6ext, hds.tcpopt, hds.maxHeader, hds.backfill);
+            TraceNoPrefix(0,
+                          "[%s] HDS: ipv4opt:%d, ipv6ext:%d, tcpopt:%d, max header:%d, backfill %d\n",
+                          __FUNCTION__,
+                          hds.ipv4opt,
+                          hds.ipv6ext,
+                          hds.tcpopt,
+                          hds.maxHeader,
+                          hds.backfill);
         }
     }
     // If RSS has table size, it is 6.30 at least
@@ -1540,7 +1642,8 @@ void CProtocolBinding::QueryCapabilities(PNDIS_BIND_PARAMETERS BindParameters)
         m_Capabilies.rss.v6ex = flags & NDIS_RSS_CAPS_HASH_TYPE_TCP_IPV6_EX;
         m_Capabilies.rss.queues = BindParameters->RcvScaleCapabilities->NumberOfReceiveQueues;
         m_Capabilies.rss.vectors = BindParameters->RcvScaleCapabilities->NumberOfInterruptMessages;
-        if (flags & NDIS_RSS_CAPS_USING_MSI_X) {
+        if (flags & NDIS_RSS_CAPS_USING_MSI_X)
+        {
             GUESS_VERSION(m_Capabilies.NdisMinor, 20);
         }
         if (BindParameters->RcvScaleCapabilities->Header.Revision > NDIS_SIZEOF_RECEIVE_SCALE_CAPABILITIES_REVISION_1)
@@ -1548,9 +1651,15 @@ void CProtocolBinding::QueryCapabilities(PNDIS_BIND_PARAMETERS BindParameters)
             GUESS_VERSION(m_Capabilies.NdisMinor, 30);
             m_Capabilies.rss.tableSize = BindParameters->RcvScaleCapabilities->NumberOfIndirectionTableEntries;
         }
-        TraceNoPrefix(0, "[%s] RSS: v4:%d,v6:%d,v6ex:%d, queues:%d, vectors:%d, max table:%d\n", __FUNCTION__,
-            m_Capabilies.rss.v4, m_Capabilies.rss.v6, m_Capabilies.rss.v6ex,
-            m_Capabilies.rss.queues, m_Capabilies.rss.vectors, m_Capabilies.rss.tableSize);
+        TraceNoPrefix(0,
+                      "[%s] RSS: v4:%d,v6:%d,v6ex:%d, queues:%d, vectors:%d, max table:%d\n",
+                      __FUNCTION__,
+                      m_Capabilies.rss.v4,
+                      m_Capabilies.rss.v6,
+                      m_Capabilies.rss.v6ex,
+                      m_Capabilies.rss.queues,
+                      m_Capabilies.rss.vectors,
+                      m_Capabilies.rss.tableSize);
     }
     else
     {
@@ -1582,14 +1691,19 @@ void CProtocolBinding::QueryCapabilities(PNDIS_BIND_PARAMETERS BindParameters)
         m_Capabilies.lsov2.v6.minSegments = doc->LsoV2.IPv6.MinSegmentCount;
         m_Capabilies.lsov2.v6.extHeaders = doc->LsoV2.IPv6.IpExtensionHeadersSupported;
         m_Capabilies.lsov2.v6.tcpOptions = doc->LsoV2.IPv6.TcpOptionsSupported;
-        TraceNoPrefix(0, "[%s] LSOv2: v4: min segments %d, max payload %d\n", __FUNCTION__,
-            m_Capabilies.lsov2.v4.minSegments, m_Capabilies.lsov2.v4.maxPayload);
-        TraceNoPrefix(0, "[%s] LSOv2: v6: min segments %d, max payload %d, tcp opt:%d, extHeaders:%d\n",
-            __FUNCTION__,
-            m_Capabilies.lsov2.v6.minSegments, m_Capabilies.lsov2.v6.maxPayload,
-            m_Capabilies.lsov2.v6.tcpOptions, m_Capabilies.lsov2.v6.extHeaders);
-        TraceNoPrefix(0, "[%s] RSC: v4:%d, v6:%d\n", __FUNCTION__,
-            m_Capabilies.rsc.v4, m_Capabilies.rsc.v6);
+        TraceNoPrefix(0,
+                      "[%s] LSOv2: v4: min segments %d, max payload %d\n",
+                      __FUNCTION__,
+                      m_Capabilies.lsov2.v4.minSegments,
+                      m_Capabilies.lsov2.v4.maxPayload);
+        TraceNoPrefix(0,
+                      "[%s] LSOv2: v6: min segments %d, max payload %d, tcp opt:%d, extHeaders:%d\n",
+                      __FUNCTION__,
+                      m_Capabilies.lsov2.v6.minSegments,
+                      m_Capabilies.lsov2.v6.maxPayload,
+                      m_Capabilies.lsov2.v6.tcpOptions,
+                      m_Capabilies.lsov2.v6.extHeaders);
+        TraceNoPrefix(0, "[%s] RSC: v4:%d, v6:%d\n", __FUNCTION__, m_Capabilies.rsc.v4, m_Capabilies.rsc.v6);
     }
     else
     {
@@ -1612,7 +1726,8 @@ void CProtocolBinding::SetRSS()
     };
     auto current = new (m_Protocol.DriverHandle()) RSSSet;
     bSkip = !current || bSkip;
-    if (!bSkip) {
+    if (!bSkip)
+    {
         RtlZeroMemory(current, sizeof(*current));
         current->rsp.Header.Type = NDIS_OBJECT_TYPE_RSS_PARAMETERS;
         current->rsp.Header.Revision = NDIS_RECEIVE_SCALE_PARAMETERS_REVISION_2;
@@ -1625,13 +1740,13 @@ void CProtocolBinding::SetRSS()
                 current->rsp.HashSecretKeyOffset = FIELD_OFFSET(RSSSet, key);
                 current->rsp.HashSecretKeySize = m_BoundAdapter->RSSParameters.ActiveHashingSettings.HashSecretKeySize;
                 RtlMoveMemory(current->key,
-                    m_BoundAdapter->RSSParameters.ActiveHashingSettings.HashSecretKey,
-                    current->rsp.HashSecretKeySize);
+                              m_BoundAdapter->RSSParameters.ActiveHashingSettings.HashSecretKey,
+                              current->rsp.HashSecretKeySize);
                 current->rsp.IndirectionTableOffset = FIELD_OFFSET(RSSSet, indirection);
                 current->rsp.IndirectionTableSize = m_BoundAdapter->RSSParameters.ActiveRSSScalingSettings.IndirectionTableSize;
                 RtlMoveMemory(current->indirection,
-                    m_BoundAdapter->RSSParameters.ActiveRSSScalingSettings.IndirectionTable,
-                    current->rsp.IndirectionTableSize);
+                              m_BoundAdapter->RSSParameters.ActiveRSSScalingSettings.IndirectionTable,
+                              current->rsp.IndirectionTableSize);
                 break;
             default:
                 current->rsp.Flags = NDIS_RSS_PARAM_FLAG_DISABLE_RSS;
@@ -1640,24 +1755,35 @@ void CProtocolBinding::SetRSS()
 #if (NDIS_SUPPORT_NDIS680)
         current->rsp.HashInformation &= ~(NDIS_HASH_UDP_IPV4 | NDIS_HASH_UDP_IPV6 | NDIS_HASH_UDP_IPV6_EX);
 #endif // (NDIS_SUPPORT_NDIS680)
-        if (!m_Capabilies.rss.v6ex) {
+        if (!m_Capabilies.rss.v6ex)
+        {
             current->rsp.HashInformation &= ~(NDIS_HASH_IPV6_EX | NDIS_HASH_TCP_IPV6_EX);
         }
-        if (!m_Capabilies.rss.v6) {
+        if (!m_Capabilies.rss.v6)
+        {
             current->rsp.HashInformation &= ~(NDIS_HASH_IPV6 | NDIS_HASH_TCP_IPV6);
         }
-        p = new (m_Protocol.DriverHandle()) COidWrapperAsync(m_BoundAdapter, NdisRequestSetInformation, OID_GEN_RECEIVE_SCALE_PARAMETERS, current, sizeof(*current));
-        if (!p){
+        p = new (m_Protocol.DriverHandle()) COidWrapperAsync(m_BoundAdapter,
+                                                             NdisRequestSetInformation,
+                                                             OID_GEN_RECEIVE_SCALE_PARAMETERS,
+                                                             current,
+                                                             sizeof(*current));
+        if (!p)
+        {
             bSkip = true;
         }
     }
-    if (!bSkip) {
+    if (!bSkip)
+    {
         TraceNoPrefix(0, "[%s] Using hash info %X\n", __FUNCTION__, current->rsp.HashInformation);
         p->Run(m_BindingHandle);
-    } else {
+    }
+    else
+    {
         ParaNdis_DereferenceBinding(m_BoundAdapter);
     }
-    if (current) {
+    if (current)
+    {
         current->Destroy(current, m_Protocol.DriverHandle());
     }
 }
@@ -1672,55 +1798,70 @@ void CProtocolBinding::SetOffloadEncapsulation()
     };
     auto current = new (m_Protocol.DriverHandle()) EncapSet;
     bSkip = !current || bSkip;
-    if (!bSkip) {
+    if (!bSkip)
+    {
         RtlZeroMemory(current, sizeof(*current));
         current->e.Header.Type = NDIS_OBJECT_TYPE_OFFLOAD_ENCAPSULATION;
         current->e.Header.Revision = NDIS_OFFLOAD_ENCAPSULATION_REVISION_1;
         current->e.Header.Size = NDIS_SIZEOF_OFFLOAD_ENCAPSULATION_REVISION_1;
         current->e.IPv4.EncapsulationType = NDIS_ENCAPSULATION_IEEE_802_3;
         current->e.IPv6.EncapsulationType = NDIS_ENCAPSULATION_IEEE_802_3;
-        if (m_BoundAdapter->bOffloadv4Enabled && m_Capabilies.lsov2.v4.maxPayload) {
+        if (m_BoundAdapter->bOffloadv4Enabled && m_Capabilies.lsov2.v4.maxPayload)
+        {
             current->e.IPv4.Enabled = NDIS_OFFLOAD_SET_ON;
             current->e.IPv4.HeaderSize = m_BoundAdapter->Offload.ipHeaderOffset;
-        } else {
+        }
+        else
+        {
             current->e.IPv4.Enabled = NDIS_OFFLOAD_SET_OFF;
             current->e.IPv4.HeaderSize = 0;
         }
-        if (m_BoundAdapter->bOffloadv6Enabled && m_Capabilies.lsov2.v6.maxPayload) {
+        if (m_BoundAdapter->bOffloadv6Enabled && m_Capabilies.lsov2.v6.maxPayload)
+        {
             current->e.IPv6.Enabled = NDIS_OFFLOAD_SET_ON;
             current->e.IPv6.HeaderSize = m_BoundAdapter->Offload.ipHeaderOffset;
         }
-        else {
+        else
+        {
             current->e.IPv6.Enabled = NDIS_OFFLOAD_SET_OFF;
             current->e.IPv6.HeaderSize = 0;
         }
 
-        p = new (m_Protocol.DriverHandle()) COidWrapperAsync(m_BoundAdapter, NdisRequestSetInformation, OID_OFFLOAD_ENCAPSULATION, current, sizeof(*current));
-        if (!p) {
+        p = new (m_Protocol.DriverHandle()) COidWrapperAsync(m_BoundAdapter,
+                                                             NdisRequestSetInformation,
+                                                             OID_OFFLOAD_ENCAPSULATION,
+                                                             current,
+                                                             sizeof(*current));
+        if (!p)
+        {
             bSkip = true;
         }
     }
-    if (!bSkip) {
-        TraceNoPrefix(0, "[%s] Using v4:%d, v6:%d\n", __FUNCTION__, current->e.IPv4.HeaderSize, current->e.IPv6.HeaderSize);
+    if (!bSkip)
+    {
+        TraceNoPrefix(0,
+                      "[%s] Using v4:%d, v6:%d\n",
+                      __FUNCTION__,
+                      current->e.IPv4.HeaderSize,
+                      current->e.IPv6.HeaderSize);
         p->Run(m_BindingHandle);
     }
-    else {
+    else
+    {
         ParaNdis_DereferenceBinding(m_BoundAdapter);
     }
-    if (current) {
+    if (current)
+    {
         current->Destroy(current, m_Protocol.DriverHandle());
     }
 }
 
 static UCHAR ChecksumSetting(int Tx, int Rx)
 {
-    const UCHAR values[4] =
-    {
-        NDIS_OFFLOAD_PARAMETERS_TX_RX_DISABLED,
-        NDIS_OFFLOAD_PARAMETERS_TX_ENABLED_RX_DISABLED,
-        NDIS_OFFLOAD_PARAMETERS_RX_ENABLED_TX_DISABLED,
-        NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED
-    };
+    const UCHAR values[4] = {NDIS_OFFLOAD_PARAMETERS_TX_RX_DISABLED,
+                             NDIS_OFFLOAD_PARAMETERS_TX_ENABLED_RX_DISABLED,
+                             NDIS_OFFLOAD_PARAMETERS_RX_ENABLED_TX_DISABLED,
+                             NDIS_OFFLOAD_PARAMETERS_TX_RX_ENABLED};
     Tx = Tx ? 1 : 0;
     Rx = Rx ? 2 : 0;
     return values[Tx + Rx];
@@ -1736,25 +1877,31 @@ void CProtocolBinding::SetOffloadParameters()
     };
     auto current = new (m_Protocol.DriverHandle()) OffloadParam;
     bSkip = !current || bSkip;
-    if (!bSkip) {
+    if (!bSkip)
+    {
         tOffloadSettingsFlags f = m_BoundAdapter->Offload.flags;
         RtlZeroMemory(current, sizeof(*current));
         current->o.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
         current->o.Header.Revision = NDIS_OFFLOAD_PARAMETERS_REVISION_2;
         current->o.Header.Size = NDIS_SIZEOF_OFFLOAD_PARAMETERS_REVISION_2;
-        if (m_Capabilies.NdisMinor >= 30) {
+        if (m_Capabilies.NdisMinor >= 30)
+        {
             current->o.Header.Revision = NDIS_OFFLOAD_PARAMETERS_REVISION_3;
             current->o.Header.Size = NDIS_SIZEOF_OFFLOAD_PARAMETERS_REVISION_3;
         }
-        current->o.RscIPv4 = m_BoundAdapter->RSC.bIPv4Enabled ?
-            NDIS_OFFLOAD_PARAMETERS_RSC_ENABLED : NDIS_OFFLOAD_PARAMETERS_RSC_DISABLED;
-        current->o.RscIPv6 = m_BoundAdapter->RSC.bIPv6Enabled ?
-            NDIS_OFFLOAD_PARAMETERS_RSC_ENABLED : NDIS_OFFLOAD_PARAMETERS_RSC_DISABLED;
-        if (m_Capabilies.lsov2.v4.maxPayload) {
-            current->o.LsoV2IPv4 = f.fTxLso ? NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED : NDIS_OFFLOAD_PARAMETERS_LSOV2_DISABLED;
+        current->o.RscIPv4 = m_BoundAdapter->RSC.bIPv4Enabled ? NDIS_OFFLOAD_PARAMETERS_RSC_ENABLED
+                                                              : NDIS_OFFLOAD_PARAMETERS_RSC_DISABLED;
+        current->o.RscIPv6 = m_BoundAdapter->RSC.bIPv6Enabled ? NDIS_OFFLOAD_PARAMETERS_RSC_ENABLED
+                                                              : NDIS_OFFLOAD_PARAMETERS_RSC_DISABLED;
+        if (m_Capabilies.lsov2.v4.maxPayload)
+        {
+            current->o.LsoV2IPv4 = f.fTxLso ? NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED
+                                            : NDIS_OFFLOAD_PARAMETERS_LSOV2_DISABLED;
         }
-        if (m_Capabilies.lsov2.v6.maxPayload) {
-            current->o.LsoV2IPv6 = f.fTxLsov6 ? NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED : NDIS_OFFLOAD_PARAMETERS_LSOV2_DISABLED;
+        if (m_Capabilies.lsov2.v6.maxPayload)
+        {
+            current->o.LsoV2IPv6 = f.fTxLsov6 ? NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED
+                                              : NDIS_OFFLOAD_PARAMETERS_LSOV2_DISABLED;
         }
         current->o.IPv4Checksum = ChecksumSetting(f.fTxIPChecksum, f.fRxIPChecksum);
         current->o.TCPIPv4Checksum = ChecksumSetting(f.fTxTCPChecksum, f.fRxTCPChecksum);
@@ -1762,25 +1909,33 @@ void CProtocolBinding::SetOffloadParameters()
         current->o.UDPIPv4Checksum = ChecksumSetting(f.fTxUDPChecksum, f.fRxUDPChecksum);
         current->o.UDPIPv6Checksum = ChecksumSetting(f.fTxUDPv6Checksum, f.fRxUDPv6Checksum);
 
-        p = new (m_Protocol.DriverHandle()) COidWrapperAsync(m_BoundAdapter, NdisRequestSetInformation, OID_TCP_OFFLOAD_PARAMETERS, current, sizeof(*current));
-        if (!p) {
+        p = new (m_Protocol.DriverHandle()) COidWrapperAsync(m_BoundAdapter,
+                                                             NdisRequestSetInformation,
+                                                             OID_TCP_OFFLOAD_PARAMETERS,
+                                                             current,
+                                                             sizeof(*current));
+        if (!p)
+        {
             bSkip = true;
         }
     }
-    if (!bSkip) {
+    if (!bSkip)
+    {
         TraceNoPrefix(0, "[%s] Using Rsc v4:%d, v6:%d\n", __FUNCTION__, current->o.RscIPv4, current->o.RscIPv6);
         TraceNoPrefix(0, "[%s] Using LsoV2 v4:%d, v6:%d\n", __FUNCTION__, current->o.LsoV2IPv4, current->o.LsoV2IPv6);
         p->Run(m_BindingHandle);
     }
-    else {
+    else
+    {
         ParaNdis_DereferenceBinding(m_BoundAdapter);
     }
-    if (current) {
+    if (current)
+    {
         current->Destroy(current, m_Protocol.DriverHandle());
     }
 }
 
-void CAdapterEntry::GetData(NETKVMD_ADAPTER* ad)
+void CAdapterEntry::GetData(NETKVMD_ADAPTER *ad)
 {
     NdisZeroMemory(ad, sizeof(*ad));
     NdisMoveMemory(ad->MacAddress, m_MacAddress, ETH_HARDWARE_ADDRESS_SIZE);
@@ -1791,8 +1946,9 @@ void CAdapterEntry::GetData(NETKVMD_ADAPTER* ad)
         ad->SuppressLink = m_Adapter->bSuppressLinkUp;
         ad->VirtioLink = m_Adapter->bConnected;
     }
-    if (m_Binding) {
-        CProtocolBinding* pb = (CProtocolBinding *)m_Binding;
+    if (m_Binding)
+    {
+        CProtocolBinding *pb = (CProtocolBinding *)m_Binding;
         ad->HasVf = 1;
         ad->VfLink = pb->IsOperational();
         ad->VfIfIndex = pb->VfInterfaceIndex();
@@ -1805,14 +1961,14 @@ void CAdapterEntry::SetLink(bool LinkOn)
     if (m_Binding && LinkOn)
     {
         // start the pair of adapters
-        CProtocolBinding* pb = (CProtocolBinding*)m_Binding;
+        CProtocolBinding *pb = (CProtocolBinding *)m_Binding;
         pb->OnAdapterAttached();
     }
     if (!m_Binding && LinkOn)
     {
         m_Adapter->bSuppressLinkUp = false;
         ParaNdis_SynchronizeLinkState(m_Adapter);
-}
+    }
     if (!LinkOn && m_Adapter)
     {
         m_Adapter->bSuppressLinkUp = true;
@@ -1821,11 +1977,24 @@ void CAdapterEntry::SetLink(bool LinkOn)
 }
 #else
 
-void ParaNdis_ProtocolUnregisterAdapter(PARANDIS_ADAPTER *, bool) { }
-void ParaNdis_ProtocolRegisterAdapter(PARANDIS_ADAPTER *) { }
-NDIS_STATUS ParaNdis_ProtocolInitialize(NDIS_HANDLE) { }
-bool ParaNdis_ProtocolSend(PARANDIS_ADAPTER *, PNET_BUFFER_LIST) { return false; }
-void ParaNdis_PropagateOid(PARANDIS_ADAPTER *, NDIS_OID, PVOID, UINT) { }
-void ParaNdis_ProtocolReturnNbls(PARANDIS_ADAPTER *, PNET_BUFFER_LIST, ULONG, ULONG) { }
+void ParaNdis_ProtocolUnregisterAdapter(PARANDIS_ADAPTER *, bool)
+{
+}
+void ParaNdis_ProtocolRegisterAdapter(PARANDIS_ADAPTER *)
+{
+}
+NDIS_STATUS ParaNdis_ProtocolInitialize(NDIS_HANDLE)
+{
+}
+bool ParaNdis_ProtocolSend(PARANDIS_ADAPTER *, PNET_BUFFER_LIST)
+{
+    return false;
+}
+void ParaNdis_PropagateOid(PARANDIS_ADAPTER *, NDIS_OID, PVOID, UINT)
+{
+}
+void ParaNdis_ProtocolReturnNbls(PARANDIS_ADAPTER *, PNET_BUFFER_LIST, ULONG, ULONG)
+{
+}
 
-#endif //NDIS_SUPPORT_NDIS630
+#endif // NDIS_SUPPORT_NDIS630
