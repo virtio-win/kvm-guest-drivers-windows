@@ -179,6 +179,13 @@ echo.
 pushd %BUILD_DIR%
 call "%~dp0SetVsEnv.bat" %TARGET_PROJ_CONFIG%
 
+rem Check for any prerequisite x86 libraries and build them if needed...
+call "%~dp0prebuild_x86_libs.bat" %BUILD_FILE% %BUILD_ARCH% "%BUILD_DIR%" %TARGET% %BUILD_FLAVOUR%
+IF ERRORLEVEL 1 (
+  set BUILD_FAILED=1
+  goto :build_arch_done
+)
+
 rem Split builds between Code Analysis and No-Analyis...
 if /I "!TAG!"=="SDV" (
   echo.
