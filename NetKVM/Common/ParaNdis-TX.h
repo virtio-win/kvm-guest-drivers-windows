@@ -9,7 +9,7 @@
 
 /* the maximum number of pages that a single network packet can span.
 refer linux kernel code #define MAX_SKB_FRAGS (65536/PAGE_SIZE + 1), */
-#define MAX_PACKET_PAGES 17
+#define MAX_PACKET_PAGES                         17
 
 class CNB;
 class CParaNdisTX;
@@ -25,24 +25,22 @@ typedef enum class _tagNBMappingStatus
 
 struct CExtendedNBStorage
 {
-    ULONG                  m_UsedPagesCount;
+    ULONG m_UsedPagesCount;
     /* Array to hold pages storing packet data. Although MAX_PACKET_PAGES - 1 might be
      * sufficient since protocol headers are not stored, we're currently using
      * MAX_PACKET_PAGES for simplicity and potential future use cases.
      */
-    CNdisSharedMemory     *m_UsedPages[MAX_PACKET_PAGES];
+    CNdisSharedMemory *m_UsedPages[MAX_PACKET_PAGES];
     SCATTER_GATHER_ELEMENT m_Elements[MAX_PACKET_PAGES];
 };
 
 class CNB : public CNdisAllocatableViaHelper<CNB>
 {
-public:
+  public:
     CNB(PNET_BUFFER NB, CNBL *ParentNBL, PPARANDIS_ADAPTER Context, CAllocationHelper<CNB> *Allocator)
-        : m_NB(NB)
-        , m_ParentNBL(ParentNBL)
-        , m_Context(Context)
-        , CNdisAllocatableViaHelper<CNB>(Allocator)
-    { }
+        : m_NB(NB), m_ParentNBL(ParentNBL), m_Context(Context), CNdisAllocatableViaHelper<CNB>(Allocator)
+    {
+    }
 
     ~CNB();
 
@@ -74,12 +72,16 @@ public:
     NBMappingStatus BindToDescriptor(CTXDescriptor &Descriptor);
     void Report(int level, bool Success);
     void ReturnPages();
-private:
+
+  private:
     ULONG Copy(PVOID Dst, ULONG Length) const;
     static ULONG CopyFromMdlChain(PVOID Dst, ULONG Length, PMDL &Source, ULONG &Offset);
     bool CopyHeaders(PVOID Destination, ULONG MaxSize, ULONG &HeadersLength, ULONG &L4HeaderOffset) const;
     void BuildPriorityHeader(PETH_HEADER EthHeader, PVLAN_HEADER VlanHeader) const;
-    void PrepareOffloads(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloadLength, ULONG L4HeaderOffset) const;
+    void PrepareOffloads(virtio_net_hdr *VirtioHeader,
+                         PVOID IpHeader,
+                         ULONG EthPayloadLength,
+                         ULONG L4HeaderOffset) const;
     void SetupLSO(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloadLength) const;
     void SetupUSO(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloadLength) const;
     USHORT QueryL4HeaderOffset(PVOID PacketData, ULONG IpHeaderOffset) const;
@@ -97,18 +99,20 @@ private:
     PSCATTER_GATHER_LIST m_SGL = nullptr;
     CExtendedNBStorage *m_ExtraNBStorage = nullptr;
 
-    CNB(const CNB&) = delete;
-    CNB& operator= (const CNB&) = delete;
+    CNB(const CNB &) = delete;
+    CNB &operator=(const CNB &) = delete;
 
     DECLARE_CNDISLIST_ENTRY(CNB);
 };
 
-class CNBL : public CNdisAllocatableViaHelper<CNBL>,
-             public CRefCountingObject,
-             public CAllocationHelper<CNB>
+class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, public CAllocationHelper<CNB>
 {
-public:
-    CNBL(PNET_BUFFER_LIST NBL, PPARANDIS_ADAPTER Context, CParaNdisTX &ParentTXPath, CAllocationHelper<CNBL> *NBLAllocator, CAllocationHelper<CNB> *NBAllocator);
+  public:
+    CNBL(PNET_BUFFER_LIST NBL,
+         PPARANDIS_ADAPTER Context,
+         CParaNdisTX &ParentTXPath,
+         CAllocationHelper<CNBL> *NBLAllocator,
+         CAllocationHelper<CNB> *NBAllocator);
     ~CNBL();
 
     /* CAllocationHelper<CNB> */
@@ -122,12 +126,19 @@ public:
     }
 
     bool Prepare()
-    { return (ParsePriority() && ParseBuffers() && ParseOffloads()); }
+    {
+        return (ParsePriority() && ParseBuffers() && ParseOffloads());
+    }
     void StartMapping();
     void RegisterMappedNB(CNB *NB);
-    bool MappingSucceeded() { return !m_HaveFailedMappings; }
+    bool MappingSucceeded()
+    {
+        return !m_HaveFailedMappings;
+    }
     void SetStatus(NDIS_STATUS Status)
-    { m_NBL->Status = Status; }
+    {
+        m_NBL->Status = Status;
+    }
 
     // called under m_Lock of parent TX path for CNBL object in Send list
     CNB *PopMappedNB();
@@ -135,13 +146,17 @@ public:
     void PushMappedNB(CNB *NBHolder);
     // called under m_Lock of parent TX path for CNBL object in Send list
     bool HaveMappedBuffers()
-    { return !m_Buffers.IsEmpty(); }
+    {
+        return !m_Buffers.IsEmpty();
+    }
 
     bool HaveDetachedBuffers()
-    { return m_MappedBuffersDetached != 0; }
+    {
+        return m_MappedBuffersDetached != 0;
+    }
 
     PNET_BUFFER_LIST DetachInternalObject();
-    //TODO: Needs review
+    // TODO: Needs review
     void NBComplete();
     bool IsSendDone();
 
@@ -150,33 +165,64 @@ public:
         return reinterpret_cast<UCHAR>(NET_BUFFER_LIST_INFO(m_NBL, NetBufferListProtocolId));
     }
     bool MatchCancelID(PVOID ID)
-    { return NDIS_GET_NET_BUFFER_LIST_CANCEL_ID(m_NBL) == ID; }
+    {
+        return NDIS_GET_NET_BUFFER_LIST_CANCEL_ID(m_NBL) == ID;
+    }
     ULONG MSS()
-    { return m_LsoInfo.LsoV2Transmit.MSS; }
+    {
+        return m_LsoInfo.LsoV2Transmit.MSS;
+    }
     ULONG TCPHeaderOffset()
-    { return IsLSO() ? LsoTcpHeaderOffset() : CsoTcpHeaderOffset(); }
+    {
+        return IsLSO() ? LsoTcpHeaderOffset() : CsoTcpHeaderOffset();
+    }
     UINT16 TCI()
-    { return m_TCI; }
+    {
+        return m_TCI;
+    }
     bool IsLSO()
-    { return (m_LsoInfo.Value != nullptr); }
+    {
+        return (m_LsoInfo.Value != nullptr);
+    }
 #if PARANDIS_SUPPORT_USO
     bool IsUSO()
-    { return (m_UsoInfo.Value != nullptr); }
+    {
+        return (m_UsoInfo.Value != nullptr);
+    }
     ULONG UsoMSS()
-    { return m_UsoInfo.Transmit.MSS; }
+    {
+        return m_UsoInfo.Transmit.MSS;
+    }
     ULONG UsoHeaderOffset()
-    { return m_UsoInfo.Transmit.UdpHeaderOffset; }
+    {
+        return m_UsoInfo.Transmit.UdpHeaderOffset;
+    }
 #else
-    bool IsUSO() { return false; }
-    ULONG UsoMSS() { return 0; }
-    ULONG UsoHeaderOffset() { return 0; }
+    bool IsUSO()
+    {
+        return false;
+    }
+    ULONG UsoMSS()
+    {
+        return 0;
+    }
+    ULONG UsoHeaderOffset()
+    {
+        return 0;
+    }
 #endif
     bool IsTcpCSO()
-    { return m_CsoInfo.Transmit.TcpChecksum; }
+    {
+        return m_CsoInfo.Transmit.TcpChecksum;
+    }
     bool IsUdpCSO()
-    { return m_CsoInfo.Transmit.UdpChecksum; }
+    {
+        return m_CsoInfo.Transmit.UdpChecksum;
+    }
     bool IsIPHdrCSO()
-    { return m_CsoInfo.Transmit.IpHeaderChecksum; }
+    {
+        return m_CsoInfo.Transmit.IpHeaderChecksum;
+    }
     void UpdateLSOTxStats(ULONG ChunkSize)
     {
         if (m_LsoInfo.LsoV1TransmitComplete.Type == NDIS_TCP_LARGE_SEND_OFFLOAD_V1_TYPE)
@@ -184,9 +230,16 @@ public:
             m_TransferSize += ChunkSize;
         }
     }
-    ULONG NumberOfBuffers() const { return m_BuffersNumber; }
-    CParaNdisTX *GetParentTXPath() const { return m_ParentTXPath; }
-private:
+    ULONG NumberOfBuffers() const
+    {
+        return m_BuffersNumber;
+    }
+    CParaNdisTX *GetParentTXPath() const
+    {
+        return m_ParentTXPath;
+    }
+
+  private:
     virtual void OnLastReferenceGone() override;
 
     void RegisterNB(CNB *NB);
@@ -197,18 +250,25 @@ private:
     bool ParseUSO();
     bool NeedsLSO();
     ULONG LsoTcpHeaderOffset()
-    { return m_LsoInfo.LsoV2Transmit.TcpHeaderOffset; }
+    {
+        return m_LsoInfo.LsoV2Transmit.TcpHeaderOffset;
+    }
     ULONG CsoTcpHeaderOffset()
-    { return m_CsoInfo.Transmit.TcpHeaderOffset; }
+    {
+        return m_CsoInfo.Transmit.TcpHeaderOffset;
+    }
     bool FitsLSO();
     bool IsIP4CSO()
-    { return m_CsoInfo.Transmit.IsIPv4; }
+    {
+        return m_CsoInfo.Transmit.IsIPv4;
+    }
     bool IsIP6CSO()
-    { return m_CsoInfo.Transmit.IsIPv6; }
+    {
+        return m_CsoInfo.Transmit.IsIPv6;
+    }
 
     template <typename TClassPred, typename TOffloadPred, typename TSupportedPred>
-    bool ParseCSO(TClassPred IsClass, TOffloadPred IsOffload,
-                  TSupportedPred IsSupported, LPSTR OffloadName);
+    bool ParseCSO(TClassPred IsClass, TOffloadPred IsOffload, TSupportedPred IsSupported, LPSTR OffloadName);
 
     PNET_BUFFER_LIST m_NBL;
     PPARANDIS_ADAPTER m_Context;
@@ -226,7 +286,7 @@ private:
 
     ULONG m_MaxDataLength = 0;
     ULONG m_TransferSize = 0;
-    ULONG  m_LogIndex;
+    ULONG m_LogIndex;
 
     UINT16 m_TCI = 0;
 
@@ -237,8 +297,8 @@ private:
 #endif
     CAllocationHelper<CNB> *m_NBAllocator;
 
-    CNBL(const CNBL&) = delete;
-    CNBL& operator= (const CNBL&) = delete;
+    CNBL(const CNBL &) = delete;
+    CNBL &operator=(const CNBL &) = delete;
 
     DECLARE_CNDISLIST_ENTRY(CNBL);
 };
@@ -251,7 +311,7 @@ typedef CLockFreeDynamicQueue<CNBL> CLockFreeCNBLQueue;
 
 class CParaNdisTX : public CParaNdisTemplatePath<CTXVirtQueue>, public CNdisAllocatable<CParaNdisTX, 'XTHR'>
 {
-public:
+  public:
     CParaNdisTX() = default;
     ~CParaNdisTX();
 
@@ -261,28 +321,33 @@ public:
 
     void NBLMappingDone(CNBL *NBLHolder);
 
-    template <typename TFunctor>
-    void DoWithTXLock(TFunctor Functor)
+    template <typename TFunctor> void DoWithTXLock(TFunctor Functor)
     {
         TDPCSpinLocker LockedContext(m_Lock);
         Functor();
     }
 
-    //TODO: Needs review
+    // TODO: Needs review
     void CancelNBLs(PVOID CancelId);
 
     bool RestartQueue();
 
-    //TODO: Needs review/temporary?
+    // TODO: Needs review/temporary?
     ULONG GetFreeTXDescriptors()
-    { return m_VirtQueue.GetFreeTXDescriptors(); }
+    {
+        return m_VirtQueue.GetFreeTXDescriptors();
+    }
 
     ULONG GetActualQueueSize() const
-    { return m_VirtQueue.GetActualQueueSize(); }
+    {
+        return m_VirtQueue.GetActualQueueSize();
+    }
 
-    //TODO: Needs review/temporary?
+    // TODO: Needs review/temporary?
     ULONG GetFreeHWBuffers()
-    { return m_VirtQueue.GetFreeHWBuffers(); }
+    {
+        return m_VirtQueue.GetFreeHWBuffers();
+    }
 
     bool DoPendingTasks(CNBL *nblHolder);
 
@@ -292,21 +357,30 @@ public:
     bool BorrowPages(CExtendedNBStorage *extraNBStorage, ULONG NeedPages);
     void ReturnPages(CExtendedNBStorage *extraNBStorage);
     void CheckStuckPackets(ULONG GraceTimeMillies);
-private:
 
+  private:
     virtual void Notify(SMNotifications message) override;
 
-    bool SendMapped(bool IsInterrupt, CRawCNBLList& toWaitingList);
+    bool SendMapped(bool IsInterrupt, CRawCNBLList &toWaitingList);
 
     bool FillQueue();
 
-    void PostProcessPendingTask(CRawCNBList& toFree, CRawCNBLList& completed);
-    PNET_BUFFER_LIST ProcessWaitingList(CRawCNBLList& completed);
+    void PostProcessPendingTask(CRawCNBList &toFree, CRawCNBLList &completed);
+    PNET_BUFFER_LIST ProcessWaitingList(CRawCNBLList &completed);
 
-    bool HaveMappedNBLs() { return !m_SendQueue.IsEmpty(); }
+    bool HaveMappedNBLs()
+    {
+        return !m_SendQueue.IsEmpty();
+    }
 
-    CNBL *PopMappedNBL() { return m_SendQueue.Dequeue(); }
-    CNBL *PeekMappedNBL() { return m_SendQueue.Peek(); }
+    CNBL *PopMappedNBL()
+    {
+        return m_SendQueue.Dequeue();
+    }
+    CNBL *PeekMappedNBL()
+    {
+        return m_SendQueue.Peek();
+    }
 
     bool AllocateExtraPages();
     void FreeExtraPages();
@@ -335,6 +409,6 @@ private:
         ULONG Recovered;
     } m_AuditState = {};
 
-    CPool<CNB, 'BNHR'>  m_nbPool;
+    CPool<CNB, 'BNHR'> m_nbPool;
     CPool<CNBL, 'LNHR'> m_nblPool;
 };

@@ -3,8 +3,9 @@
 #include "ndis56common.h"
 #include "ParaNdis-AbstractPath.h"
 
-class CParaNdisCX : public CParaNdisTemplatePath<CVirtQueue>, public CPlacementAllocatable {
-public:
+class CParaNdisCX : public CParaNdisTemplatePath<CVirtQueue>, public CPlacementAllocatable
+{
+  public:
     CParaNdisCX(PPARANDIS_ADAPTER Context);
     ~CParaNdisCX();
 
@@ -12,19 +13,17 @@ public:
 
     virtual NDIS_STATUS SetupMessageIndex(u16 vector);
 
-    BOOLEAN CParaNdisCX::SendControlMessage(
-        UCHAR cls,
-        UCHAR cmd,
-        PVOID buffer1,
-        ULONG size1,
-        PVOID buffer2,
-        ULONG size2,
-        int levelIfOK
-        );
+    BOOLEAN CParaNdisCX::SendControlMessage(UCHAR cls,
+                                            UCHAR cmd,
+                                            PVOID buffer1,
+                                            ULONG size1,
+                                            PVOID buffer2,
+                                            ULONG size2,
+                                            int levelIfOK);
 
     bool FireDPC(ULONG messageId) override;
     KDPC m_DPC;
 
-protected:
+  protected:
     tCompletePhysicalAddress m_ControlData;
 };

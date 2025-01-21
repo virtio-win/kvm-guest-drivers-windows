@@ -1,35 +1,26 @@
 #pragma once
 
 /*
-* Multiple producer single consumer lock free queue implementation
-*
-* This implementation of lock free queue is based on the freebsd implementation
-* of a lock free queue which can be found in:
-* https://svnweb.freebsd.org/base/release/8.0.0/sys/sys/buf_ring.h?view=markup
-* https://svnweb.freebsd.org/base/release/8.0.0/sys/kern/subr_bufring.c?view=markup
-*
-* Copyright Red Hat, Inc. 2017
-*
-* Authors:
-*  Sameeh Jubran <sjubran@redhat.com>
-*
-*/
+ * Multiple producer single consumer lock free queue implementation
+ *
+ * This implementation of lock free queue is based on the freebsd implementation
+ * of a lock free queue which can be found in:
+ * https://svnweb.freebsd.org/base/release/8.0.0/sys/sys/buf_ring.h?view=markup
+ * https://svnweb.freebsd.org/base/release/8.0.0/sys/kern/subr_bufring.c?view=markup
+ *
+ * Copyright Red Hat, Inc. 2017
+ *
+ * Authors:
+ *  Sameeh Jubran <sjubran@redhat.com>
+ *
+ */
 
-template <typename TEntryType>
-class CLockFreeQueue
+template <typename TEntryType> class CLockFreeQueue
 {
-public:
-    CLockFreeQueue() :
-        m_Context(nullptr),
-        m_ProducerSize(0),
-        m_ConsumerSize(0),
-        m_ProducerMask(0),
-        m_ConsumerMask(0),
-        m_ProducerHead(0),
-        m_ConsumerHead(0),
-        m_ProducerTail(0),
-        m_ConsumerTail(0),
-        m_PQueueRing(nullptr)
+  public:
+    CLockFreeQueue()
+        : m_Context(nullptr), m_ProducerSize(0), m_ConsumerSize(0), m_ProducerMask(0), m_ConsumerMask(0),
+          m_ProducerHead(0), m_ConsumerHead(0), m_ProducerTail(0), m_ConsumerTail(0), m_PQueueRing(nullptr)
     {
     }
 
@@ -51,7 +42,7 @@ public:
             return FALSE;
         }
 
-        m_PQueueRing = (TEntryType **) ParaNdis_AllocateMemory(pContext, sizeof(TEntryType *) * size);
+        m_PQueueRing = (TEntryType **)ParaNdis_AllocateMemory(pContext, sizeof(TEntryType *) * size);
         if (m_PQueueRing == nullptr)
         {
             return FALSE;
@@ -68,21 +59,23 @@ public:
         }
     }
 
-   /*
-    * multi-producer safe lock-free ring buffer enqueue
-    */
+    /*
+     * multi-producer safe lock-free ring buffer enqueue
+     */
 
     bool Enqueue(TEntryType *entry)
     {
         LONG producer_head, producer_next, consumer_tail;
         /* Critical section */
         {
-            do {
+            do
+            {
                 producer_head = m_ProducerHead;
                 producer_next = (producer_head + 1) & m_ProducerMask;
                 consumer_tail = m_ConsumerTail;
 
-                if (producer_next == consumer_tail) {
+                if (producer_next == consumer_tail)
+                {
                     return FALSE;
                 }
             } while (InterlockedCompareExchange(&m_ProducerHead, producer_next, producer_head) != producer_head);
@@ -90,23 +83,24 @@ public:
             m_PQueueRing[producer_head] = entry;
             KeMemoryBarrier();
 
-           /*
-            * If there are other enqueues in progress
-            * that preceded us, we need to wait for them
-            * to complete
-            */
+            /*
+             * If there are other enqueues in progress
+             * that preceded us, we need to wait for them
+             * to complete
+             */
             while (m_ProducerTail != producer_head)
-            {}
+            {
+            }
 
             m_ProducerTail = producer_next;
         }
         return TRUE;
     }
 
-   /*
-    * single-consumer dequeue
-    * should be called under lock!
-    */
+    /*
+     * single-consumer dequeue
+     * should be called under lock!
+     */
 
     TEntryType *Dequeue()
     {
@@ -139,12 +133,14 @@ public:
 
         /* Critical section */
         {
-            do {
+            do
+            {
                 consumer_head = m_ConsumerHead;
                 producer_tail = m_ProducerTail;
                 consumer_next = (consumer_head + 1) & m_ConsumerMask;
 
-                if (consumer_head == producer_tail) {
+                if (consumer_head == producer_tail)
+                {
                     return nullptr;
                 }
             } while (InterlockedCompareExchange(&m_ConsumerHead, consumer_next, consumer_head) != consumer_head);
@@ -153,10 +149,10 @@ public:
             KeMemoryBarrier();
 
             /*
-            * If there are other enqueues in progress
-            * that preceded us, we need to wait for them
-            * to complete
-            */
+             * If there are other enqueues in progress
+             * that preceded us, we need to wait for them
+             * to complete
+             */
             while (m_ConsumerTail != consumer_head)
             {
             }
@@ -166,10 +162,10 @@ public:
         return entry;
     }
 
-   /*
-    * single-consumer peek operation
-    * should be called under lock!
-    */
+    /*
+     * single-consumer peek operation
+     * should be called under lock!
+     */
 
     TEntryType *Peek()
     {
@@ -190,8 +186,7 @@ public:
         return (((m_ProducerHead + 1) & m_ProducerMask) == m_ConsumerTail);
     }
 
-private:
-
+  private:
     volatile LONG m_ProducerHead;
     volatile LONG m_ProducerTail;
     INT m_ProducerSize;
@@ -205,7 +200,6 @@ private:
     PPARANDIS_ADAPTER m_Context;
 };
 
-
 // NOTE1: Calls to Dequeue() and Peek()
 // must be externally synchronized!
 // Peek returns object that valid till you're in context
@@ -216,12 +210,12 @@ private:
 // NOTE2: Enqueue() is not synchronized with anything
 // and can be used simultaneously from various contexts
 
-template <typename TEntryType>
-class CLockFreeDynamicQueue : public CPlacementAllocatable
+template <typename TEntryType> class CLockFreeDynamicQueue : public CPlacementAllocatable
 {
-public:
+  public:
     CLockFreeDynamicQueue() : m_QueueFullListIsEmpty(TRUE), m_Size(0), m_ElementCount(0)
-    {}
+    {
+    }
 
     BOOLEAN Create(PPARANDIS_ADAPTER pContext, INT size)
     {
@@ -232,7 +226,7 @@ public:
     }
 
     // Multiple Producer Safe Enqueue
-    void Enqueue(TEntryType * entry)
+    void Enqueue(TEntryType *entry)
     {
         InterlockedIncrement(&m_ElementCount);
         if (!m_QueueFullListIsEmpty || !m_Queue.Enqueue(entry))
@@ -247,7 +241,7 @@ public:
     // calls to Peek() and Dequeue(), see note NOTE1
     TEntryType *Dequeue()
     {
-        TEntryType * ptr = m_Queue.Dequeue();
+        TEntryType *ptr = m_Queue.Dequeue();
         if (ptr == nullptr)
         {
             FillQueue();
@@ -261,7 +255,7 @@ public:
 
     TEntryType *DequeueMC()
     {
-        TEntryType * ptr = m_Queue.DequeueMC();
+        TEntryType *ptr = m_Queue.DequeueMC();
         if (ptr == nullptr)
         {
             FillQueue();
@@ -275,7 +269,7 @@ public:
     // calls to Peek() and Dequeue(), see note NOTE1
     TEntryType *Peek()
     {
-        TEntryType * element = m_Queue.Peek();
+        TEntryType *element = m_Queue.Peek();
         if (element == nullptr && !m_QueueFullListIsEmpty)
         {
             FillQueue();
@@ -288,11 +282,10 @@ public:
     // see note NOTE1
     BOOLEAN IsEmpty()
     {
-        return m_Queue.IsEmpty() ? (BOOLEAN) m_QueueFullListIsEmpty : FALSE;
+        return m_Queue.IsEmpty() ? (BOOLEAN)m_QueueFullListIsEmpty : FALSE;
     }
 
-private:
-
+  private:
     void DecrementCount(BOOLEAN decrement)
     {
         if (decrement)
@@ -311,7 +304,7 @@ private:
             /* LockedContext Locker will always be locked during all of it's lifetime,
             especially when it's being destructed. SDV does not recognize that due to encapsulation
             so the warning is suppressed*/
-#pragma warning(suppress: 26110)
+#pragma warning(suppress : 26110)
             TPassiveSpinLocker LockedContext(m_QueueFullListLock);
             do
             {
@@ -323,7 +316,8 @@ private:
                     {
                         m_QueueFullList.Push(entry);
                     }
-                } else
+                }
+                else
                 {
                     break;
                 }
@@ -335,7 +329,6 @@ private:
     }
 
     CLockFreeQueue<TEntryType> m_Queue;
-
 
     CNdisList<TEntryType, CRawAccess, CNonCountingObject> m_QueueFullList;
     CNdisSpinLock m_QueueFullListLock;
