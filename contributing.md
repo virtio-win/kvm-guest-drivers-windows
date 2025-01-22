@@ -18,8 +18,8 @@ Pull requests are the best way to propose changes to the codebase (we use [Githu
 3. If you've added new driver, changed usage, or made some nontrivial changes - update the documentation.
 4. Ensure the test suite passes.
 5. Don't forget to add "Signed-off-by: Your Name <your@email_domain.com>" line in the commit message.
-6. If you are a Red Hat contributor, you must include [BZ](https://bugzilla.redhat.com) number in the commit message
-7. Prefix commit messages with the affected component. For example: "NetKVM: BZ#1234567: implementing dynamic NDIS version support".
+6. If you are a Red Hat contributor, you must include [Jira](https://issues.redhat.com/) key in the commit message
+7. Prefix commit messages with the Jira key first, and then the affected component. For example: "RHELMISC-8923: NetKVM: implementing dynamic NDIS version support".
 8. Issue that pull request!
 
 
