@@ -1578,6 +1578,9 @@ Parameters:
 VOID ParaNdis_OnShutdown(PARANDIS_ADAPTER *pContext)
 {
     DEBUG_ENTRY(0); // this is only for kdbg :)
+
+    pContext->systemThread.Stop();
+
     ParaNdis_ResetVirtIONetDevice(pContext);
 
     pContext->m_StateMachine.NotifyShutdown();
