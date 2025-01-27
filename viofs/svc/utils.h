@@ -34,6 +34,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include "scope_exit.h"
 
 template <typename EF>
 class scope_exit
