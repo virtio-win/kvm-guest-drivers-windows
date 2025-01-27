@@ -327,7 +327,7 @@ if ERRORLEVEL 1 (
 goto :eof
 
 :run_dvl
-Performing Driver Verfier Log build of %BUILD_FILE%.
+echo Performing Driver Verfier Log build of %BUILD_FILE%.
 msbuild.exe -maxCpuCount %~dp1%BUILD_FILE% /t:dvl /p:Configuration="%~1" /P:platform=%2
 IF ERRORLEVEL 1 (
   set BUILD_FAILED=1
