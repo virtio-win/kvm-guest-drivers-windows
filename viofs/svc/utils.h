@@ -36,30 +36,13 @@
 #include <string>
 #include "scope_exit.h"
 
-template <typename EF>
-class scope_exit
-{
-    EF exit_func;
-
-public:
-    scope_exit(EF&& exit_func) : exit_func{ exit_func } {};
-    ~scope_exit()
-    {
-        exit_func();
-    }
-};
-
-#define SCOPE_EXIT(x, action, ...) scope_exit x##_se([x, __VA_ARGS__] action);
-
-template<typename T>
-static DWORD RegistryGetVal(PCWSTR SubKey, PCWSTR ValueName, T& Value)
+template <typename T> static DWORD RegistryGetVal(PCWSTR SubKey, PCWSTR ValueName, T &Value)
 {
     LSTATUS Status;
     DWORD Val;
     DWORD ValSize = sizeof(Val);
 
-    Status = RegGetValueW(HKEY_LOCAL_MACHINE, SubKey, ValueName,
-        RRF_RT_REG_DWORD, NULL, &Val, &ValSize);
+    Status = RegGetValueW(HKEY_LOCAL_MACHINE, SubKey, ValueName, RRF_RT_REG_DWORD, NULL, &Val, &ValSize);
     if (Status == ERROR_SUCCESS)
     {
         Value = Val;
@@ -68,15 +51,14 @@ static DWORD RegistryGetVal(PCWSTR SubKey, PCWSTR ValueName, T& Value)
     return Status;
 }
 
-static DWORD RegistryGetVal(PCWSTR SubKey, PCWSTR ValueName, std::wstring& Value)
+static DWORD RegistryGetVal(PCWSTR SubKey, PCWSTR ValueName, std::wstring &Value)
 {
     LSTATUS Status;
     DWORD BufSize = 0;
     std::unique_ptr<WCHAR[]> Buf;
 
     // Determine required buffer size
-    Status = RegGetValueW(HKEY_LOCAL_MACHINE, SubKey, ValueName,
-        RRF_RT_REG_SZ, NULL, NULL, &BufSize);
+    Status = RegGetValueW(HKEY_LOCAL_MACHINE, SubKey, ValueName, RRF_RT_REG_SZ, NULL, NULL, &BufSize);
     if (Status != ERROR_SUCCESS)
     {
         return Status;
@@ -91,8 +73,7 @@ static DWORD RegistryGetVal(PCWSTR SubKey, PCWSTR ValueName, std::wstring& Value
         return ERROR_NO_SYSTEM_RESOURCES;
     }
 
-    Status = RegGetValueW(HKEY_LOCAL_MACHINE, SubKey, ValueName,
-        RRF_RT_REG_SZ, NULL, Buf.get(), &BufSize);
+    Status = RegGetValueW(HKEY_LOCAL_MACHINE, SubKey, ValueName, RRF_RT_REG_SZ, NULL, Buf.get(), &BufSize);
     if (Status == ERROR_SUCCESS)
     {
         Value.assign(Buf.get());
@@ -109,8 +90,7 @@ static DWORD FindDeviceInterface(const GUID *ClassGuid, PHANDLE Device, DWORD Me
     PSP_DEVICE_INTERFACE_DETAIL_DATA DevIfaceDetail = NULL;
     ULONG Length, RequiredLength = 0;
 
-    DevInfo = SetupDiGetClassDevs(ClassGuid, NULL, NULL,
-        (DIGCF_PRESENT | DIGCF_DEVICEINTERFACE));
+    DevInfo = SetupDiGetClassDevs(ClassGuid, NULL, NULL, (DIGCF_PRESENT | DIGCF_DEVICEINTERFACE));
     if (DevInfo == INVALID_HANDLE_VALUE)
     {
         return GetLastError();
@@ -119,17 +99,14 @@ static DWORD FindDeviceInterface(const GUID *ClassGuid, PHANDLE Device, DWORD Me
 
     DevIfaceData.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
 
-    if (!SetupDiEnumDeviceInterfaces(DevInfo, 0,
-        ClassGuid, MemberIndex, &DevIfaceData))
+    if (!SetupDiEnumDeviceInterfaces(DevInfo, 0, ClassGuid, MemberIndex, &DevIfaceData))
     {
         return GetLastError();
     }
 
-    SetupDiGetDeviceInterfaceDetail(DevInfo, &DevIfaceData, NULL, 0,
-        &RequiredLength, NULL);
+    SetupDiGetDeviceInterfaceDetail(DevInfo, &DevIfaceData, NULL, 0, &RequiredLength, NULL);
 
-    DevIfaceDetail = (PSP_DEVICE_INTERFACE_DETAIL_DATA)LocalAlloc(LMEM_FIXED,
-        RequiredLength);
+    DevIfaceDetail = (PSP_DEVICE_INTERFACE_DETAIL_DATA)LocalAlloc(LMEM_FIXED, RequiredLength);
     if (DevIfaceDetail == NULL)
     {
         return GetLastError();
@@ -139,8 +116,7 @@ static DWORD FindDeviceInterface(const GUID *ClassGuid, PHANDLE Device, DWORD Me
     DevIfaceDetail->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA);
     Length = RequiredLength;
 
-    if (!SetupDiGetDeviceInterfaceDetail(DevInfo, &DevIfaceData,
-        DevIfaceDetail, Length, &RequiredLength, NULL))
+    if (!SetupDiGetDeviceInterfaceDetail(DevInfo, &DevIfaceData, DevIfaceDetail, Length, &RequiredLength, NULL))
     {
         return GetLastError();
     }
@@ -149,8 +125,13 @@ static DWORD FindDeviceInterface(const GUID *ClassGuid, PHANDLE Device, DWORD Me
     SecurityAttributes.lpSecurityDescriptor = NULL;
     SecurityAttributes.bInheritHandle = FALSE;
 
-    *Device = CreateFile(DevIfaceDetail->DevicePath, GENERIC_READ | GENERIC_WRITE,
-        0, &SecurityAttributes, OPEN_EXISTING, 0L, NULL);
+    *Device = CreateFile(DevIfaceDetail->DevicePath,
+                         GENERIC_READ | GENERIC_WRITE,
+                         0,
+                         &SecurityAttributes,
+                         OPEN_EXISTING,
+                         0L,
+                         NULL);
     if (*Device == INVALID_HANDLE_VALUE)
     {
         return GetLastError();
@@ -159,10 +140,9 @@ static DWORD FindDeviceInterface(const GUID *ClassGuid, PHANDLE Device, DWORD Me
     return ERROR_SUCCESS;
 }
 
-static DWORD FindDeviceInterface(const GUID *ClassGuid, PHANDLE Device,
-    std::function<BOOLEAN(HANDLE Device)> cmp_fn)
+static DWORD FindDeviceInterface(const GUID *ClassGuid, PHANDLE Device, std::function<BOOLEAN(HANDLE Device)> cmp_fn)
 {
-    for (DWORD MemberIndex = 0; ; MemberIndex++)
+    for (DWORD MemberIndex = 0;; MemberIndex++)
     {
         DWORD Error = FindDeviceInterface(ClassGuid, Device, MemberIndex);
         if (Error != ERROR_SUCCESS)
@@ -210,14 +190,14 @@ static bool FileNameIgnoreCaseCompare(PCWSTR a, const char *b, uint32_t b_len)
 
 class DeviceInterfaceNotification
 {
-    HCMNOTIFICATION     Handle{ nullptr };
+    HCMNOTIFICATION Handle{nullptr};
 
-    DeviceInterfaceNotification(const DeviceInterfaceNotification&) = delete;
-    DeviceInterfaceNotification& operator=(const DeviceInterfaceNotification&) = delete;
-    DeviceInterfaceNotification(DeviceInterfaceNotification&&) = delete;
-    DeviceInterfaceNotification& operator=(DeviceInterfaceNotification&&) = delete;
+    DeviceInterfaceNotification(const DeviceInterfaceNotification &) = delete;
+    DeviceInterfaceNotification &operator=(const DeviceInterfaceNotification &) = delete;
+    DeviceInterfaceNotification(DeviceInterfaceNotification &&) = delete;
+    DeviceInterfaceNotification &operator=(DeviceInterfaceNotification &&) = delete;
 
-public:
+  public:
     DeviceInterfaceNotification() = default;
 
     DWORD Register(PCM_NOTIFY_CALLBACK pCallback, PVOID pContext, const GUID &ClassGuid)
@@ -249,17 +229,17 @@ public:
 
 class DeviceHandleNotification
 {
-    HCMNOTIFICATION     Handle{ nullptr };
-    CRITICAL_SECTION    Lock;
-    BOOL                UnregInProgress{ FALSE };
-    PTP_WORK            UnregWork{ nullptr };
+    HCMNOTIFICATION Handle{nullptr};
+    CRITICAL_SECTION Lock;
+    BOOL UnregInProgress{FALSE};
+    PTP_WORK UnregWork{nullptr};
 
-    DeviceHandleNotification(const DeviceHandleNotification&) = delete;
-    DeviceHandleNotification& operator=(const DeviceHandleNotification&) = delete;
-    DeviceHandleNotification(DeviceHandleNotification&&) = delete;
-    DeviceHandleNotification& operator=(DeviceHandleNotification&&) = delete;
+    DeviceHandleNotification(const DeviceHandleNotification &) = delete;
+    DeviceHandleNotification &operator=(const DeviceHandleNotification &) = delete;
+    DeviceHandleNotification(DeviceHandleNotification &&) = delete;
+    DeviceHandleNotification &operator=(DeviceHandleNotification &&) = delete;
 
-public:
+  public:
     DeviceHandleNotification()
     {
         InitializeCriticalSection(&Lock);
@@ -338,8 +318,7 @@ public:
 
     bool CreateUnregWork()
     {
-        auto cb = [](PTP_CALLBACK_INSTANCE Instance, PVOID Context, PTP_WORK Work)
-        {
+        auto cb = [](PTP_CALLBACK_INSTANCE Instance, PVOID Context, PTP_WORK Work) {
             auto Notification = static_cast<DeviceHandleNotification *>(Context);
 
             UNREFERENCED_PARAMETER(Instance);
@@ -358,12 +337,12 @@ public:
     }
 };
 
-static bool ParseIds(const std::wstring& ids, uint32_t& uid, uint32_t& gid)
+static bool ParseIds(const std::wstring &ids, uint32_t &uid, uint32_t &gid)
 {
     return (swscanf_s(ids.c_str(), L"%u:%u", &uid, &gid) == 2);
 }
 
-static bool CheckIds(const std::wstring& ids)
+static bool CheckIds(const std::wstring &ids)
 {
     uint32_t uid, gid;
 
