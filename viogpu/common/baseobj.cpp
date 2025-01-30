@@ -1,11 +1,11 @@
 #include "baseobj.h"
 #include "viogpu.h"
 
-// clang-format off
+// clang-format on
 _When_((PoolType & NonPagedPoolMustSucceed) != 0,
-    __drv_reportError("Must succeed pool allocations are forbidden. "
-        "Allocation failures cause a system crash"))
-    void* __cdecl operator new(size_t Size, POOL_TYPE PoolType)
+       __drv_reportError("Must succeed pool allocations are forbidden. "
+                         "Allocation failures cause a system crash")) void *__cdecl
+operator new(size_t Size, POOL_TYPE PoolType)
 // clang-format on
 {
     Size = (Size != 0) ? Size : 1;

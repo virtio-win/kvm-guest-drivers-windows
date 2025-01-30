@@ -87,8 +87,9 @@ VOID NotificationTest(UINT id)
     {
         int test_data = 5;
         RegisterNotification(port, NotificationTestFunction, (PVOID)&test_data);
-        // clang-format off
-        while (getchar() != 'q');
+        // clang-format on
+        while (getchar() != 'q')
+            ;
         // clang-format on
         ClosePort(port);
         return;

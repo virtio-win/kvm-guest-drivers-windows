@@ -124,9 +124,8 @@ ViomemInit(IN WDFOBJECT WdfDevice)
             //
             ULONG bitmapSizeInBits = (ULONG)(configReqest.region_size / configReqest.block_size);
 
-            devCtx->bitmapBuffer = (ULONG *)ExAllocatePoolZero(NonPagedPool,
-                                                               bitmapSizeInBits >> 3,
-                                                               VIRTIO_MEM_POOL_TAG);
+            devCtx->bitmapBuffer =
+                (ULONG *)ExAllocatePoolZero(NonPagedPool, bitmapSizeInBits >> 3, VIRTIO_MEM_POOL_TAG);
 
             //
             // If the memory was allocated init bitmap: assign the bitmap buffer to

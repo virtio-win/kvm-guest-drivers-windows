@@ -122,8 +122,8 @@ _Requires_lock_held_(pContext->RxLock) __inline VOID VIOSockRxCbPush(PDEVICE_CON
     PushEntryList(&pContext->RxCbBuffers, &pCb->FreeListEntry);
 }
 
-_Requires_lock_not_held_(pContext->RxLock) __inline VOID VIOSockRxCbPushLocked(PDEVICE_CONTEXT pContext,
-                                                                               PVIOSOCK_RX_CB pCb)
+_Requires_lock_not_held_(pContext->RxLock) __inline VOID
+    VIOSockRxCbPushLocked(PDEVICE_CONTEXT pContext, PVIOSOCK_RX_CB pCb)
 {
     WdfSpinLockAcquire(pContext->RxLock);
     VIOSockRxCbPush(pContext, pCb);
@@ -341,8 +341,8 @@ C_ASSERT((VIOSOCK_DMA_RX_PAGES + 1) == 2);
 #define VIOSOCK_PKT_PA_FROM_VA(ctx, pva)                                                                               \
     (((ctx)->RxPktPA.QuadPart) + (ULONGLONG)((PCHAR)(pva) - (PCHAR)((ctx)->RxPktVA)))
 
-_Requires_lock_held_(pContext->RxLock) static BOOLEAN VIOSockRxPktInsert(IN PDEVICE_CONTEXT pContext,
-                                                                         IN PVIOSOCK_RX_PKT pPkt)
+_Requires_lock_held_(pContext->RxLock) static BOOLEAN
+    VIOSockRxPktInsert(IN PDEVICE_CONTEXT pContext, IN PVIOSOCK_RX_PKT pPkt)
 {
     BOOLEAN bRes = TRUE;
     VIOSOCK_SG_DESC sg[VIOSOCK_DMA_RX_PAGES + 1];
@@ -420,8 +420,8 @@ _Requires_lock_not_held_(pContext->RxLock) __inline VOID VIOSockRxPktListProcess
     }
 }
 
-_Requires_lock_not_held_(pContext->RxLock) __inline VOID VIOSockRxPktInsertOrPostpone(IN PDEVICE_CONTEXT pContext,
-                                                                                      IN PVIOSOCK_RX_PKT pPkt)
+_Requires_lock_not_held_(pContext->RxLock) __inline VOID
+    VIOSockRxPktInsertOrPostpone(IN PDEVICE_CONTEXT pContext, IN PVIOSOCK_RX_PKT pPkt)
 {
     bool bNotify = false;
     WdfSpinLockAcquire(pContext->RxLock);
@@ -574,9 +574,8 @@ VIOSockRxVqInit(IN PDEVICE_CONTEXT pContext)
     return status;
 }
 
-_Requires_lock_not_held_(pSocket->StateLock) static VOID VIOSockRxPktHandleConnecting(IN PSOCKET_CONTEXT pSocket,
-                                                                                      IN PVIOSOCK_RX_PKT pPkt,
-                                                                                      IN BOOLEAN bTxHasSpace)
+_Requires_lock_not_held_(pSocket->StateLock) static VOID
+    VIOSockRxPktHandleConnecting(IN PSOCKET_CONTEXT pSocket, IN PVIOSOCK_RX_PKT pPkt, IN BOOLEAN bTxHasSpace)
 {
     WDFREQUEST PendedRequest;
     NTSTATUS status;
@@ -646,8 +645,8 @@ _Requires_lock_not_held_(pSocket->StateLock) static VOID VIOSockRxPktHandleConne
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
 }
 
-_Requires_lock_not_held_(pSocket->RxLock) static BOOLEAN VIOSockRxPktEnqueueCb(IN PSOCKET_CONTEXT pSocket,
-                                                                               IN PVIOSOCK_RX_PKT pPkt)
+_Requires_lock_not_held_(pSocket->RxLock) static BOOLEAN
+    VIOSockRxPktEnqueueCb(IN PSOCKET_CONTEXT pSocket, IN PVIOSOCK_RX_PKT pPkt)
 {
     PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pSocket);
     PVIOSOCK_RX_CB pCurrentCb = NULL;
@@ -740,9 +739,8 @@ static VOID VIOSockRxRequestCancelCb(IN WDFREQUEST Request)
     WdfRequestCompleteWithInformation(Request, status, pCb->DataLen - pCb->BytesToRead);
 }
 
-_Requires_lock_not_held_(pSocket->RxLock) NTSTATUS VIOSockRxRequestEnqueueCb(IN PSOCKET_CONTEXT pSocket,
-                                                                             IN WDFREQUEST Request,
-                                                                             IN ULONG Length)
+_Requires_lock_not_held_(pSocket->RxLock) NTSTATUS
+    VIOSockRxRequestEnqueueCb(IN PSOCKET_CONTEXT pSocket, IN WDFREQUEST Request, IN ULONG Length)
 {
     PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pSocket);
     PVIOSOCK_RX_CB pCurrentCb = NULL;
@@ -1005,9 +1003,8 @@ _Requires_lock_not_held_(pContext->RxLock) VOID VIOSockRxVqProcess(IN PDEVICE_CO
 }
 
 //////////////////////////////////////////////////////////////////////////
-_Requires_lock_not_held_(pSocket->RxLock) static NTSTATUS VIOSockReadForward(IN PSOCKET_CONTEXT pSocket,
-                                                                             IN WDFREQUEST Request,
-                                                                             IN ULONG Flags)
+_Requires_lock_not_held_(pSocket->RxLock) static NTSTATUS
+    VIOSockReadForward(IN PSOCKET_CONTEXT pSocket, IN WDFREQUEST Request, IN ULONG Flags)
 {
     PVIOSOCK_RX_CONTEXT pRequest;
     WDF_OBJECT_ATTRIBUTES attributes;

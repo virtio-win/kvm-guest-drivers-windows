@@ -39,8 +39,8 @@
 #pragma alloc_text(PAGE, VIOSockEvtVqCleanup)
 #endif
 
-_IRQL_requires_max_(DISPATCH_LEVEL) static BOOLEAN VIOSockEvtPktInsert(IN PDEVICE_CONTEXT pContext,
-                                                                       IN PVIRTIO_VSOCK_EVENT pEvent)
+_IRQL_requires_max_(DISPATCH_LEVEL) static BOOLEAN
+    VIOSockEvtPktInsert(IN PDEVICE_CONTEXT pContext, IN PVIRTIO_VSOCK_EVENT pEvent)
 {
     BOOLEAN bRes = TRUE;
     VIOSOCK_SG_DESC sg;

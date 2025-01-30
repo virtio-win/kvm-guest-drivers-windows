@@ -46,9 +46,8 @@ void GpuAdapter::UpdateDisplayConfig(void)
     UINT32 filter = QDC_ALL_PATHS;
     ClearDisplayConfig();
 
-    if (FAILED(HRESULT_FROM_WIN32(::GetDisplayConfigBufferSizes(filter,
-                                                                &m_PathArrayElements,
-                                                                &m_ModeInfoArrayElements))))
+    if (FAILED(
+            HRESULT_FROM_WIN32(::GetDisplayConfigBufferSizes(filter, &m_PathArrayElements, &m_ModeInfoArrayElements))))
     {
         PrintMessage(L"GetDisplayConfigBufferSizes faled\n");
         return;

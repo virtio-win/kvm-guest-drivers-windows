@@ -198,8 +198,8 @@ NTSTATUS VioGpuDod::StartDevice(_In_ DXGK_START_INFO *pDxgkStartInfo,
         m_SystemDisplayInfo.Width = NOM_WIDTH_SIZE;
         m_SystemDisplayInfo.Height = NOM_HEIGHT_SIZE;
         m_SystemDisplayInfo.ColorFormat = D3DDDIFMT_X8R8G8B8;
-        m_SystemDisplayInfo.Pitch = (BPPFromPixelFormat(m_SystemDisplayInfo.ColorFormat) / BITS_PER_BYTE) *
-                                    m_SystemDisplayInfo.Width;
+        m_SystemDisplayInfo.Pitch =
+            (BPPFromPixelFormat(m_SystemDisplayInfo.ColorFormat) / BITS_PER_BYTE) * m_SystemDisplayInfo.Width;
         m_SystemDisplayInfo.TargetId = 0;
         if (m_SystemDisplayInfo.PhysicAddress.QuadPart == 0LL)
         {
@@ -210,8 +210,8 @@ NTSTATUS VioGpuDod::StartDevice(_In_ DXGK_START_INFO *pDxgkStartInfo,
     m_CurrentMode.DispInfo.Width = max(MIN_WIDTH_SIZE, m_SystemDisplayInfo.Width);
     m_CurrentMode.DispInfo.Height = max(MIN_HEIGHT_SIZE, m_SystemDisplayInfo.Height);
     m_CurrentMode.DispInfo.ColorFormat = D3DDDIFMT_X8R8G8B8;
-    m_CurrentMode.DispInfo.Pitch = (BPPFromPixelFormat(m_CurrentMode.DispInfo.ColorFormat) / BITS_PER_BYTE) *
-                                   m_CurrentMode.DispInfo.Width;
+    m_CurrentMode.DispInfo.Pitch =
+        (BPPFromPixelFormat(m_CurrentMode.DispInfo.ColorFormat) / BITS_PER_BYTE) * m_CurrentMode.DispInfo.Width;
     m_CurrentMode.DispInfo.TargetId = 0;
     if (m_CurrentMode.DispInfo.PhysicAddress.QuadPart == 0LL && m_SystemDisplayInfo.PhysicAddress.QuadPart != 0LL)
     {
@@ -364,10 +364,10 @@ NTSTATUS VioGpuDod::QueryChildRelations(_Out_writes_bytes_(ChildRelationsSize) D
     for (UINT ChildIndex = 0; ChildIndex < ChildRelationsCount; ++ChildIndex)
     {
         pChildRelations[ChildIndex].ChildDeviceType = TypeVideoOutput;
-        pChildRelations[ChildIndex].ChildCapabilities.HpdAwareness = IsVgaDevice() ? HpdAwarenessAlwaysConnected
-                                                                                   : HpdAwarenessInterruptible;
-        pChildRelations[ChildIndex].ChildCapabilities.Type.VideoOutput.InterfaceTechnology = IsVgaDevice() ? D3DKMDT_VOT_INTERNAL
-                                                                                                           : D3DKMDT_VOT_HD15;
+        pChildRelations[ChildIndex].ChildCapabilities.HpdAwareness =
+            IsVgaDevice() ? HpdAwarenessAlwaysConnected : HpdAwarenessInterruptible;
+        pChildRelations[ChildIndex].ChildCapabilities.Type.VideoOutput.InterfaceTechnology =
+            IsVgaDevice() ? D3DKMDT_VOT_INTERNAL : D3DKMDT_VOT_HD15;
         pChildRelations[ChildIndex].ChildCapabilities.Type.VideoOutput.MonitorOrientationAwareness = D3DKMDT_MOA_NONE;
         pChildRelations[ChildIndex].ChildCapabilities.Type.VideoOutput.SupportsSdtvModes = FALSE;
         pChildRelations[ChildIndex].AcpiUid = 0;
@@ -427,8 +427,8 @@ NTSTATUS VioGpuDod::QueryDeviceDescriptor(_In_ ULONG ChildUid, _Inout_ DXGK_DEVI
     }
     else if (pDeviceDescriptor->DescriptorOffset < EDID_RAW_BLOCK_SIZE)
     {
-        ULONG len = min(pDeviceDescriptor->DescriptorLength,
-                        (EDID_RAW_BLOCK_SIZE - pDeviceDescriptor->DescriptorOffset));
+        ULONG len =
+            min(pDeviceDescriptor->DescriptorLength, (EDID_RAW_BLOCK_SIZE - pDeviceDescriptor->DescriptorOffset));
         RtlCopyMemory(pDeviceDescriptor->DescriptorBuffer, (edid + pDeviceDescriptor->DescriptorOffset), len);
         pDeviceDescriptor->DescriptorLength = len;
         return STATUS_SUCCESS;
@@ -565,8 +565,8 @@ NTSTATUS VioGpuDod::PresentDisplayOnly(_In_ CONST DXGKARG_PRESENT_DISPLAYONLY *p
         return STATUS_UNSUCCESSFUL;
     }
 
-    D3DKMDT_VIDPN_PRESENT_PATH_ROTATION RotationNeededByFb = pPresentDisplayOnly->Flags.Rotate ? m_CurrentMode.Rotation
-                                                                                               : D3DKMDT_VPPR_IDENTITY;
+    D3DKMDT_VIDPN_PRESENT_PATH_ROTATION RotationNeededByFb =
+        pPresentDisplayOnly->Flags.Rotate ? m_CurrentMode.Rotation : D3DKMDT_VPPR_IDENTITY;
     BYTE *pDst = (BYTE *)m_CurrentMode.FrameBuffer;
     UINT DstBitPerPixel = BPPFromPixelFormat(m_CurrentMode.DispInfo.ColorFormat);
     if (m_CurrentMode.Scaling == D3DKMDT_VPPS_CENTERED)
@@ -682,9 +682,8 @@ NTSTATUS VioGpuDod::IsSupportedVidPn(_Inout_ DXGKARG_ISSUPPORTEDVIDPN *pIsSuppor
 
     D3DKMDT_HVIDPNTOPOLOGY hVidPnTopology;
     CONST DXGK_VIDPNTOPOLOGY_INTERFACE *pVidPnTopologyInterface;
-    Status = pVidPnInterface->pfnGetTopology(pIsSupportedVidPn->hDesiredVidPn,
-                                             &hVidPnTopology,
-                                             &pVidPnTopologyInterface);
+    Status =
+        pVidPnInterface->pfnGetTopology(pIsSupportedVidPn->hDesiredVidPn, &hVidPnTopology, &pVidPnTopologyInterface);
     if (!NT_SUCCESS(Status))
     {
         DbgPrint(TRACE_LEVEL_ERROR,
@@ -767,8 +766,8 @@ NTSTATUS VioGpuDod::AddSingleSourceMode(_In_ CONST DXGK_VIDPNSOURCEMODESET_INTER
     {
         D3DKMDT_VIDPN_SOURCE_MODE *pVidPnSourceModeInfo = NULL;
         PVIDEO_MODE_INFORMATION pModeInfo = m_pHWDevice->GetModeInfo(idx);
-        NTSTATUS Status = pVidPnSourceModeSetInterface->pfnCreateNewModeInfo(hVidPnSourceModeSet,
-                                                                             &pVidPnSourceModeInfo);
+        NTSTATUS Status =
+            pVidPnSourceModeSetInterface->pfnCreateNewModeInfo(hVidPnSourceModeSet, &pVidPnSourceModeInfo);
         if (!NT_SUCCESS(Status))
         {
             DbgPrint(TRACE_LEVEL_ERROR,
@@ -790,8 +789,8 @@ NTSTATUS VioGpuDod::AddSingleSourceMode(_In_ CONST DXGK_VIDPNSOURCEMODESET_INTER
         Status = pVidPnSourceModeSetInterface->pfnAddMode(hVidPnSourceModeSet, pVidPnSourceModeInfo);
         if (!NT_SUCCESS(Status))
         {
-            NTSTATUS TempStatus = pVidPnSourceModeSetInterface->pfnReleaseModeInfo(hVidPnSourceModeSet,
-                                                                                   pVidPnSourceModeInfo);
+            NTSTATUS TempStatus =
+                pVidPnSourceModeSetInterface->pfnReleaseModeInfo(hVidPnSourceModeSet, pVidPnSourceModeInfo);
             UNREFERENCED_PARAMETER(TempStatus);
             NT_ASSERT(NT_SUCCESS(TempStatus));
 
@@ -896,8 +895,9 @@ NTSTATUS VioGpuDod::AddSingleMonitorMode(_In_ CONST DXGKARG_RECOMMENDMONITORMODE
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
-    Status = pRecommendMonitorModes->pMonitorSourceModeSetInterface->pfnCreateNewModeInfo(pRecommendMonitorModes->hMonitorSourceModeSet,
-                                                                                          &pMonitorSourceMode);
+    Status = pRecommendMonitorModes->pMonitorSourceModeSetInterface->pfnCreateNewModeInfo(
+        pRecommendMonitorModes->hMonitorSourceModeSet,
+        &pMonitorSourceMode);
     if (!NT_SUCCESS(Status))
     {
         DbgPrint(TRACE_LEVEL_ERROR,
@@ -919,8 +919,9 @@ NTSTATUS VioGpuDod::AddSingleMonitorMode(_In_ CONST DXGKARG_RECOMMENDMONITORMODE
     pMonitorSourceMode->ColorCoeffDynamicRanges.ThirdChannel = 8;
     pMonitorSourceMode->ColorCoeffDynamicRanges.FourthChannel = 8;
 
-    Status = pRecommendMonitorModes->pMonitorSourceModeSetInterface->pfnAddMode(pRecommendMonitorModes->hMonitorSourceModeSet,
-                                                                                pMonitorSourceMode);
+    Status = pRecommendMonitorModes->pMonitorSourceModeSetInterface->pfnAddMode(
+        pRecommendMonitorModes->hMonitorSourceModeSet,
+        pMonitorSourceMode);
     if (!NT_SUCCESS(Status))
     {
         if (Status != STATUS_GRAPHICS_MODE_ALREADY_IN_MODESET)
@@ -937,8 +938,9 @@ NTSTATUS VioGpuDod::AddSingleMonitorMode(_In_ CONST DXGKARG_RECOMMENDMONITORMODE
             Status = STATUS_SUCCESS;
         }
 
-        NTSTATUS TempStatus = pRecommendMonitorModes->pMonitorSourceModeSetInterface->pfnReleaseModeInfo(pRecommendMonitorModes->hMonitorSourceModeSet,
-                                                                                                         pMonitorSourceMode);
+        NTSTATUS TempStatus = pRecommendMonitorModes->pMonitorSourceModeSetInterface->pfnReleaseModeInfo(
+            pRecommendMonitorModes->hMonitorSourceModeSet,
+            pMonitorSourceMode);
         UNREFERENCED_PARAMETER(TempStatus);
         NT_ASSERT(NT_SUCCESS(TempStatus));
         return Status;
@@ -948,8 +950,9 @@ NTSTATUS VioGpuDod::AddSingleMonitorMode(_In_ CONST DXGKARG_RECOMMENDMONITORMODE
     {
         pVbeModeInfo = m_pHWDevice->GetModeInfo(Idx);
 
-        Status = pRecommendMonitorModes->pMonitorSourceModeSetInterface->pfnCreateNewModeInfo(pRecommendMonitorModes->hMonitorSourceModeSet,
-                                                                                              &pMonitorSourceMode);
+        Status = pRecommendMonitorModes->pMonitorSourceModeSetInterface->pfnCreateNewModeInfo(
+            pRecommendMonitorModes->hMonitorSourceModeSet,
+            &pMonitorSourceMode);
         if (!NT_SUCCESS(Status))
         {
             DbgPrint(TRACE_LEVEL_ERROR,
@@ -982,8 +985,9 @@ NTSTATUS VioGpuDod::AddSingleMonitorMode(_In_ CONST DXGKARG_RECOMMENDMONITORMODE
             pMonitorSourceMode->Preference = D3DKMDT_MP_NOTPREFERRED;
         }
 
-        Status = pRecommendMonitorModes->pMonitorSourceModeSetInterface->pfnAddMode(pRecommendMonitorModes->hMonitorSourceModeSet,
-                                                                                    pMonitorSourceMode);
+        Status = pRecommendMonitorModes->pMonitorSourceModeSetInterface->pfnAddMode(
+            pRecommendMonitorModes->hMonitorSourceModeSet,
+            pMonitorSourceMode);
         if (!NT_SUCCESS(Status))
         {
             if (Status != STATUS_GRAPHICS_MODE_ALREADY_IN_MODESET)
@@ -996,8 +1000,9 @@ NTSTATUS VioGpuDod::AddSingleMonitorMode(_In_ CONST DXGKARG_RECOMMENDMONITORMODE
                           pMonitorSourceMode));
             }
 
-            Status = pRecommendMonitorModes->pMonitorSourceModeSetInterface->pfnReleaseModeInfo(pRecommendMonitorModes->hMonitorSourceModeSet,
-                                                                                                pMonitorSourceMode);
+            Status = pRecommendMonitorModes->pMonitorSourceModeSetInterface->pfnReleaseModeInfo(
+                pRecommendMonitorModes->hMonitorSourceModeSet,
+                pMonitorSourceMode);
             NT_ASSERT(NT_SUCCESS(Status));
         }
     }
@@ -1076,8 +1081,8 @@ NTSTATUS VioGpuDod::EnumVidPnCofuncModality(_In_ CONST DXGKARG_ENUMVIDPNCOFUNCMO
             break;
         }
 
-        Status = pVidPnSourceModeSetInterface->pfnAcquirePinnedModeInfo(hVidPnSourceModeSet,
-                                                                        &pVidPnPinnedSourceModeInfo);
+        Status =
+            pVidPnSourceModeSetInterface->pfnAcquirePinnedModeInfo(hVidPnSourceModeSet, &pVidPnPinnedSourceModeInfo);
         if (!NT_SUCCESS(Status))
         {
             DbgPrint(TRACE_LEVEL_ERROR,
@@ -1246,8 +1251,8 @@ NTSTATUS VioGpuDod::EnumVidPnCofuncModality(_In_ CONST DXGKARG_ENUMVIDPNCOFUNCMO
             }
             else
             {
-                Status = pVidPnTargetModeSetInterface->pfnReleaseModeInfo(hVidPnTargetModeSet,
-                                                                          pVidPnPinnedTargetModeInfo);
+                Status =
+                    pVidPnTargetModeSetInterface->pfnReleaseModeInfo(hVidPnTargetModeSet, pVidPnPinnedTargetModeInfo);
                 if (!NT_SUCCESS(Status))
                 {
                     DbgPrint(TRACE_LEVEL_ERROR,
@@ -1294,8 +1299,8 @@ NTSTATUS VioGpuDod::EnumVidPnCofuncModality(_In_ CONST DXGKARG_ENUMVIDPNCOFUNCMO
 
         if (hVidPnSourceModeSet != 0)
         {
-            Status = pVidPnInterface->pfnReleaseSourceModeSet(pEnumCofuncModality->hConstrainingVidPn,
-                                                              hVidPnSourceModeSet);
+            Status =
+                pVidPnInterface->pfnReleaseSourceModeSet(pEnumCofuncModality->hConstrainingVidPn, hVidPnSourceModeSet);
             if (!NT_SUCCESS(Status))
             {
                 DbgPrint(TRACE_LEVEL_ERROR,
@@ -1354,9 +1359,8 @@ NTSTATUS VioGpuDod::EnumVidPnCofuncModality(_In_ CONST DXGKARG_ENUMVIDPNCOFUNCMO
         }
 
         pVidPnPresentPathTemp = pVidPnPresentPath;
-        Status = pVidPnTopologyInterface->pfnAcquireNextPathInfo(hVidPnTopology,
-                                                                 pVidPnPresentPathTemp,
-                                                                 &pVidPnPresentPath);
+        Status =
+            pVidPnTopologyInterface->pfnAcquireNextPathInfo(hVidPnTopology, pVidPnPresentPathTemp, &pVidPnPresentPath);
         if (!NT_SUCCESS(Status))
         {
             DbgPrint(TRACE_LEVEL_ERROR,
@@ -1416,15 +1420,15 @@ NTSTATUS VioGpuDod::EnumVidPnCofuncModality(_In_ CONST DXGKARG_ENUMVIDPNCOFUNCMO
 
     if (hVidPnSourceModeSet != 0)
     {
-        TempStatus = pVidPnInterface->pfnReleaseSourceModeSet(pEnumCofuncModality->hConstrainingVidPn,
-                                                              hVidPnSourceModeSet);
+        TempStatus =
+            pVidPnInterface->pfnReleaseSourceModeSet(pEnumCofuncModality->hConstrainingVidPn, hVidPnSourceModeSet);
         VIOGPU_ASSERT_CHK(NT_SUCCESS(TempStatus));
     }
 
     if (hVidPnTargetModeSet != 0)
     {
-        TempStatus = pVidPnInterface->pfnReleaseTargetModeSet(pEnumCofuncModality->hConstrainingVidPn,
-                                                              hVidPnTargetModeSet);
+        TempStatus =
+            pVidPnInterface->pfnReleaseTargetModeSet(pEnumCofuncModality->hConstrainingVidPn, hVidPnTargetModeSet);
         VIOGPU_ASSERT_CHK(NT_SUCCESS(TempStatus));
     }
 
@@ -1510,10 +1514,9 @@ NTSTATUS VioGpuDod::CommitVidPn(_In_ CONST DXGKARG_COMMITVIDPN *CONST pCommitVid
     Status = pVidPnTopologyInterface->pfnGetNumPaths(hVidPnTopology, &NumPaths);
     if (!NT_SUCCESS(Status))
     {
-        DbgPrint(TRACE_LEVEL_ERROR,
-                 ("pfnGetNumPaths failed with Status = 0x%X, hVidPnTopology = 0x%llu\n",
-                  Status,
-                  LONG_PTR(hVidPnTopology)));
+        DbgPrint(
+            TRACE_LEVEL_ERROR,
+            ("pfnGetNumPaths failed with Status = 0x%X, hVidPnTopology = 0x%llu\n", Status, LONG_PTR(hVidPnTopology)));
         goto CommitVidPnExit;
     }
 
@@ -1534,8 +1537,8 @@ NTSTATUS VioGpuDod::CommitVidPn(_In_ CONST DXGKARG_COMMITVIDPN *CONST pCommitVid
             goto CommitVidPnExit;
         }
 
-        Status = pVidPnSourceModeSetInterface->pfnAcquirePinnedModeInfo(hVidPnSourceModeSet,
-                                                                        &pPinnedVidPnSourceModeInfo);
+        Status =
+            pVidPnSourceModeSetInterface->pfnAcquirePinnedModeInfo(hVidPnSourceModeSet, &pPinnedVidPnSourceModeInfo);
         if (!NT_SUCCESS(Status))
         {
             DbgPrint(TRACE_LEVEL_ERROR,
@@ -1722,10 +1725,9 @@ NTSTATUS VioGpuDod::IsVidPnPathFieldsValid(CONST D3DKMDT_VIDPN_PRESENT_PATH *pPa
     }
     else if (pPath->VidPnTargetId >= MAX_CHILDREN)
     {
-        DbgPrint(TRACE_LEVEL_ERROR,
-                 ("VidPnTargetId is 0x%I64x is too high (MAX_CHILDREN is 0x%I64x)",
-                  pPath->VidPnTargetId,
-                  MAX_CHILDREN));
+        DbgPrint(
+            TRACE_LEVEL_ERROR,
+            ("VidPnTargetId is 0x%I64x is too high (MAX_CHILDREN is 0x%I64x)", pPath->VidPnTargetId, MAX_CHILDREN));
         return STATUS_GRAPHICS_INVALID_VIDEO_PRESENT_TARGET;
     }
     else if (pPath->GammaRamp.Type != D3DDDI_GAMMARAMP_DEFAULT)
@@ -1783,9 +1785,9 @@ NTSTATUS VioGpuDod::IsVidPnSourceModeFieldsValid(CONST D3DKMDT_VIDPN_SOURCE_MODE
     }
     else if (pSourceMode->Format.Graphics.PixelValueAccessMode != D3DKMDT_PVAM_DIRECT)
     {
-        DbgPrint(TRACE_LEVEL_ERROR,
-                 ("pSourceMode has a palettized access mode (0x%I64x)",
-                  pSourceMode->Format.Graphics.PixelValueAccessMode));
+        DbgPrint(
+            TRACE_LEVEL_ERROR,
+            ("pSourceMode has a palettized access mode (0x%I64x)", pSourceMode->Format.Graphics.PixelValueAccessMode));
         return STATUS_GRAPHICS_INVALID_VIDEO_PRESENT_SOURCE_MODE;
     }
     else
@@ -1803,7 +1805,8 @@ NTSTATUS VioGpuDod::IsVidPnSourceModeFieldsValid(CONST D3DKMDT_VIDPN_SOURCE_MODE
 }
 
 NTSTATUS
-VioGpuDod::UpdateActiveVidPnPresentPath(_In_ CONST DXGKARG_UPDATEACTIVEVIDPNPRESENTPATH *CONST pUpdateActiveVidPnPresentPath)
+VioGpuDod::UpdateActiveVidPnPresentPath(
+    _In_ CONST DXGKARG_UPDATEACTIVEVIDPNPRESENTPATH *CONST pUpdateActiveVidPnPresentPath)
 {
     PAGED_CODE();
 
@@ -1890,9 +1893,8 @@ NTSTATUS VioGpuDod::SystemDisplayEnable(_In_ D3DDDI_VIDEO_PRESENT_TARGET_ID Targ
     *pWidth = m_CurrentMode.DispInfo.Width = m_SystemDisplayInfo.Width;
     *pHeight = m_CurrentMode.DispInfo.Height = m_SystemDisplayInfo.Height;
     *pColorFormat = m_CurrentMode.DispInfo.ColorFormat = m_SystemDisplayInfo.ColorFormat;
-    m_CurrentMode.DispInfo.Pitch = m_SystemDisplayInfo.Pitch = (BPPFromPixelFormat(m_SystemDisplayInfo.ColorFormat) /
-                                                                BITS_PER_BYTE) *
-                                                               m_SystemDisplayInfo.Width;
+    m_CurrentMode.DispInfo.Pitch = m_SystemDisplayInfo.Pitch =
+        (BPPFromPixelFormat(m_SystemDisplayInfo.ColorFormat) / BITS_PER_BYTE) * m_SystemDisplayInfo.Width;
 
     DbgPrint(TRACE_LEVEL_INFORMATION, ("<--- %s (%dx%dx%d)\n", __FUNCTION__, *pWidth, *pHeight, *pColorFormat));
 
@@ -2514,13 +2516,8 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
     } while (0);
     // FIXME!!! exit if the block above failed
 
-    status = PsCreateSystemThread(&threadHandle,
-                                  (ACCESS_MASK)0,
-                                  NULL,
-                                  (HANDLE)0,
-                                  NULL,
-                                  VioGpuAdapter::ThreadWork,
-                                  this);
+    status =
+        PsCreateSystemThread(&threadHandle, (ACCESS_MASK)0, NULL, (HANDLE)0, NULL, VioGpuAdapter::ThreadWork, this);
 
     if (!NT_SUCCESS(status))
     {
@@ -2927,11 +2924,9 @@ NTSTATUS VioGpuAdapter::Escape(_In_ CONST DXGKARG_ESCAPE *pEscape)
     UINT size = pEscape->PrivateDriverDataSize;
     if (size < sizeof(PVIOGPU_ESCAPE))
     {
-        DbgPrint(TRACE_LEVEL_ERROR,
-                 ("%s buffer too small %d, should be at least %d\n",
-                  __FUNCTION__,
-                  pEscape->PrivateDriverDataSize,
-                  size));
+        DbgPrint(
+            TRACE_LEVEL_ERROR,
+            ("%s buffer too small %d, should be at least %d\n", __FUNCTION__, pEscape->PrivateDriverDataSize, size));
         return STATUS_INVALID_BUFFER_SIZE;
     }
 

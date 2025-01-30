@@ -38,9 +38,8 @@ static BOOLEAN ParaNdis_BindRxBufferToPacket(PARANDIS_ADAPTER *pContext, pRxNetD
 
     for (i = PARANDIS_FIRST_RX_DATA_PAGE; i < p->BufferSGLength; i++)
     {
-        *NextMdlLinkage = NdisAllocateMdl(pContext->MiniportHandle,
-                                          p->PhysicalPages[i].Virtual,
-                                          p->PhysicalPages[i].size);
+        *NextMdlLinkage =
+            NdisAllocateMdl(pContext->MiniportHandle, p->PhysicalPages[i].Virtual, p->PhysicalPages[i].size);
         if (*NextMdlLinkage == NULL)
         {
             goto error_exit;
@@ -202,16 +201,15 @@ pRxNetDescriptor CParaNdisRX::CreateRxDescriptorOnInit()
 
     NdisZeroMemory(p, sizeof(*p));
 
-    p->BufferSGArray = (struct
-                        VirtIOBufferDescriptor *)ParaNdis_AllocateMemory(m_Context,
-                                                                         sizeof(*p->BufferSGArray) * sgArraySize);
+    p->BufferSGArray =
+        (struct VirtIOBufferDescriptor *)ParaNdis_AllocateMemory(m_Context, sizeof(*p->BufferSGArray) * sgArraySize);
     if (p->BufferSGArray == NULL)
     {
         goto error_exit;
     }
 
-    p->PhysicalPages = (tCompletePhysicalAddress *)ParaNdis_AllocateMemory(m_Context,
-                                                                           sizeof(*p->PhysicalPages) * sgArraySize);
+    p->PhysicalPages =
+        (tCompletePhysicalAddress *)ParaNdis_AllocateMemory(m_Context, sizeof(*p->PhysicalPages) * sgArraySize);
     if (p->PhysicalPages == NULL)
     {
         goto error_exit;
@@ -226,8 +224,8 @@ pRxNetDescriptor CParaNdisRX::CreateRxDescriptorOnInit()
     {
         // Allocate the first block separately, the rest can be one contiguous block
         ULONG ulPagesToAlloc = (p->BufferSGLength == 0) ? 1 : ulNumDataPages;
-        ULONG sizeToAlloc = (p->BufferSGLength == 0) ? m_Context->RxLayout.HeaderPageAllocation
-                                                     : PAGE_SIZE * ulPagesToAlloc;
+        ULONG sizeToAlloc =
+            (p->BufferSGLength == 0) ? m_Context->RxLayout.HeaderPageAllocation : PAGE_SIZE * ulPagesToAlloc;
 
         while (!ParaNdis_InitialAllocatePhysicalMemory(m_Context, sizeToAlloc, &p->PhysicalPages[p->BufferSGLength]))
         {
@@ -264,10 +262,10 @@ pRxNetDescriptor CParaNdisRX::CreateRxDescriptorOnInit()
         offsetInTheHeader += m_Context->RxLayout.ReserveForIndirectArea;
 
         // fill the tail's physical page fields
-        p->PhysicalPages[p->BufferSGLength].Physical.QuadPart = p->PhysicalPages[0].Physical.QuadPart +
-                                                                offsetInTheHeader;
-        p->PhysicalPages[p->BufferSGLength].Virtual = RtlOffsetToPointer(p->PhysicalPages[0].Virtual,
-                                                                         offsetInTheHeader);
+        p->PhysicalPages[p->BufferSGLength].Physical.QuadPart =
+            p->PhysicalPages[0].Physical.QuadPart + offsetInTheHeader;
+        p->PhysicalPages[p->BufferSGLength].Virtual =
+            RtlOffsetToPointer(p->PhysicalPages[0].Virtual, offsetInTheHeader);
         p->PhysicalPages[p->BufferSGLength].size = m_Context->RxLayout.ReserveForPacketTail;
 
         // fill the tail's SG buffer fields
@@ -337,15 +335,13 @@ BOOLEAN CParaNdisRX::AllocateMore()
 /* TODO - make it method in pRXNetDescriptor */
 BOOLEAN CParaNdisRX::AddRxBufferToQueue(pRxNetDescriptor pBufferDescriptor)
 {
-    return 0 <=
-           pBufferDescriptor->Queue->m_VirtQueue.AddBuf(pBufferDescriptor->BufferSGArray,
-                                                        0,
-                                                        pBufferDescriptor->BufferSGLength,
-                                                        pBufferDescriptor,
-                                                        m_Context->bUseIndirect ? pBufferDescriptor->IndirectArea.Virtual
-                                                                                : NULL,
-                                                        m_Context->bUseIndirect ? pBufferDescriptor->IndirectArea.Physical.QuadPart
-                                                                                : 0);
+    return 0 <= pBufferDescriptor->Queue->m_VirtQueue.AddBuf(
+                    pBufferDescriptor->BufferSGArray,
+                    0,
+                    pBufferDescriptor->BufferSGLength,
+                    pBufferDescriptor,
+                    m_Context->bUseIndirect ? pBufferDescriptor->IndirectArea.Virtual : NULL,
+                    m_Context->bUseIndirect ? pBufferDescriptor->IndirectArea.Physical.QuadPart : 0);
 }
 
 void CParaNdisRX::FreeRxDescriptorsFromList()
@@ -618,9 +614,10 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
         m_NetNofReceiveBuffers--;
 
         // basic MAC-based analysis + L3 header info
-        BOOLEAN packetAnalysisRC = ParaNdis_AnalyzeReceivedPacket(pBufferDescriptor->PhysicalPages[PARANDIS_FIRST_RX_DATA_PAGE].Virtual,
-                                                                  nFullLength - m_Context->nVirtioHeaderSize,
-                                                                  &pBufferDescriptor->PacketInfo);
+        BOOLEAN packetAnalysisRC =
+            ParaNdis_AnalyzeReceivedPacket(pBufferDescriptor->PhysicalPages[PARANDIS_FIRST_RX_DATA_PAGE].Virtual,
+                                           nFullLength - m_Context->nVirtioHeaderSize,
+                                           &pBufferDescriptor->PacketInfo);
 
         if (!packetAnalysisRC)
         {
@@ -649,9 +646,8 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
         GROUP_AFFINITY TargetAffinity;
         PROCESSOR_NUMBER TargetProcessor;
 
-        nTargetReceiveQueueNum = ParaNdis_GetScalingDataForPacket(m_Context,
-                                                                  &pBufferDescriptor->PacketInfo,
-                                                                  &TargetProcessor);
+        nTargetReceiveQueueNum =
+            ParaNdis_GetScalingDataForPacket(m_Context, &pBufferDescriptor->PacketInfo, &TargetProcessor);
 
         if (nTargetReceiveQueueNum == PARANDIS_RECEIVE_UNCLASSIFIED_PACKET)
         {

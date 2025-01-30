@@ -128,9 +128,8 @@ bool CTXVirtQueue::PrepareBuffers()
 
 void CTXVirtQueue::FreeBuffers()
 {
-    m_Descriptors.ForEachDetached([this](CTXDescriptor *TXDescr) {
-        CTXDescriptor::Destroy(TXDescr, m_Context->MiniportHandle);
-    });
+    m_Descriptors.ForEachDetached(
+        [this](CTXDescriptor *TXDescr) { CTXDescriptor::Destroy(TXDescr, m_Context->MiniportHandle); });
 
     m_TotalDescriptors = m_FreeHWBuffers = 0;
 }

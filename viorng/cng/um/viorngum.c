@@ -40,19 +40,18 @@
 
 DEFINE_GUID(GUID_DEVINTERFACE_VIRT_RNG, 0x2489fc19, 0xd0fd, 0x4950, 0x83, 0x86, 0xf3, 0xda, 0x3f, 0xa8, 0x5, 0x8);
 
-// clang-format off
-BCRYPT_RNG_FUNCTION_TABLE RngFunctionTable =
-{
+// clang-format on
+BCRYPT_RNG_FUNCTION_TABLE RngFunctionTable = {
     // BCRYPT_RNG_INTERFACE_VERSION_1
-    1, 0,
+    1,
+    0,
 
     // RNG Interface
     VirtRngOpenAlgorithmProvider,
     VirtRngGetProperty,
     VirtRngSetProperty,
     VirtRngCloseAlgorithmProvider,
-    VirtRngGenRandom
-};
+    VirtRngGenRandom};
 // clang-format on
 
 static NTSTATUS ReadRngFromDevice(IN HANDLE Device,
@@ -133,12 +132,8 @@ HANDLE OpenVirtRngDeviceInterface()
         devIfaceDetail->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA);
         Length = RequiredLength;
 
-        bResult = SetupDiGetDeviceInterfaceDetail(devInfo,
-                                                  &devIfaceData,
-                                                  devIfaceDetail,
-                                                  Length,
-                                                  &RequiredLength,
-                                                  NULL);
+        bResult =
+            SetupDiGetDeviceInterfaceDetail(devInfo, &devIfaceData, devIfaceDetail, Length, &RequiredLength, NULL);
 
         if (bResult == FALSE)
         {

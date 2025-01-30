@@ -212,19 +212,16 @@ static bool _NetKVMGetKnownDevices(GUID *pguidDevClassPtr, vector<_NetKVMDeviceI
             {
                 _NetKVMDeviceInfo ResDevInfo;
                 ResDevInfo.strDeviceID = szDeviceId;
-                ResDevInfo.strDeviceDescription = _NetKVMQueryDeviceString(*phDeviceInfo,
-                                                                           &CurrDeviceInfo,
-                                                                           SPDRP_DEVICEDESC);
-                ResDevInfo.strDeviceFriendlyName = _NetKVMQueryDeviceString(*phDeviceInfo,
-                                                                            &CurrDeviceInfo,
-                                                                            SPDRP_FRIENDLYNAME);
+                ResDevInfo.strDeviceDescription =
+                    _NetKVMQueryDeviceString(*phDeviceInfo, &CurrDeviceInfo, SPDRP_DEVICEDESC);
+                ResDevInfo.strDeviceFriendlyName =
+                    _NetKVMQueryDeviceString(*phDeviceInfo, &CurrDeviceInfo, SPDRP_FRIENDLYNAME);
                 if (ResDevInfo.strDeviceFriendlyName.length() == 0)
                 {
                     ResDevInfo.strDeviceFriendlyName = ResDevInfo.strDeviceDescription;
                 }
-                ResDevInfo.strLocationInfo = _NetKVMQueryDeviceString(*phDeviceInfo,
-                                                                      &CurrDeviceInfo,
-                                                                      SPDRP_LOCATION_INFORMATION);
+                ResDevInfo.strLocationInfo =
+                    _NetKVMQueryDeviceString(*phDeviceInfo, &CurrDeviceInfo, SPDRP_LOCATION_INFORMATION);
                 ResDevInfo.dwDeviceNumber = _NetKVMQueryDeviceDWORD(*phDeviceInfo, &CurrDeviceInfo, SPDRP_UI_NUMBER);
                 ResDevInfo.DevInfoData = CurrDeviceInfo;
                 HKEY hSoftwareRegKey = _NetKVMOpenDeviceSwRegKey(*phDeviceInfo, &CurrDeviceInfo);
@@ -1067,22 +1064,20 @@ CMD_ENTRY g_ShowCmdTable[] = {CREATE_CMD_ENTRY_EX(NETKVM_SHOW_DEVICES,
 #define HLP_NETKVM_SET_PARAM         IDS_SETPARAM
 #define HLP_NETKVM_SET_PARAM_EX      IDS_SETPARAMLONG
 
-CMD_ENTRY g_TopLevelCommands[] = {CREATE_CMD_ENTRY_EX(NETKVM_RESTART_DEVICE,
-                                                      (PFN_HANDLE_CMD)_NetKVMRestartDeviceCmdHandler,
-                                                      CMD_FLAG_PRIVATE | CMD_FLAG_LOCAL),
-                                  CREATE_CMD_ENTRY_EX(NETKVM_GET_PARAM,
-                                                      (PFN_HANDLE_CMD)_NetKVMGetParamCmdHandler,
-                                                      CMD_FLAG_PRIVATE | CMD_FLAG_LOCAL),
-                                  CREATE_CMD_ENTRY_EX(NETKVM_SET_PARAM,
-                                                      (PFN_HANDLE_CMD)_NetKVMSetParamCmdHandler,
-                                                      CMD_FLAG_PRIVATE | CMD_FLAG_LOCAL)};
+CMD_ENTRY g_TopLevelCommands[] = {
+    CREATE_CMD_ENTRY_EX(NETKVM_RESTART_DEVICE,
+                        (PFN_HANDLE_CMD)_NetKVMRestartDeviceCmdHandler,
+                        CMD_FLAG_PRIVATE | CMD_FLAG_LOCAL),
+    CREATE_CMD_ENTRY_EX(NETKVM_GET_PARAM, (PFN_HANDLE_CMD)_NetKVMGetParamCmdHandler, CMD_FLAG_PRIVATE | CMD_FLAG_LOCAL),
+    CREATE_CMD_ENTRY_EX(NETKVM_SET_PARAM,
+                        (PFN_HANDLE_CMD)_NetKVMSetParamCmdHandler,
+                        CMD_FLAG_PRIVATE | CMD_FLAG_LOCAL)};
 
 #define HLP_GROUP_SHOW IDS_SHOWCMDHELP
 #define CMD_GROUP_SHOW L"show"
 
-static CMD_GROUP_ENTRY g_TopLevelGroups[] = {CREATE_CMD_GROUP_ENTRY_EX(GROUP_SHOW,
-                                                                       g_ShowCmdTable,
-                                                                       CMD_FLAG_PRIVATE | CMD_FLAG_LOCAL)};
+static CMD_GROUP_ENTRY g_TopLevelGroups[] = {
+    CREATE_CMD_GROUP_ENTRY_EX(GROUP_SHOW, g_ShowCmdTable, CMD_FLAG_PRIVATE | CMD_FLAG_LOCAL)};
 
 DWORD WINAPI _NetKVMDumpCdmHandler(__in PWCHAR pwszRouter,
                                    __in WCHAR ** /* ppwcArguments */,

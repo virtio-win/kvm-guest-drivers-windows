@@ -105,9 +105,8 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
     context->NumQueues = 2;
     context->QueueSize = VIRT_FS_MAX_QUEUE_SIZE;
 
-    context->VirtQueues = ExAllocatePoolZero(NonPagedPool,
-                                             context->NumQueues * sizeof(struct virtqueue *),
-                                             VIRT_FS_MEMORY_TAG);
+    context->VirtQueues =
+        ExAllocatePoolZero(NonPagedPool, context->NumQueues * sizeof(struct virtqueue *), VIRT_FS_MEMORY_TAG);
 
     if (context->VirtQueues == NULL)
     {
@@ -118,9 +117,8 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
 
     if (NT_SUCCESS(status))
     {
-        context->VirtQueueLocks = ExAllocatePoolUninitialized(NonPagedPool,
-                                                              context->NumQueues * sizeof(WDFSPINLOCK),
-                                                              VIRT_FS_MEMORY_TAG);
+        context->VirtQueueLocks =
+            ExAllocatePoolUninitialized(NonPagedPool, context->NumQueues * sizeof(WDFSPINLOCK), VIRT_FS_MEMORY_TAG);
     }
 
     if (context->VirtQueueLocks != NULL)
