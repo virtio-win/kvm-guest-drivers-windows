@@ -3,6 +3,7 @@
  *
  * Copyright IBM Corp. 2007
  *
+ *
  * Authors:
  *  Anthony Liguori  <aliguori@us.ibm.com>
  *  Windows porting - Yan Vugenfirer <yvugenfi@redhat.com>
