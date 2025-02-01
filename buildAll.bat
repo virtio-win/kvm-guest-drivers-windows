@@ -50,16 +50,16 @@ for %%D in (pciserial fwcfg Q35) do @(
   if errorlevel 1 goto :fail
   popd
 )
-
 echo.
 echo Processing DVL files to create Windows 10 COMPAT ^(WIN10_RS1 ^/ 1607^) version...
-for /R %%f in (*.dvl.xml) do @call :process_xml %%f
+for /R %%f in (*.dvl.xml) do @(
+  call :process_xml %%f
+)
 if "%found_dvl_xml%"=="" (
   echo WARNING ^: No DVL files were found.
 ) else (
   echo Processing of DVL files is complete.
 )
-
 :bld_success
 echo.
 echo BUILD COMPLETED SUCCESSFULLY.
@@ -74,8 +74,19 @@ goto :eof
 
 :process_xml
 set found_dvl_xml=Yes
-echo Creating %~dpn1-compat%~x1...
-findstr /v /c:"General.Checksum" "%~1" | findstr /v /c:".Semmle." > "%~dpn1-compat%~x1"
+set "dvl_file=%~dpn1-compat%~x1"
+if not exist "%dvl_file%" (
+  call :fudge_xml %1
+) else (
+  rem Here we retain the Windows 10 version 1607, WIN10_RS1, build 14393 COMPAT DVL.
+  echo The file already exists : %dvl_file%
+)
+goto :eof
+
+:fudge_xml
+rem Here we create a Windows 10 version 1607, WIN10_RS1, build 14393 COMPAT DVL.
+echo Auto-magically creating : %dvl_file%
+findstr /v /c:"General.Checksum" "%~1" | findstr /v /c:".Semmle." > "%dvl_file%"
 goto :eof
 
 :leave
