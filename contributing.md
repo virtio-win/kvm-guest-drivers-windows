@@ -17,10 +17,38 @@ Pull requests are the best way to propose changes to the codebase (we use [Githu
 2. If you've added code that should be tested, add tests.
 3. If you've added new driver, changed usage, or made some nontrivial changes - update the documentation.
 4. Ensure the test suite passes.
-5. Don't forget to add "Signed-off-by: Your Name <your@email_domain.com>" line in the commit message.
-6. If you are a Red Hat contributor, you must include [Jira](https://issues.redhat.com/) key in the commit message
-7. Prefix commit messages with the Jira key first, and then the affected component. For example: "RHELMISC-8923: NetKVM: implementing dynamic NDIS version support".
-8. Issue that pull request!
+5. Don't forget to add "Signed-off-by: Your Name <your@email_domain.com>" line in the commit message, e.g. with `git commit -s`
+6. If you are a Red Hat contributor, you MUST include the [Jira](https://issues.redhat.com/) key in the commit message.
+7. If you are NOT a Red Hat contributor, but know of a relevant Jira key, please include it in the commit message.
+8. Push your local commits to the remote branch, e.g. with `git push --branches --verbose`
+9. Create that pull request!
+<details>
+<summary><ins>Examples of including the Jira key in the commit message</ins></summary>
+<br>
+
+Prefix commit messages with the Jira key first, followed by a reference to the relevant component, followed by a short description, e.g.:
+- RHELMISC-8923: NetKVM: Implementing dynamic NDIS version support
+- RHELMISC-8923: [NetKVM] Implementing dynamic NDIS version support
+
+These can be issued from the command line using the following syntax:
+```
+git commit -s -m "RHELMISC-8923: [NetKVM] Implementing dynamic NDIS version support" -m "First line body content\nMore body content"
+```
+
+...or manually in the system editor, using:
+```
+git commit -s -e
+```
+
+...or use the CLI multiline editor, e.g:
+```
+git commit -s -m "RHELMISC-8923: [NetKVM] Implementing dynamic NDIS version support
+First line body content
+More body content"
+```
+
+In the examples above, the `-s` parameter causes `git` to include the _Signed-off-by_ signature in the commit message.
+</details>
 
 
 ## Any contributions you make will be under the BSD 3-Clause License
