@@ -44,13 +44,8 @@ if errorlevel 1 goto :fail
 
 path %path%;C:\Program Files (x86)\Windows Kits\10\bin\x86\
 for %%D in (pciserial fwcfg Q35) do @(
-  echo building also %%D
-  pushd %%D
-  call buildAll.bat
-  if errorlevel 1 goto :fail
-  popd
+ call :bld_inf_drvr %%D
 )
-
 echo.
 echo Processing DVL files to create Windows 10 COMPAT ^(WIN10_RS1 ^/ 1607^) version...
 for /R %%f in (*.dvl.xml) do @call :process_xml %%f
@@ -59,7 +54,6 @@ if "%found_dvl_xml%"=="" (
 ) else (
   echo Processing of DVL files is complete.
 )
-
 :bld_success
 echo.
 echo BUILD COMPLETED SUCCESSFULLY.
@@ -72,6 +66,20 @@ set BUILD_FAILED=
 call :leave 1
 goto :eof
 
+:bld_inf_drvr
+set inf_drv=%~1
+echo.
+echo Building : %inf_drv%%
+echo.
+pushd %inf_drv%
+call buildAll.bat
+if not errorlevel==0 (
+  goto :fail
+)
+echo Build for %inf_drv% succeeded.
+popd
+goto :eof
+
 :process_xml
 set found_dvl_xml=Yes
 echo Creating %~dpn1-compat%~x1...
@@ -80,4 +88,3 @@ goto :eof
 
 :leave
 exit /B %1
-goto :eof :: never hit
