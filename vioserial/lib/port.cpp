@@ -7,13 +7,8 @@ SerialPort::SerialPort(wstring LinkName, PnPControl *ptr)
     NotificationPair.first = NULL;
     NotificationPair.second = NULL;
     Reference = 0;
-    Handle = CreateFile(Name.c_str(),
-                        GENERIC_WRITE | GENERIC_READ,
-                        0,
-                        NULL,
-                        OPEN_EXISTING,
-                        FILE_ATTRIBUTE_NORMAL,
-                        NULL);
+    Handle =
+        CreateFile(Name.c_str(), GENERIC_WRITE | GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (Handle == INVALID_HANDLE_VALUE)
     {
         return;

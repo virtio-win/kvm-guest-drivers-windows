@@ -82,10 +82,10 @@ static KEVENT _initEvent;
 static PDEVICE_OBJECT _shutdownDeviceObject = NULL;
 static WSK_REGISTRATION _vioWskRegistration;
 static WSK_PROVIDER_NPI _vioWskProviderNPI;
-// clang-format off
-static WSK_CLIENT_NPI _vioWskClientNPI =  {
-	NULL,
-	NULL,
+// clang-format on
+static WSK_CLIENT_NPI _vioWskClientNPI = {
+    NULL,
+    NULL,
 };
 // clang-format on
 
@@ -201,17 +201,19 @@ static NTSTATUS _TestSocket(_In_ PWSK_SOCKET Socket,
             {
                 if ((TestFlags & VIOWSK_TEST_FLAG_SENDEX) != 0)
                 {
-                    WSK_SYNCHRONOUS_CALL(Irp,
-                                         &event,
-                                         ((PWSK_PROVIDER_CONNECTION_DISPATCH)Socket->Dispatch)->WskSendEx(Socket, &msg, 0, 0, NULL, Irp),
-                                         &iosb);
+                    WSK_SYNCHRONOUS_CALL(
+                        Irp,
+                        &event,
+                        ((PWSK_PROVIDER_CONNECTION_DISPATCH)Socket->Dispatch)->WskSendEx(Socket, &msg, 0, 0, NULL, Irp),
+                        &iosb);
                 }
                 else
                 {
-                    WSK_SYNCHRONOUS_CALL(Irp,
-                                         &event,
-                                         ((PWSK_PROVIDER_CONNECTION_DISPATCH)Socket->Dispatch)->WskSend(Socket, &msg, 0, Irp),
-                                         &iosb);
+                    WSK_SYNCHRONOUS_CALL(
+                        Irp,
+                        &event,
+                        ((PWSK_PROVIDER_CONNECTION_DISPATCH)Socket->Dispatch)->WskSend(Socket, &msg, 0, Irp),
+                        &iosb);
                 }
 
                 if (iosb.Status == STATUS_CANT_WAIT)
@@ -250,15 +252,17 @@ static NTSTATUS _TestSocket(_In_ PWSK_SOCKET Socket,
             {
                 WSK_SYNCHRONOUS_CALL(Irp,
                                      &event,
-                                     ((PWSK_PROVIDER_CONNECTION_DISPATCH)Socket->Dispatch)->WskReceiveEx(Socket, &recvMsg, 0, NULL, NULL, NULL, Irp),
+                                     ((PWSK_PROVIDER_CONNECTION_DISPATCH)Socket->Dispatch)
+                                         ->WskReceiveEx(Socket, &recvMsg, 0, NULL, NULL, NULL, Irp),
                                      &iosb);
             }
             else
             {
-                WSK_SYNCHRONOUS_CALL(Irp,
-                                     &event,
-                                     ((PWSK_PROVIDER_CONNECTION_DISPATCH)Socket->Dispatch)->WskReceive(Socket, &recvMsg, 0, Irp),
-                                     &iosb);
+                WSK_SYNCHRONOUS_CALL(
+                    Irp,
+                    &event,
+                    ((PWSK_PROVIDER_CONNECTION_DISPATCH)Socket->Dispatch)->WskReceive(Socket, &recvMsg, 0, Irp),
+                    &iosb);
             }
 
             if (iosb.Status == STATUS_CANT_WAIT)
@@ -312,17 +316,19 @@ static NTSTATUS _TestSocket(_In_ PWSK_SOCKET Socket,
             {
                 if ((TestFlags & VIOWSK_TEST_FLAG_SENDEX) != 0)
                 {
-                    WSK_SYNCHRONOUS_CALL(Irp,
-                                         &event,
-                                         ((PWSK_PROVIDER_CONNECTION_DISPATCH)Socket->Dispatch)->WskSendEx(Socket, &msg, 0, 0, NULL, Irp),
-                                         &iosb);
+                    WSK_SYNCHRONOUS_CALL(
+                        Irp,
+                        &event,
+                        ((PWSK_PROVIDER_CONNECTION_DISPATCH)Socket->Dispatch)->WskSendEx(Socket, &msg, 0, 0, NULL, Irp),
+                        &iosb);
                 }
                 else
                 {
-                    WSK_SYNCHRONOUS_CALL(Irp,
-                                         &event,
-                                         ((PWSK_PROVIDER_CONNECTION_DISPATCH)Socket->Dispatch)->WskSend(Socket, &msg, 0, Irp),
-                                         &iosb);
+                    WSK_SYNCHRONOUS_CALL(
+                        Irp,
+                        &event,
+                        ((PWSK_PROVIDER_CONNECTION_DISPATCH)Socket->Dispatch)->WskSend(Socket, &msg, 0, Irp),
+                        &iosb);
                 }
 
                 if (iosb.Status == STATUS_CANT_WAIT)
@@ -413,7 +419,8 @@ static void _TestThreadRoutine(_In_ PVOID Context)
         KeInitializeEvent(&event, NotificationEvent, FALSE);
         WSK_SYNCHRONOUS_CALL(ctx->Irp,
                              &event,
-                             ((PWSK_PROVIDER_CONNECTION_DISPATCH)ctx->Socket->Dispatch)->WskDisconnect(ctx->Socket, &ctx->FarewellMsg, 0, ctx->Irp),
+                             ((PWSK_PROVIDER_CONNECTION_DISPATCH)ctx->Socket->Dispatch)
+                                 ->WskDisconnect(ctx->Socket, &ctx->FarewellMsg, 0, ctx->Irp),
                              &iosb);
         if (iosb.Status == STATUS_CONNECTION_INVALID)
         {
@@ -425,10 +432,11 @@ static void _TestThreadRoutine(_In_ PVOID Context)
             DEBUG_ERROR("Unable to disconnect the server socket: 0x%x", iosb.Status);
         }
 
-        WSK_SYNCHRONOUS_CALL(ctx->Irp,
-                             &event,
-                             ((PWSK_PROVIDER_BASIC_DISPATCH)ctx->Socket->Dispatch)->WskCloseSocket(ctx->Socket, ctx->Irp),
-                             &iosb);
+        WSK_SYNCHRONOUS_CALL(
+            ctx->Irp,
+            &event,
+            ((PWSK_PROVIDER_BASIC_DISPATCH)ctx->Socket->Dispatch)->WskCloseSocket(ctx->Socket, ctx->Irp),
+            &iosb);
         if (!NT_SUCCESS(iosb.Status))
         {
             DEBUG_ERROR("Unable to close the server socket: 0x%x", iosb.Status);
@@ -539,16 +547,30 @@ static void _ServerThreadRoutine(_In_opt_ PVOID Context)
 
     WSK_SYNCHRONOUS_CALL(irp,
                          &event,
-                         ((PWSK_PROVIDER_LISTEN_DISPATCH)serverSocket->Dispatch)->WskBind(serverSocket, (PSOCKADDR)&listenAddress, 0, irp),
+                         ((PWSK_PROVIDER_LISTEN_DISPATCH)serverSocket->Dispatch)
+                             ->WskBind(serverSocket, (PSOCKADDR)&listenAddress, 0, irp),
                          &iosb);
     if (!NT_SUCCESS(iosb.Status))
     {
         DEBUG_ERROR("Unable to bind: 0x%x", iosb.Status);
         goto CloseSocket;
     }
-    // clang-format off
-	nonBlocking = TRUE;
-	WSK_SYNCHRONOUS_CALL(irp, &event, ((PWSK_PROVIDER_LISTEN_DISPATCH)serverSocket->Dispatch)->WskControlSocket(serverSocket, WskIoctl, FIONBIO, 0, sizeof(nonBlocking), &nonBlocking, 0, NULL, NULL, irp), &iosb);
+    // clang-format on
+    nonBlocking = TRUE;
+    WSK_SYNCHRONOUS_CALL(irp,
+                         &event,
+                         ((PWSK_PROVIDER_LISTEN_DISPATCH)serverSocket->Dispatch)
+                             ->WskControlSocket(serverSocket,
+                                                WskIoctl,
+                                                FIONBIO,
+                                                0,
+                                                sizeof(nonBlocking),
+                                                &nonBlocking,
+                                                0,
+                                                NULL,
+                                                NULL,
+                                                irp),
+                         &iosb);
     // clang-format on
     if (!NT_SUCCESS(iosb.Status))
     {
@@ -567,8 +589,18 @@ static void _ServerThreadRoutine(_In_opt_ PVOID Context)
         LARGE_INTEGER timeout;
 
         timeout.QuadPart = -10000000;
-        // clang-format off
-		WSK_SYNCHRONOUS_CALL(irp, &event, ((PWSK_PROVIDER_LISTEN_DISPATCH)serverSocket->Dispatch)->WskAccept(serverSocket, WSK_FLAG_CONNECTION_SOCKET, NULL, NULL, (PSOCKADDR)&localAddr, (PSOCKADDR)&remoteAddr, irp), &iosb);
+        // clang-format on
+        WSK_SYNCHRONOUS_CALL(irp,
+                             &event,
+                             ((PWSK_PROVIDER_LISTEN_DISPATCH)serverSocket->Dispatch)
+                                 ->WskAccept(serverSocket,
+                                             WSK_FLAG_CONNECTION_SOCKET,
+                                             NULL,
+                                             NULL,
+                                             (PSOCKADDR)&localAddr,
+                                             (PSOCKADDR)&remoteAddr,
+                                             irp),
+                             &iosb);
         // clang-format on
         if (iosb.Status == STATUS_CANT_WAIT)
         {
@@ -583,8 +615,21 @@ static void _ServerThreadRoutine(_In_opt_ PVOID Context)
         }
 
         clientSocket = (PWSK_SOCKET)iosb.Information;
-        // clang-format off
-		WSK_SYNCHRONOUS_CALL(irp, &event, ((PWSK_PROVIDER_LISTEN_DISPATCH)clientSocket->Dispatch)->WskControlSocket(clientSocket, WskIoctl, FIONBIO, 0, sizeof(nonBlocking), &nonBlocking, 0, NULL, NULL, irp), &iosb);
+        // clang-format on
+        WSK_SYNCHRONOUS_CALL(irp,
+                             &event,
+                             ((PWSK_PROVIDER_LISTEN_DISPATCH)clientSocket->Dispatch)
+                                 ->WskControlSocket(clientSocket,
+                                                    WskIoctl,
+                                                    FIONBIO,
+                                                    0,
+                                                    sizeof(nonBlocking),
+                                                    &nonBlocking,
+                                                    0,
+                                                    NULL,
+                                                    NULL,
+                                                    irp),
+                             &iosb);
         // clang-format on
         if (!NT_SUCCESS(iosb.Status))
         {
@@ -641,10 +686,11 @@ static void _ServerThreadRoutine(_In_opt_ PVOID Context)
 
         if (!NT_SUCCESS(iosb.Status))
         {
-            WSK_SYNCHRONOUS_CALL(irp,
-                                 &event,
-                                 ((PWSK_PROVIDER_BASIC_DISPATCH)clientSocket->Dispatch)->WskCloseSocket(clientSocket, irp),
-                                 &iosb);
+            WSK_SYNCHRONOUS_CALL(
+                irp,
+                &event,
+                ((PWSK_PROVIDER_BASIC_DISPATCH)clientSocket->Dispatch)->WskCloseSocket(clientSocket, irp),
+                &iosb);
             break;
         }
     }
@@ -812,7 +858,8 @@ static void _ClientThreadRoutine(_In_opt_ PVOID Context)
                     socket = (PWSK_SOCKET)iosb.Information;
                     WSK_SYNCHRONOUS_CALL(irp,
                                          &event,
-                                         ((PWSK_PROVIDER_CONNECTION_DISPATCH)socket->Dispatch)->WskBind(socket, (PSOCKADDR)&localAddr, 0, irp),
+                                         ((PWSK_PROVIDER_CONNECTION_DISPATCH)socket->Dispatch)
+                                             ->WskBind(socket, (PSOCKADDR)&localAddr, 0, irp),
                                          &iosb);
                 } while (FALSE);
 
@@ -849,7 +896,8 @@ static void _ClientThreadRoutine(_In_opt_ PVOID Context)
 
                             WSK_SYNCHRONOUS_CALL(irp,
                                                  &event,
-                                                 ((PWSK_PROVIDER_CONNECTION_DISPATCH)socket->Dispatch)->WskConnectEx(socket, (PSOCKADDR)&remoteAddr, &msg, 0, irp),
+                                                 ((PWSK_PROVIDER_CONNECTION_DISPATCH)socket->Dispatch)
+                                                     ->WskConnectEx(socket, (PSOCKADDR)&remoteAddr, &msg, 0, irp),
                                                  &iosb);
                             if (NT_SUCCESS(iosb.Status))
                             {
@@ -861,14 +909,16 @@ static void _ClientThreadRoutine(_In_opt_ PVOID Context)
                                     {
                                         WSK_SYNCHRONOUS_CALL(irp,
                                                              &event,
-                                                             ((PWSK_PROVIDER_CONNECTION_DISPATCH)socket->Dispatch)->WskSendEx(socket, &msg, 0, 0, NULL, irp),
+                                                             ((PWSK_PROVIDER_CONNECTION_DISPATCH)socket->Dispatch)
+                                                                 ->WskSendEx(socket, &msg, 0, 0, NULL, irp),
                                                              &iosb);
                                     }
                                     else
                                     {
                                         WSK_SYNCHRONOUS_CALL(irp,
                                                              &event,
-                                                             ((PWSK_PROVIDER_CONNECTION_DISPATCH)socket->Dispatch)->WskSend(socket, &msg, 0, irp),
+                                                             ((PWSK_PROVIDER_CONNECTION_DISPATCH)socket->Dispatch)
+                                                                 ->WskSend(socket, &msg, 0, irp),
                                                              &iosb);
                                     }
 
@@ -909,7 +959,8 @@ static void _ClientThreadRoutine(_In_opt_ PVOID Context)
                     {
                         WSK_SYNCHRONOUS_CALL(irp,
                                              &event,
-                                             ((PWSK_PROVIDER_CONNECTION_DISPATCH)socket->Dispatch)->WskConnect(socket, (PSOCKADDR)&remoteAddr, 0, irp),
+                                             ((PWSK_PROVIDER_CONNECTION_DISPATCH)socket->Dispatch)
+                                                 ->WskConnect(socket, (PSOCKADDR)&remoteAddr, 0, irp),
                                              &iosb);
                     }
                 }
@@ -924,10 +975,11 @@ static void _ClientThreadRoutine(_In_opt_ PVOID Context)
                     DEBUG_ERROR("Client socket test failed: 0x%x", iosb.Status);
                 }
 
-                WSK_SYNCHRONOUS_CALL(irp,
-                                     &event,
-                                     ((PWSK_PROVIDER_CONNECTION_DISPATCH)socket->Dispatch)->WskDisconnect(socket, NULL, 0, irp),
-                                     &iosb);
+                WSK_SYNCHRONOUS_CALL(
+                    irp,
+                    &event,
+                    ((PWSK_PROVIDER_CONNECTION_DISPATCH)socket->Dispatch)->WskDisconnect(socket, NULL, 0, irp),
+                    &iosb);
                 if (iosb.Status == STATUS_CONNECTION_INVALID)
                 {
                     iosb.Status = STATUS_SUCCESS;
@@ -1185,17 +1237,15 @@ DriverEntry(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING RegistryPath)
     }
 
     KeInitializeEvent(&_initEvent, NotificationEvent, FALSE);
-    Status = _CreateThreadGroup(sizeof(_serverThreads) / sizeof(_serverThreads[0]),
-                                _ServerThreadRoutine,
-                                _serverThreads);
+    Status =
+        _CreateThreadGroup(sizeof(_serverThreads) / sizeof(_serverThreads[0]), _ServerThreadRoutine, _serverThreads);
     if (!NT_SUCCESS(Status))
     {
         goto VIoWskReleaseNPI;
     }
 
-    Status = _CreateThreadGroup(sizeof(_clientThreads) / sizeof(_clientThreads[0]),
-                                _ClientThreadRoutine,
-                                _clientThreads);
+    Status =
+        _CreateThreadGroup(sizeof(_clientThreads) / sizeof(_clientThreads[0]), _ClientThreadRoutine, _clientThreads);
     if (!NT_SUCCESS(Status))
     {
         goto DestroyServers;

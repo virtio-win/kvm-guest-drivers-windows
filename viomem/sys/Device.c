@@ -178,9 +178,8 @@ ViomemEvtDevicePrepareHardware(IN WDFDEVICE Device,
 
     if (NT_SUCCESS(status))
     {
-        devCtx->plugRequest = (virtio_mem_req *)VirtIOWdfDeviceAllocDmaMemory(&devCtx->VDevice.VIODevice,
-                                                                              PAGE_SIZE,
-                                                                              VIRTIO_MEM_POOL_TAG);
+        devCtx->plugRequest =
+            (virtio_mem_req *)VirtIOWdfDeviceAllocDmaMemory(&devCtx->VDevice.VIODevice, PAGE_SIZE, VIRTIO_MEM_POOL_TAG);
     }
 
     if (devCtx->plugRequest)

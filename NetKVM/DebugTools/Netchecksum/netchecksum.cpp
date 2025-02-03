@@ -127,32 +127,31 @@ bool ProcessFile(FILE *f, ULONG flags, ULONG result[4])
     return bContinue;
 }
 
-// clang-format off
+// clang-format on
 struct
 {
     LPCSTR file;
     ULONG flags;
     ULONG result[4];
-}Jobs[] =
-{
+} Jobs[] = {
     // TCP packet with valid IPCS and PHCS, populate TCP CS
-    { "tcp-ph.txt",    pcrFixXxpChecksum, { 0x28140182, 0x2814019A, 0x2814099A, 0x281401AA } },
+    {"tcp-ph.txt", pcrFixXxpChecksum, {0x28140182, 0x2814019A, 0x2814099A, 0x281401AA}},
     // TCP packet with bad IPCS and valid TCPCS, fix IPCS
-    { "tcp-short.txt", pcrFixIPChecksum, { 0x28140182, 0x281401AE, 0x281405AE, 0x281401AA }  },
+    {"tcp-short.txt", pcrFixIPChecksum, {0x28140182, 0x281401AE, 0x281405AE, 0x281401AA}},
     // TCP packet with valid IPCS and TCPCS, populate PHCS
-    { "tcp-cs.txt",    pcrFixPHChecksum, { 0x28140182, 0x281401AA, 0x281409BA, 0x2814019A }  },
+    {"tcp-cs.txt", pcrFixPHChecksum, {0x28140182, 0x281401AA, 0x281409BA, 0x2814019A}},
     // TCP packet with valid IPCS and bad TCPCS, populate TCPCS
-    { "tcp-badcs.txt", pcrFixXxpChecksum, { 0x28140182, 0x281401BA, 0x281409BA, 0x281401AA }  },
+    {"tcp-badcs.txt", pcrFixXxpChecksum, {0x28140182, 0x281401BA, 0x281409BA, 0x281401AA}},
     // TCP packet with valid IPCS and bad TCPCS, populate PHCS
-    { "tcp-badcs.txt", pcrFixPHChecksum, { 0x28140182, 0x281401BA, 0x281409BA, 0x2814019A }  },
+    {"tcp-badcs.txt", pcrFixPHChecksum, {0x28140182, 0x281401BA, 0x281409BA, 0x2814019A}},
     // TCP packet with valid TCPCS, populate TCPCS
-    { "tcpv6-cs.txt",  pcrFixXxpChecksum, { 0x3C28018B, 0x3C2801AB, 0x3C2801AB, 0x3C2801AB }  },
+    {"tcpv6-cs.txt", pcrFixXxpChecksum, {0x3C28018B, 0x3C2801AB, 0x3C2801AB, 0x3C2801AB}},
     // TCP packet with valid TCPCS, populate PHCS
-    { "tcpv6-cs.txt",  pcrFixPHChecksum, { 0x3C28018B, 0x3C2801AB, 0x3C2809BB, 0x3C28019B }  },
+    {"tcpv6-cs.txt", pcrFixPHChecksum, {0x3C28018B, 0x3C2801AB, 0x3C2809BB, 0x3C28019B}},
     // TCP packet with valid UDPCS, populate UDPCS
-    { "udpv6-cs.txt",  pcrFixXxpChecksum, { 0x3028038B, 0x302803AB, 0x302803AB, 0x302803AB }  },
+    {"udpv6-cs.txt", pcrFixXxpChecksum, {0x3028038B, 0x302803AB, 0x302803AB, 0x302803AB}},
     // TCP packet with valid UDPCS, populate PHCS
-    { "udpv6-cs.txt",  pcrFixPHChecksum | pcrFixIPChecksum, { 0x3028038B, 0x302803AB, 0x30280BBB, 0x3028039B }  },
+    {"udpv6-cs.txt", pcrFixPHChecksum | pcrFixIPChecksum, {0x3028038B, 0x302803AB, 0x30280BBB, 0x3028039B}},
 };
 // clang-format on
 

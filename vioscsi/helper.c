@@ -119,13 +119,8 @@ VOID SendSRB(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
 
     StorPortAcquireSpinLock(DeviceExtension, DpcLock, LockContext, &LockHandle);
     SET_VA_PA();
-    add_buffer_req_status = virtqueue_add_buf(adaptExt->vq[QueueNumber],
-                                              srbExt->psgl,
-                                              srbExt->out,
-                                              srbExt->in,
-                                              &srbExt->cmd,
-                                              va,
-                                              pa);
+    add_buffer_req_status =
+        virtqueue_add_buf(adaptExt->vq[QueueNumber], srbExt->psgl, srbExt->out, srbExt->in, &srbExt->cmd, va, pa);
 
     if (add_buffer_req_status == VQ_ADD_BUFFER_SUCCESS)
     {
@@ -594,8 +589,8 @@ VOID FirmwareRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
                     }
                     else
                     {
-                        firmwareRequest->DataBufferLength = sizeof(STORAGE_FIRMWARE_INFO_V2) +
-                                                            sizeof(STORAGE_FIRMWARE_SLOT_INFO_V2);
+                        firmwareRequest->DataBufferLength =
+                            sizeof(STORAGE_FIRMWARE_INFO_V2) + sizeof(STORAGE_FIRMWARE_SLOT_INFO_V2);
                         srbControl->ReturnCode = FIRMWARE_STATUS_OUTPUT_BUFFER_TOO_SMALL;
                     }
                     SRB_SET_SRB_STATUS(Srb, SRB_STATUS_SUCCESS);

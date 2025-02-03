@@ -73,9 +73,8 @@ NTSTATUS PVPanicEvtDevicePrepareHardware(IN WDFDEVICE Device,
                 if (context->MappedPort)
                 {
 #if defined(NTDDI_WINTHRESHOLD) && (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
-                    context->IoBaseAddress = MmMapIoSpaceEx(desc->u.Port.Start,
-                                                            desc->u.Port.Length,
-                                                            PAGE_READWRITE | PAGE_NOCACHE);
+                    context->IoBaseAddress =
+                        MmMapIoSpaceEx(desc->u.Port.Start, desc->u.Port.Length, PAGE_READWRITE | PAGE_NOCACHE);
 #else
                     context->IoBaseAddress = MmMapIoSpace(desc->u.Port.Start, desc->u.Port.Length, MmNonCached);
 #endif
@@ -109,9 +108,8 @@ NTSTATUS PVPanicEvtDevicePrepareHardware(IN WDFDEVICE Device,
 
                 context->MemRange = desc->u.Memory.Length;
 #if defined(NTDDI_WINTHRESHOLD) && (NTDDI_VERSION >= NTDDI_WINTHRESHOLD)
-                context->MemBaseAddress = MmMapIoSpaceEx(desc->u.Memory.Start,
-                                                         desc->u.Memory.Length,
-                                                         PAGE_READWRITE | PAGE_NOCACHE);
+                context->MemBaseAddress =
+                    MmMapIoSpaceEx(desc->u.Memory.Start, desc->u.Memory.Length, PAGE_READWRITE | PAGE_NOCACHE);
 #else
                 context->MemBaseAddress = MmMapIoSpace(desc->u.Memory.Start, desc->u.Memory.Length, MmNonCached);
 #endif

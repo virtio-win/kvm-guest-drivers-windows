@@ -111,8 +111,8 @@ NTSTATUS VirtRngEvtDeviceD0Entry(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE 
     context->SingleBufferVA = VirtIOWdfDeviceAllocDmaMemory(&context->VDevice.VIODevice, PAGE_SIZE, 0);
     if (context->SingleBufferVA)
     {
-        context->SingleBufferPA = VirtIOWdfDeviceGetPhysicalAddress(&context->VDevice.VIODevice,
-                                                                    context->SingleBufferVA);
+        context->SingleBufferPA =
+            VirtIOWdfDeviceGetPhysicalAddress(&context->VDevice.VIODevice, context->SingleBufferVA);
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "<-- %!FUNC!");

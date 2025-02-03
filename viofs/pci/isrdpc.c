@@ -82,11 +82,8 @@ NTSTATUS VirtFsEvtInterruptEnable(IN WDFINTERRUPT Interrupt, IN WDFDEVICE Associ
     WDF_INTERRUPT_INFO_INIT(&info);
     WdfInterruptGetInfo(Interrupt, &info);
 
-    status = MessageToQueueIdxs(info.MessageSignaled,
-                                info.MessageNumber,
-                                context->NumQueues,
-                                &vq_idx_begin,
-                                &vq_idx_end);
+    status =
+        MessageToQueueIdxs(info.MessageSignaled, info.MessageNumber, context->NumQueues, &vq_idx_begin, &vq_idx_end);
 
     for (ULONG i = vq_idx_begin; i < vq_idx_end; i++)
     {
@@ -119,11 +116,8 @@ NTSTATUS VirtFsEvtInterruptDisable(IN WDFINTERRUPT Interrupt, IN WDFDEVICE Assoc
     WDF_INTERRUPT_INFO_INIT(&info);
     WdfInterruptGetInfo(Interrupt, &info);
 
-    status = MessageToQueueIdxs(info.MessageSignaled,
-                                info.MessageNumber,
-                                context->NumQueues,
-                                &vq_idx_begin,
-                                &vq_idx_end);
+    status =
+        MessageToQueueIdxs(info.MessageSignaled, info.MessageNumber, context->NumQueues, &vq_idx_begin, &vq_idx_end);
 
     for (ULONG i = vq_idx_begin; i < vq_idx_end; i++)
     {

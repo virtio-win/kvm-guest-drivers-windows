@@ -438,18 +438,17 @@ class CServiceImplementation
     CServiceState m_State;
     void ServiceMain(_In_ ULONG dwArgc, _In_ LPTSTR *lpszArgv)
     {
-        // clang-format off
+        // clang-format on
         UNREFERENCED_PARAMETER(dwArgc);
         UNREFERENCED_PARAMETER(lpszArgv);
         m_State.hService = RegisterServiceCtrlHandlerEx(
             m_Name,
-            [](DWORD dwControl, DWORD dwEventType, LPVOID lpEventData, LPVOID lpContext) -> DWORD
-        {
-            UNREFERENCED_PARAMETER(lpEventData);
-            UNREFERENCED_PARAMETER(dwEventType);
-            CServiceImplementation *obj = (CServiceImplementation *)lpContext;
-            return obj->ControlHandler(dwControl, dwEventType, lpEventData);
-        },
+            [](DWORD dwControl, DWORD dwEventType, LPVOID lpEventData, LPVOID lpContext) -> DWORD {
+                UNREFERENCED_PARAMETER(lpEventData);
+                UNREFERENCED_PARAMETER(dwEventType);
+                CServiceImplementation *obj = (CServiceImplementation *)lpContext;
+                return obj->ControlHandler(dwControl, dwEventType, lpEventData);
+            },
             this);
         if (m_State.hService)
         {

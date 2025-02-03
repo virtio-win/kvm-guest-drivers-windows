@@ -517,7 +517,8 @@ VioGpuDodCommitVidPn(_In_ CONST HANDLE hAdapter, _In_ CONST DXGKARG_COMMITVIDPN 
 NTSTATUS
 APIENTRY
 VioGpuDodUpdateActiveVidPnPresentPath(_In_ CONST HANDLE hAdapter,
-                                      _In_ CONST DXGKARG_UPDATEACTIVEVIDPNPRESENTPATH *CONST pUpdateActiveVidPnPresentPath)
+                                      _In_ CONST DXGKARG_UPDATEACTIVEVIDPNPRESENTPATH *CONST
+                                          pUpdateActiveVidPnPresentPath)
 {
     PAGED_CODE();
     VIOGPU_ASSERT_CHK(hAdapter != NULL);

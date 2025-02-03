@@ -111,45 +111,44 @@ typedef struct _tagConfigurationEntries
     tConfigurationEntry PollMode;
 } tConfigurationEntries;
 
-// clang-format off
-static const tConfigurationEntries defaultConfiguration =
-{
-    { "*PhysicalMediaType", 0,  0,  0xff },
-    { "Priority",       0,  0,  1 },
-    { "DoLog",          1,  0,  1 },
-    { "DebugLevel",     2,  0,  8 },
-    { "TxCapacity",     1024,   16, 1024 },
-    { "RxCapacity",     256, 16, 4096 },
-    { "Offload.TxChecksum", 0, 0, 31},
-    { "Offload.TxLSO",  0, 0, 2},
-    { "Offload.RxCS",   0, 0, 31},
-    { "*IPChecksumOffloadIPv4", 3, 0, 3 },
-    { "*TCPChecksumOffloadIPv4",3, 0, 3 },
-    { "*TCPChecksumOffloadIPv6",3, 0, 3 },
-    { "*UDPChecksumOffloadIPv4",3, 0, 3 },
-    { "*UDPChecksumOffloadIPv6",3, 0, 3 },
-    { "*LsoV1IPv4", 1, 0, 1 },
-    { "*LsoV2IPv4", 1, 0, 1 },
-    { "*LsoV2IPv6", 1, 0, 1 },
-    { "*PriorityVLANTag", 3, 0, 3},
-    { "VlanId", 0, 0, MAX_VLAN_ID},
-    { "*JumboPacket", 1514, 590, 65500},
-    { "NumberOfHandledRXPacketsInDPC", MAX_RX_LOOPS, 1, 10000},
-    { "FastInit", 1, 0, 1},
+// clang-format on
+static const tConfigurationEntries defaultConfiguration = {
+    {"*PhysicalMediaType", 0, 0, 0xff},
+    {"Priority", 0, 0, 1},
+    {"DoLog", 1, 0, 1},
+    {"DebugLevel", 2, 0, 8},
+    {"TxCapacity", 1024, 16, 1024},
+    {"RxCapacity", 256, 16, 4096},
+    {"Offload.TxChecksum", 0, 0, 31},
+    {"Offload.TxLSO", 0, 0, 2},
+    {"Offload.RxCS", 0, 0, 31},
+    {"*IPChecksumOffloadIPv4", 3, 0, 3},
+    {"*TCPChecksumOffloadIPv4", 3, 0, 3},
+    {"*TCPChecksumOffloadIPv6", 3, 0, 3},
+    {"*UDPChecksumOffloadIPv4", 3, 0, 3},
+    {"*UDPChecksumOffloadIPv6", 3, 0, 3},
+    {"*LsoV1IPv4", 1, 0, 1},
+    {"*LsoV2IPv4", 1, 0, 1},
+    {"*LsoV2IPv6", 1, 0, 1},
+    {"*PriorityVLANTag", 3, 0, 3},
+    {"VlanId", 0, 0, MAX_VLAN_ID},
+    {"*JumboPacket", 1514, 590, 65500},
+    {"NumberOfHandledRXPacketsInDPC", MAX_RX_LOOPS, 1, 10000},
+    {"FastInit", 1, 0, 1},
 #if PARANDIS_SUPPORT_RSS
-    { "*RSS", 1, 0, 1},
-    { "*NumRssQueues", 16, 1, PARANDIS_RSS_MAX_RECEIVE_QUEUES},
+    {"*RSS", 1, 0, 1},
+    {"*NumRssQueues", 16, 1, PARANDIS_RSS_MAX_RECEIVE_QUEUES},
 #endif
 #if PARANDIS_SUPPORT_RSC
-    { "*RscIPv4", 1, 0, 1},
-    { "*RscIPv6", 1, 0, 1},
+    {"*RscIPv4", 1, 0, 1},
+    {"*RscIPv6", 1, 0, 1},
 #endif
 #if PARANDIS_SUPPORT_USO
-    { "*UsoIPv4", 1, 0, 1},
-    { "*UsoIPv6", 1, 0, 1},
+    {"*UsoIPv4", 1, 0, 1},
+    {"*UsoIPv6", 1, 0, 1},
 #endif
-    { "MinRxBufferPercent", PARANDIS_MIN_RX_BUFFER_PERCENT_DEFAULT, 0, 100},
-    { "*NdisPoll", 0, 0, 1},
+    {"MinRxBufferPercent", PARANDIS_MIN_RX_BUFFER_PERCENT_DEFAULT, 0, 100},
+    {"*NdisPoll", 0, 0, 1},
 };
 
 static void ParaNdis_ResetVirtIONetDevice(PARANDIS_ADAPTER *pContext)
@@ -241,8 +240,8 @@ static bool ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
 {
     NDIS_HANDLE cfg;
     bool ret = false;
-    tConfigurationEntries *pConfiguration = (tConfigurationEntries *)ParaNdis_AllocateMemory(pContext,
-                                                                                             sizeof(tConfigurationEntries));
+    tConfigurationEntries *pConfiguration =
+        (tConfigurationEntries *)ParaNdis_AllocateMemory(pContext, sizeof(tConfigurationEntries));
     if (pConfiguration)
     {
         *pConfiguration = defaultConfiguration;
@@ -393,8 +392,8 @@ static bool ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
             // The poll mode keyword setting has effect currently only on Server 2025 (NDIS 6.89)
             // TODO - check Win11 24H2, probably on it the poll mode will work also
             bool bPollModeTestOnWin11 = false;
-            pContext->bPollModeTry = pConfiguration->PollMode.ulValue &&
-                                     CheckOSNdisVersion(6, bPollModeTestOnWin11 ? 85 : 89);
+            pContext->bPollModeTry =
+                pConfiguration->PollMode.ulValue && CheckOSNdisVersion(6, bPollModeTestOnWin11 ? 85 : 89);
 #endif
             if (!pContext->bDoSupportPriority)
             {
@@ -476,17 +475,20 @@ void ParaNdis_ResetOffloadSettings(PARANDIS_ADAPTER *pContext, tOffloadSettingsF
     pDest->fUsov6 = !!(*from & osbT6Uso);
 }
 
-// clang-format off
+// clang-format on
 static void DumpVirtIOFeatures(PPARANDIS_ADAPTER pContext)
 {
-    static const struct {  ULONG bitmask;  PCHAR Name; } Features[] =
+    static const struct
     {
+        ULONG bitmask;
+        PCHAR Name;
+    } Features[] = {
 
-        {VIRTIO_NET_F_CSUM, "VIRTIO_NET_F_CSUM" },
-        {VIRTIO_NET_F_GUEST_CSUM, "VIRTIO_NET_F_GUEST_CSUM" },
-        {VIRTIO_NET_F_MTU, "VIRTIO_NET_F_MTU" },
-        {VIRTIO_NET_F_MAC, "VIRTIO_NET_F_MAC" },
-        {VIRTIO_NET_F_GSO, "VIRTIO_NET_F_GSO" },
+        {VIRTIO_NET_F_CSUM, "VIRTIO_NET_F_CSUM"},
+        {VIRTIO_NET_F_GUEST_CSUM, "VIRTIO_NET_F_GUEST_CSUM"},
+        {VIRTIO_NET_F_MTU, "VIRTIO_NET_F_MTU"},
+        {VIRTIO_NET_F_MAC, "VIRTIO_NET_F_MAC"},
+        {VIRTIO_NET_F_GSO, "VIRTIO_NET_F_GSO"},
         {VIRTIO_NET_F_GUEST_TSO4, "VIRTIO_NET_F_GUEST_TSO4"},
         {VIRTIO_NET_F_GUEST_TSO6, "VIRTIO_NET_F_GUEST_TSO6"},
         {VIRTIO_NET_F_GUEST_ECN, "VIRTIO_NET_F_GUEST_ECN"},
@@ -510,12 +512,12 @@ static void DumpVirtIOFeatures(PPARANDIS_ADAPTER pContext)
         {VIRTIO_F_VERSION_1, "VIRTIO_F_VERSION_1"},
         {VIRTIO_F_RING_PACKED, "VIRTIO_F_RING_PACKED"},
         {VIRTIO_F_ACCESS_PLATFORM, "VIRTIO_F_ACCESS_PLATFORM"},
-        {VIRTIO_NET_F_CTRL_GUEST_OFFLOADS, "VIRTIO_NET_F_CTRL_GUEST_OFFLOADS" },
-        {VIRTIO_NET_F_RSC_EXT, "VIRTIO_NET_F_RSC_EXT" },
-        {VIRTIO_NET_F_RSS, "VIRTIO_NET_F_RSS" },
-        {VIRTIO_NET_F_HASH_REPORT, "VIRTIO_NET_F_HASH_REPORT" },
-        {VIRTIO_NET_F_STANDBY, "VIRTIO_NET_F_STANDBY" },
-        {VIRTIO_NET_F_HOST_USO, "VIRTIO_NET_F_HOST_USO" },
+        {VIRTIO_NET_F_CTRL_GUEST_OFFLOADS, "VIRTIO_NET_F_CTRL_GUEST_OFFLOADS"},
+        {VIRTIO_NET_F_RSC_EXT, "VIRTIO_NET_F_RSC_EXT"},
+        {VIRTIO_NET_F_RSS, "VIRTIO_NET_F_RSS"},
+        {VIRTIO_NET_F_HASH_REPORT, "VIRTIO_NET_F_HASH_REPORT"},
+        {VIRTIO_NET_F_STANDBY, "VIRTIO_NET_F_STANDBY"},
+        {VIRTIO_NET_F_HOST_USO, "VIRTIO_NET_F_HOST_USO"},
     };
     UINT i;
     for (i = 0; i < sizeof(Features) / sizeof(Features[0]); ++i)
@@ -586,8 +588,8 @@ static VOID InitializeRSCState(PPARANDIS_ADAPTER pContext)
         return;
     }
 
-    BOOLEAN bDynamicOffloadsPossible = pContext->bControlQueueSupported &&
-                                       AckFeature(pContext, VIRTIO_NET_F_CTRL_GUEST_OFFLOADS);
+    BOOLEAN bDynamicOffloadsPossible =
+        pContext->bControlQueueSupported && AckFeature(pContext, VIRTIO_NET_F_CTRL_GUEST_OFFLOADS);
     BOOLEAN bQemuRscSupport = bDynamicOffloadsPossible && AckFeature(pContext, VIRTIO_NET_F_RSC_EXT);
 
     if (pContext->RSC.bIPv4SupportedSW)
@@ -709,8 +711,8 @@ static void InitializeMAC(PPARANDIS_ADAPTER pContext, PUCHAR pCurrentMAC)
 {
     // Acknowledge related features
     pContext->bCfgMACAddrSupported = AckFeature(pContext, VIRTIO_NET_F_MAC);
-    pContext->bCtrlMACAddrSupported = pContext->bControlQueueSupported &&
-                                      AckFeature(pContext, VIRTIO_NET_F_CTRL_MAC_ADDR);
+    pContext->bCtrlMACAddrSupported =
+        pContext->bControlQueueSupported && AckFeature(pContext, VIRTIO_NET_F_CTRL_MAC_ADDR);
     DPrintf(0,
             "[%s] - MAC address configuration options: configuration space %d, control queue %d",
             __FUNCTION__,
@@ -894,8 +896,8 @@ NDIS_STATUS ParaNdis_InitializeContext(PARANDIS_ADAPTER *pContext, PNDIS_RESOURC
         InitializeMaxMTUConfig(pContext);
 
         pContext->bUseMergedBuffers = AckFeature(pContext, VIRTIO_NET_F_MRG_RXBUF);
-        pContext->nVirtioHeaderSize = (pContext->bUseMergedBuffers) ? sizeof(virtio_net_hdr_mrg_rxbuf)
-                                                                    : sizeof(virtio_net_hdr);
+        pContext->nVirtioHeaderSize =
+            (pContext->bUseMergedBuffers) ? sizeof(virtio_net_hdr_mrg_rxbuf) : sizeof(virtio_net_hdr);
         AckFeature(pContext, VIRTIO_RING_F_EVENT_IDX);
     }
     else
@@ -1024,8 +1026,8 @@ NDIS_STATUS ParaNdis_InitializeContext(PARANDIS_ADAPTER *pContext, PNDIS_RESOURC
     pContext->bAnyLayout = AckFeature(pContext, VIRTIO_F_ANY_LAYOUT);
     if (AckFeature(pContext, VIRTIO_F_VERSION_1))
     {
-        pContext->nVirtioHeaderSize = pContext->bHashReportedByDevice ? sizeof(virtio_net_hdr_v1_hash)
-                                                                      : sizeof(virtio_net_hdr_v1);
+        pContext->nVirtioHeaderSize =
+            pContext->bHashReportedByDevice ? sizeof(virtio_net_hdr_v1_hash) : sizeof(virtio_net_hdr_v1);
 
         pContext->bAnyLayout = true;
         DPrintf(0, "[%s] Assuming VIRTIO_F_ANY_LAYOUT for V1 device\n", __FUNCTION__);
@@ -1176,10 +1178,10 @@ static void PrepareRXLayout(PARANDIS_ADAPTER *pContext)
     USHORT tail = rxPayloadSize % PAGE_SIZE;
     // we need one entry for each data page + header + tail (if any)
     pContext->RxLayout.IndirectEntries = pContext->RxLayout.TotalAllocationsPerBuffer + !!tail;
-    pContext->RxLayout.ReserveForIndirectArea = ALIGN_UP_BY(pContext->RxLayout.IndirectEntries * sizeof(VirtIOBufferDescriptor),
-                                                            alignment);
-    pContext->RxLayout.HeaderPageAllocation = pContext->RxLayout.ReserveForHeader +
-                                              pContext->RxLayout.ReserveForIndirectArea;
+    pContext->RxLayout.ReserveForIndirectArea =
+        ALIGN_UP_BY(pContext->RxLayout.IndirectEntries * sizeof(VirtIOBufferDescriptor), alignment);
+    pContext->RxLayout.HeaderPageAllocation =
+        pContext->RxLayout.ReserveForHeader + pContext->RxLayout.ReserveForIndirectArea;
     if (pContext->RxLayout.HeaderPageAllocation + tail > PAGE_SIZE)
     {
         // packet tail is quite big, placing it in additional page
@@ -1258,10 +1260,11 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
         pContext->bCXPathCreated = FALSE;
     }
 
-    pContext->pPathBundles = (CPUPathBundle *)NdisAllocateMemoryWithTagPriority(pContext->MiniportHandle,
-                                                                                pContext->nPathBundles * sizeof(*pContext->pPathBundles),
-                                                                                PARANDIS_MEMORY_TAG,
-                                                                                NormalPoolPriority);
+    pContext->pPathBundles =
+        (CPUPathBundle *)NdisAllocateMemoryWithTagPriority(pContext->MiniportHandle,
+                                                           pContext->nPathBundles * sizeof(*pContext->pPathBundles),
+                                                           PARANDIS_MEMORY_TAG,
+                                                           NormalPoolPriority);
     if (pContext->pPathBundles == nullptr)
     {
         DPrintf(0, "[%s] Path bundles allocation failed\n", __FUNCTION__);
@@ -1351,13 +1354,8 @@ static NDIS_STATUS SetInitialDeviceRSS(PARANDIS_ADAPTER *pContext)
     struct virtio_net_rss_config cfg = {};
     max_tx_vq(&cfg) = (USHORT)pContext->nPathBundles;
     DPrintf(0, "[%s]\n", __FUNCTION__);
-    if (!pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_MQ,
-                                             VIRTIO_NET_CTRL_MQ_RSS_CONFIG,
-                                             &cfg,
-                                             sizeof(cfg),
-                                             NULL,
-                                             0,
-                                             2))
+    if (!pContext->CXPath
+             .SendControlMessage(VIRTIO_NET_CTRL_MQ, VIRTIO_NET_CTRL_MQ_RSS_CONFIG, &cfg, sizeof(cfg), NULL, 0, 2))
     {
         status = NDIS_STATUS_DEVICE_FAILED;
     }
@@ -1515,8 +1513,8 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
     {
         pRxNetDescriptor pBufferDescriptor;
 
-        while (NULL !=
-               (pBufferDescriptor = ReceiveQueueGetBuffer(&pContext->pPathBundles[i].rxPath.UnclassifiedPacketsQueue())))
+        while (NULL != (pBufferDescriptor =
+                            ReceiveQueueGetBuffer(&pContext->pPathBundles[i].rxPath.UnclassifiedPacketsQueue())))
         {
             pBufferDescriptor->Queue->ReuseReceiveBuffer(pBufferDescriptor);
         }
@@ -1714,9 +1712,8 @@ static BOOLEAN ProcessReceiveQueue(PARANDIS_ADAPTER *pContext,
         if (ParaNdis_IsTxRxPossible(pContext))
         {
             UINT nCoalescedSegmentsCount;
-            PNET_BUFFER_LIST packet = ParaNdis_PrepareReceivedPacket(pContext,
-                                                                     pBufferDescriptor,
-                                                                     &nCoalescedSegmentsCount);
+            PNET_BUFFER_LIST packet =
+                ParaNdis_PrepareReceivedPacket(pContext, pBufferDescriptor, &nCoalescedSegmentsCount);
             if (packet != NULL)
             {
                 UpdateReceiveSuccessStatistics(pContext, pPacketInfo, nCoalescedSegmentsCount);
@@ -1869,8 +1866,8 @@ static BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathBundle *pathBund
     // that we need to respawn the DPC to get more data from the queue
     if (pathBundle != nullptr && res == 0)
     {
-        res |= pathBundle->rxPath.RestartQueue() |
-               ReceiveQueueHasBuffers(&pathBundle->rxPath.UnclassifiedPacketsQueue());
+        res |=
+            pathBundle->rxPath.RestartQueue() | ReceiveQueueHasBuffers(&pathBundle->rxPath.UnclassifiedPacketsQueue());
     }
 
     return res;
@@ -1936,8 +1933,8 @@ void RxPoll(PARANDIS_ADAPTER *pContext, UINT BundleIndex, NDIS_POLL_RECEIVE_DATA
     // that we need to respawn the DPC to get more data from the queue
     if (pathBundle != nullptr && !hasMore)
     {
-        hasMore |= pathBundle->rxPath.RestartQueue() |
-                   ReceiveQueueHasBuffers(&pathBundle->rxPath.UnclassifiedPacketsQueue());
+        hasMore |=
+            pathBundle->rxPath.RestartQueue() | ReceiveQueueHasBuffers(&pathBundle->rxPath.UnclassifiedPacketsQueue());
     }
     if (hasMore)
     {
@@ -1984,13 +1981,8 @@ void ParaNdis_CXDPCWorkBody(PARANDIS_ADAPTER *pContext)
         if (pContext->bGuestAnnounceSupported && pContext->bGuestAnnounced)
         {
             ParaNdis_SendGratuitousArpPacket(pContext);
-            pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_ANNOUNCE,
-                                                VIRTIO_NET_CTRL_ANNOUNCE_ACK,
-                                                NULL,
-                                                0,
-                                                NULL,
-                                                0,
-                                                0);
+            pContext->CXPath
+                .SendControlMessage(VIRTIO_NET_CTRL_ANNOUNCE, VIRTIO_NET_CTRL_ANNOUNCE_ACK, NULL, 0, NULL, 0, 0);
             pContext->bGuestAnnounced = FALSE;
         }
     }
@@ -2150,29 +2142,14 @@ static VOID ParaNdis_DeviceFiltersUpdateRxMode(PARANDIS_ADAPTER *pContext)
     if (pContext->bCtrlRXExtraFiltersSupported)
     {
         val = (f & (NDIS_PACKET_TYPE_MULTICAST | NDIS_PACKET_TYPE_ALL_MULTICAST)) ? 0 : 1;
-        pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX,
-                                            VIRTIO_NET_CTRL_RX_NOMULTI,
-                                            &val,
-                                            sizeof(val),
-                                            NULL,
-                                            0,
-                                            2);
+        pContext->CXPath
+            .SendControlMessage(VIRTIO_NET_CTRL_RX, VIRTIO_NET_CTRL_RX_NOMULTI, &val, sizeof(val), NULL, 0, 2);
         val = (f & NDIS_PACKET_TYPE_DIRECTED) ? 0 : 1;
-        pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX,
-                                            VIRTIO_NET_CTRL_RX_NOUNI,
-                                            &val,
-                                            sizeof(val),
-                                            NULL,
-                                            0,
-                                            2);
+        pContext->CXPath
+            .SendControlMessage(VIRTIO_NET_CTRL_RX, VIRTIO_NET_CTRL_RX_NOUNI, &val, sizeof(val), NULL, 0, 2);
         val = (f & NDIS_PACKET_TYPE_BROADCAST) ? 0 : 1;
-        pContext->CXPath.SendControlMessage(VIRTIO_NET_CTRL_RX,
-                                            VIRTIO_NET_CTRL_RX_NOBCAST,
-                                            &val,
-                                            sizeof(val),
-                                            NULL,
-                                            0,
-                                            2);
+        pContext->CXPath
+            .SendControlMessage(VIRTIO_NET_CTRL_RX, VIRTIO_NET_CTRL_RX_NOBCAST, &val, sizeof(val), NULL, 0, 2);
     }
 }
 
@@ -2184,7 +2161,8 @@ static VOID ParaNdis_DeviceFiltersUpdateAddresses(PARANDIS_ADAPTER *pContext)
                                         &u32UniCastEntries,
                                         sizeof(u32UniCastEntries),
                                         &pContext->MulticastData,
-                                        sizeof(pContext->MulticastData.nofMulticastEntries) + (ULONGLONG)pContext->MulticastData.nofMulticastEntries * ETH_ALEN,
+                                        sizeof(pContext->MulticastData.nofMulticastEntries) +
+                                            (ULONGLONG)pContext->MulticastData.nofMulticastEntries * ETH_ALEN,
                                         2);
 }
 

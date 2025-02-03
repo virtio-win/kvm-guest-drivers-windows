@@ -130,13 +130,8 @@ RhelDoFlush(PVOID DeviceExtension, PSRB_TYPE Srb, BOOLEAN resend, BOOLEAN bIsr)
     {
         VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
     }
-    add_buffer_req_status = virtqueue_add_buf(adaptExt->vq[QueueNumber],
-                                              &srbExt->sg[0],
-                                              srbExt->out,
-                                              srbExt->in,
-                                              &srbExt->vbr,
-                                              va,
-                                              pa);
+    add_buffer_req_status =
+        virtqueue_add_buf(adaptExt->vq[QueueNumber], &srbExt->sg[0], srbExt->out, srbExt->in, &srbExt->vbr, va, pa);
 
     if (add_buffer_req_status == VQ_ADD_BUFFER_SUCCESS)
     {
@@ -217,13 +212,8 @@ RhelDoReadWrite(PVOID DeviceExtension, PSRB_TYPE Srb)
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " QueueNumber 0x%x vq = %p\n", QueueNumber, adaptExt->vq[QueueNumber]);
 
     VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
-    add_buffer_req_status = virtqueue_add_buf(adaptExt->vq[QueueNumber],
-                                              &srbExt->sg[0],
-                                              srbExt->out,
-                                              srbExt->in,
-                                              &srbExt->vbr,
-                                              va,
-                                              pa);
+    add_buffer_req_status =
+        virtqueue_add_buf(adaptExt->vq[QueueNumber], &srbExt->sg[0], srbExt->out, srbExt->in, &srbExt->vbr, va, pa);
 
     if (add_buffer_req_status == VQ_ADD_BUFFER_SUCCESS)
     {
@@ -374,13 +364,8 @@ RhelDoUnMap(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
                  srbExt->vbr.out_hdr.type);
 
     VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
-    add_buffer_req_status = virtqueue_add_buf(adaptExt->vq[QueueNumber],
-                                              &srbExt->sg[0],
-                                              srbExt->out,
-                                              srbExt->in,
-                                              &srbExt->vbr,
-                                              va,
-                                              pa);
+    add_buffer_req_status =
+        virtqueue_add_buf(adaptExt->vq[QueueNumber], &srbExt->sg[0], srbExt->out, srbExt->in, &srbExt->vbr, va, pa);
 
     if (add_buffer_req_status == VQ_ADD_BUFFER_SUCCESS)
     {
@@ -472,13 +457,8 @@ RhelGetSerialNumber(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     srbExt->sg[2].length = sizeof(srbExt->vbr.status);
 
     VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
-    add_buffer_req_status = virtqueue_add_buf(adaptExt->vq[QueueNumber],
-                                              &srbExt->sg[0],
-                                              srbExt->out,
-                                              srbExt->in,
-                                              &srbExt->vbr,
-                                              va,
-                                              pa);
+    add_buffer_req_status =
+        virtqueue_add_buf(adaptExt->vq[QueueNumber], &srbExt->sg[0], srbExt->out, srbExt->in, &srbExt->vbr, va, pa);
 
     if (add_buffer_req_status == VQ_ADD_BUFFER_SUCCESS)
     {

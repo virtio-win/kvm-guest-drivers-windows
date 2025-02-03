@@ -47,8 +47,8 @@ CNBL::~CNBL()
 bool CNBL::ParsePriority()
 {
     NDIS_NET_BUFFER_LIST_8021Q_INFO priorityInfo;
-    priorityInfo.Value = m_Context->ulPriorityVlanSetting ? NET_BUFFER_LIST_INFO(m_NBL, Ieee8021QNetBufferListInfo)
-                                                          : nullptr;
+    priorityInfo.Value =
+        m_Context->ulPriorityVlanSetting ? NET_BUFFER_LIST_INFO(m_NBL, Ieee8021QNetBufferListInfo) : nullptr;
 
     if (!priorityInfo.TagHeader.VlanId)
     {
@@ -240,12 +240,11 @@ bool CNBL::ParseOffloads()
     }
     else if (IsIP4CSO())
     {
-        if (!ParseCSO([this]() -> bool { return IsIP4CSO(); },
-                      [this]() -> bool { return m_CsoInfo.Transmit.TcpChecksum; },
-                      [this]() -> bool {
-                          return m_Context->Offload.flags.fTxTCPChecksum && m_Context->bOffloadv4Enabled;
-                      },
-                      "TCP4 CSO"))
+        if (!ParseCSO(
+                [this]() -> bool { return IsIP4CSO(); },
+                [this]() -> bool { return m_CsoInfo.Transmit.TcpChecksum; },
+                [this]() -> bool { return m_Context->Offload.flags.fTxTCPChecksum && m_Context->bOffloadv4Enabled; },
+                "TCP4 CSO"))
         {
             return false;
         }
@@ -259,24 +258,22 @@ bool CNBL::ParseOffloads()
             return false;
         }
 
-        if (!ParseCSO([this]() -> bool { return IsIP4CSO(); },
-                      [this]() -> bool { return m_CsoInfo.Transmit.IpHeaderChecksum; },
-                      [this]() -> bool {
-                          return m_Context->Offload.flags.fTxIPChecksum && m_Context->bOffloadv4Enabled;
-                      },
-                      "IP4 CSO"))
+        if (!ParseCSO(
+                [this]() -> bool { return IsIP4CSO(); },
+                [this]() -> bool { return m_CsoInfo.Transmit.IpHeaderChecksum; },
+                [this]() -> bool { return m_Context->Offload.flags.fTxIPChecksum && m_Context->bOffloadv4Enabled; },
+                "IP4 CSO"))
         {
             return false;
         }
     }
     else if (IsIP6CSO())
     {
-        if (!ParseCSO([this]() -> bool { return IsIP6CSO(); },
-                      [this]() -> bool { return m_CsoInfo.Transmit.TcpChecksum; },
-                      [this]() -> bool {
-                          return m_Context->Offload.flags.fTxTCPv6Checksum && m_Context->bOffloadv6Enabled;
-                      },
-                      "TCP6 CSO"))
+        if (!ParseCSO(
+                [this]() -> bool { return IsIP6CSO(); },
+                [this]() -> bool { return m_CsoInfo.Transmit.TcpChecksum; },
+                [this]() -> bool { return m_Context->Offload.flags.fTxTCPv6Checksum && m_Context->bOffloadv6Enabled; },
+                "TCP6 CSO"))
         {
             return false;
         }
@@ -491,9 +488,8 @@ bool CParaNdisTX::AllocateExtraPages()
 
 void CParaNdisTX::FreeExtraPages()
 {
-    m_ExtraPages.ForEachDetached([this](CNdisSharedMemory *e) {
-        CNdisSharedMemory::Destroy(e, m_Context->MiniportHandle);
-    });
+    m_ExtraPages.ForEachDetached(
+        [this](CNdisSharedMemory *e) { CNdisSharedMemory::Destroy(e, m_Context->MiniportHandle); });
 }
 
 bool CParaNdisTX::BorrowPages(CExtendedNBStorage *extraNBStorage, ULONG NeedPages)
@@ -648,8 +644,8 @@ void CParaNdisTX::CancelNBLs(PVOID CancelId)
 // called with TX lock held
 bool CParaNdisTX::RestartQueue()
 {
-    auto res = ParaNdis_SynchronizeWithInterrupt(m_Context, m_messageIndex, RestartQueueSynchronously, this) ? true
-                                                                                                             : false;
+    auto res =
+        ParaNdis_SynchronizeWithInterrupt(m_Context, m_messageIndex, RestartQueueSynchronously, this) ? true : false;
     return res;
 }
 
@@ -907,12 +903,13 @@ void CNB::SetupLSO(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloa
     PopulateIPLength(reinterpret_cast<IPHeader *>(IpHeader), static_cast<USHORT>(EthPayloadLength));
 
     tTcpIpPacketParsingResult packetReview;
-    packetReview = ParaNdis_CheckSumVerifyFlat(reinterpret_cast<IPv4Header *>(IpHeader),
-                                               EthPayloadLength,
-                                               tPacketOffloadRequest::pcrIpChecksum | tPacketOffloadRequest::pcrFixIPChecksum | tPacketOffloadRequest::pcrTcpChecksum |
-                                                                                                                                                   tPacketOffloadRequest::pcrFixPHChecksum,
-                                               FALSE,
-                                               __FUNCTION__);
+    packetReview =
+        ParaNdis_CheckSumVerifyFlat(reinterpret_cast<IPv4Header *>(IpHeader),
+                                    EthPayloadLength,
+                                    tPacketOffloadRequest::pcrIpChecksum | tPacketOffloadRequest::pcrFixIPChecksum |
+                                        tPacketOffloadRequest::pcrTcpChecksum | tPacketOffloadRequest::pcrFixPHChecksum,
+                                    FALSE,
+                                    __FUNCTION__);
 
     if (packetReview.xxpCheckSum == ppResult::ppresPCSOK || packetReview.fixedXxpCS)
     {
@@ -921,8 +918,8 @@ void CNB::SetupLSO(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloa
         auto PriorityHdrLen = (m_ParentNBL->TCI() != 0) ? ETH_PRIORITY_HEADER_SIZE : 0;
 
         VHeader->flags = VIRTIO_NET_HDR_F_NEEDS_CSUM;
-        VHeader->gso_type = packetReview.ipStatus == ppResult::ppresIPV4 ? VIRTIO_NET_HDR_GSO_TCPV4
-                                                                         : VIRTIO_NET_HDR_GSO_TCPV6;
+        VHeader->gso_type =
+            packetReview.ipStatus == ppResult::ppresIPV4 ? VIRTIO_NET_HDR_GSO_TCPV4 : VIRTIO_NET_HDR_GSO_TCPV6;
         VHeader->hdr_len = (USHORT)(packetReview.XxpIpHeaderSize + IpHeaderOffset + PriorityHdrLen);
         VHeader->gso_size = (USHORT)m_ParentNBL->MSS();
         VHeader->csum_start = (USHORT)(m_ParentNBL->TCPHeaderOffset() + PriorityHdrLen);
@@ -935,12 +932,13 @@ void CNB::SetupUSO(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloa
     PopulateIPLength(reinterpret_cast<IPHeader *>(IpHeader), static_cast<USHORT>(EthPayloadLength));
 
     tTcpIpPacketParsingResult packetReview;
-    packetReview = ParaNdis_CheckSumVerifyFlat(reinterpret_cast<IPv4Header *>(IpHeader),
-                                               EthPayloadLength,
-                                               tPacketOffloadRequest::pcrIpChecksum | tPacketOffloadRequest::pcrFixIPChecksum | tPacketOffloadRequest::pcrUdpChecksum |
-                                                                                                                                                   tPacketOffloadRequest::pcrFixPHChecksum,
-                                               FALSE,
-                                               __FUNCTION__);
+    packetReview =
+        ParaNdis_CheckSumVerifyFlat(reinterpret_cast<IPv4Header *>(IpHeader),
+                                    EthPayloadLength,
+                                    tPacketOffloadRequest::pcrIpChecksum | tPacketOffloadRequest::pcrFixIPChecksum |
+                                        tPacketOffloadRequest::pcrUdpChecksum | tPacketOffloadRequest::pcrFixPHChecksum,
+                                    FALSE,
+                                    __FUNCTION__);
 
     if (packetReview.xxpCheckSum == ppResult::ppresPCSOK || packetReview.fixedXxpCS)
     {
@@ -966,10 +964,8 @@ void CNB::SetupUSO(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloa
 USHORT CNB::QueryL4HeaderOffset(PVOID PacketData, ULONG IpHeaderOffset) const
 {
     USHORT Res;
-    auto ppr = ParaNdis_ReviewIPPacket(RtlOffsetToPointer(PacketData, IpHeaderOffset),
-                                       GetDataLength(),
-                                       FALSE,
-                                       __FUNCTION__);
+    auto ppr =
+        ParaNdis_ReviewIPPacket(RtlOffsetToPointer(PacketData, IpHeaderOffset), GetDataLength(), FALSE, __FUNCTION__);
     if (ppr.ipStatus != ppResult::ppresNotIP)
     {
         Res = static_cast<USHORT>(IpHeaderOffset + ppr.ipHeaderSize);

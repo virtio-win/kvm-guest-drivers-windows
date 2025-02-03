@@ -111,7 +111,8 @@ neTKVMW32ErrorException::neTKVMW32ErrorException(const neTKVMW32ErrorException &
 tstring neTKVMW32ErrorException::GetErrorString(DWORD dwErrorCode)
 {
     LPVOID lpMsgBuf;
-    DWORD msgLen = ::FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_MAX_WIDTH_MASK,
+    DWORD msgLen = ::FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM |
+                                       FORMAT_MESSAGE_IGNORE_INSERTS | FORMAT_MESSAGE_MAX_WIDTH_MASK,
                                    NULL,
                                    dwErrorCode,
                                    MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US),

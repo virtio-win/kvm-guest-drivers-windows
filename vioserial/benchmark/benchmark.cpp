@@ -196,13 +196,8 @@ BOOL RunBenchmark(LPCWSTR wszPortName,
     WCHAR wszNameBuffer[MAX_PATH];
     swprintf(wszNameBuffer, _countof(wszNameBuffer), L"\\\\.\\%s", wszPortName);
 
-    HANDLE hPort = CreateFile(wszNameBuffer,
-                              GENERIC_WRITE | GENERIC_READ,
-                              0,
-                              NULL,
-                              OPEN_EXISTING,
-                              FILE_FLAG_OVERLAPPED,
-                              NULL);
+    HANDLE hPort =
+        CreateFile(wszNameBuffer, GENERIC_WRITE | GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
     if (hPort == INVALID_HANDLE_VALUE)
     {
         wprintf(L"Error opening port %s\n", wszPortName);

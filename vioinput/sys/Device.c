@@ -212,9 +212,8 @@ VIOInputEvtDevicePrepareHardware(IN WDFDEVICE Device, IN WDFCMRESLIST ResourcesR
         return status;
     }
 
-    pContext->EventQMemBlock = VirtIOWdfDeviceAllocDmaMemorySliced(&pContext->VDevice.VIODevice,
-                                                                   PAGE_SIZE,
-                                                                   sizeof(VIRTIO_INPUT_EVENT));
+    pContext->EventQMemBlock =
+        VirtIOWdfDeviceAllocDmaMemorySliced(&pContext->VDevice.VIODevice, PAGE_SIZE, sizeof(VIRTIO_INPUT_EVENT));
     pContext->StatusQMemBlock = VirtIOWdfDeviceAllocDmaMemorySliced(&pContext->VDevice.VIODevice,
                                                                     PAGE_SIZE,
                                                                     sizeof(VIRTIO_INPUT_EVENT_WITH_REQUEST));

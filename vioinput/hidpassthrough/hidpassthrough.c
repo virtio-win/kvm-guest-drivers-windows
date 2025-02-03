@@ -71,8 +71,8 @@ static NTSTATUS HidPassthroughDispatchPower(_In_ PDEVICE_OBJECT DeviceObject, _I
     return PoCallDriver(ext->NextDeviceObject, Irp);
 }
 
-_Dispatch_type_(IRP_MJ_INTERNAL_DEVICE_CONTROL) static NTSTATUS HidPassthroughDispatchIoctl(_In_ PDEVICE_OBJECT DeviceObject,
-                                                                                            _Inout_ PIRP Irp)
+_Dispatch_type_(IRP_MJ_INTERNAL_DEVICE_CONTROL) static NTSTATUS
+    HidPassthroughDispatchIoctl(_In_ PDEVICE_OBJECT DeviceObject, _Inout_ PIRP Irp)
 {
     PHID_DEVICE_EXTENSION ext = DeviceObject->DeviceExtension;
     PPDO_EXTENSION ext_pdo = (PPDO_EXTENSION)ext->PhysicalDeviceObject->DeviceExtension;

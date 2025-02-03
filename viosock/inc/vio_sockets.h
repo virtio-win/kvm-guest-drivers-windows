@@ -55,13 +55,8 @@
 __inline ADDRESS_FAMILY ViosockGetAF()
 {
     DWORD dwAF = AF_UNSPEC;
-    HANDLE hDevice = CreateFileW(VIOSOCK_NAME,
-                                 GENERIC_READ,
-                                 FILE_SHARE_READ,
-                                 NULL,
-                                 OPEN_EXISTING,
-                                 FILE_ATTRIBUTE_NORMAL,
-                                 NULL);
+    HANDLE hDevice =
+        CreateFileW(VIOSOCK_NAME, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 
     if (hDevice != INVALID_HANDLE_VALUE)
     {

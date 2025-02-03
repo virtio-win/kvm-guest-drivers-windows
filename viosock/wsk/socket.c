@@ -637,14 +637,8 @@ VioWskGetLocalAddress(_In_ PWSK_SOCKET Socket, _Out_ PSOCKADDR LocalAddress, _In
         goto CompleteIrp;
     }
 
-    Status = VioWskSocketIOCTL(pSocket,
-                               IOCTL_SOCKET_GET_SOCK_NAME,
-                               NULL,
-                               0,
-                               LocalAddress,
-                               sizeof(SOCKADDR_VM),
-                               Irp,
-                               NULL);
+    Status =
+        VioWskSocketIOCTL(pSocket, IOCTL_SOCKET_GET_SOCK_NAME, NULL, 0, LocalAddress, sizeof(SOCKADDR_VM), Irp, NULL);
     Irp = NULL;
 CompleteIrp:
     if (Irp)
@@ -707,14 +701,8 @@ VioWskGetRemoteAddress(_In_ PWSK_SOCKET Socket, _Out_ PSOCKADDR RemoteAddress, _
         goto CompleteIrp;
     }
 
-    Status = VioWskSocketIOCTL(pSocket,
-                               IOCTL_SOCKET_GET_PEER_NAME,
-                               NULL,
-                               0,
-                               RemoteAddress,
-                               sizeof(SOCKADDR_VM),
-                               Irp,
-                               NULL);
+    Status =
+        VioWskSocketIOCTL(pSocket, IOCTL_SOCKET_GET_PEER_NAME, NULL, 0, RemoteAddress, sizeof(SOCKADDR_VM), Irp, NULL);
     Irp = NULL;
 CompleteIrp:
     if (Irp)
@@ -921,13 +909,8 @@ VioWskConnectEx(_In_ PWSK_SOCKET Socket,
         goto CompleteIrp;
     }
 
-    Status = VioWskSocketBuildIOCTL(pSocket,
-                                    IOCTL_SOCKET_CONNECT,
-                                    &VMRemoteAddr,
-                                    sizeof(VMRemoteAddr),
-                                    NULL,
-                                    0,
-                                    &ConnIrp);
+    Status =
+        VioWskSocketBuildIOCTL(pSocket, IOCTL_SOCKET_CONNECT, &VMRemoteAddr, sizeof(VMRemoteAddr), NULL, 0, &ConnIrp);
     if (!NT_SUCCESS(Status))
     {
         goto CompleteIrp;

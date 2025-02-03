@@ -22,14 +22,8 @@
 #define REG_PARAM_INFO_DELIMITER        TEXT("-----------------------------------------------------")
 #define REG_PARAM_INFO_IDENT            TEXT("  ")
 
-// clang-format off
-static const LPCTSTR RegParamTypes[] =
-{
-    TEXT("enum"),
-    TEXT("int"),
-    TEXT("long"),
-    TEXT("edit")
-};
+// clang-format on
+static const LPCTSTR RegParamTypes[] = {TEXT("enum"), TEXT("int"), TEXT("long"), TEXT("edit")};
 // clang-format on
 
 static BOOL ReadStringDWord(neTKVMRegAccess &DevParamsRegKey,
@@ -172,8 +166,8 @@ void neTKVMRegParam::Load(void)
         throw neTKVMRegParamBadTypeException();
     }
 
-    m_bOptional = ReadStringDWord(m_DevParamsRegKey, REG_PARAM_OPT_VNAME, (DWORD) false, m_ParamRegSubKey.c_str()) ? true
-                                                                                                                   : false;
+    m_bOptional =
+        ReadStringDWord(m_DevParamsRegKey, REG_PARAM_OPT_VNAME, (DWORD) false, m_ParamRegSubKey.c_str()) ? true : false;
 
     // Read Value
     dwRes = m_DevParamsRegKey.ReadString(m_Name.c_str(), tcaBuf, TBUF_SIZEOF(tcaBuf));
@@ -294,18 +288,12 @@ template <class INT_T> void neTKVMRegNumParam<INT_T>::Load(void)
 {
     neTKVMRegParam::Load();
 
-    m_nMin = (INT_T)ReadStringDWord(m_DevParamsRegKey,
-                                    REG_PARAM_NUM_TYPE_MIN_VNAME,
-                                    (DWORD)0,
-                                    m_ParamRegSubKey.c_str());
-    m_nMax = (INT_T)ReadStringDWord(m_DevParamsRegKey,
-                                    REG_PARAM_NUM_TYPE_MAX_VNAME,
-                                    (DWORD)-1,
-                                    m_ParamRegSubKey.c_str());
-    m_nStep = (INT_T)ReadStringDWord(m_DevParamsRegKey,
-                                     REG_PARAM_NUM_TYPE_STEP_VNAME,
-                                     (DWORD)1,
-                                     m_ParamRegSubKey.c_str());
+    m_nMin =
+        (INT_T)ReadStringDWord(m_DevParamsRegKey, REG_PARAM_NUM_TYPE_MIN_VNAME, (DWORD)0, m_ParamRegSubKey.c_str());
+    m_nMax =
+        (INT_T)ReadStringDWord(m_DevParamsRegKey, REG_PARAM_NUM_TYPE_MAX_VNAME, (DWORD)-1, m_ParamRegSubKey.c_str());
+    m_nStep =
+        (INT_T)ReadStringDWord(m_DevParamsRegKey, REG_PARAM_NUM_TYPE_STEP_VNAME, (DWORD)1, m_ParamRegSubKey.c_str());
 }
 
 template <class INT_T> void neTKVMRegNumParam<INT_T>::FillExInfo(neTKVMRegParamExInfoList &ExInfoList)
@@ -377,16 +365,12 @@ void neTKVMRegEditParam::Load(void)
 {
     neTKVMRegParam::Load();
 
-    m_nLimitText = ReadStringDWord(m_DevParamsRegKey,
-                                   REG_PARAM_EDIT_TYPE_LIM_VNAME,
-                                   m_nLimitText,
-                                   m_ParamRegSubKey.c_str());
-    m_bUpperCase = ReadStringDWord(m_DevParamsRegKey,
-                                   REG_PARAM_EDIT_TYPE_UCASE_VNAME,
-                                   (DWORD) false,
-                                   m_ParamRegSubKey.c_str())
-                                                                                                                       ? true
-                                                                                                                       : false;
+    m_nLimitText =
+        ReadStringDWord(m_DevParamsRegKey, REG_PARAM_EDIT_TYPE_LIM_VNAME, m_nLimitText, m_ParamRegSubKey.c_str());
+    m_bUpperCase =
+        ReadStringDWord(m_DevParamsRegKey, REG_PARAM_EDIT_TYPE_UCASE_VNAME, (DWORD) false, m_ParamRegSubKey.c_str())
+            ? true
+            : false;
 }
 
 void neTKVMRegEditParam::FillExInfo(neTKVMRegParamExInfoList &ExInfoList)

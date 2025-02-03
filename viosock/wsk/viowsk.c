@@ -51,7 +51,7 @@ typedef struct _VIOSOCK_WAIT_CONTEXT
 PDRIVER_OBJECT _viowskDriverObject = NULL;
 PDEVICE_OBJECT _viowskDeviceObject = NULL;
 
-// clang-format off
+// clang-format on
 static const WSK_PROVIDER_DISPATCH _providerDispatch = {
     MAKE_WSK_VERSION(VIOWSK_PROVIDER_VERSION, 0),
     0,
@@ -76,9 +76,8 @@ static NTSTATUS _NotifyCallback(_In_ PVOID NotificationStructure, _Inout_ PVOID 
     {
         Ctx->SymbolicLinkName = *NotifyInfo->SymbolicLinkName;
         Ctx->SymbolicLinkName.MaximumLength = Ctx->SymbolicLinkName.Length;
-        Ctx->SymbolicLinkName.Buffer = ExAllocatePoolUninitialized(PagedPool,
-                                                                   Ctx->SymbolicLinkName.MaximumLength,
-                                                                   VIOSOCK_WSK_MEMORY_TAG);
+        Ctx->SymbolicLinkName.Buffer =
+            ExAllocatePoolUninitialized(PagedPool, Ctx->SymbolicLinkName.MaximumLength, VIOSOCK_WSK_MEMORY_TAG);
         if (Ctx->SymbolicLinkName.Buffer == NULL)
         {
             Status = STATUS_INSUFFICIENT_RESOURCES;

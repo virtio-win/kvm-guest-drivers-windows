@@ -387,11 +387,13 @@ NDIS_STATUS ParaNdis_OidQueryCommon(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
             break;
         case OID_GEN_XMIT_OK:
             SETINFO(ul64,
-                    pContext->Statistics.ifHCOutUcastPkts + pContext->Statistics.ifHCOutMulticastPkts + pContext->Statistics.ifHCOutBroadcastPkts);
+                    pContext->Statistics.ifHCOutUcastPkts + pContext->Statistics.ifHCOutMulticastPkts +
+                        pContext->Statistics.ifHCOutBroadcastPkts);
             break;
         case OID_GEN_RCV_OK:
             SETINFO(ul64,
-                    pContext->Statistics.ifHCInUcastPkts + pContext->Statistics.ifHCInMulticastPkts + pContext->Statistics.ifHCInBroadcastPkts);
+                    pContext->Statistics.ifHCInUcastPkts + pContext->Statistics.ifHCInMulticastPkts +
+                        pContext->Statistics.ifHCInBroadcastPkts);
             DPrintf(4, "[%s] Total frames %I64u\n", __FUNCTION__, u.ul64);
             break;
         case OID_GEN_XMIT_ERROR:

@@ -69,11 +69,8 @@ static WSAPROTOCOL_INFO g_ProtocolInfo = {.dwServiceFlags1 = XP1_GRACEFUL_CLOSE 
 BOOL InstallProtocol()
 {
     BOOL bRes = FALSE;
-    INT iErrno, iRes = WSCInstallProvider64_32((LPGUID)&GUID_VIOSOCK_STREAM,
-                                               VIOSOCK_DLL_PATH,
-                                               &g_ProtocolInfo,
-                                               1,
-                                               &iErrno);
+    INT iErrno,
+        iRes = WSCInstallProvider64_32((LPGUID)&GUID_VIOSOCK_STREAM, VIOSOCK_DLL_PATH, &g_ProtocolInfo, 1, &iErrno);
 
     if (iRes != ERROR_SUCCESS)
     {
@@ -100,11 +97,8 @@ BOOL InstallProtocol()
         return FALSE;
     }
 
-    iRes = WSCInstallProvider((LPGUID)&GUID_VIOSOCK_STREAM,
-                              (const TCHAR *)VIOSOCK_DLL_PATH,
-                              &g_ProtocolInfo,
-                              1,
-                              &iErrno);
+    iRes =
+        WSCInstallProvider((LPGUID)&GUID_VIOSOCK_STREAM, (const TCHAR *)VIOSOCK_DLL_PATH, &g_ProtocolInfo, 1, &iErrno);
     if (iRes != ERROR_SUCCESS)
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_INSTALL, "WSCInstallProvider failed: %d\n", iErrno);

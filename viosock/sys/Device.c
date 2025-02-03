@@ -863,9 +863,8 @@ static VOID VIOSockSelectWorkitem(IN WDFWORKITEM Workitem)
 
         while (!IsListEmpty(&CompletionList))
         {
-            PVIOSOCK_SELECT_PKT pPkt = CONTAINING_RECORD(RemoveHeadList(&CompletionList),
-                                                         VIOSOCK_SELECT_PKT,
-                                                         ListEntry);
+            PVIOSOCK_SELECT_PKT pPkt =
+                CONTAINING_RECORD(RemoveHeadList(&CompletionList), VIOSOCK_SELECT_PKT, ListEntry);
 
             VIOSockSelectCleanupPkt(pPkt);
             WdfRequestCompleteWithInformation(WdfObjectContextGetObject(pPkt),

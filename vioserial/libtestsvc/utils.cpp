@@ -3,29 +3,31 @@
 extern LPWSTR ServiceName;
 extern CService srvc;
 
-// clang-format off
-static struct ErrEntry {
+// clang-format on
+static struct ErrEntry
+{
     int code;
-    const char* msg;
-} ErrList[] = {{ 0,    "No error" },
-               { 1055, "The service database is locked." },
-               { 1056, "An instance of the service is already running." },
-               { 1060, "The service does not exist as an installed service." },
-               { 1061, "The service cannot accept control messages at this time." },
-               { 1062, "The service has not been started." },
-               { 1063, "The service process could not connect to the service controller." },
-               { 1064, "An exception occurred in the service when handling the control request." },
-               { 1065, "The database specified does not exist." },
-               { 1066, "The service has returned a service-specific error code." },
-               { 1067, "The process terminated unexpectedly." },
-               { 1068, "The dependency service or group failed to start." },
-               { 1069, "The service did not start due to a logon failure." },
-               { 1070, "After starting, the service hung in a start-pending state." },
-               { 1071, "The specified service database lock is invalid." },
-               { 1072, "The service marked for deletion." },
-               { 1073, "The service already exists." },
-               { 1078, "The name is already in use as either a service name or a service display name." },
-              };
+    const char *msg;
+} ErrList[] = {
+    {0, "No error"},
+    {1055, "The service database is locked."},
+    {1056, "An instance of the service is already running."},
+    {1060, "The service does not exist as an installed service."},
+    {1061, "The service cannot accept control messages at this time."},
+    {1062, "The service has not been started."},
+    {1063, "The service process could not connect to the service controller."},
+    {1064, "An exception occurred in the service when handling the control request."},
+    {1065, "The database specified does not exist."},
+    {1066, "The service has returned a service-specific error code."},
+    {1067, "The process terminated unexpectedly."},
+    {1068, "The dependency service or group failed to start."},
+    {1069, "The service did not start due to a logon failure."},
+    {1070, "After starting, the service hung in a start-pending state."},
+    {1071, "The specified service database lock is invalid."},
+    {1072, "The service marked for deletion."},
+    {1073, "The service already exists."},
+    {1078, "The name is already in use as either a service name or a service display name."},
+};
 // clang-format on
 
 const int nErrList = sizeof(ErrList) / sizeof(ErrEntry);

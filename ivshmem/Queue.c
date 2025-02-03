@@ -101,12 +101,8 @@ VOID IVSHMEMEvtIoDeviceControl(_In_ WDFQUEUE Queue,
                                         FALSE);
             break;
         case IOCTL_IVSHMEM_REQUEST_KMAP:
-            status = ioctl_request_mmap(deviceContext,
-                                        InputBufferLength,
-                                        OutputBufferLength,
-                                        Request,
-                                        &bytesReturned,
-                                        TRUE);
+            status =
+                ioctl_request_mmap(deviceContext, InputBufferLength, OutputBufferLength, Request, &bytesReturned, TRUE);
             break;
         case IOCTL_IVSHMEM_RELEASE_MMAP:
             status = ioctl_release_mmap(deviceContext, Request, &bytesReturned);

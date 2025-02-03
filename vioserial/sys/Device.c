@@ -120,11 +120,14 @@ VIOSerialEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
 
     WDF_CHILD_LIST_CONFIG_INIT(&ChildListConfig, sizeof(VIOSERIAL_PORT), VIOSerialDeviceListCreatePdo);
 
-    ChildListConfig.EvtChildListIdentificationDescriptionDuplicate = VIOSerialEvtChildListIdentificationDescriptionDuplicate;
+    ChildListConfig.EvtChildListIdentificationDescriptionDuplicate =
+        VIOSerialEvtChildListIdentificationDescriptionDuplicate;
 
-    ChildListConfig.EvtChildListIdentificationDescriptionCompare = VIOSerialEvtChildListIdentificationDescriptionCompare;
+    ChildListConfig.EvtChildListIdentificationDescriptionCompare =
+        VIOSerialEvtChildListIdentificationDescriptionCompare;
 
-    ChildListConfig.EvtChildListIdentificationDescriptionCleanup = VIOSerialEvtChildListIdentificationDescriptionCleanup;
+    ChildListConfig.EvtChildListIdentificationDescriptionCleanup =
+        VIOSerialEvtChildListIdentificationDescriptionCleanup;
 
     WdfFdoInitSetDefaultChildListConfig(DeviceInit, &ChildListConfig, WDF_NO_OBJECT_ATTRIBUTES);
 

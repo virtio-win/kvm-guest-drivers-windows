@@ -478,12 +478,8 @@ static VOID HandleSubmitFuseRequest(IN PDEVICE_CONTEXT Context,
         goto complete_wdf_req;
     }
 
-    in_buf_va = MmMapLockedPagesSpecifyCache(fs_req->InputBuffer,
-                                             KernelMode,
-                                             MmNonCached,
-                                             NULL,
-                                             FALSE,
-                                             NormalPagePriority);
+    in_buf_va =
+        MmMapLockedPagesSpecifyCache(fs_req->InputBuffer, KernelMode, MmNonCached, NULL, FALSE, NormalPagePriority);
 
     if (in_buf_va == NULL)
     {

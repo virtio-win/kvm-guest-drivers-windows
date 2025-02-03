@@ -274,8 +274,9 @@ _cdecl wmain(__in ULONG argc, __in_ecount(argc) PWCHAR argv[])
     while (!stoptest)
     {
         ch = getchar();
-        // clang-format off
-        while (getchar() != '\n');
+        // clang-format on
+        while (getchar() != '\n')
+            ;
         // clang-format on
         switch (ch)
         {

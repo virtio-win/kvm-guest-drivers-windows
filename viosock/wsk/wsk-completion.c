@@ -229,8 +229,8 @@ static NTSTATUS WskGeneralIrpCompletion(_In_ PDEVICE_OBJECT DeviceObject, _In_ P
                 {
                     PMDL NextMdl = Ctx->Specific.Transfer.NextMdl;
 
-                    Ctx->Specific.Transfer.CurrentMdlSize = NextMdl->Next ? MmGetMdlByteCount(NextMdl)
-                                                                          : Ctx->Specific.Transfer.LastMdlSize;
+                    Ctx->Specific.Transfer.CurrentMdlSize =
+                        NextMdl->Next ? MmGetMdlByteCount(NextMdl) : Ctx->Specific.Transfer.LastMdlSize;
                     Irp->IoStatus.Status = VioWskSocketBuildReadWriteSingleMdl(Ctx->Socket,
                                                                                NextMdl,
                                                                                0,
@@ -421,13 +421,8 @@ WskCompContextSendIrp(_Inout_ PVIOSOCKET_COMPLETION_CONTEXT CompContext, _In_ PI
     pContext = (PVIOWSK_REG_CONTEXT)Registration->ReservedRegistrationContext;
     if (_viowskDeviceObject)
     {
-        Status = IoSetCompletionRoutineEx(_viowskDeviceObject,
-                                          Irp,
-                                          WskGeneralIrpCompletion,
-                                          CompContext,
-                                          TRUE,
-                                          TRUE,
-                                          TRUE);
+        Status =
+            IoSetCompletionRoutineEx(_viowskDeviceObject, Irp, WskGeneralIrpCompletion, CompContext, TRUE, TRUE, TRUE);
         if (!NT_SUCCESS(Status))
         {
             goto CompleteMasterIrp;

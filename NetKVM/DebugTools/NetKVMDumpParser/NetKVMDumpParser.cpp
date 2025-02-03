@@ -76,32 +76,14 @@ CString ErrorToString(HRESULT hr)
     return s;
 }
 
-// clang-format off
+// clang-format on
 static const LPCSTR OpNames[] = {
-    "PowerOff             ",
-    "PowerOn              ",
-    "SysPause             ",
-    "SysResume            ",
-    "InternalSendPause    ",
-    "InternalReceivePause ",
-    "InternalSendResume   ",
-    "InternalReceiveResume",
-    "SysReset             ",
-    "Halt                 ",
-    "ConnectIndication    ",
-    "DPC                  ",
-    "Send                 ",
-    "SendNBLRequest       ",
-    "SendPacketRequest    ",
-    "SendPacketMapped     ",
-    "SubmittedPacket      ",
-    "BufferSent           ",
-    "BufferReceivedStat   ",
-    "BufferReturned       ",
-    "SendComplete         ",
-    "TxProcess            ",
-    "PacketReceived       ",
-    "OidRequest           ",
+    "PowerOff             ", "PowerOn              ", "SysPause             ", "SysResume            ",
+    "InternalSendPause    ", "InternalReceivePause ", "InternalSendResume   ", "InternalReceiveResume",
+    "SysReset             ", "Halt                 ", "ConnectIndication    ", "DPC                  ",
+    "Send                 ", "SendNBLRequest       ", "SendPacketRequest    ", "SendPacketMapped     ",
+    "SubmittedPacket      ", "BufferSent           ", "BufferReceivedStat   ", "BufferReturned       ",
+    "SendComplete         ", "TxProcess            ", "PacketReceived       ", "OidRequest           ",
     "PnpEvent             ",
 };
 // clang-format on
@@ -604,8 +586,8 @@ void tDumpParser::ParseCrashData(tBugCheckStaticDataHeader *ph, ULONG64 databuff
     {
         if (ph->PerNicDataVersion == 0)
         {
-            tBugCheckPerNicDataContent_V0 *pndc = (tBugCheckPerNicDataContent_V0 *)(ph->PerNicData - databuffer +
-                                                                                    (PUCHAR)ph);
+            tBugCheckPerNicDataContent_V0 *pndc =
+                (tBugCheckPerNicDataContent_V0 *)(ph->PerNicData - databuffer + (PUCHAR)ph);
             pndc += i;
             if (pndc->Context)
             {

@@ -63,9 +63,8 @@ NTSTATUS IVSHMEMCreateDevice(_Inout_ PWDFDEVICE_INIT DeviceInit)
 
 PVOID IVSHMEMMmMapIoSpace(_In_ PHYSICAL_ADDRESS PhysicalAddress, _In_ SIZE_T NumberOfBytes)
 {
-    typedef PVOID (*PFN_MM_MAP_IO_SPACE_EX)(_In_ PHYSICAL_ADDRESS PhysicalAddress,
-                                            _In_ SIZE_T NumberOfBytes,
-                                            _In_ ULONG Protect);
+    typedef PVOID (
+        *PFN_MM_MAP_IO_SPACE_EX)(_In_ PHYSICAL_ADDRESS PhysicalAddress, _In_ SIZE_T NumberOfBytes, _In_ ULONG Protect);
 
     UNICODE_STRING name;
     PFN_MM_MAP_IO_SPACE_EX pMmMapIoSpaceEx;
@@ -117,9 +116,10 @@ NTSTATUS IVSHMEMEvtDevicePrepareHardware(_In_ WDFDEVICE Device,
 
     if (deviceContext->interruptCount > 0)
     {
-        deviceContext->interrupts = (WDFINTERRUPT *)ExAllocatePoolUninitialized(IVSHMEM_NONPAGED_POOL,
-                                                                                sizeof(WDFINTERRUPT) * deviceContext->interruptCount,
-                                                                                'sQRI');
+        deviceContext->interrupts =
+            (WDFINTERRUPT *)ExAllocatePoolUninitialized(IVSHMEM_NONPAGED_POOL,
+                                                        sizeof(WDFINTERRUPT) * deviceContext->interruptCount,
+                                                        'sQRI');
 
         if (!deviceContext->interrupts)
         {

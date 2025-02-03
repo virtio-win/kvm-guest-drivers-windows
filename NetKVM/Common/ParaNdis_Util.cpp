@@ -125,16 +125,15 @@ bool CSystemThread::Start(PVOID Context)
 {
     m_Context = Context;
     UpdateTimestamp(m_StartTime);
-    // clang-format off
-    NTSTATUS status = PsCreateSystemThread(&m_hThread,
-                                           GENERIC_READ,
-                                           NULL,
-                                           NULL,
-                                           NULL,
-                                           [](PVOID Ctx) {
-                                               ((CSystemThread *)Ctx)->ThreadProc();
-                                           },
-                                           this);
+    // clang-format on
+    NTSTATUS status = PsCreateSystemThread(
+        &m_hThread,
+        GENERIC_READ,
+        NULL,
+        NULL,
+        NULL,
+        [](PVOID Ctx) { ((CSystemThread *)Ctx)->ThreadProc(); },
+        this);
     // clang-format on
     if (!NT_SUCCESS(status))
     {

@@ -713,12 +713,11 @@ class CParaNdisProtocol : public CNdisAllocatable<CParaNdisProtocol, 'TORP'>, pu
             CProtocolBinding *binding = (CProtocolBinding *)ProtocolBindingContext;
             binding->OnReceive(NetBufferLists, NumberOfNetBufferLists, ReceiveFlags);
         };
-        pchs.OidRequestCompleteHandler = [](_In_ NDIS_HANDLE ProtocolBindingContext,
-                                            _In_ PNDIS_OID_REQUEST OidRequest,
-                                            _In_ NDIS_STATUS Status) {
-            CProtocolBinding *binding = (CProtocolBinding *)ProtocolBindingContext;
-            binding->OidComplete(OidRequest, Status);
-        };
+        pchs.OidRequestCompleteHandler =
+            [](_In_ NDIS_HANDLE ProtocolBindingContext, _In_ PNDIS_OID_REQUEST OidRequest, _In_ NDIS_STATUS Status) {
+                CProtocolBinding *binding = (CProtocolBinding *)ProtocolBindingContext;
+                binding->OidComplete(OidRequest, Status);
+            };
         pchs.UninstallHandler = []() {};
         pchs.StatusHandlerEx = [](_In_ NDIS_HANDLE ProtocolBindingContext,
                                   _In_ PNDIS_STATUS_INDICATION StatusIndication) {
@@ -1191,11 +1190,8 @@ NDIS_STATUS CProtocolBinding::Bind(PNDIS_BIND_PARAMETERS BindParameters)
     openParams.FrameTypeArray = frameTypes;
     openParams.FrameTypeArraySize = ARRAYSIZE(frameTypes);
 
-    NDIS_STATUS status = NdisOpenAdapterEx(m_Protocol.ProtocolHandle(),
-                                           this,
-                                           &openParams,
-                                           m_BindContext,
-                                           &m_BindingHandle);
+    NDIS_STATUS status =
+        NdisOpenAdapterEx(m_Protocol.ProtocolHandle(), this, &openParams, m_BindContext, &m_BindingHandle);
 
     if (status == STATUS_SUCCESS)
     {
@@ -1396,11 +1392,8 @@ void CProtocolBinding::SetOid(ULONG oid, PVOID data, ULONG size)
 
 void CProtocolBinding::SetOidAsync(ULONG oid, PVOID data, ULONG size)
 {
-    COidWrapperAsync *p = new (m_Protocol.DriverHandle()) COidWrapperAsync(m_BoundAdapter,
-                                                                           NdisRequestSetInformation,
-                                                                           oid,
-                                                                           data,
-                                                                           size);
+    COidWrapperAsync *p =
+        new (m_Protocol.DriverHandle()) COidWrapperAsync(m_BoundAdapter, NdisRequestSetInformation, oid, data, size);
     if (!p)
     {
         return;
@@ -1743,7 +1736,8 @@ void CProtocolBinding::SetRSS()
                               m_BoundAdapter->RSSParameters.ActiveHashingSettings.HashSecretKey,
                               current->rsp.HashSecretKeySize);
                 current->rsp.IndirectionTableOffset = FIELD_OFFSET(RSSSet, indirection);
-                current->rsp.IndirectionTableSize = m_BoundAdapter->RSSParameters.ActiveRSSScalingSettings.IndirectionTableSize;
+                current->rsp.IndirectionTableSize =
+                    m_BoundAdapter->RSSParameters.ActiveRSSScalingSettings.IndirectionTableSize;
                 RtlMoveMemory(current->indirection,
                               m_BoundAdapter->RSSParameters.ActiveRSSScalingSettings.IndirectionTable,
                               current->rsp.IndirectionTableSize);
@@ -1895,13 +1889,13 @@ void CProtocolBinding::SetOffloadParameters()
                                                               : NDIS_OFFLOAD_PARAMETERS_RSC_DISABLED;
         if (m_Capabilies.lsov2.v4.maxPayload)
         {
-            current->o.LsoV2IPv4 = f.fTxLso ? NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED
-                                            : NDIS_OFFLOAD_PARAMETERS_LSOV2_DISABLED;
+            current->o.LsoV2IPv4 =
+                f.fTxLso ? NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED : NDIS_OFFLOAD_PARAMETERS_LSOV2_DISABLED;
         }
         if (m_Capabilies.lsov2.v6.maxPayload)
         {
-            current->o.LsoV2IPv6 = f.fTxLsov6 ? NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED
-                                              : NDIS_OFFLOAD_PARAMETERS_LSOV2_DISABLED;
+            current->o.LsoV2IPv6 =
+                f.fTxLsov6 ? NDIS_OFFLOAD_PARAMETERS_LSOV2_ENABLED : NDIS_OFFLOAD_PARAMETERS_LSOV2_DISABLED;
         }
         current->o.IPv4Checksum = ChecksumSetting(f.fTxIPChecksum, f.fRxIPChecksum);
         current->o.TCPIPv4Checksum = ChecksumSetting(f.fTxTCPChecksum, f.fRxTCPChecksum);

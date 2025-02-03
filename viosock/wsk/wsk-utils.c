@@ -299,10 +299,10 @@ _Must_inspect_result_ NTSTATUS VioWskSocketBuildIOCTL(_In_ PVIOWSK_SOCKET Socket
         case METHOD_BUFFERED:
             if (InputBufferLength != 0 || OutputBufferLength != 0)
             {
-                IOCTLIrp->AssociatedIrp.SystemBuffer = ExAllocatePoolUninitialized(NonPagedPool,
-                                                                                   InputBufferLength > OutputBufferLength ? InputBufferLength
-                                                                                                                          : OutputBufferLength,
-                                                                                   VIOSOCK_WSK_MEMORY_TAG);
+                IOCTLIrp->AssociatedIrp.SystemBuffer = ExAllocatePoolUninitialized(
+                    NonPagedPool,
+                    InputBufferLength > OutputBufferLength ? InputBufferLength : OutputBufferLength,
+                    VIOSOCK_WSK_MEMORY_TAG);
 
                 if (IOCTLIrp->AssociatedIrp.SystemBuffer)
                 {
@@ -333,9 +333,8 @@ _Must_inspect_result_ NTSTATUS VioWskSocketBuildIOCTL(_In_ PVIOWSK_SOCKET Socket
         case METHOD_OUT_DIRECT:
             if (InputBuffer)
             {
-                IOCTLIrp->AssociatedIrp.SystemBuffer = ExAllocatePoolUninitialized(NonPagedPool,
-                                                                                   InputBufferLength,
-                                                                                   VIOSOCK_WSK_MEMORY_TAG);
+                IOCTLIrp->AssociatedIrp.SystemBuffer =
+                    ExAllocatePoolUninitialized(NonPagedPool, InputBufferLength, VIOSOCK_WSK_MEMORY_TAG);
 
                 if (IOCTLIrp->AssociatedIrp.SystemBuffer)
                 {
@@ -370,10 +369,10 @@ _Must_inspect_result_ NTSTATUS VioWskSocketBuildIOCTL(_In_ PVIOWSK_SOCKET Socket
                 {
                     __try
                     {
-                        MmProbeAndLockPages(IOCTLIrp->MdlAddress,
-                                            KernelMode,
-                                            (LOCK_OPERATION)((method == METHOD_IN_DIRECT) ? IoReadAccess
-                                                                                          : IoWriteAccess));
+                        MmProbeAndLockPages(
+                            IOCTLIrp->MdlAddress,
+                            KernelMode,
+                            (LOCK_OPERATION)((method == METHOD_IN_DIRECT) ? IoReadAccess : IoWriteAccess));
                     }
                     __except (EXCEPTION_EXECUTE_HANDLER)
                     {

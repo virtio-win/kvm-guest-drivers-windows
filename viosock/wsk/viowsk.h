@@ -49,32 +49,32 @@ typedef struct _VIOWSK_REG_CONTEXT
 
 #define VIOWSK_PROVIDER_VERSION 1
 
-_At_((void *)Irp->IoStatus.Information,
-     __drv_allocatesMem(Mem)) NTSTATUS WSKAPI VioWskSocket(_In_ PWSK_CLIENT Client,
-                                                           _In_ ADDRESS_FAMILY AddressFamily,
-                                                           _In_ USHORT SocketType,
-                                                           _In_ ULONG Protocol,
-                                                           _In_ ULONG Flags,
-                                                           _In_opt_ PVOID SocketContext,
-                                                           _In_opt_ CONST VOID *Dispatch,
-                                                           _In_opt_ PEPROCESS OwningProcess,
-                                                           _In_opt_ PETHREAD OwningThread,
-                                                           _In_opt_ PSECURITY_DESCRIPTOR SecurityDescriptor,
-                                                           _Inout_ PIRP Irp);
+_At_((void *)Irp->IoStatus.Information, __drv_allocatesMem(Mem)) NTSTATUS WSKAPI
+    VioWskSocket(_In_ PWSK_CLIENT Client,
+                 _In_ ADDRESS_FAMILY AddressFamily,
+                 _In_ USHORT SocketType,
+                 _In_ ULONG Protocol,
+                 _In_ ULONG Flags,
+                 _In_opt_ PVOID SocketContext,
+                 _In_opt_ CONST VOID *Dispatch,
+                 _In_opt_ PEPROCESS OwningProcess,
+                 _In_opt_ PETHREAD OwningThread,
+                 _In_opt_ PSECURITY_DESCRIPTOR SecurityDescriptor,
+                 _Inout_ PIRP Irp);
 
-_At_(Irp->IoStatus.Information,
-     __drv_allocatesMem(Mem)) NTSTATUS WSKAPI VioWskSocketConnect(_In_ PWSK_CLIENT Client,
-                                                                  _In_ USHORT SocketType,
-                                                                  _In_ ULONG Protocol,
-                                                                  _In_ PSOCKADDR LocalAddress,
-                                                                  _In_ PSOCKADDR RemoteAddress,
-                                                                  _Reserved_ ULONG Flags,
-                                                                  _In_opt_ PVOID SocketContext,
-                                                                  _In_opt_ CONST WSK_CLIENT_CONNECTION_DISPATCH *Dispatch,
-                                                                  _In_opt_ PEPROCESS OwningProcess,
-                                                                  _In_opt_ PETHREAD OwningThread,
-                                                                  _In_opt_ PSECURITY_DESCRIPTOR SecurityDescriptor,
-                                                                  _Inout_ PIRP Irp);
+_At_(Irp->IoStatus.Information, __drv_allocatesMem(Mem)) NTSTATUS WSKAPI
+    VioWskSocketConnect(_In_ PWSK_CLIENT Client,
+                        _In_ USHORT SocketType,
+                        _In_ ULONG Protocol,
+                        _In_ PSOCKADDR LocalAddress,
+                        _In_ PSOCKADDR RemoteAddress,
+                        _Reserved_ ULONG Flags,
+                        _In_opt_ PVOID SocketContext,
+                        _In_opt_ CONST WSK_CLIENT_CONNECTION_DISPATCH *Dispatch,
+                        _In_opt_ PEPROCESS OwningProcess,
+                        _In_opt_ PETHREAD OwningThread,
+                        _In_opt_ PSECURITY_DESCRIPTOR SecurityDescriptor,
+                        _Inout_ PIRP Irp);
 
 NTSTATUS
 WSKAPI
@@ -98,8 +98,8 @@ _At_(*Result, __drv_allocatesMem(Mem)) NTSTATUS WSKAPI VioWskGetAddressInfo(_In_
                                                                             _In_opt_ PETHREAD OwningThread,
                                                                             _Inout_ PIRP Irp);
 
-_At_(AddrInfo, __drv_freesMem(Mem)) VOID WSKAPI VioWskFreeAddressInfo(_In_ PWSK_CLIENT Client,
-                                                                      _In_ PADDRINFOEXW AddrInfo);
+_At_(AddrInfo, __drv_freesMem(Mem)) VOID WSKAPI
+    VioWskFreeAddressInfo(_In_ PWSK_CLIENT Client, _In_ PADDRINFOEXW AddrInfo);
 
 NTSTATUS
 WSKAPI

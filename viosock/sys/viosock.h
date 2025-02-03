@@ -335,11 +335,11 @@ VIOSockConnectedListInit(IN WDFDEVICE hDevice);
 PSOCKET_CONTEXT
 VIOSockConnectedFindByRxPkt(IN PDEVICE_CONTEXT pContext, IN PVIRTIO_VSOCK_HDR pPkt);
 
-_Requires_lock_held_(pSocket->StateLock) VIOSOCK_STATE VIOSockStateSet(IN PSOCKET_CONTEXT pSocket,
-                                                                       IN VIOSOCK_STATE NewState);
+_Requires_lock_held_(pSocket->StateLock) VIOSOCK_STATE
+    VIOSockStateSet(IN PSOCKET_CONTEXT pSocket, IN VIOSOCK_STATE NewState);
 
-_Requires_lock_not_held_(pSocket->StateLock) VIOSOCK_STATE VIOSockStateSetLocked(IN PSOCKET_CONTEXT pSocket,
-                                                                                 IN VIOSOCK_STATE NewState);
+_Requires_lock_not_held_(pSocket->StateLock) VIOSOCK_STATE
+    VIOSockStateSetLocked(IN PSOCKET_CONTEXT pSocket, IN VIOSOCK_STATE NewState);
 
 #define VIOSockStateGet(s) ((s)->State)
 
@@ -359,30 +359,28 @@ _Requires_lock_held_(pSocket->RxLock) NTSTATUS VIOSockPendedRequestSetEx(IN PSOC
 
 #define VIOSockPendedRequestSet(s, r, t) VIOSockPendedRequestSetEx(s, r, t, FALSE)
 
-_Requires_lock_not_held_(pSocket->RxLock) NTSTATUS VIOSockPendedRequestSetLocked(IN PSOCKET_CONTEXT pSocket,
-                                                                                 IN WDFREQUEST Request,
-                                                                                 IN LONGLONG Timeout);
+_Requires_lock_not_held_(pSocket->RxLock) NTSTATUS
+    VIOSockPendedRequestSetLocked(IN PSOCKET_CONTEXT pSocket, IN WDFREQUEST Request, IN LONGLONG Timeout);
 
 #define VIOSockPendedRequestSetResume(s, r) VIOSockPendedRequestSetEx(s, r, 0, TRUE)
 
-_Requires_lock_not_held_(pSocket->RxLock) NTSTATUS VIOSockPendedRequestSetResumeLocked(IN PSOCKET_CONTEXT pSocket,
-                                                                                       IN WDFREQUEST Request);
+_Requires_lock_not_held_(pSocket->RxLock) NTSTATUS
+    VIOSockPendedRequestSetResumeLocked(IN PSOCKET_CONTEXT pSocket, IN WDFREQUEST Request);
 
-_Requires_lock_held_(pSocket->RxLock) NTSTATUS VIOSockPendedRequestGet(IN PSOCKET_CONTEXT pSocket,
-                                                                       OUT WDFREQUEST *Request);
+_Requires_lock_held_(pSocket->RxLock) NTSTATUS
+    VIOSockPendedRequestGet(IN PSOCKET_CONTEXT pSocket, OUT WDFREQUEST *Request);
 
-_Requires_lock_not_held_(pSocket->RxLock) __declspec(noinline) NTSTATUS VIOSockPendedRequestGetLocked(
-                                                                                                    IN PSOCKET_CONTEXT pSocket,
-                                                                                                    OUT WDFREQUEST *Request);
+_Requires_lock_not_held_(pSocket->RxLock) __declspec(noinline) NTSTATUS
+    VIOSockPendedRequestGetLocked(IN PSOCKET_CONTEXT pSocket, OUT WDFREQUEST *Request);
 
 NTSTATUS
 VIOSockAcceptInitSocket(PSOCKET_CONTEXT pAcceptSocket, PSOCKET_CONTEXT pListenSocket);
 
-_Requires_lock_not_held_(pListenSocket->RxLock) NTSTATUS VIOSockAcceptEnqueuePkt(IN PSOCKET_CONTEXT pListenSocket,
-                                                                                 IN PVIRTIO_VSOCK_HDR pPkt);
+_Requires_lock_not_held_(pListenSocket->RxLock) NTSTATUS
+    VIOSockAcceptEnqueuePkt(IN PSOCKET_CONTEXT pListenSocket, IN PVIRTIO_VSOCK_HDR pPkt);
 
-_Requires_lock_not_held_(pListenSocket->RxLock) VOID VIOSockAcceptRemovePkt(IN PSOCKET_CONTEXT pListenSocket,
-                                                                            IN PVIRTIO_VSOCK_HDR pPkt);
+_Requires_lock_not_held_(pListenSocket->RxLock) VOID
+    VIOSockAcceptRemovePkt(IN PSOCKET_CONTEXT pListenSocket, IN PVIRTIO_VSOCK_HDR pPkt);
 
 _IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockSelectRun(IN PSOCKET_CONTEXT pSocket);
 
@@ -410,13 +408,11 @@ _IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockSelectRun(IN PSOCKET_CONTEXT pSo
 #define FD_ADDRESS_LIST_CHANGE_BIT      9
 #define FD_ADDRESS_LIST_CHANGE          (1 << FD_ADDRESS_LIST_CHANGE_BIT)
 
-_Requires_lock_not_held_(pSocket->StateLock) VOID VIOSockEventSetBit(IN PSOCKET_CONTEXT pSocket,
-                                                                     IN ULONG uSetBit,
-                                                                     IN NTSTATUS Status);
+_Requires_lock_not_held_(pSocket->StateLock) VOID
+    VIOSockEventSetBit(IN PSOCKET_CONTEXT pSocket, IN ULONG uSetBit, IN NTSTATUS Status);
 
-_Requires_lock_not_held_(pSocket->StateLock) VOID VIOSockEventSetBitLocked(IN PSOCKET_CONTEXT pSocket,
-                                                                           IN ULONG uSetBit,
-                                                                           IN NTSTATUS Status);
+_Requires_lock_not_held_(pSocket->StateLock) VOID
+    VIOSockEventSetBitLocked(IN PSOCKET_CONTEXT pSocket, IN ULONG uSetBit, IN NTSTATUS Status);
 
 _Requires_lock_not_held_(pSocket->StateLock) VOID VIOSockEventClearBit(IN PSOCKET_CONTEXT pSocket, IN ULONG uClearBit);
 
@@ -454,13 +450,13 @@ VIOSockTxEnqueue(IN PSOCKET_CONTEXT pSocket,
 
 #define VIOSockSendResponse(s)     VIOSockTxEnqueue(s, VIRTIO_VSOCK_OP_RESPONSE, 0, TRUE, WDF_NO_HANDLE)
 
-_Requires_lock_not_held_(pContext->TxLock) NTSTATUS VIOSockSendResetNoSock(IN PDEVICE_CONTEXT pContext,
-                                                                           IN PVIRTIO_VSOCK_HDR pHeader);
+_Requires_lock_not_held_(pContext->TxLock) NTSTATUS
+    VIOSockSendResetNoSock(IN PDEVICE_CONTEXT pContext, IN PVIRTIO_VSOCK_HDR pHeader);
 
-_Requires_lock_not_held_(pSocket->StateLock) __inline ULONG32 VIOSockTxGetCredit(IN PSOCKET_CONTEXT pSocket,
-                                                                                 IN ULONG32 uCredit
+_Requires_lock_not_held_(pSocket->StateLock) __inline ULONG32
+    VIOSockTxGetCredit(IN PSOCKET_CONTEXT pSocket, IN ULONG32 uCredit
 
-)
+    )
 {
     ULONG32 uRet;
 
@@ -476,10 +472,10 @@ _Requires_lock_not_held_(pSocket->StateLock) __inline ULONG32 VIOSockTxGetCredit
     return uRet;
 }
 
-_Requires_lock_not_held_(pSocket->StateLock) __inline VOID VIOSockTxPutCredit(IN PSOCKET_CONTEXT pSocket,
-                                                                              IN ULONG32 uCredit
+_Requires_lock_not_held_(pSocket->StateLock) __inline VOID
+    VIOSockTxPutCredit(IN PSOCKET_CONTEXT pSocket, IN ULONG32 uCredit
 
-)
+    )
 {
     WdfSpinLockAcquire(pSocket->StateLock);
     pSocket->tx_cnt -= uCredit;
@@ -496,8 +492,8 @@ _Requires_lock_held_(pSocket->StateLock) __inline LONG VIOSockTxHasSpace(IN PSOC
     return lBytes;
 }
 
-_Requires_lock_not_held_(pSocket->StateLock) __inline LONG VIOSockTxSpaceUpdate(IN PSOCKET_CONTEXT pSocket,
-                                                                                IN PVIRTIO_VSOCK_HDR pPkt)
+_Requires_lock_not_held_(pSocket->StateLock) __inline LONG
+    VIOSockTxSpaceUpdate(IN PSOCKET_CONTEXT pSocket, IN PVIRTIO_VSOCK_HDR pPkt)
 {
     LONG uSpace;
 
@@ -515,9 +511,8 @@ __inline BOOLEAN VIOSockTxMoreReplies(IN PDEVICE_CONTEXT pContext)
     return pContext->TxQueuedReply < (LONG)pContext->RxPktNum;
 }
 
-_Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxCleanup(PDEVICE_CONTEXT pContext,
-                                                                 WDFFILEOBJECT Socket,
-                                                                 NTSTATUS Status);
+_Requires_lock_not_held_(pContext->TxLock) VOID
+    VIOSockTxCleanup(PDEVICE_CONTEXT pContext, WDFFILEOBJECT Socket, NTSTATUS Status);
 
 VOID VIOSockWriteIoSuspend(IN PDEVICE_CONTEXT pContext);
 
@@ -531,8 +526,8 @@ VIOSockRxVqInit(IN PDEVICE_CONTEXT pContext);
 
 _Requires_lock_not_held_(pContext->RxLock) VOID VIOSockRxVqCleanup(IN PDEVICE_CONTEXT pContext);
 
-_Requires_lock_not_held_(pSocket->StateLock) __inline VOID VIOSockRxIncTxPkt(IN PSOCKET_CONTEXT pSocket,
-                                                                             IN OUT PVIRTIO_VSOCK_HDR pPkt)
+_Requires_lock_not_held_(pSocket->StateLock) __inline VOID
+    VIOSockRxIncTxPkt(IN PSOCKET_CONTEXT pSocket, IN OUT PVIRTIO_VSOCK_HDR pPkt)
 {
     WdfSpinLockAcquire(pSocket->StateLock);
     pSocket->last_fwd_cnt = pSocket->fwd_cnt;
@@ -543,9 +538,8 @@ _Requires_lock_not_held_(pSocket->StateLock) __inline VOID VIOSockRxIncTxPkt(IN 
 
 _Requires_lock_not_held_(pContext->RxLock) VOID VIOSockRxVqProcess(IN PDEVICE_CONTEXT pContext);
 
-_Requires_lock_not_held_(pSocket->RxLock) NTSTATUS VIOSockRxRequestEnqueueCb(IN PSOCKET_CONTEXT pSocket,
-                                                                             IN WDFREQUEST Request,
-                                                                             IN ULONG Length);
+_Requires_lock_not_held_(pSocket->RxLock) NTSTATUS
+    VIOSockRxRequestEnqueueCb(IN PSOCKET_CONTEXT pSocket, IN WDFREQUEST Request, IN ULONG Length);
 
 __inline ULONG VIOSockRxHasData(IN PSOCKET_CONTEXT pSocket)
 {

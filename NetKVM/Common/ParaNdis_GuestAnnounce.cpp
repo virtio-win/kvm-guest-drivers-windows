@@ -81,8 +81,8 @@ EthernetNSMFrame *CGuestAnnouncePackets::CreateIPv6Packet(USHORT *IPV6)
     for (UINT i = 0; i < ETH_IPV6_USHORT_ADDRESS_SIZE; i++)
     {
         packet->data.source_address.address[i] = pseudo_header.source_address.address[i] = 0x0;
-        packet->data.destination_address.address[i] = packet->data.nsm.target_address.address[i] = pseudo_header.destination_address.address[i] =
-                                                                                                            pseudo_header.nsm.target_address.address[i] = IPV6[i];
+        packet->data.destination_address.address[i] = packet->data.nsm.target_address.address[i] =
+            pseudo_header.destination_address.address[i] = pseudo_header.nsm.target_address.address[i] = IPV6[i];
     }
     packet->data.nsm.type = pseudo_header.nsm.type = ETH_ICMPV6_TYPE_NSM;
     packet->data.nsm.code = pseudo_header.nsm.code = 0x0;
@@ -110,10 +110,8 @@ VOID CGuestAnnouncePackets::CreateNBL(PVOID packet, UINT size, bool isIPV4)
         return;
     }
     nbl->SourceHandle = m_Context->MiniportHandle;
-    CGuestAnnouncePacketHolder *PacketHolder = new (m_Context->MiniportHandle) CGuestAnnouncePacketHolder(
-                                                                                                        nbl,
-                                                                                                        m_Context->MiniportHandle,
-                                                                                                        isIPV4);
+    CGuestAnnouncePacketHolder *PacketHolder =
+        new (m_Context->MiniportHandle) CGuestAnnouncePacketHolder(nbl, m_Context->MiniportHandle, isIPV4);
     if (!PacketHolder)
     {
         DPrintf(0, "[%s] Packet holder allocation failed!\n", __FUNCTION__);

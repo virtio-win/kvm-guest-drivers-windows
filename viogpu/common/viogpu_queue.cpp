@@ -84,8 +84,8 @@ BOOLEAN VioGpuQueue::Init(_In_ VirtIODevice *pVIODevice, _In_ struct virtqueue *
     return TRUE;
 }
 
-_IRQL_requires_max_(DISPATCH_LEVEL) _IRQL_saves_global_(OldIrql, Irql) _IRQL_raises_(DISPATCH_LEVEL) void VioGpuQueue::
-                                                                                                    Lock(KIRQL *Irql)
+_IRQL_requires_max_(DISPATCH_LEVEL) _IRQL_saves_global_(OldIrql, Irql)
+    _IRQL_raises_(DISPATCH_LEVEL) void VioGpuQueue::Lock(KIRQL *Irql)
 {
     KIRQL SavedIrql = KeGetCurrentIrql();
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s at IRQL %d\n", __FUNCTION__, SavedIrql));
@@ -883,7 +883,9 @@ BOOLEAN VioGpuMemSegment::Init(_In_ UINT size, _In_opt_ PPHYSICAL_ADDRESS pPAddr
         {
             MmProbeAndLockPages(m_pMdl, KernelMode, IoWriteAccess);
         }
-#pragma prefast(suppress : __WARNING_EXCEPTIONEXECUTEHANDLER, "try/except is only able to protect against user-mode errors and these are the only errors we try to catch here");
+#pragma prefast(                                                                                                       \
+        suppress : __WARNING_EXCEPTIONEXECUTEHANDLER,                                                                  \
+            "try/except is only able to protect against user-mode errors and these are the only errors we try to catch here");
         __except (EXCEPTION_EXECUTE_HANDLER)
         {
             DbgPrint(TRACE_LEVEL_FATAL, ("%s Failed to lock pages with error %x\n", __FUNCTION__, GetExceptionCode()));

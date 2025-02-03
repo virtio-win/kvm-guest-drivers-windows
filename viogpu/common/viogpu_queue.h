@@ -207,8 +207,8 @@ class VioGpuQueue
     void ReleaseBuffer(PGPU_VBUFFER buf);
 
   protected:
-    _IRQL_requires_max_(DISPATCH_LEVEL) _IRQL_saves_global_(OldIrql,
-                                                            Irql) _IRQL_raises_(DISPATCH_LEVEL) void Lock(KIRQL *Irql);
+    _IRQL_requires_max_(DISPATCH_LEVEL) _IRQL_saves_global_(OldIrql, Irql)
+        _IRQL_raises_(DISPATCH_LEVEL) void Lock(KIRQL *Irql);
     _IRQL_requires_(DISPATCH_LEVEL) _IRQL_restores_global_(OldIrql, Irql) void Unlock(KIRQL Irql);
 
   private:

@@ -235,9 +235,8 @@ PTCHAR CDevice::GetDevicePath(IN LPGUID InterfaceGuid)
             HeapFree(GetProcessHeap(), 0, DeviceInterfaceList);
         }
 
-        DeviceInterfaceList = (PWSTR)HeapAlloc(GetProcessHeap(),
-                                               HEAP_ZERO_MEMORY,
-                                               DeviceInterfaceListLength * sizeof(WCHAR));
+        DeviceInterfaceList =
+            (PWSTR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, DeviceInterfaceListLength * sizeof(WCHAR));
 
         if (DeviceInterfaceList == NULL)
         {

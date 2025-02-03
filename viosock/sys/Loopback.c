@@ -34,8 +34,8 @@
 #include "Loopback.tmh"
 #endif
 
-_Requires_lock_not_held_(pListenSocket->RxLock) static NTSTATUS VIOSockLoopbackAcceptEnqueue(IN PSOCKET_CONTEXT pListenSocket,
-                                                                                             IN PSOCKET_CONTEXT pConnectSocket)
+_Requires_lock_not_held_(pListenSocket->RxLock) static NTSTATUS
+    VIOSockLoopbackAcceptEnqueue(IN PSOCKET_CONTEXT pListenSocket, IN PSOCKET_CONTEXT pConnectSocket)
 {
     PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pListenSocket);
     NTSTATUS status;
@@ -140,8 +140,8 @@ VIOSockLoopbackAcceptDequeue(IN PSOCKET_CONTEXT pAcceptSocket, IN PVIOSOCK_ACCEP
 }
 
 //////////////////////////////////////////////////////////////////////////
-_Requires_lock_not_held_(pDstSocket->StateLock) __inline LONG VIOSockLoopbackTxSpaceUpdate(IN PSOCKET_CONTEXT pDstSocket,
-                                                                                           IN PSOCKET_CONTEXT pSrcSocket)
+_Requires_lock_not_held_(pDstSocket->StateLock) __inline LONG
+    VIOSockLoopbackTxSpaceUpdate(IN PSOCKET_CONTEXT pDstSocket, IN PSOCKET_CONTEXT pSrcSocket)
 {
     LONG uSpace;
 
@@ -192,10 +192,11 @@ static NTSTATUS VIOSockLoopbackConnect(PSOCKET_CONTEXT pSocket)
     return status;
 }
 
-_Requires_lock_not_held_(pDestSocket->StateLock) static NTSTATUS VIOSockLoopbackHandleConnecting(IN PSOCKET_CONTEXT pDestSocket,
-                                                                                                 IN PSOCKET_CONTEXT pSrcSocket,
-                                                                                                 IN VIRTIO_VSOCK_OP Op,
-                                                                                                 IN BOOLEAN bTxHasSpace)
+_Requires_lock_not_held_(pDestSocket->StateLock) static NTSTATUS
+    VIOSockLoopbackHandleConnecting(IN PSOCKET_CONTEXT pDestSocket,
+                                    IN PSOCKET_CONTEXT pSrcSocket,
+                                    IN VIRTIO_VSOCK_OP Op,
+                                    IN BOOLEAN bTxHasSpace)
 {
     WDFREQUEST PendedRequest;
     NTSTATUS status;
@@ -338,8 +339,8 @@ VIOSockLoopbackTxEnqueue(IN PSOCKET_CONTEXT pSocket,
 {
     NTSTATUS status;
     PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pSocket);
-    PSOCKET_CONTEXT pLoopbackSocket = (pSocket->LoopbackSocket != WDF_NO_HANDLE) ? GetSocketContext(pSocket->LoopbackSocket)
-                                                                                 : NULL;
+    PSOCKET_CONTEXT pLoopbackSocket =
+        (pSocket->LoopbackSocket != WDF_NO_HANDLE) ? GetSocketContext(pSocket->LoopbackSocket) : NULL;
     ULONG uCredit;
     BOOLEAN bTxHasSpace;
 

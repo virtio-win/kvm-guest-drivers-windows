@@ -73,8 +73,8 @@ _Must_inspect_result_ static NTSTATUS _VioSocketCreate(_In_ PWSK_CLIENT Client,
     }
 
     SockParams.Type = SocketType;
-    pEaBuffer->EaNameLength = sizeof(FILE_FULL_EA_INFORMATION) - FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) -
-                              sizeof(UCHAR);
+    pEaBuffer->EaNameLength =
+        sizeof(FILE_FULL_EA_INFORMATION) - FIELD_OFFSET(FILE_FULL_EA_INFORMATION, EaName) - sizeof(UCHAR);
     pEaBuffer->EaValueLength = sizeof(SockParams);
     RtlCopyMemory(&EaBuffer[sizeof(FILE_FULL_EA_INFORMATION)], &SockParams, sizeof(SockParams));
 
@@ -255,14 +255,8 @@ _Must_inspect_result_ NTSTATUS VioWskSocketInternal(_In_ PWSK_CLIENT Client,
         goto FreeConfigIrp;
     }
 
-    Status = VioWskSocketIOCTL(pSocket,
-                               IOCTL_GET_CONFIG,
-                               NULL,
-                               0,
-                               &SocketConfig,
-                               sizeof(SocketConfig),
-                               ConfigIrp,
-                               NULL);
+    Status =
+        VioWskSocketIOCTL(pSocket, IOCTL_GET_CONFIG, NULL, 0, &SocketConfig, sizeof(SocketConfig), ConfigIrp, NULL);
     if (Status == STATUS_PENDING)
     {
         KeWaitForSingleObject(&ConfigEvent, Executive, KernelMode, FALSE, NULL);

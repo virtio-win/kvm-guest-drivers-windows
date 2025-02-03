@@ -393,11 +393,16 @@ class CDeviceNotification
     }
     bool Register(CM_NOTIFY_FILTER *filter)
     {
-        // clang-format off
-        CONFIGRET cr = CM_Register_Notification(filter, this,
-            [](HCMNOTIFICATION h, PVOID Context, CM_NOTIFY_ACTION Action, PCM_NOTIFY_EVENT_DATA EventData, DWORD EventDataSize) -> DWORD
-            {
-                CDeviceNotification* obj = (CDeviceNotification*)Context;
+        // clang-format on
+        CONFIGRET cr = CM_Register_Notification(
+            filter,
+            this,
+            [](HCMNOTIFICATION h,
+               PVOID Context,
+               CM_NOTIFY_ACTION Action,
+               PCM_NOTIFY_EVENT_DATA EventData,
+               DWORD EventDataSize) -> DWORD {
+                CDeviceNotification *obj = (CDeviceNotification *)Context;
                 DWORD res = obj->Notification(Action, EventData, EventDataSize) ? ERROR_SUCCESS : ERROR_CANCELLED;
                 if (res != ERROR_SUCCESS)
                 {
@@ -682,9 +687,8 @@ class CVirtioAdapter
     static const tAdapterState CVirtioAdapter::m_TargetStates[];
 };
 
-// clang-format off
-const tAdapterState CVirtioAdapter::m_TargetStates[128] =
-{
+// clang-format on
+const tAdapterState CVirtioAdapter::m_TargetStates[128] = {
     /* 0:  Virtio 0, IsStandby 0, VirtioLink 0, SuppressLink 0, Started 0, HasVf 0, VfLink 0 */ asUnknown,
     /* 1:  Virtio 1, IsStandby 0, VirtioLink 0, SuppressLink 0, Started 0, HasVf 0, VfLink 0 */ asStandalone,
     /* 2:  Virtio 0, IsStandby 1, VirtioLink 0, SuppressLink 0, Started 0, HasVf 0, VfLink 0 */ asUnknown,
