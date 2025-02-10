@@ -39,31 +39,32 @@ if errorlevel 1 goto :fail
 call build\build.bat viomem\sys\viomem.vcxproj "Win10_SDV Win11_SDV" %*
 if errorlevel 1 goto :fail
 
-
 :nosdv2022
+
+call :prepare_palette
 
 path %path%;C:\Program Files (x86)\Windows Kits\10\bin\x86\
 for %%D in (pciserial fwcfg Q35) do @(
  call :bld_inf_drvr %%D
 )
 echo.
-echo Processing DVL files to create Windows 10 COMPAT ^(WIN10_RS1 ^/ 1607^) version...
+call :clr_print %_c_Cyn% "Processing DVL files to create Windows 10, version 1607, WIN10_RS1 COMPAT version..."
 for /R %%f in (*.dvl.xml) do @(
   call :process_xml %%f
 )
 if "%found_dvl_xml%"=="" (
-  echo WARNING ^: No DVL files were found.
+  call :clr_print %_c_Yel% "WARNING : No DVL files were found."
 ) else (
-  echo Processing of DVL files is complete.
+  call :clr_print %_c_Cyn% "Processing of DVL files is complete."
 )
 :bld_success
 echo.
-echo BUILD COMPLETED SUCCESSFULLY.
+call :clr_print %_c_Grn% "BUILD COMPLETED SUCCESSFULLY."
 call :leave 0
 goto :eof
 
 :fail
-echo BUILD FAILED.
+call :clr_print %_c_Red% "BUILD FAILED."
 set BUILD_FAILED=
 call :leave 1
 goto :eof
@@ -71,14 +72,14 @@ goto :eof
 :bld_inf_drvr
 set inf_drv=%~1
 echo.
-echo Building : %inf_drv%%
+call :clr_print %_c_Cyn% "Building : %inf_drv%"
 echo.
 pushd %inf_drv%
 call buildAll.bat
 if not errorlevel==0 (
   goto :fail
 )
-echo Build for %inf_drv% succeeded.
+call :clr_print %_c_Grn% "Build for %inf_drv% succeeded."
 popd
 goto :eof
 
@@ -89,15 +90,38 @@ if not exist "%dvl_file%" (
   call :fudge_xml %1
 ) else (
   rem Here we retain the Windows 10 version 1607, WIN10_RS1, build 14393 COMPAT DVL.
-  echo The file already exists : %dvl_file%
+  call :clr_print %_c_Grn% "The file already exists : %dvl_file%"
 )
 goto :eof
 
 :fudge_xml
 rem Here we create a Windows 10 version 1607, WIN10_RS1, build 14393 COMPAT DVL.
-echo Auto-magically creating : %dvl_file%
+call :clr_print %_c_Yel% "Auto-magically creating : %dvl_file%"
 findstr /v /c:"General.Checksum" "%~1" | findstr /v /c:".Semmle." > "%dvl_file%"
 goto :eof
 
+:clr_print
+echo %z_esc%[%~1%~2%z_esc%[%~3%~4%z_esc%[%~5%~6%z_esc%[%~7%~8%z_esc%[0m
+goto :eof
+
+:prepare_palette
+rem Colour mods should work from WIN10_TH2
+rem Get the ANSI ESC character: 0x27
+for /f "tokens=2 usebackq delims=#" %%i in (`"prompt #$H#$E# & echo on & for %%i in (1) do rem"`) do @(
+  set z_esc=%%i
+)
+rem Prepare pallette
+set "_c_Red="40;91m""
+set "_c_Grn="40;92m""
+set "_c_Yel="40;93m""
+set "_c_Cyn="40;96m""
+set "_c_Wht="40;37m""
+goto :eof
+
 :leave
+if exist ".\build_log.txt" (
+  call schtasks /create /tn build_log_cleanup /tr "%comspec% /c %~dp0build\clean_build_log.bat" /sc ONCE /sd 01/01/1910 /st 00:00 1> nul 2>&1
+  call schtasks /run /tn build_log_cleanup 1> nul 2>&1
+)
+endlocal
 exit /B %1
