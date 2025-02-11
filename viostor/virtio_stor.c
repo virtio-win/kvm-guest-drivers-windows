@@ -484,7 +484,8 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
     }
     if (max_queues > MAX_QUEUES_PER_DEVICE_DEFAULT)
     {
-        adaptExt->poolAllocationSize += ROUND_TO_CACHE_LINES((ULONGLONG)(max_queues)*virtio_get_queue_descriptor_size());
+        adaptExt->poolAllocationSize +=
+            ROUND_TO_CACHE_LINES((ULONGLONG)(max_queues)*virtio_get_queue_descriptor_size());
     }
 
     RhelDbgPrint(TRACE_LEVEL_INFORMATION,
@@ -761,8 +762,8 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
                 {
                     adaptExt->perfFlags |= STOR_PERF_INTERRUPT_MESSAGE_RANGES;
                     perfData.FirstRedirectionMessageNumber = 1;
-                    perfData.LastRedirectionMessageNumber = perfData.FirstRedirectionMessageNumber +
-                                                            adaptExt->num_queues - 1;
+                    perfData.LastRedirectionMessageNumber =
+                        perfData.FirstRedirectionMessageNumber + adaptExt->num_queues - 1;
                     ASSERT(perfData.lastRedirectionMessageNumber < adaptExt->num_affinity);
                 }
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_CONCURRENT_CHANNELS))
@@ -940,7 +941,8 @@ VirtIoStartIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
                         if (CHECKFLAG(SrbPnPFlags, SRB_PNP_FLAGS_ADAPTER_REQUEST) &&
                             (SRB_DATA_TRANSFER_LENGTH(Srb) >= sizeof(STOR_DEVICE_CAPABILITIES)))
                         {
-                            PSTOR_DEVICE_CAPABILITIES storCapabilities = (PSTOR_DEVICE_CAPABILITIES)SRB_DATA_BUFFER(Srb);
+                            PSTOR_DEVICE_CAPABILITIES storCapabilities =
+                                (PSTOR_DEVICE_CAPABILITIES)SRB_DATA_BUFFER(Srb);
                             RtlZeroMemory(storCapabilities, sizeof(*storCapabilities));
                             storCapabilities->Removable = 1;
                         }
@@ -1047,7 +1049,8 @@ VirtIoStartIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
                     UCHAR SrbStatus = SRB_STATUS_ERROR;
                     adaptExt->sense_info.senseKey = SCSI_SENSE_DATA_PROTECT;
                     adaptExt->sense_info.additionalSenseCode = SCSI_ADSENSE_WRITE_PROTECT;
-                    adaptExt->sense_info.additionalSenseCodeQualifier = SCSI_SENSEQ_SPACE_ALLOC_FAILED_WRITE_PROTECT; // SCSI_ADSENSE_NO_SENSE;
+                    adaptExt->sense_info.additionalSenseCodeQualifier =
+                        SCSI_SENSEQ_SPACE_ALLOC_FAILED_WRITE_PROTECT; // SCSI_ADSENSE_NO_SENSE;
                     if (SetSenseInfo(DeviceExtension, (PSRB_TYPE)Srb))
                     {
                         SrbStatus |= SRB_STATUS_AUTOSENSE_VALID;
@@ -1291,7 +1294,8 @@ VirtIoHwReinitialize(IN PVOID DeviceExtension)
     {
         adaptExt->sense_info.senseKey = SCSI_SENSE_DATA_PROTECT;
         adaptExt->sense_info.additionalSenseCode = SCSI_ADSENSE_WRITE_PROTECT;
-        adaptExt->sense_info.additionalSenseCodeQualifier = SCSI_SENSEQ_SPACE_ALLOC_FAILED_WRITE_PROTECT; // SCSI_ADSENSE_NO_SENSE;
+        adaptExt->sense_info.additionalSenseCodeQualifier =
+            SCSI_SENSEQ_SPACE_ALLOC_FAILED_WRITE_PROTECT; // SCSI_ADSENSE_NO_SENSE;
         adaptExt->check_condition = TRUE;
         DeviceChangeNotification(DeviceExtension, TRUE);
     }
@@ -1689,8 +1693,8 @@ RhelScsiGetInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
         ProvisioningPage->LBPWS10 = 0;
         ProvisioningPage->LBPWS = 0;
         ProvisioningPage->LBPU = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_DISCARD) ? 1 : 0;
-        ProvisioningPage->ProvisioningType = adaptExt->info.discard_sector_alignment ? PROVISIONING_TYPE_THIN
-                                                                                     : PROVISIONING_TYPE_RESOURCE;
+        ProvisioningPage->ProvisioningType =
+            adaptExt->info.discard_sector_alignment ? PROVISIONING_TYPE_THIN : PROVISIONING_TYPE_RESOURCE;
     }
 
     else if (dataLen > sizeof(INQUIRYDATA))
@@ -1817,8 +1821,8 @@ RhelScsiGetModeSense(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
 
             header->BlockDescriptorLength = sizeof(MODE_PARAMETER_BLOCK);
             blockDescriptor = (PMODE_PARAMETER_BLOCK)header;
-            blockDescriptor = (PMODE_PARAMETER_BLOCK)((unsigned char *)(blockDescriptor) +
-                                                      (ULONG)sizeof(MODE_PARAMETER_HEADER));
+            blockDescriptor =
+                (PMODE_PARAMETER_BLOCK)((unsigned char *)(blockDescriptor) + (ULONG)sizeof(MODE_PARAMETER_HEADER));
 
             memset(blockDescriptor, 0, sizeof(MODE_PARAMETER_BLOCK));
 
@@ -2002,8 +2006,8 @@ SetSenseInfo(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
         senseInfoBuffer->ErrorCode = SCSI_SENSE_ERRORCODE_FIXED_CURRENT;
         senseInfoBuffer->Valid = 1;
         senseInfoBuffer->SenseKey = adaptExt->sense_info.senseKey;
-        senseInfoBuffer->AdditionalSenseLength = sizeof(SENSE_DATA) -
-                                                 FIELD_OFFSET(SENSE_DATA, AdditionalSenseLength); // 0xb ??
+        senseInfoBuffer->AdditionalSenseLength =
+            sizeof(SENSE_DATA) - FIELD_OFFSET(SENSE_DATA, AdditionalSenseLength); // 0xb ??
         senseInfoBuffer->AdditionalSenseCode = adaptExt->sense_info.additionalSenseCode;
         senseInfoBuffer->AdditionalSenseCodeQualifier = adaptExt->sense_info.additionalSenseCodeQualifier;
         SRB_SET_SCSI_STATUS(((PSRB_TYPE)Srb), ScsiStatus);
@@ -2305,8 +2309,8 @@ UCHAR FirmwareRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
                     }
                     else
                     {
-                        firmwareRequest->DataBufferLength = sizeof(STORAGE_FIRMWARE_INFO_V2) +
-                                                            sizeof(STORAGE_FIRMWARE_SLOT_INFO_V2);
+                        firmwareRequest->DataBufferLength =
+                            sizeof(STORAGE_FIRMWARE_INFO_V2) + sizeof(STORAGE_FIRMWARE_SLOT_INFO_V2);
                         srbControl->ReturnCode = FIRMWARE_STATUS_OUTPUT_BUFFER_TOO_SMALL;
                     }
                 }

@@ -299,8 +299,8 @@ static __inline tTcpIpPacketParsingResult QualifyIpPacket(IPHeader *pIpHeader, U
                 fullLength,
                 len);
 
-        res.ipStatus = static_cast<ULONG>((ipHeaderSize >= sizeof(IPv4Header)) ? ppResult::ppresIPV4
-                                                                               : ppResult::ppresNotIP);
+        res.ipStatus =
+            static_cast<ULONG>((ipHeaderSize >= sizeof(IPv4Header)) ? ppResult::ppresIPV4 : ppResult::ppresNotIP);
         if (res.ipStatus == ppResult::ppresNotIP)
         {
             return res;
@@ -548,8 +548,8 @@ static __inline tTcpIpPacketParsingResult VerifyIpChecksum(IPv4Header *pIpHeader
     {
         USHORT saved = pIpHeader->ip_xsum;
         CalculateIpChecksum(pIpHeader);
-        res.ipCheckSum = static_cast<ULONG>(CompareNetCheckSumOnEndSystem(pIpHeader->ip_xsum, saved) ? ppResult::ppresCSOK
-                                                                                                     : ppResult::ppresCSBad);
+        res.ipCheckSum = static_cast<ULONG>(
+            CompareNetCheckSumOnEndSystem(pIpHeader->ip_xsum, saved) ? ppResult::ppresCSOK : ppResult::ppresCSBad);
         if (!bFix)
         {
             pIpHeader->ip_xsum = saved;
@@ -830,24 +830,24 @@ tTcpIpPacketParsingResult ParaNdis_CheckSumVerify(tCompletePhysicalAddress *pDat
             {
                 if (flags & tPacketOffloadRequest::pcrTcpV4Checksum)
                 {
-                    res = VerifyTcpChecksum(pDataPages,
-                                            ulDataLength,
-                                            ulStartOffset,
-                                            res,
-                                            flags & (tPacketOffloadRequest::pcrFixPHChecksum |
-                                                     tPacketOffloadRequest::pcrFixTcpV4Checksum));
+                    res = VerifyTcpChecksum(
+                        pDataPages,
+                        ulDataLength,
+                        ulStartOffset,
+                        res,
+                        flags & (tPacketOffloadRequest::pcrFixPHChecksum | tPacketOffloadRequest::pcrFixTcpV4Checksum));
                 }
             }
             else /* UDP */
             {
                 if (flags & tPacketOffloadRequest::pcrUdpV4Checksum)
                 {
-                    res = VerifyUdpChecksum(pDataPages,
-                                            ulDataLength,
-                                            ulStartOffset,
-                                            res,
-                                            flags & (tPacketOffloadRequest::pcrFixPHChecksum |
-                                                     tPacketOffloadRequest::pcrFixUdpV4Checksum));
+                    res = VerifyUdpChecksum(
+                        pDataPages,
+                        ulDataLength,
+                        ulStartOffset,
+                        res,
+                        flags & (tPacketOffloadRequest::pcrFixPHChecksum | tPacketOffloadRequest::pcrFixUdpV4Checksum));
                 }
             }
         }
@@ -860,24 +860,24 @@ tTcpIpPacketParsingResult ParaNdis_CheckSumVerify(tCompletePhysicalAddress *pDat
             {
                 if (flags & tPacketOffloadRequest::pcrTcpV6Checksum)
                 {
-                    res = VerifyTcpChecksum(pDataPages,
-                                            ulDataLength,
-                                            ulStartOffset,
-                                            res,
-                                            flags & (tPacketOffloadRequest::pcrFixPHChecksum |
-                                                     tPacketOffloadRequest::pcrFixTcpV6Checksum));
+                    res = VerifyTcpChecksum(
+                        pDataPages,
+                        ulDataLength,
+                        ulStartOffset,
+                        res,
+                        flags & (tPacketOffloadRequest::pcrFixPHChecksum | tPacketOffloadRequest::pcrFixTcpV6Checksum));
                 }
             }
             else /* UDP */
             {
                 if (flags & tPacketOffloadRequest::pcrUdpV6Checksum)
                 {
-                    res = VerifyUdpChecksum(pDataPages,
-                                            ulDataLength,
-                                            ulStartOffset,
-                                            res,
-                                            flags & (tPacketOffloadRequest::pcrFixPHChecksum |
-                                                     tPacketOffloadRequest::pcrFixUdpV6Checksum));
+                    res = VerifyUdpChecksum(
+                        pDataPages,
+                        ulDataLength,
+                        ulStartOffset,
+                        res,
+                        flags & (tPacketOffloadRequest::pcrFixPHChecksum | tPacketOffloadRequest::pcrFixUdpV6Checksum));
                 }
             }
         }
@@ -1103,10 +1103,10 @@ static BOOLEAN AnalyzeIP6Hdr(IPv6Header *ip6Hdr,
                         return FALSE;
                     }
 
-                    if (!AnalyzeIP6RoutingExtension((PIP6_TYPE2_ROUTING_HEADER)RtlOffsetToPointer(ip6Hdr,
-                                                                                                  routingHdrOffset),
-                                                    *ip6HdrLength - routingHdrOffset,
-                                                    &destAddr))
+                    if (!AnalyzeIP6RoutingExtension(
+                            (PIP6_TYPE2_ROUTING_HEADER)RtlOffsetToPointer(ip6Hdr, routingHdrOffset),
+                            *ip6HdrLength - routingHdrOffset,
+                            &destAddr))
                     {
                         return FALSE;
                     }

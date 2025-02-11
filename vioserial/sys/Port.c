@@ -709,10 +709,8 @@ VOID VIOSerialPortDeviceControl(IN WDFQUEUE Queue,
         case IOCTL_GET_INFORMATION:
         case IOCTL_GET_INFORMATION_BUFFERED:
             {
-                status = WdfRequestRetrieveOutputBuffer(Request,
-                                                        sizeof(VIRTIO_PORT_INFO),
-                                                        (PVOID *)&pport_info,
-                                                        &length);
+                status =
+                    WdfRequestRetrieveOutputBuffer(Request, sizeof(VIRTIO_PORT_INFO), (PVOID *)&pport_info, &length);
                 if (!NT_SUCCESS(status))
                 {
                     TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "WdfRequestRetrieveInputBuffer failed 0x%x\n", status);
@@ -951,10 +949,8 @@ VOID VIOSerialPortSymbolicNameWork(IN WDFWORKITEM WorkItem)
 
             TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "deviceUnicodeString = %ws\n", deviceUnicodeString.Buffer);
 
-            status = RtlUnicodeStringPrintf(&symbolicLinkName,
-                                            L"%ws%ws",
-                                            L"\\DosDevices\\",
-                                            deviceUnicodeString.Buffer);
+            status =
+                RtlUnicodeStringPrintf(&symbolicLinkName, L"%ws%ws", L"\\DosDevices\\", deviceUnicodeString.Buffer);
             if (!NT_SUCCESS(status))
             {
                 TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "RtlUnicodeStringPrintf failed 0x%x\n", status);
@@ -1038,9 +1034,10 @@ VOID VIOSerialPortPnpNotifyWork(IN WDFWORKITEM WorkItem)
 }
 
 NTSTATUS
-VIOSerialEvtChildListIdentificationDescriptionDuplicate(WDFCHILDLIST DeviceList,
-                                                        PWDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER SourceIdentificationDescription,
-                                                        PWDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER DestinationIdentificationDescription)
+VIOSerialEvtChildListIdentificationDescriptionDuplicate(
+    WDFCHILDLIST DeviceList,
+    PWDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER SourceIdentificationDescription,
+    PWDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER DestinationIdentificationDescription)
 {
     PVIOSERIAL_PORT src, dst;
 
@@ -1097,9 +1094,10 @@ VIOSerialEvtChildListIdentificationDescriptionDuplicate(WDFCHILDLIST DeviceList,
 }
 
 BOOLEAN
-VIOSerialEvtChildListIdentificationDescriptionCompare(WDFCHILDLIST DeviceList,
-                                                      PWDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER FirstIdentificationDescription,
-                                                      PWDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER SecondIdentificationDescription)
+VIOSerialEvtChildListIdentificationDescriptionCompare(
+    WDFCHILDLIST DeviceList,
+    PWDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER FirstIdentificationDescription,
+    PWDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER SecondIdentificationDescription)
 {
     PVIOSERIAL_PORT lhs, rhs;
 
@@ -1114,8 +1112,9 @@ VIOSerialEvtChildListIdentificationDescriptionCompare(WDFCHILDLIST DeviceList,
     return ((lhs->PortId == rhs->PortId) && (lhs->DeviceId == rhs->DeviceId));
 }
 
-VOID VIOSerialEvtChildListIdentificationDescriptionCleanup(WDFCHILDLIST DeviceList,
-                                                           PWDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER IdentificationDescription)
+VOID VIOSerialEvtChildListIdentificationDescriptionCleanup(
+    WDFCHILDLIST DeviceList,
+    PWDF_CHILD_IDENTIFICATION_DESCRIPTION_HEADER IdentificationDescription)
 {
     PVIOSERIAL_PORT pDesc;
 

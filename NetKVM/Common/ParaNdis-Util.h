@@ -173,9 +173,8 @@ class CNdisMutex
 template <typename T> class CLockedContext
 {
   public:
-    _IRQL_raises_(DISPATCH_LEVEL) _IRQL_saves_global_(OldIrql,
-                                                      this->m_LockObject) CLockedContext(T &LockObject,
-                                                                                         BOOLEAN Autolock = TRUE)
+    _IRQL_raises_(DISPATCH_LEVEL) _IRQL_saves_global_(OldIrql, this->m_LockObject)
+        CLockedContext(T &LockObject, BOOLEAN Autolock = TRUE)
         : m_LockObject(LockObject), m_Autolock(Autolock)
     {
         if (Autolock)
@@ -503,8 +502,11 @@ class CNdisList : private TAccessStrategy, public TCountingStrategy
 
     template <typename TPredicate, typename TFunctor> void ForEachDetachedIf(TPredicate Predicate, TFunctor Functor)
     {
-        // clang-format off
-        ForEachPrepareIf(Predicate, [this](PLIST_ENTRY Entry){ Remove_LockLess(Entry); }, Functor);
+        // clang-format on
+        ForEachPrepareIf(
+            Predicate,
+            [this](PLIST_ENTRY Entry) { Remove_LockLess(Entry); },
+            Functor);
         // clang-format on
     }
 
@@ -563,13 +565,12 @@ class CNdisList : private TAccessStrategy, public TCountingStrategy
 class CDpcIrqlRaiser
 {
   public:
-    // clang-format off
-    _IRQL_requires_max_(DISPATCH_LEVEL)
-    _IRQL_raises_(DISPATCH_LEVEL)
-    _IRQL_saves_global_(OldIrql, this->m_OriginalIRQL)
-    CDpcIrqlRaiser()
+    // clang-format on
+    _IRQL_requires_max_(DISPATCH_LEVEL) _IRQL_raises_(DISPATCH_LEVEL) _IRQL_saves_global_(OldIrql, this->m_OriginalIRQL)
+        CDpcIrqlRaiser()
         : m_OriginalIRQL(KeRaiseIrqlToDpcLevel())
-    { }
+    {
+    }
 
     _IRQL_requires_(DISPATCH_LEVEL) _IRQL_restores_global_(OldIrql, this->m_OriginalIRQL) ~CDpcIrqlRaiser()
     {

@@ -102,8 +102,8 @@ BOOL CService::SendStatusToSCM(DWORD dwCurrentState,
     }
     else
     {
-        serviceStatus.dwControlsAccepted = SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_PAUSE_CONTINUE |
-                                           SERVICE_ACCEPT_SHUTDOWN;
+        serviceStatus.dwControlsAccepted =
+            SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_PAUSE_CONTINUE | SERVICE_ACCEPT_SHUTDOWN;
     }
 
     if (dwServiceSpecificExitCode == 0)

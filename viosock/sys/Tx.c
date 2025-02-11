@@ -95,8 +95,8 @@ WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIOSOCK_TX_ENTRY, GetRequestTxContext);
 _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxDequeue(PDEVICE_CONTEXT pContext);
 
 //////////////////////////////////////////////////////////////////////////
-_Requires_lock_held_(pContext->TxLock) static PVIOSOCK_TX_PKT VIOSockTxPktAlloc(IN PDEVICE_CONTEXT pContext,
-                                                                                IN PVIOSOCK_TX_ENTRY pTxEntry)
+_Requires_lock_held_(pContext->TxLock) static PVIOSOCK_TX_PKT
+    VIOSockTxPktAlloc(IN PDEVICE_CONTEXT pContext, IN PVIOSOCK_TX_ENTRY pTxEntry)
 {
     PHYSICAL_ADDRESS PA;
     PVIOSOCK_TX_PKT pPkt;
@@ -124,8 +124,8 @@ _Requires_lock_held_(pContext->TxLock) static PVIOSOCK_TX_PKT VIOSockTxPktAlloc(
     return pPkt;
 }
 
-_Requires_lock_held_(pContext->TxLock) __inline VOID VIOSockTxPktFree(IN PDEVICE_CONTEXT pContext,
-                                                                      IN PVIOSOCK_TX_PKT pPkt)
+_Requires_lock_held_(pContext->TxLock) __inline VOID
+    VIOSockTxPktFree(IN PDEVICE_CONTEXT pContext, IN PVIOSOCK_TX_PKT pPkt)
 {
     pContext->TxPktSliced->return_slice(pContext->TxPktSliced, pPkt);
     InterlockedDecrement(&pContext->TxPktAllocated);
@@ -213,9 +213,8 @@ VIOSockTxVqInit(IN PDEVICE_CONTEXT pContext)
                 uBufferSize,
                 uNumEntries);
 
-    pContext->TxPktSliced = VirtIOWdfDeviceAllocDmaMemorySliced(&pContext->VDevice.VIODevice,
-                                                                uBufferSize,
-                                                                sizeof(VIOSOCK_TX_PKT));
+    pContext->TxPktSliced =
+        VirtIOWdfDeviceAllocDmaMemorySliced(&pContext->VDevice.VIODevice, uBufferSize, sizeof(VIOSOCK_TX_PKT));
 
     ASSERT(pContext->TxPktSliced);
     if (!pContext->TxPktSliced)
@@ -232,9 +231,10 @@ VIOSockTxVqInit(IN PDEVICE_CONTEXT pContext)
     return status;
 }
 
-_Requires_lock_held_(pContext->TxLock) static BOOLEAN VIOSockTxPktInsert(IN PDEVICE_CONTEXT pContext,
-                                                                         IN PVIOSOCK_TX_PKT pPkt,
-                                                                         IN PVIRTIO_DMA_TRANSACTION_PARAMS pParams OPTIONAL)
+_Requires_lock_held_(pContext->TxLock) static BOOLEAN
+    VIOSockTxPktInsert(IN PDEVICE_CONTEXT pContext,
+                       IN PVIOSOCK_TX_PKT pPkt,
+                       IN PVIRTIO_DMA_TRANSACTION_PARAMS pParams OPTIONAL)
 {
     VIOSOCK_SG_DESC sg[VIOSOCK_DMA_TX_PAGES + 2];
     ULONG uElements = 1, uPktLen = 0;
@@ -561,9 +561,8 @@ _Requires_lock_not_held_(pContext->TxLock) static VOID VIOSockTxDequeue(PDEVICE_
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
 }
 
-_Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxCleanup(PDEVICE_CONTEXT pContext,
-                                                                 WDFFILEOBJECT Socket,
-                                                                 NTSTATUS Status)
+_Requires_lock_not_held_(pContext->TxLock) VOID
+    VIOSockTxCleanup(PDEVICE_CONTEXT pContext, WDFFILEOBJECT Socket, NTSTATUS Status)
 {
     LONG lCnt = 0;
     PLIST_ENTRY CurrentEntry;
@@ -628,9 +627,8 @@ _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxCleanup(PDEVICE_CONTEXT
     {
         while (!IsListEmpty(&CompletionList))
         {
-            PVIOSOCK_TX_ENTRY pTxEntry = CONTAINING_RECORD(RemoveHeadList(&CompletionList),
-                                                           VIOSOCK_TX_ENTRY,
-                                                           ListEntry);
+            PVIOSOCK_TX_ENTRY pTxEntry =
+                CONTAINING_RECORD(RemoveHeadList(&CompletionList), VIOSOCK_TX_ENTRY, ListEntry);
 
             if (pTxEntry->Request)
             {
@@ -974,8 +972,8 @@ VOID VIOSockWriteIoRestart(IN PDEVICE_CONTEXT pContext)
 }
 
 //////////////////////////////////////////////////////////////////////////
-_Requires_lock_not_held_(pContext->TxLock) NTSTATUS VIOSockSendResetNoSock(IN PDEVICE_CONTEXT pContext,
-                                                                           IN PVIRTIO_VSOCK_HDR pHeader)
+_Requires_lock_not_held_(pContext->TxLock) NTSTATUS
+    VIOSockSendResetNoSock(IN PDEVICE_CONTEXT pContext, IN PVIRTIO_VSOCK_HDR pHeader)
 {
     PVIOSOCK_TX_ENTRY pTxEntry;
     NTSTATUS status;
@@ -1102,9 +1100,8 @@ VOID VIOSockTxTimerFunc(WDFTIMER Timer)
     {
         while (!IsListEmpty(&CompletionList))
         {
-            PVIOSOCK_TX_ENTRY pTxEntry = CONTAINING_RECORD(RemoveHeadList(&CompletionList),
-                                                           VIOSOCK_TX_ENTRY,
-                                                           ListEntry);
+            PVIOSOCK_TX_ENTRY pTxEntry =
+                CONTAINING_RECORD(RemoveHeadList(&CompletionList), VIOSOCK_TX_ENTRY, ListEntry);
 
             WdfRequestComplete(pTxEntry->Request, STATUS_IO_TIMEOUT);
         }

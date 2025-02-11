@@ -166,12 +166,11 @@ GUID VioScsiWmiExtendedInfoGuid = VioScsiWmi_ExtendedInfo_Guid;
 GUID VioScsiWmiAdapterInformationQueryGuid = MS_SM_AdapterInformationQueryGuid;
 GUID VioScsiWmiPortInformationMethodsGuid = MS_SM_PortInformationMethodsGuid;
 
-// clang-format off
-SCSIWMIGUIDREGINFO VioScsiGuidList[] =
-{
-   { &VioScsiWmiExtendedInfoGuid,            1, 0 },
-   { &VioScsiWmiAdapterInformationQueryGuid, 1, 0 },
-   { &VioScsiWmiPortInformationMethodsGuid,  1, 0 },
+// clang-format on
+SCSIWMIGUIDREGINFO VioScsiGuidList[] = {
+    {&VioScsiWmiExtendedInfoGuid, 1, 0},
+    {&VioScsiWmiAdapterInformationQueryGuid, 1, 0},
+    {&VioScsiWmiPortInformationMethodsGuid, 1, 0},
 };
 // clang-format on
 
@@ -394,8 +393,8 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
     SetGuestFeatures(DeviceExtension);
 
     ConfigInfo->NumberOfBuses = 1;
-    ConfigInfo->MaximumNumberOfTargets = min((UCHAR)adaptExt->scsi_config.max_target,
-                                             255 /*SCSI_MAXIMUM_TARGETS_PER_BUS*/);
+    ConfigInfo->MaximumNumberOfTargets =
+        min((UCHAR)adaptExt->scsi_config.max_target, 255 /*SCSI_MAXIMUM_TARGETS_PER_BUS*/);
     ConfigInfo->MaximumNumberOfLogicalUnits = min((UCHAR)adaptExt->scsi_config.max_lun, SCSI_MAXIMUM_LUNS_PER_TARGET);
     ConfigInfo->MaximumTransferLength = SP_UNINITIALIZED_VALUE;  // Unlimited
     ConfigInfo->NumberOfPhysicalBreaks = SP_UNINITIALIZED_VALUE; // Unlimited
@@ -411,8 +410,8 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
         VioScsiReadRegistryParameter(DeviceExtension,
                                      REGISTRY_MAX_PH_BREAKS,
                                      FIELD_OFFSET(ADAPTER_EXTENSION, max_physical_breaks));
-        adaptExt->max_physical_breaks = min(max(SCSI_MINIMUM_PHYSICAL_BREAKS, adaptExt->max_physical_breaks),
-                                            MAX_PHYS_SEGMENTS);
+        adaptExt->max_physical_breaks =
+            min(max(SCSI_MINIMUM_PHYSICAL_BREAKS, adaptExt->max_physical_breaks), MAX_PHYS_SEGMENTS);
 
         if (adaptExt->scsi_config.max_sectors > 0 && adaptExt->scsi_config.max_sectors != 0xFFFF &&
             adaptExt->max_physical_breaks * PAGE_SIZE > adaptExt->scsi_config.max_sectors * SECTOR_SIZE)
@@ -752,8 +751,8 @@ VioScsiHwInitialize(IN PVOID DeviceExtension)
                 {
                     adaptExt->perfFlags |= STOR_PERF_INTERRUPT_MESSAGE_RANGES;
                     perfData.FirstRedirectionMessageNumber = 3;
-                    perfData.LastRedirectionMessageNumber = perfData.FirstRedirectionMessageNumber +
-                                                            adaptExt->num_queues - 1;
+                    perfData.LastRedirectionMessageNumber =
+                        perfData.FirstRedirectionMessageNumber + adaptExt->num_queues - 1;
                     ASSERT(perfData.LastRedirectionMessageNumber < adaptExt->num_affinity);
                     if ((adaptExt->pmsg_affinity != NULL) && CHECKFLAG(perfData.Flags, STOR_PERF_ADV_CONFIG_LOCALITY))
                     {
@@ -2078,13 +2077,12 @@ VOID VioScsiSaveInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
                         do
                         {
                             UCHAR offset = 0;
-                            IdentifierLength = ParseIdentificationDescr(DeviceExtension,
-                                                                        IdentificationDescr,
-                                                                        PageLength);
+                            IdentifierLength =
+                                ParseIdentificationDescr(DeviceExtension, IdentificationDescr, PageLength);
                             offset = sizeof(VPD_IDENTIFICATION_DESCRIPTOR) + IdentifierLength;
                             PageLength -= min(PageLength, offset);
-                            IdentificationDescr = (PVPD_IDENTIFICATION_DESCRIPTOR)((ULONG_PTR)IdentificationDescr +
-                                                                                   offset);
+                            IdentificationDescr =
+                                (PVPD_IDENTIFICATION_DESCRIPTOR)((ULONG_PTR)IdentificationDescr + offset);
                         } while (PageLength);
                     }
                 }
@@ -2167,11 +2165,11 @@ VOID VioScsiPatchInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
                             IdentificationDescr->Identifier[5] = (adaptExt->slot_number >> 8) & 0xF;
                             IdentificationDescr->Identifier[6] = (adaptExt->slot_number >> 4) & 0xF;
                             IdentificationDescr->Identifier[7] = adaptExt->slot_number & 0xF;
-                            IdentificationPage->PageLength = sizeof(VPD_IDENTIFICATION_DESCRIPTOR) +
-                                                             IdentificationDescr->IdentifierLength;
-                            SRB_SET_DATA_TRANSFER_LENGTH(Srb,
-                                                         (sizeof(VPD_IDENTIFICATION_PAGE) +
-                                                          IdentificationPage->PageLength));
+                            IdentificationPage->PageLength =
+                                sizeof(VPD_IDENTIFICATION_DESCRIPTOR) + IdentificationDescr->IdentifierLength;
+                            SRB_SET_DATA_TRANSFER_LENGTH(
+                                Srb,
+                                (sizeof(VPD_IDENTIFICATION_PAGE) + IdentificationPage->PageLength));
                         }
                     }
                 }

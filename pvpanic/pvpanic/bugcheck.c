@@ -103,10 +103,8 @@ VOID PVPanicRegisterBugCheckCallback(IN PVOID PortAddress, PUCHAR Component)
 
     if (SupportedFeature & PVPANIC_CRASHLOADED)
     {
-        bBugCheck = KeRegisterBugCheckReasonCallback(&DumpCallbackRecord,
-                                                     PVPanicOnDumpBugCheck,
-                                                     KbCallbackDumpIo,
-                                                     Component);
+        bBugCheck =
+            KeRegisterBugCheckReasonCallback(&DumpCallbackRecord, PVPanicOnDumpBugCheck, KbCallbackDumpIo, Component);
         if (!bBugCheck)
         {
             TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "Failed to register bug check reason callback function.");

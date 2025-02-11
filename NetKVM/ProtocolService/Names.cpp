@@ -50,65 +50,44 @@ static LPCSTR GetName(const tNamedEntry *table, UINT size, ULONG val)
 
 LPCSTR GetName(const eServiceControl &val)
 {
-    // clang-format off
+    // clang-format on
     static tNamedEntry names[] = {
-        MAKE_ENTRY(SERVICE_CONTROL_STOP)
-        MAKE_ENTRY(SERVICE_CONTROL_PAUSE)
-        MAKE_ENTRY(SERVICE_CONTROL_CONTINUE)
-        MAKE_ENTRY(SERVICE_CONTROL_INTERROGATE)
-        MAKE_ENTRY(SERVICE_CONTROL_SHUTDOWN)
-        MAKE_ENTRY(SERVICE_CONTROL_PARAMCHANGE)
-        MAKE_ENTRY(SERVICE_CONTROL_NETBINDADD)
-        MAKE_ENTRY(SERVICE_CONTROL_NETBINDREMOVE)
-        MAKE_ENTRY(SERVICE_CONTROL_NETBINDENABLE)
-        MAKE_ENTRY(SERVICE_CONTROL_NETBINDDISABLE)
-        MAKE_ENTRY(SERVICE_CONTROL_DEVICEEVENT)
-        MAKE_ENTRY(SERVICE_CONTROL_HARDWAREPROFILECHANGE)
-        MAKE_ENTRY(SERVICE_CONTROL_POWEREVENT)
-        MAKE_ENTRY(SERVICE_CONTROL_SESSIONCHANGE)
-        MAKE_ENTRY(SERVICE_CONTROL_PRESHUTDOWN)
-        MAKE_ENTRY(SERVICE_CONTROL_TIMECHANGE)
-        MAKE_ENTRY(SERVICE_CONTROL_TRIGGEREVENT)
-    };
+        MAKE_ENTRY(SERVICE_CONTROL_STOP) MAKE_ENTRY(SERVICE_CONTROL_PAUSE) MAKE_ENTRY(SERVICE_CONTROL_CONTINUE)
+            MAKE_ENTRY(SERVICE_CONTROL_INTERROGATE) MAKE_ENTRY(SERVICE_CONTROL_SHUTDOWN)
+                MAKE_ENTRY(SERVICE_CONTROL_PARAMCHANGE) MAKE_ENTRY(SERVICE_CONTROL_NETBINDADD)
+                    MAKE_ENTRY(SERVICE_CONTROL_NETBINDREMOVE) MAKE_ENTRY(SERVICE_CONTROL_NETBINDENABLE)
+                        MAKE_ENTRY(SERVICE_CONTROL_NETBINDDISABLE) MAKE_ENTRY(SERVICE_CONTROL_DEVICEEVENT)
+                            MAKE_ENTRY(SERVICE_CONTROL_HARDWAREPROFILECHANGE) MAKE_ENTRY(SERVICE_CONTROL_POWEREVENT)
+                                MAKE_ENTRY(SERVICE_CONTROL_SESSIONCHANGE) MAKE_ENTRY(SERVICE_CONTROL_PRESHUTDOWN)
+                                    MAKE_ENTRY(SERVICE_CONTROL_TIMECHANGE) MAKE_ENTRY(SERVICE_CONTROL_TRIGGEREVENT)};
     return GET_NAME(names, val);
     // clang-format on
 }
 
 LPCSTR GetName(const tAdapterState &val)
 {
-    // clang-format off
-    static tNamedEntry names[] = {
-        MAKE_ENTRY(asAbsent)
-        MAKE_ENTRY(asStandalone)
-        MAKE_ENTRY(asAloneInactive)
-        MAKE_ENTRY(asAloneActive)
-        MAKE_ENTRY(asBoundInitial)
-        MAKE_ENTRY(asBoundInactive)
-        MAKE_ENTRY(asBoundActive)
-        MAKE_ENTRY(asUnknown)
-    };
+    // clang-format on
+    static tNamedEntry names[] = {MAKE_ENTRY(asAbsent) MAKE_ENTRY(asStandalone) MAKE_ENTRY(asAloneInactive)
+                                      MAKE_ENTRY(asAloneActive) MAKE_ENTRY(asBoundInitial) MAKE_ENTRY(asBoundInactive)
+                                          MAKE_ENTRY(asBoundActive) MAKE_ENTRY(asUnknown)};
     return GET_NAME(names, val);
     // clang-format on
 }
 
 LPCSTR GetName(const IF_OPER_STATUS &val)
 {
-    // clang-format off
-    static tNamedEntry names[] = {
-        MAKE_ENTRY(IfOperStatusUp)
-        MAKE_ENTRY(IfOperStatusDown)
-        MAKE_ENTRY(IfOperStatusTesting)
-        MAKE_ENTRY(IfOperStatusUnknown)
-        MAKE_ENTRY(IfOperStatusDormant)
-        MAKE_ENTRY(IfOperStatusNotPresent)
-        MAKE_ENTRY(IfOperStatusLowerLayerDown)
-    };
+    // clang-format on
+    static tNamedEntry names[] = {MAKE_ENTRY(IfOperStatusUp) MAKE_ENTRY(IfOperStatusDown)
+                                      MAKE_ENTRY(IfOperStatusTesting) MAKE_ENTRY(IfOperStatusUnknown)
+                                          MAKE_ENTRY(IfOperStatusDormant) MAKE_ENTRY(IfOperStatusNotPresent)
+                                              MAKE_ENTRY(IfOperStatusLowerLayerDown)};
     return GET_NAME(names, val);
     // clang-format on
 }
 
 LPCSTR GetName(const CM_NOTIFY_ACTION &val)
 {
-    static tNamedEntry names[] = {MAKE_ENTRY(CM_NOTIFY_ACTION_DEVICEINTERFACEARRIVAL) MAKE_ENTRY(CM_NOTIFY_ACTION_DEVICEINTERFACEREMOVAL)};
+    static tNamedEntry names[] = {MAKE_ENTRY(CM_NOTIFY_ACTION_DEVICEINTERFACEARRIVAL)
+                                      MAKE_ENTRY(CM_NOTIFY_ACTION_DEVICEINTERFACEREMOVAL)};
     return GET_NAME(names, val);
 }

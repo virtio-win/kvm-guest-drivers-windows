@@ -173,13 +173,8 @@ VOID Usage()
 BOOL ReadBufferFromFile(PTCHAR sFileName, PVOID *Buffer, PULONG BufferLen)
 {
     BOOL bRes = FALSE;
-    HANDLE hFile = CreateFile(sFileName,
-                              GENERIC_READ,
-                              FILE_SHARE_READ,
-                              NULL,
-                              OPEN_EXISTING,
-                              FILE_ATTRIBUTE_NORMAL,
-                              NULL);
+    HANDLE hFile =
+        CreateFile(sFileName, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (hFile != INVALID_HANDLE_VALUE)
     {
         DWORD dwSize = GetFileSize(hFile, NULL);

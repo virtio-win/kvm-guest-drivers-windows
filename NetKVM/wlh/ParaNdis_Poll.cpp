@@ -77,14 +77,14 @@ void ParaNdisPollSetAffinity(PARANDIS_ADAPTER *pContext)
 
     if (needUpdate)
     {
-        // clang-format off
+        // clang-format on
         NDIS_HANDLE hwo = NdisAllocateIoWorkItem(pContext->MiniportHandle);
         if (hwo)
         {
-            NdisQueueIoWorkItem(hwo,
-                [](PVOID  WorkItemContext, NDIS_HANDLE  NdisIoWorkItemHandle)
-                {
-                    PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER*)WorkItemContext;
+            NdisQueueIoWorkItem(
+                hwo,
+                [](PVOID WorkItemContext, NDIS_HANDLE NdisIoWorkItemHandle) {
+                    PARANDIS_ADAPTER *pContext = (PARANDIS_ADAPTER *)WorkItemContext;
                     UpdatePollAffinities(pContext);
                     NdisFreeIoWorkItem(NdisIoWorkItemHandle);
                 },

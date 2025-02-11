@@ -266,7 +266,7 @@ void vdev_sleep(void *context, unsigned int msecs)
     }
 }
 
-// clang-format off
+// clang-format on
 VirtIOSystemOps VioGpuSystemOps = {
     ReadVirtIODeviceByte,
     ReadVirtIODeviceWord,
@@ -395,7 +395,8 @@ bool CPciResources::Init(PDXGKRNL_INTERFACE pDxgkInterface, PCM_RESOURCE_LIST pR
 
         for (ULONG j = 0; j < pFullResDescriptor->PartialResourceList.Count; ++j)
         {
-            PCM_PARTIAL_RESOURCE_DESCRIPTOR pResDescriptor = &pFullResDescriptor->PartialResourceList.PartialDescriptors[j];
+            PCM_PARTIAL_RESOURCE_DESCRIPTOR pResDescriptor =
+                &pFullResDescriptor->PartialResourceList.PartialDescriptors[j];
             switch (pResDescriptor->Type)
             {
                 case CmResourceTypePort:

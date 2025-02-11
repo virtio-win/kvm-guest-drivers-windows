@@ -113,7 +113,8 @@ static NTSTATUS HIDTabletGetFeature(PINPUT_CLASS_COMMON pClass, PHID_XFER_PACKET
         case REPORTID_FEATURE_TABLET_MAX_COUNT:
             if (pFeaturePkt->reportBufferLen >= sizeof(INPUT_CLASS_TABLET_FEATURE_MAX_CONTACT))
             {
-                PINPUT_CLASS_TABLET_FEATURE_MAX_CONTACT pFtrReport = (PINPUT_CLASS_TABLET_FEATURE_MAX_CONTACT)pFeaturePkt->reportBuffer;
+                PINPUT_CLASS_TABLET_FEATURE_MAX_CONTACT pFtrReport =
+                    (PINPUT_CLASS_TABLET_FEATURE_MAX_CONTACT)pFeaturePkt->reportBuffer;
 
                 pFtrReport->uMaxContacts = (UCHAR)pTabletDesc->uMaxContacts;
             }
@@ -159,15 +160,16 @@ static NTSTATUS HIDTabletEventToCollect(PINPUT_CLASS_COMMON pClass, PVIRTIO_INPU
                     {
                         UCHAR uContacts = 0;
 
-                        pReport[HID_REPORT_DATA_OFFSET +
-                                sizeof(INPUT_CLASS_TABLET_SLOT) * pTabletDesc->uMaxContacts] = uContacts;
+                        pReport[HID_REPORT_DATA_OFFSET + sizeof(INPUT_CLASS_TABLET_SLOT) * pTabletDesc->uMaxContacts] =
+                            uContacts;
                         for (uNumContacts = 0; uNumContacts < pTabletDesc->uMaxContacts; uNumContacts++)
                         {
                             if (pTabletDesc->pTrackingID[uNumContacts].uID != -1)
                             {
-                                RtlCopyMemory(&((PINPUT_CLASS_TABLET_SLOT)&pReport[HID_REPORT_DATA_OFFSET])[uContacts++],
-                                              &pTabletDesc->pContactStat[uNumContacts],
-                                              sizeof(INPUT_CLASS_TABLET_SLOT));
+                                RtlCopyMemory(
+                                    &((PINPUT_CLASS_TABLET_SLOT)&pReport[HID_REPORT_DATA_OFFSET])[uContacts++],
+                                    &pTabletDesc->pContactStat[uNumContacts],
+                                    sizeof(INPUT_CLASS_TABLET_SLOT));
                             }
                         }
 
@@ -222,7 +224,8 @@ static NTSTATUS HIDTabletEventToReport(PINPUT_CLASS_COMMON pClass, PVIRTIO_INPUT
                 }
                 else
                 {
-                    pReportSlot = &((PINPUT_CLASS_TABLET_SLOT)&pReport[HID_REPORT_DATA_OFFSET])[pTabletDesc->uLastMTSlot];
+                    pReportSlot =
+                        &((PINPUT_CLASS_TABLET_SLOT)&pReport[HID_REPORT_DATA_OFFSET])[pTabletDesc->uLastMTSlot];
                 }
                 switch (pEvent->code)
                 {
@@ -236,15 +239,15 @@ static NTSTATUS HIDTabletEventToReport(PINPUT_CLASS_COMMON pClass, PVIRTIO_INPUT
                          */
                         if (pTabletDesc->bIdentifiableMT)
                         {
-                            // clang-format off
-                    if (pEvent->value < pTabletDesc->uMaxContacts)
-                    {
-                        pTabletDesc->uLastMTSlot = (ULONG)pEvent->value;
-                    }
-                    else
-                    {
-                        pTabletDesc->uLastMTSlot = 0;
-                    }
+                            // clang-format on
+                            if (pEvent->value < pTabletDesc->uMaxContacts)
+                            {
+                                pTabletDesc->uLastMTSlot = (ULONG)pEvent->value;
+                            }
+                            else
+                            {
+                                pTabletDesc->uLastMTSlot = 0;
+                            }
                             // clang-format on
                         }
                         break;
@@ -257,8 +260,8 @@ static NTSTATUS HIDTabletEventToReport(PINPUT_CLASS_COMMON pClass, PVIRTIO_INPUT
                     case ABS_MT_POSITION_X:
                     case ABS_MT_POSITION_Y:
                         {
-                            USHORT *pPos = (pEvent->code == ABS_MT_POSITION_X ? &pReportSlot->uAxisX
-                                                                              : &pReportSlot->uAxisY);
+                            USHORT *pPos =
+                                (pEvent->code == ABS_MT_POSITION_X ? &pReportSlot->uAxisX : &pReportSlot->uAxisY);
 
                             *pPos = (USHORT)pEvent->value;
 
@@ -371,9 +374,9 @@ static NTSTATUS HIDTabletEventToReport(PINPUT_CLASS_COMMON pClass, PVIRTIO_INPUT
                 case MSC_TIMESTAMP:
                     if (pTabletDesc->bMscTs)
                     {
-                        PLONG pScanTime = (PLONG)&pReport[HID_REPORT_DATA_OFFSET +
-                                                          sizeof(INPUT_CLASS_TABLET_SLOT) * pTabletDesc->uMaxContacts +
-                                                          1];
+                        PLONG pScanTime =
+                            (PLONG)&pReport[HID_REPORT_DATA_OFFSET +
+                                            sizeof(INPUT_CLASS_TABLET_SLOT) * pTabletDesc->uMaxContacts + 1];
                         // Convert MSC_TIMESTAMP microseconds to 100 microseconds
                         *pScanTime = ((ULONG)pEvent->value / 100);
                     }
@@ -404,8 +407,8 @@ static NTSTATUS HIDTabletEventToReport(PINPUT_CLASS_COMMON pClass, PVIRTIO_INPUT
                                 pTabletDesc->pTrackingID[uNumContacts].bPendingDel = FALSE;
                             }
                         }
-                        pReport[HID_REPORT_DATA_OFFSET +
-                                sizeof(INPUT_CLASS_TABLET_SLOT) * pTabletDesc->uMaxContacts] = 0;
+                        pReport[HID_REPORT_DATA_OFFSET + sizeof(INPUT_CLASS_TABLET_SLOT) * pTabletDesc->uMaxContacts] =
+                            0;
                     }
                     else if (pTabletDesc->bMT)
                     {
@@ -772,10 +775,10 @@ HIDTabletProbe(PINPUT_DEVICE pContext,
                        HID_TAG_PHYSICAL_MAXIMUM,
                        (AbsInfo.res == 0) ? AbsInfo.max : (AbsInfo.max * 10 / AbsInfo.res));
 
-            HIDAppend2(pHidDesc,
-                       HID_TAG_USAGE,
-                       ((uAxisCode == ABS_X || uAxisCode == ABS_MT_POSITION_X) ? HID_USAGE_GENERIC_X
-                                                                               : HID_USAGE_GENERIC_Y));
+            HIDAppend2(
+                pHidDesc,
+                HID_TAG_USAGE,
+                ((uAxisCode == ABS_X || uAxisCode == ABS_MT_POSITION_X) ? HID_USAGE_GENERIC_X : HID_USAGE_GENERIC_Y));
 
             HIDAppend2(pHidDesc, HID_TAG_INPUT, HID_DATA_FLAG_VARIABLE);
         }
@@ -866,11 +869,13 @@ HIDTabletProbe(PINPUT_DEVICE pContext,
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "Created HID tablet report descriptor\n");
 
     // calculate the tablet HID report size
-    // clang-format off
+    // clang-format on
     pTabletDesc->Common.cbHidReportSize =
         1 + // report ID
-        sizeof(INPUT_CLASS_TABLET_SLOT) * pTabletDesc->uMaxContacts + // max contacts * per-contact packet. See INPUT_CLASS_TABLET_SLOT and INPUT_CLASS_TABLET for layout details.
-        1 + // Actual contact count
+        sizeof(INPUT_CLASS_TABLET_SLOT) *
+            pTabletDesc->uMaxContacts +          // max contacts * per-contact packet. See INPUT_CLASS_TABLET_SLOT and
+                                                 // INPUT_CLASS_TABLET for layout details.
+        1 +                                      // Actual contact count
         (pTabletDesc->bMscTs ? sizeof(LONG) : 0) // Scan time
         ;
     // clang-format on
@@ -892,13 +897,13 @@ HIDTabletProbe(PINPUT_DEVICE pContext,
         }
         else if (pTabletDesc->bMT)
         {
-            pReport[HID_REPORT_DATA_OFFSET +
-                    sizeof(INPUT_CLASS_TABLET_SLOT) * pTabletDesc->uMaxContacts] = (UCHAR)pTabletDesc->uMaxContacts;
+            pReport[HID_REPORT_DATA_OFFSET + sizeof(INPUT_CLASS_TABLET_SLOT) * pTabletDesc->uMaxContacts] =
+                (UCHAR)pTabletDesc->uMaxContacts;
             // Assign a different contact ID for anonymous MT
             for (uNumContacts = 0; uNumContacts < pTabletDesc->uMaxContacts; uNumContacts++)
             {
-                ((PINPUT_CLASS_TABLET_SLOT)&pReport[HID_REPORT_DATA_OFFSET])[uNumContacts].uContactID = (USHORT)(uNumContacts +
-                                                                                                                 1);
+                ((PINPUT_CLASS_TABLET_SLOT)&pReport[HID_REPORT_DATA_OFFSET])[uNumContacts].uContactID =
+                    (USHORT)(uNumContacts + 1);
             }
         }
         else

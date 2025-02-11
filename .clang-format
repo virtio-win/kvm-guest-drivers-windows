@@ -9,7 +9,7 @@ AlignConsecutiveMacros:
   PadOperators:    false
 IndentCaseBlocks: true
 IndentCaseLabels: true
-ContinuationIndentWidth: 100
+ContinuationIndentWidth: 4
 BinPackArguments: false
 BinPackParameters: false
 SortIncludes: false
@@ -39,8 +39,8 @@ AlignOperands:   Align
 AlignTrailingComments:
   Kind:            Always
   OverEmptyLines:  0
-AllowAllArgumentsOnNextLine: true
-AllowAllParametersOfDeclarationOnNextLine: true
+AllowAllArgumentsOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: false
 AllowShortBlocksOnASingleLine: Never
 AllowShortCaseLabelsOnASingleLine: false
 AllowShortEnumsOnASingleLine: false

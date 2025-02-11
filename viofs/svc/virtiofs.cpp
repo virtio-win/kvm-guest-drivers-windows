@@ -174,7 +174,7 @@ struct VIRTFS
                                         const char *filename,
                                         std::string &result);
     template <class Request, class... Args>
-    requires std::invocable<Request, VIRTFS *, uint64_t, const char *, Args...>
+        requires std::invocable<Request, VIRTFS *, uint64_t, const char *, Args...>
     NTSTATUS NameAwareRequest(uint64_t parent, const char *name, Request req, Args... args);
 
     NTSTATUS RenameWithFallbackRequest(uint64_t oldparent,
@@ -205,7 +205,7 @@ struct VIRTFS
                                   int oldname_size,
                                   const char *newname,
                                   int newname_size,
-        uint32_t flags);
+                                  uint32_t flags);
     NTSTATUS SubmitDestroyRequest();
 };
 
@@ -234,7 +234,7 @@ static DWORD WINAPI DeviceNotificationCallback(HCMNOTIFICATION Notify,
                                                PVOID Context,
                                                CM_NOTIFY_ACTION Action,
                                                PCM_NOTIFY_EVENT_DATA EventData,
-    DWORD EventDataSize);
+                                               DWORD EventDataSize);
 
 static int64_t GetUniqueIdentifier()
 {
@@ -343,7 +343,7 @@ DWORD WINAPI DeviceNotificationCallback(HCMNOTIFICATION Notify,
                                         PVOID Context,
                                         CM_NOTIFY_ACTION Action,
                                         PCM_NOTIFY_EVENT_DATA EventData,
-    DWORD EventDataSize)
+                                        DWORD EventDataSize)
 {
     auto VirtFs = static_cast<VIRTFS *>(Context);
 
@@ -578,7 +578,7 @@ static NTSTATUS VirtFsCreateFile(VIRTFS *VirtFs,
                                  UINT64 Parent,
                                  UINT32 Mode,
                                  UINT64 AllocationSize,
-    FSP_FSCTL_FILE_INFO *FileInfo)
+                                 FSP_FSCTL_FILE_INFO *FileInfo)
 {
     NTSTATUS Status;
     FUSE_CREATE_IN create_in;
@@ -700,7 +700,7 @@ NTSTATUS VIRTFS::SubmitDeleteRequest(uint64_t parent, const char *filename, cons
     FUSE_HEADER_INIT(&unlink_in.hdr,
                      FileContext->IsDirectory ? FUSE_RMDIR : FUSE_UNLINK,
                      parent,
-        lstrlenA(filename) + 1);
+                     lstrlenA(filename) + 1);
 
     lstrcpyA(unlink_in.name, filename);
 
@@ -773,12 +773,8 @@ static NTSTATUS SubmitReadLinkRequest(HANDLE Device, UINT64 NodeId, PWSTR Substi
     {
         int namelen = readlink_out.hdr.len - sizeof(readlink_out.hdr);
 
-        *SubstituteNameLength = (USHORT)MultiByteToWideChar(CP_UTF8,
-                                                            0,
-                                                            readlink_out.name,
-                                                            namelen,
-                                                            SubstituteName,
-                                                            MAX_PATH - 1);
+        *SubstituteNameLength =
+            (USHORT)MultiByteToWideChar(CP_UTF8, 0, readlink_out.name, namelen, SubstituteName, MAX_PATH - 1);
 
         SubstituteName[*SubstituteNameLength] = L'\0';
 
@@ -796,7 +792,7 @@ NTSTATUS VIRTFS::SubmitRenameRequest(uint64_t oldparent,
                                      const char *oldname,
                                      int oldname_size,
                                      const char *newname,
-    int newname_size)
+                                     int newname_size)
 {
     FUSE_RENAME_IN *rename_in;
     FUSE_RENAME_OUT rename_out;
@@ -844,7 +840,7 @@ NTSTATUS VIRTFS::SubmitRename2Request(uint64_t oldparent,
     FUSE_HEADER_INIT(&rename2_in->hdr,
                      FUSE_RENAME2,
                      oldparent,
-        sizeof(rename2_in->rename) + oldname_size + newname_size);
+                     sizeof(rename2_in->rename) + oldname_size + newname_size);
 
     rename2_in->rename.newdir = newparent;
     rename2_in->rename.flags = flags;
@@ -882,7 +878,7 @@ NTSTATUS VIRTFS::RenameWithFallbackRequest(uint64_t oldparent,
 }
 
 template <class Request, class... Args>
-requires std::invocable<Request, VIRTFS *, uint64_t, const char *, Args...>
+    requires std::invocable<Request, VIRTFS *, uint64_t, const char *, Args...>
 NTSTATUS VIRTFS::NameAwareRequest(uint64_t parent, const char *name, Request req, Args... args)
 {
     // First attempt
@@ -891,17 +887,23 @@ NTSTATUS VIRTFS::NameAwareRequest(uint64_t parent, const char *name, Request req
     {
         return Status;
     }
-// clang-format off
-    VIRTFS_FILE_CONTEXT ParentContext = { .IsDirectory = TRUE, .NodeId = parent, };
-// clang-format on
+    // clang-format on
+    VIRTFS_FILE_CONTEXT ParentContext = {
+        .IsDirectory = TRUE,
+        .NodeId = parent,
+    };
+    // clang-format on
     Status = SubmitOpenRequest(0, &ParentContext);
     if (!NT_SUCCESS(Status))
     {
         return Status;
     }
-// clang-format off
-    SCOPE_EXIT(ParentContext, { SubmitReleaseRequest(&ParentContext); }, this);
-// clang-format on
+    // clang-format on
+    SCOPE_EXIT(
+        ParentContext,
+        { SubmitReleaseRequest(&ParentContext); },
+        this);
+    // clang-format on
     std::string result_name{};
     Status = ReadDirAndIgnoreCaseSearch(&ParentContext, name, result_name);
     if (!NT_SUCCESS(Status))
@@ -938,10 +940,8 @@ static NTSTATUS PathWalkthough(VIRTFS *VirtFs, CHAR *FullPath, CHAR **FileName, 
 
         if ((LookupOut.entry.attr.mode & S_IFLNK) == S_IFLNK)
         {
-            Status = SubmitReadLinkRequest(VirtFs->Device,
-                                           LookupOut.entry.nodeid,
-                                           SubstituteName,
-                                           &SubstituteNameLength);
+            Status =
+                SubmitReadLinkRequest(VirtFs->Device, LookupOut.entry.nodeid, SubstituteName, &SubstituteNameLength);
 
             if (!NT_SUCCESS(Status))
             {
@@ -1025,7 +1025,7 @@ static VOID FixReparsePointAttributes(VIRTFS *VirtFs, uint64_t nodeid, UINT32 *P
 static NTSTATUS GetFileInfoInternal(VIRTFS *VirtFs,
                                     PVIRTFS_FILE_CONTEXT FileContext,
                                     FSP_FSCTL_FILE_INFO *FileInfo,
-    PSECURITY_DESCRIPTOR *SecurityDescriptor)
+                                    PSECURITY_DESCRIPTOR *SecurityDescriptor)
 {
     NTSTATUS Status;
     FUSE_GETATTR_IN getattr_in;
@@ -1149,7 +1149,7 @@ static NTSTATUS GetReparsePointByName(FSP_FILE_SYSTEM *FileSystem,
                                       PWSTR FileName,
                                       BOOLEAN IsDirectory,
                                       PVOID Buffer,
-    PSIZE_T PSize)
+                                      PSIZE_T PSize)
 {
     VIRTFS *VirtFs = (VIRTFS *)FileSystem->UserContext;
     PREPARSE_DATA_BUFFER ReparseData = (PREPARSE_DATA_BUFFER)Buffer;
@@ -1221,7 +1221,7 @@ static NTSTATUS GetSecurityByName(FSP_FILE_SYSTEM *FileSystem,
                                   PWSTR FileName,
                                   PUINT32 PFileAttributes,
                                   PSECURITY_DESCRIPTOR SecurityDescriptor,
-    SIZE_T *PSecurityDescriptorSize)
+                                  SIZE_T *PSecurityDescriptorSize)
 {
     VIRTFS *VirtFs = (VIRTFS *)FileSystem->UserContext;
     PSECURITY_DESCRIPTOR Security = NULL;
@@ -1294,7 +1294,7 @@ NTSTATUS VIRTFS::SubmitOpenRequest(UINT32 GrantedAccess, VIRTFS_FILE_CONTEXT *Fi
     FUSE_OPEN_OUT open_out;
 
     FUSE_HEADER_INIT(&open_in.hdr,
-        FileContext->IsDirectory ? FUSE_OPENDIR : FUSE_OPEN,
+                     FileContext->IsDirectory ? FUSE_OPENDIR : FUSE_OPEN,
                      FileContext->NodeId,
                      sizeof(open_in.open));
 
@@ -1398,7 +1398,7 @@ static NTSTATUS Open(FSP_FILE_SYSTEM *FileSystem,
                      UINT32 CreateOptions,
                      UINT32 GrantedAccess,
                      PVOID *PFileContext,
-    FSP_FSCTL_FILE_INFO *FileInfo)
+                     FSP_FSCTL_FILE_INFO *FileInfo)
 {
     VIRTFS *VirtFs = (VIRTFS *)FileSystem->UserContext;
     VIRTFS_FILE_CONTEXT *FileContext;
@@ -1490,7 +1490,7 @@ NTSTATUS VIRTFS::SubmitReleaseRequest(const VIRTFS_FILE_CONTEXT *FileContext)
     FUSE_RELEASE_OUT release_out;
 
     FUSE_HEADER_INIT(&release_in.hdr,
-        FileContext->IsDirectory ? FUSE_RELEASEDIR : FUSE_RELEASE,
+                     FileContext->IsDirectory ? FUSE_RELEASEDIR : FUSE_RELEASE,
                      FileContext->NodeId,
                      sizeof(release_in.release));
 
@@ -1605,7 +1605,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
                       BOOLEAN WriteToEndOfFile,
                       BOOLEAN ConstrainedIo,
                       PULONG PBytesTransferred,
-    FSP_FSCTL_FILE_INFO *FileInfo)
+                      FSP_FSCTL_FILE_INFO *FileInfo)
 {
     VIRTFS *VirtFs = (VIRTFS *)FileSystem->UserContext;
     VIRTFS_FILE_CONTEXT *FileContext = (VIRTFS_FILE_CONTEXT *)FileContext0;
@@ -1991,12 +1991,8 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
     // ReplaceIfExists is set.
     flags = ((FileContext->IsDirectory == FALSE) && (ReplaceIfExists == TRUE)) ? 0 : (1 << 0) /* RENAME_NOREPLACE */;
 
-    Status = VirtFs->NameAwareRequest(oldparent,
-                                      oldname,
-                                      &VIRTFS::RenameWithFallbackRequest,
-                                      newparent,
-                                      newname,
-                                      flags);
+    Status =
+        VirtFs->NameAwareRequest(oldparent, oldname, &VIRTFS::RenameWithFallbackRequest, newparent, newname, flags);
 
     // Fix to expected error when renaming a directory to existing directory.
     if ((FileContext->IsDirectory == TRUE) && (ReplaceIfExists == TRUE) && (Status == STATUS_OBJECT_NAME_COLLISION))
@@ -2048,8 +2044,8 @@ static NTSTATUS GetSecurity(FSP_FILE_SYSTEM *FileSystem,
 
 static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem,
                             PVOID FileContext0,
-    SECURITY_INFORMATION SecurityInformation,
-    PSECURITY_DESCRIPTOR ModificationDescriptor)
+                            SECURITY_INFORMATION SecurityInformation,
+                            PSECURITY_DESCRIPTOR ModificationDescriptor)
 {
     VIRTFS *VirtFs = (VIRTFS *)FileSystem->UserContext;
     VIRTFS_FILE_CONTEXT *FileContext = (VIRTFS_FILE_CONTEXT *)FileContext0;
@@ -2074,10 +2070,8 @@ static NTSTATUS SetSecurity(FSP_FILE_SYSTEM *FileSystem,
         return Status;
     }
 
-    Status = FspSetSecurityDescriptor(FileSecurity,
-                                      SecurityInformation,
-                                      ModificationDescriptor,
-                                      &NewSecurityDescriptor);
+    Status =
+        FspSetSecurityDescriptor(FileSecurity, SecurityInformation, ModificationDescriptor, &NewSecurityDescriptor);
 
     if (!NT_SUCCESS(Status))
     {
@@ -2147,9 +2141,8 @@ NTSTATUS VIRTFS::ReadDirAndIgnoreCaseSearch(const VIRTFS_FILE_CONTEXT *ParentCon
 
     DBG("filename = '%s'", filename);
 
-    FUSE_READ_OUT *read_out = (FUSE_READ_OUT *)HeapAlloc(GetProcessHeap(),
-                                                         0,
-        sizeof(struct fuse_out_header) + buf_size);
+    FUSE_READ_OUT *read_out =
+        (FUSE_READ_OUT *)HeapAlloc(GetProcessHeap(), 0, sizeof(struct fuse_out_header) + buf_size);
     if (read_out == NULL)
     {
         return STATUS_INSUFFICIENT_RESOURCES;
@@ -2163,11 +2156,8 @@ NTSTATUS VIRTFS::ReadDirAndIgnoreCaseSearch(const VIRTFS_FILE_CONTEXT *ParentCon
 
     for (;;)
     {
-        Status = SubmitReadDirRequest(ParentContext,
-                                      Offset,
-                                      FALSE,
-                                      read_out,
-                                      buf_size + sizeof(struct fuse_out_header));
+        Status =
+            SubmitReadDirRequest(ParentContext, Offset, FALSE, read_out, buf_size + sizeof(struct fuse_out_header));
         if (!NT_SUCCESS(Status))
         {
             return Status;
@@ -2206,7 +2196,7 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
                               PWSTR Marker,
                               PVOID Buffer,
                               ULONG BufferLength,
-    PULONG PBytesTransferred)
+                              PULONG PBytesTransferred)
 {
     VIRTFS *VirtFs = (VIRTFS *)FileSystem->UserContext;
     VIRTFS_FILE_CONTEXT *FileContext = (VIRTFS_FILE_CONTEXT *)FileContext0;
@@ -2229,9 +2219,8 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
 
     if (Result == TRUE)
     {
-        read_out = (FUSE_READ_OUT *)HeapAlloc(GetProcessHeap(),
-                                              0,
-            sizeof(struct fuse_out_header) + (ULONG64)BufferLength * 2);
+        read_out =
+            (FUSE_READ_OUT *)HeapAlloc(GetProcessHeap(), 0, sizeof(struct fuse_out_header) + (ULONG64)BufferLength * 2);
 
         if (read_out != NULL)
         {
@@ -2241,7 +2230,7 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
                                              Offset,
                                              TRUE,
                                              read_out,
-                    sizeof(struct fuse_out_header) + (ULONG64)BufferLength * 2);
+                                             sizeof(struct fuse_out_header) + (ULONG64)BufferLength * 2);
 
                 if (!NT_SUCCESS(Status))
                 {
@@ -2273,10 +2262,10 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
                     // the conversion in-place.
                     FileNameLength = MultiByteToWideChar(CP_UTF8,
                                                          0,
-                        DirEntryPlus->dirent.name,
+                                                         DirEntryPlus->dirent.name,
                                                          DirEntryPlus->dirent.namelen,
                                                          DirInfo->FileNameBuf,
-                        MAX_PATH);
+                                                         MAX_PATH);
 
                     DBG("\"%S\" (%d)", DirInfo->FileNameBuf, FileNameLength);
 
@@ -2371,9 +2360,9 @@ static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     Cleanup(FileSystem, FileContext, FileName, FspCleanupDelete);
 
     CopyMemory(TargetName,
-               ReparseData->SymbolicLinkReparseBuffer.PathBuffer + (ReparseData->SymbolicLinkReparseBuffer.SubstituteNameOffset /
-                sizeof(WCHAR)),
-        ReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength);
+               ReparseData->SymbolicLinkReparseBuffer.PathBuffer +
+                   (ReparseData->SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(WCHAR)),
+               ReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength);
 
     TargetLength = ReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength / sizeof(WCHAR);
 
@@ -2455,31 +2444,28 @@ static NTSTATUS GetDirInfoByName(FSP_FILE_SYSTEM *FileSystem,
     return Status;
 }
 
-// clang-format off
-static FSP_FILE_SYSTEM_INTERFACE VirtFsInterface = 
-{
-    .GetVolumeInfo = GetVolumeInfo,
-    .GetSecurityByName = GetSecurityByName,
-    .Create = Create,
-    .Open = Open,
-    .Overwrite = Overwrite,
-    .Cleanup = Cleanup,
-    .Close = Close,
-    .Read = Read,
-    .Write = Write,
-    .Flush = Flush,
-    .GetFileInfo = GetFileInfo,
-    .SetBasicInfo = SetBasicInfo,
-    .SetFileSize = SetFileSize,
-    .CanDelete = CanDelete,
-    .Rename = Rename,
-    .GetSecurity = GetSecurity,
-    .SetSecurity = SetSecurity,
-    .ReadDirectory = ReadDirectory,
-    .ResolveReparsePoints = ResolveReparsePoints,
-    .SetReparsePoint = SetReparsePoint,
-    .GetDirInfoByName = GetDirInfoByName
-};
+// clang-format on
+static FSP_FILE_SYSTEM_INTERFACE VirtFsInterface = {.GetVolumeInfo = GetVolumeInfo,
+                                                    .GetSecurityByName = GetSecurityByName,
+                                                    .Create = Create,
+                                                    .Open = Open,
+                                                    .Overwrite = Overwrite,
+                                                    .Cleanup = Cleanup,
+                                                    .Close = Close,
+                                                    .Read = Read,
+                                                    .Write = Write,
+                                                    .Flush = Flush,
+                                                    .GetFileInfo = GetFileInfo,
+                                                    .SetBasicInfo = SetBasicInfo,
+                                                    .SetFileSize = SetFileSize,
+                                                    .CanDelete = CanDelete,
+                                                    .Rename = Rename,
+                                                    .GetSecurity = GetSecurity,
+                                                    .SetSecurity = SetSecurity,
+                                                    .ReadDirectory = ReadDirectory,
+                                                    .ResolveReparsePoints = ResolveReparsePoints,
+                                                    .SetReparsePoint = SetReparsePoint,
+                                                    .GetDirInfoByName = GetDirInfoByName};
 // clang-format on
 
 static ULONG wcstol_deflt(wchar_t *w, ULONG deflt)
@@ -2551,7 +2537,7 @@ NTSTATUS VIRTFS::Start()
     VolumeParams.SectorSize = ALLOCATION_UNIT;
     VolumeParams.SectorsPerAllocationUnit = 1;
     VolumeParams.VolumeCreationTime = ((PLARGE_INTEGER)&FileTime)->QuadPart;
-//    VolumeParams.VolumeSerialNumber = 0;
+    //    VolumeParams.VolumeSerialNumber = 0;
     VolumeParams.FileInfoTimeout = 1000;
     VolumeParams.CaseSensitiveSearch = !CaseInsensitive;
     VolumeParams.CasePreservedNames = 1;
@@ -2560,13 +2546,13 @@ NTSTATUS VIRTFS::Start()
     VolumeParams.ReparsePoints = 1;
     VolumeParams.ReparsePointsAccessCheck = 0;
     VolumeParams.PostCleanupWhenModifiedOnly = 1;
-//    VolumeParams.PassQueryDirectoryPattern = 1;
+    //    VolumeParams.PassQueryDirectoryPattern = 1;
     VolumeParams.PassQueryDirectoryFileName = 1;
     VolumeParams.FlushAndPurgeOnCleanup = 1;
     VolumeParams.UmFileContextIsUserContext2 = 1;
-//    VolumeParams.DirectoryMarkerAsNextOffset = 1;
+    //    VolumeParams.DirectoryMarkerAsNextOffset = 1;
     wcscpy_s(VolumeParams.FileSystemName,
-        sizeof(VolumeParams.FileSystemName) / sizeof(WCHAR),
+             sizeof(VolumeParams.FileSystemName) / sizeof(WCHAR),
              FileSystemName.empty() ? FS_SERVICE_NAME : FileSystemName.c_str());
 
     Status = FspFileSystemCreate((PWSTR)TEXT(FSP_FSCTL_DISK_DEVICE_NAME), &VolumeParams, &VirtFsInterface, &FileSystem);
@@ -2675,16 +2661,16 @@ static NTSTATUS ParseArgs(ULONG argc,
 
 usage:
     static wchar_t usage[] = L""
-        "Usage: %s OPTIONS\n"
-        "\n"
-        "options:\n"
-        "    -d DebugFlags       [-1: enable all debug logs]\n"
-        "    -D DebugLogFile     [file path; use - for stderr]\n"
-        "    -i                  [case insensitive file system]\n"
-        "    -F FileSystemName   [file system name for OS]\n"
-        "    -m MountPoint       [X:|* (required if no UNC prefix)]\n"
-        "    -t Tag              [mount tag; max 36 symbols]\n"
-        "    -o UID:GID          [host owner UID:GID]\n";
+                             "Usage: %s OPTIONS\n"
+                             "\n"
+                             "options:\n"
+                             "    -d DebugFlags       [-1: enable all debug logs]\n"
+                             "    -D DebugLogFile     [file path; use - for stderr]\n"
+                             "    -i                  [case insensitive file system]\n"
+                             "    -F FileSystemName   [file system name for OS]\n"
+                             "    -m MountPoint       [X:|* (required if no UNC prefix)]\n"
+                             "    -t Tag              [mount tag; max 36 symbols]\n"
+                             "    -o UID:GID          [host owner UID:GID]\n";
 
     FspServiceLog(EVENTLOG_ERROR_TYPE, usage, FS_SERVICE_NAME);
 
@@ -2762,15 +2748,8 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 
     if (argc > 1)
     {
-        Status = ParseArgs(argc,
-                           argv,
-                           DebugFlags,
-                           DebugLogFile,
-                           CaseInsensitive,
-                           FileSystemName,
-                           MountPoint,
-                           Tag,
-                           Owner);
+        Status =
+            ParseArgs(argc, argv, DebugFlags, DebugLogFile, CaseInsensitive, FileSystemName, MountPoint, Tag, Owner);
     }
     else
     {
@@ -2797,14 +2776,8 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
 
     try
     {
-        VirtFs = new VIRTFS(DebugFlags,
-                            CaseInsensitive,
-                            FileSystemName,
-                            MountPoint,
-                            Tag,
-                            AutoOwnerIds,
-                            OwnerUid,
-                            OwnerGid);
+        VirtFs =
+            new VIRTFS(DebugFlags, CaseInsensitive, FileSystemName, MountPoint, Tag, AutoOwnerIds, OwnerUid, OwnerGid);
     }
     catch (std::bad_alloc)
     {
@@ -2831,8 +2804,8 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     {
         // Wait for device to be found by arrival notification callback.
         FspServiceLog(EVENTLOG_INFORMATION_TYPE,
-            (PWSTR)L"The %s service will start and wait for the device.",
-	    FS_SERVICE_NAME);
+                      (PWSTR)L"The %s service will start and wait for the device.",
+                      FS_SERVICE_NAME);
         return STATUS_SUCCESS;
     }
 
@@ -2917,7 +2890,7 @@ int wmain(int argc, wchar_t **argv)
     if (!NT_SUCCESS(Result))
     {
         FspServiceLog(EVENTLOG_ERROR_TYPE,
-            (PWSTR)L"The service %s cannot be created (Status=%lx).",
+                      (PWSTR)L"The service %s cannot be created (Status=%lx).",
                       FS_SERVICE_NAME,
                       Result);
         return FspWin32FromNtStatus(Result);
@@ -2931,7 +2904,7 @@ int wmain(int argc, wchar_t **argv)
     if (!NT_SUCCESS(Result))
     {
         FspServiceLog(EVENTLOG_ERROR_TYPE,
-            (PWSTR)L"The service %s has failed to run (Status=%lx).",
+                      (PWSTR)L"The service %s has failed to run (Status=%lx).",
                       FS_SERVICE_NAME,
                       Result);
         return FspWin32FromNtStatus(Result);

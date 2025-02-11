@@ -120,106 +120,115 @@ static NDIS_STATUS RSSSetReceiveHash(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 
 #endif
 
-// clang-format off
+// clang-format on
 /**********************************************************
 Structure defining how to support each OID
 ***********************************************************/
-static const tOidWhatToDo OidsDB[] =
-{
-//                                              i f ok flags        set proc
-OIDENTRY(OID_GEN_SUPPORTED_LIST,                2,2,4, ohfQueryStat     ),
-OIDENTRY(OID_GEN_HARDWARE_STATUS,               2,0,4, ohfQueryStat     ),
-OIDENTRY(OID_GEN_MEDIA_SUPPORTED,               2,0,4, ohfQueryStat     ),
-OIDENTRY(OID_GEN_MEDIA_IN_USE,                  2,0,4, ohfQueryStat     ),
-OIDENTRY(OID_GEN_MAXIMUM_LOOKAHEAD,             2,0,4, ohfQuery         ),
-OIDENTRY(OID_GEN_MAXIMUM_FRAME_SIZE,            2,0,4, ohfQuery         ),
-OIDENTRY(OID_GEN_TRANSMIT_BUFFER_SPACE,         2,0,4, ohfQueryStat     ),
-OIDENTRY(OID_GEN_RECEIVE_BUFFER_SPACE,          2,0,4, ohfQueryStat     ),
-OIDENTRY(OID_GEN_TRANSMIT_BLOCK_SIZE,           2,0,4, ohfQueryStat     ),
-OIDENTRY(OID_GEN_RECEIVE_BLOCK_SIZE,            2,0,4, ohfQueryStat     ),
-OIDENTRY(OID_GEN_VENDOR_ID,                     2,0,4, ohfQueryStat     ),
-OIDENTRY(OID_GEN_VENDOR_DESCRIPTION,            2,2,4, ohfQueryStat     ),
-OIDENTRYPROC(OID_GEN_CURRENT_PACKET_FILTER,     2,0,4, ohfQuerySet | ohfSetPropagatePre, ParaNdis_OnSetPacketFilter),
-OIDENTRYPROC(OID_GEN_CURRENT_LOOKAHEAD,         2,0,4, ohfQuerySet, ParaNdis_OnSetLookahead),
-OIDENTRY(OID_GEN_DRIVER_VERSION,                2,0,4, ohfQuery         ),
-OIDENTRY(OID_GEN_MAXIMUM_TOTAL_SIZE,            2,0,4, ohfQueryStat     ),
-OIDENTRY(OID_GEN_PROTOCOL_OPTIONS,              2,0,4, 0                ),
-OIDENTRY(OID_GEN_MAC_OPTIONS,                   2,0,4, ohfQuery         ),
-OIDENTRY(OID_GEN_MAXIMUM_SEND_PACKETS,          2,0,4, ohfQueryStat     ),
-OIDENTRY(OID_GEN_VENDOR_DRIVER_VERSION,         2,0,4, ohfQueryStat     ),
-OIDENTRY(OID_GEN_SUPPORTED_GUIDS,               2,4,4, ohfQueryStat     ),
-OIDENTRYPROC(OID_GEN_NETWORK_LAYER_ADDRESSES,   2,2,4, ohfSet,      ParaNdis_OnOidSetNetworkAddresses),
-OIDENTRY(OID_GEN_TRANSPORT_HEADER_OFFSET,       2,4,4, 0                ),
-OIDENTRY(OID_GEN_MEDIA_CAPABILITIES,            2,4,4, 0                ),
-OIDENTRY(OID_GEN_PHYSICAL_MEDIUM,               2,4,4, 0                ),
-OIDENTRY(OID_GEN_XMIT_OK,                       3,4,4, ohfQueryStat3264 ),
-OIDENTRY(OID_GEN_RCV_OK,                        3,4,4, ohfQueryStat3264 ),
-OIDENTRY(OID_GEN_XMIT_ERROR,                    2,4,4, ohfQueryStat3264 ),
-OIDENTRY(OID_GEN_RCV_ERROR,                     2,4,4, ohfQueryStat3264 ),
-OIDENTRY(OID_GEN_RCV_NO_BUFFER,                 2,4,4, ohfQueryStat3264 ),
-OIDENTRY(OID_GEN_DIRECTED_BYTES_XMIT,           2,4,4, ohfQueryStat3264 ),
-OIDENTRY(OID_GEN_DIRECTED_FRAMES_XMIT,          2,4,4, ohfQueryStat3264 ),
-OIDENTRY(OID_GEN_MULTICAST_BYTES_XMIT,          2,4,4, ohfQueryStat3264 ),
-OIDENTRY(OID_GEN_MULTICAST_FRAMES_XMIT,         2,4,4, ohfQueryStat3264 ),
-OIDENTRY(OID_GEN_BROADCAST_BYTES_XMIT,          2,4,4, ohfQueryStat3264 ),
-OIDENTRY(OID_GEN_BROADCAST_FRAMES_XMIT,         2,4,4, ohfQueryStat3264 ),
-OIDENTRY(OID_GEN_DIRECTED_BYTES_RCV,            2,4,4, ohfQueryStat3264 ),
-OIDENTRY(OID_GEN_DIRECTED_FRAMES_RCV,           2,4,4, ohfQueryStat3264 ),
-OIDENTRY(OID_GEN_MULTICAST_BYTES_RCV,           2,4,4, ohfQueryStat3264 ),
-OIDENTRY(OID_GEN_MULTICAST_FRAMES_RCV,          2,4,4, ohfQueryStat3264 ),
-OIDENTRY(OID_GEN_BROADCAST_BYTES_RCV,           2,4,4, ohfQueryStat3264 ),
-OIDENTRY(OID_GEN_BROADCAST_FRAMES_RCV,          2,4,4, ohfQueryStat3264 ),
-OIDENTRY(OID_GEN_RCV_CRC_ERROR,                 2,4,4, 0                ),
-OIDENTRY(OID_GEN_GET_TIME_CAPS,                 2,4,4, 0                ),
-OIDENTRY(OID_GEN_GET_NETCARD_TIME,              2,4,4, 0                ),
-OIDENTRY(OID_GEN_NETCARD_LOAD,                  2,4,4, 0                ),
-OIDENTRY(OID_GEN_DEVICE_PROFILE,                2,4,4, 0                ),
-OIDENTRY(OID_GEN_INIT_TIME_MS,                  2,4,4, 0                ),
-OIDENTRY(OID_GEN_RESET_COUNTS,                  2,4,4, 0                ),
-OIDENTRY(OID_GEN_MEDIA_SENSE_COUNTS,            2,4,4, 0                ),
-OIDENTRY(OID_PNP_CAPABILITIES,                  2,0,4, ohfQuery         ),
-OIDENTRYPROC(OID_PNP_SET_POWER,                 0,0,0, ohfSet | ohfSetMoreOK, ParaNdis_OnSetPower),
-OIDENTRY(OID_PNP_QUERY_POWER,                   2,0,4, ohfQuery         ),
-OIDENTRYPROC(OID_PNP_ADD_WAKE_UP_PATTERN,       2,0,4, ohfSet,          ParaNdis_OnAddWakeupPattern),
-OIDENTRYPROC(OID_PNP_REMOVE_WAKE_UP_PATTERN,    2,0,4, ohfSet,          ParaNdis_OnRemoveWakeupPattern),
-OIDENTRYPROC(OID_PNP_ENABLE_WAKE_UP,            2,0,4, ohfQuerySet,     ParaNdis_OnEnableWakeup),
-OIDENTRY(OID_802_3_PERMANENT_ADDRESS,           2,0,4, ohfQueryStat     ),
-OIDENTRY(OID_802_3_CURRENT_ADDRESS,             2,0,4, ohfQueryStat     ),
-OIDENTRYPROC(OID_802_3_MULTICAST_LIST,          2,0,4, ohfQuerySet | ohfSetPropagatePre, ParaNdis_OnOidSetMulticastList),
-OIDENTRY(OID_802_3_MAXIMUM_LIST_SIZE,           2,0,4, ohfQueryStat     ),
-OIDENTRY(OID_802_3_MAC_OPTIONS,                 2,4,4, 0                ),
-OIDENTRY(OID_802_3_RCV_ERROR_ALIGNMENT,         2,4,4, ohfQueryStat3264 ),
-OIDENTRY(OID_802_3_XMIT_ONE_COLLISION,          2,4,4, ohfQueryStat3264 ),
-OIDENTRY(OID_802_3_XMIT_MORE_COLLISIONS,        2,4,4, ohfQueryStat3264 ),
-OIDENTRY(OID_802_3_XMIT_DEFERRED,               2,4,4, 0                ),
-OIDENTRY(OID_802_3_XMIT_MAX_COLLISIONS,         2,4,4, 0                ),
-OIDENTRY(OID_802_3_RCV_OVERRUN,                 2,4,4, 0                ),
-OIDENTRY(OID_802_3_XMIT_UNDERRUN,               2,4,4, 0                ),
-OIDENTRY(OID_802_3_XMIT_HEARTBEAT_FAILURE,      2,4,4, 0                ),
-OIDENTRY(OID_802_3_XMIT_TIMES_CRS_LOST,         2,4,4, 0                ),
-OIDENTRY(OID_802_3_XMIT_LATE_COLLISIONS,        2,4,4, 0                ),
-OIDENTRY(OID_GEN_MACHINE_NAME,                  2,4,4, 0                ),
-OIDENTRY(OID_GEN_STATISTICS,                    3,4,4, ohfQueryStat     ),
-OIDENTRYPROC(OID_GEN_VLAN_ID,                   2,4,4, ohfQueryStat | ohfSet, ParaNdis_OnSetVlanId),
-OIDENTRYPROC(OID_GEN_INTERRUPT_MODERATION,      2,4,4, ohfQueryStat | ohfSet, OnSetInterruptModeration),
-//Win8 NDIS 6.0 fails without it (Mini6OidsNdisRequests)
-OIDENTRYPROC(OID_GEN_LINK_PARAMETERS,           2,0,4, ohfSet, OnSetLinkParameters),
-OIDENTRY(OID_IP4_OFFLOAD_STATS,                 4,4,4, 0),
-OIDENTRY(OID_IP6_OFFLOAD_STATS,                 4,4,4, 0),
-OIDENTRYPROC(OID_TCP_OFFLOAD_PARAMETERS,        0,0,0, ohfSet | ohfSetMoreOK | ohfSetLessOK | ohfSetPropagatePost, OnSetOffloadParameters),
-OIDENTRYPROC(OID_OFFLOAD_ENCAPSULATION,         0,0,0, ohfQuerySet | ohfSetPropagatePost, OnSetOffloadEncapsulation),
-OIDENTRYPROC(OID_VENDOR_1,                      0,0,0, ohfQueryStat | ohfSet | ohfSetMoreOK, OnSetVendorSpecific1),
-OIDENTRY(OID_VENDOR_2,                          0,0,0, ohfQueryStat),
-OIDENTRY(OID_VENDOR_3,                          0,0,0, ohfQueryStat),
-OIDENTRYPROC(OID_VENDOR_4,                      0,0,0, ohfQueryStat | ohfSet | ohfSetMoreOK, OnSetVendorSpecific4),
-OIDENTRYPROC(OID_VENDOR_5,                      0,0,0, ohfQueryStat | ohfSet | ohfSetMoreOK, OnSetVendorSpecific5),
+static const tOidWhatToDo OidsDB[] = {
+    //                                              i f ok flags        set proc
+    OIDENTRY(OID_GEN_SUPPORTED_LIST, 2, 2, 4, ohfQueryStat),
+    OIDENTRY(OID_GEN_HARDWARE_STATUS, 2, 0, 4, ohfQueryStat),
+    OIDENTRY(OID_GEN_MEDIA_SUPPORTED, 2, 0, 4, ohfQueryStat),
+    OIDENTRY(OID_GEN_MEDIA_IN_USE, 2, 0, 4, ohfQueryStat),
+    OIDENTRY(OID_GEN_MAXIMUM_LOOKAHEAD, 2, 0, 4, ohfQuery),
+    OIDENTRY(OID_GEN_MAXIMUM_FRAME_SIZE, 2, 0, 4, ohfQuery),
+    OIDENTRY(OID_GEN_TRANSMIT_BUFFER_SPACE, 2, 0, 4, ohfQueryStat),
+    OIDENTRY(OID_GEN_RECEIVE_BUFFER_SPACE, 2, 0, 4, ohfQueryStat),
+    OIDENTRY(OID_GEN_TRANSMIT_BLOCK_SIZE, 2, 0, 4, ohfQueryStat),
+    OIDENTRY(OID_GEN_RECEIVE_BLOCK_SIZE, 2, 0, 4, ohfQueryStat),
+    OIDENTRY(OID_GEN_VENDOR_ID, 2, 0, 4, ohfQueryStat),
+    OIDENTRY(OID_GEN_VENDOR_DESCRIPTION, 2, 2, 4, ohfQueryStat),
+    OIDENTRYPROC(OID_GEN_CURRENT_PACKET_FILTER, 2, 0, 4, ohfQuerySet | ohfSetPropagatePre, ParaNdis_OnSetPacketFilter),
+    OIDENTRYPROC(OID_GEN_CURRENT_LOOKAHEAD, 2, 0, 4, ohfQuerySet, ParaNdis_OnSetLookahead),
+    OIDENTRY(OID_GEN_DRIVER_VERSION, 2, 0, 4, ohfQuery),
+    OIDENTRY(OID_GEN_MAXIMUM_TOTAL_SIZE, 2, 0, 4, ohfQueryStat),
+    OIDENTRY(OID_GEN_PROTOCOL_OPTIONS, 2, 0, 4, 0),
+    OIDENTRY(OID_GEN_MAC_OPTIONS, 2, 0, 4, ohfQuery),
+    OIDENTRY(OID_GEN_MAXIMUM_SEND_PACKETS, 2, 0, 4, ohfQueryStat),
+    OIDENTRY(OID_GEN_VENDOR_DRIVER_VERSION, 2, 0, 4, ohfQueryStat),
+    OIDENTRY(OID_GEN_SUPPORTED_GUIDS, 2, 4, 4, ohfQueryStat),
+    OIDENTRYPROC(OID_GEN_NETWORK_LAYER_ADDRESSES, 2, 2, 4, ohfSet, ParaNdis_OnOidSetNetworkAddresses),
+    OIDENTRY(OID_GEN_TRANSPORT_HEADER_OFFSET, 2, 4, 4, 0),
+    OIDENTRY(OID_GEN_MEDIA_CAPABILITIES, 2, 4, 4, 0),
+    OIDENTRY(OID_GEN_PHYSICAL_MEDIUM, 2, 4, 4, 0),
+    OIDENTRY(OID_GEN_XMIT_OK, 3, 4, 4, ohfQueryStat3264),
+    OIDENTRY(OID_GEN_RCV_OK, 3, 4, 4, ohfQueryStat3264),
+    OIDENTRY(OID_GEN_XMIT_ERROR, 2, 4, 4, ohfQueryStat3264),
+    OIDENTRY(OID_GEN_RCV_ERROR, 2, 4, 4, ohfQueryStat3264),
+    OIDENTRY(OID_GEN_RCV_NO_BUFFER, 2, 4, 4, ohfQueryStat3264),
+    OIDENTRY(OID_GEN_DIRECTED_BYTES_XMIT, 2, 4, 4, ohfQueryStat3264),
+    OIDENTRY(OID_GEN_DIRECTED_FRAMES_XMIT, 2, 4, 4, ohfQueryStat3264),
+    OIDENTRY(OID_GEN_MULTICAST_BYTES_XMIT, 2, 4, 4, ohfQueryStat3264),
+    OIDENTRY(OID_GEN_MULTICAST_FRAMES_XMIT, 2, 4, 4, ohfQueryStat3264),
+    OIDENTRY(OID_GEN_BROADCAST_BYTES_XMIT, 2, 4, 4, ohfQueryStat3264),
+    OIDENTRY(OID_GEN_BROADCAST_FRAMES_XMIT, 2, 4, 4, ohfQueryStat3264),
+    OIDENTRY(OID_GEN_DIRECTED_BYTES_RCV, 2, 4, 4, ohfQueryStat3264),
+    OIDENTRY(OID_GEN_DIRECTED_FRAMES_RCV, 2, 4, 4, ohfQueryStat3264),
+    OIDENTRY(OID_GEN_MULTICAST_BYTES_RCV, 2, 4, 4, ohfQueryStat3264),
+    OIDENTRY(OID_GEN_MULTICAST_FRAMES_RCV, 2, 4, 4, ohfQueryStat3264),
+    OIDENTRY(OID_GEN_BROADCAST_BYTES_RCV, 2, 4, 4, ohfQueryStat3264),
+    OIDENTRY(OID_GEN_BROADCAST_FRAMES_RCV, 2, 4, 4, ohfQueryStat3264),
+    OIDENTRY(OID_GEN_RCV_CRC_ERROR, 2, 4, 4, 0),
+    OIDENTRY(OID_GEN_GET_TIME_CAPS, 2, 4, 4, 0),
+    OIDENTRY(OID_GEN_GET_NETCARD_TIME, 2, 4, 4, 0),
+    OIDENTRY(OID_GEN_NETCARD_LOAD, 2, 4, 4, 0),
+    OIDENTRY(OID_GEN_DEVICE_PROFILE, 2, 4, 4, 0),
+    OIDENTRY(OID_GEN_INIT_TIME_MS, 2, 4, 4, 0),
+    OIDENTRY(OID_GEN_RESET_COUNTS, 2, 4, 4, 0),
+    OIDENTRY(OID_GEN_MEDIA_SENSE_COUNTS, 2, 4, 4, 0),
+    OIDENTRY(OID_PNP_CAPABILITIES, 2, 0, 4, ohfQuery),
+    OIDENTRYPROC(OID_PNP_SET_POWER, 0, 0, 0, ohfSet | ohfSetMoreOK, ParaNdis_OnSetPower),
+    OIDENTRY(OID_PNP_QUERY_POWER, 2, 0, 4, ohfQuery),
+    OIDENTRYPROC(OID_PNP_ADD_WAKE_UP_PATTERN, 2, 0, 4, ohfSet, ParaNdis_OnAddWakeupPattern),
+    OIDENTRYPROC(OID_PNP_REMOVE_WAKE_UP_PATTERN, 2, 0, 4, ohfSet, ParaNdis_OnRemoveWakeupPattern),
+    OIDENTRYPROC(OID_PNP_ENABLE_WAKE_UP, 2, 0, 4, ohfQuerySet, ParaNdis_OnEnableWakeup),
+    OIDENTRY(OID_802_3_PERMANENT_ADDRESS, 2, 0, 4, ohfQueryStat),
+    OIDENTRY(OID_802_3_CURRENT_ADDRESS, 2, 0, 4, ohfQueryStat),
+    OIDENTRYPROC(OID_802_3_MULTICAST_LIST, 2, 0, 4, ohfQuerySet | ohfSetPropagatePre, ParaNdis_OnOidSetMulticastList),
+    OIDENTRY(OID_802_3_MAXIMUM_LIST_SIZE, 2, 0, 4, ohfQueryStat),
+    OIDENTRY(OID_802_3_MAC_OPTIONS, 2, 4, 4, 0),
+    OIDENTRY(OID_802_3_RCV_ERROR_ALIGNMENT, 2, 4, 4, ohfQueryStat3264),
+    OIDENTRY(OID_802_3_XMIT_ONE_COLLISION, 2, 4, 4, ohfQueryStat3264),
+    OIDENTRY(OID_802_3_XMIT_MORE_COLLISIONS, 2, 4, 4, ohfQueryStat3264),
+    OIDENTRY(OID_802_3_XMIT_DEFERRED, 2, 4, 4, 0),
+    OIDENTRY(OID_802_3_XMIT_MAX_COLLISIONS, 2, 4, 4, 0),
+    OIDENTRY(OID_802_3_RCV_OVERRUN, 2, 4, 4, 0),
+    OIDENTRY(OID_802_3_XMIT_UNDERRUN, 2, 4, 4, 0),
+    OIDENTRY(OID_802_3_XMIT_HEARTBEAT_FAILURE, 2, 4, 4, 0),
+    OIDENTRY(OID_802_3_XMIT_TIMES_CRS_LOST, 2, 4, 4, 0),
+    OIDENTRY(OID_802_3_XMIT_LATE_COLLISIONS, 2, 4, 4, 0),
+    OIDENTRY(OID_GEN_MACHINE_NAME, 2, 4, 4, 0),
+    OIDENTRY(OID_GEN_STATISTICS, 3, 4, 4, ohfQueryStat),
+    OIDENTRYPROC(OID_GEN_VLAN_ID, 2, 4, 4, ohfQueryStat | ohfSet, ParaNdis_OnSetVlanId),
+    OIDENTRYPROC(OID_GEN_INTERRUPT_MODERATION, 2, 4, 4, ohfQueryStat | ohfSet, OnSetInterruptModeration),
+    // Win8 NDIS 6.0 fails without it (Mini6OidsNdisRequests)
+    OIDENTRYPROC(OID_GEN_LINK_PARAMETERS, 2, 0, 4, ohfSet, OnSetLinkParameters),
+    OIDENTRY(OID_IP4_OFFLOAD_STATS, 4, 4, 4, 0),
+    OIDENTRY(OID_IP6_OFFLOAD_STATS, 4, 4, 4, 0),
+    OIDENTRYPROC(OID_TCP_OFFLOAD_PARAMETERS,
+                 0,
+                 0,
+                 0,
+                 ohfSet | ohfSetMoreOK | ohfSetLessOK | ohfSetPropagatePost,
+                 OnSetOffloadParameters),
+    OIDENTRYPROC(OID_OFFLOAD_ENCAPSULATION, 0, 0, 0, ohfQuerySet | ohfSetPropagatePost, OnSetOffloadEncapsulation),
+    OIDENTRYPROC(OID_VENDOR_1, 0, 0, 0, ohfQueryStat | ohfSet | ohfSetMoreOK, OnSetVendorSpecific1),
+    OIDENTRY(OID_VENDOR_2, 0, 0, 0, ohfQueryStat),
+    OIDENTRY(OID_VENDOR_3, 0, 0, 0, ohfQueryStat),
+    OIDENTRYPROC(OID_VENDOR_4, 0, 0, 0, ohfQueryStat | ohfSet | ohfSetMoreOK, OnSetVendorSpecific4),
+    OIDENTRYPROC(OID_VENDOR_5, 0, 0, 0, ohfQueryStat | ohfSet | ohfSetMoreOK, OnSetVendorSpecific5),
 
 #if PARANDIS_SUPPORT_RSS
-    OIDENTRYPROC(OID_GEN_RECEIVE_SCALE_PARAMETERS,  0,0,0, ohfSet | ohfSetPropagatePost | ohfSetMoreOK, RSSSetParameters),
-    OIDENTRYPROC(OID_GEN_RECEIVE_HASH,              0,0,0, ohfQuerySet | ohfSetMoreOK, RSSSetReceiveHash),
+    OIDENTRYPROC(OID_GEN_RECEIVE_SCALE_PARAMETERS,
+                 0,
+                 0,
+                 0,
+                 ohfSet | ohfSetPropagatePost | ohfSetMoreOK,
+                 RSSSetParameters),
+    OIDENTRYPROC(OID_GEN_RECEIVE_HASH, 0, 0, 0, ohfQuerySet | ohfSetMoreOK, RSSSetReceiveHash),
 #endif
 #if PARANDIS_SUPPORT_RSC
-    OIDENTRY(OID_TCP_RSC_STATISTICS,            3,4,4, ohfQueryStat     ),
+    OIDENTRY(OID_TCP_RSC_STATISTICS, 3, 4, 4, ohfQueryStat),
 #endif
 
 #if NDIS_SUPPORT_NDIS620
@@ -234,8 +243,8 @@ OIDENTRYPROC(OID_VENDOR_5,                      0,0,0, ohfQueryStat | ohfSet | o
 // OID_PM_REMOVE_PROTOCOL_OFFLOAD - mandatory
 // OID_PM_PROTOCOL_OFFLOAD_LIST - not required, supported by NDIS
 #endif
-// last entry, do not remove
-OIDENTRY(0,                                     4,4,4, 0),
+    // last entry, do not remove
+    OIDENTRY(0, 4, 4, 4, 0),
 };
 // clang-format on
 
@@ -290,66 +299,58 @@ static NDIS_OID SupportedOids[] = {OID_GEN_SUPPORTED_LIST,
 #endif
 };
 
-// clang-format off
-static const NDIS_GUID supportedGUIDs[] =
-{
-    { NetKvm_LoggingGuid,    OID_VENDOR_1, NetKvm_Logging_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_READ | fNDIS_GUID_ALLOW_WRITE },
-    { NetKvm_ConfigGuid,     OID_VENDOR_2, NetKvm_Config_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_READ },
-    { NetKvm_DiagGuid,       OID_VENDOR_3, NetKvm_Diag_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_READ },
-    { NetKvm_DiagResetGuid,  OID_VENDOR_4, NetKvm_DiagReset_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_WRITE | fNDIS_GUID_ALLOW_READ },
-    { NetKvm_DeviceRssGuid,  OID_VENDOR_5, NetKvm_DeviceRss_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_WRITE | fNDIS_GUID_ALLOW_READ},
+// clang-format on
+static const NDIS_GUID supportedGUIDs[] = {
+    {NetKvm_LoggingGuid,
+     OID_VENDOR_1,
+     NetKvm_Logging_SIZE,
+     fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_READ | fNDIS_GUID_ALLOW_WRITE},
+    {NetKvm_ConfigGuid, OID_VENDOR_2, NetKvm_Config_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_READ},
+    {NetKvm_DiagGuid, OID_VENDOR_3, NetKvm_Diag_SIZE, fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_READ},
+    {NetKvm_DiagResetGuid,
+     OID_VENDOR_4,
+     NetKvm_DiagReset_SIZE,
+     fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_WRITE | fNDIS_GUID_ALLOW_READ},
+    {NetKvm_DeviceRssGuid,
+     OID_VENDOR_5,
+     NetKvm_DeviceRss_SIZE,
+     fNDIS_GUID_TO_OID | fNDIS_GUID_ALLOW_WRITE | fNDIS_GUID_ALLOW_READ},
 };
 // clang-format on
 
 /**********************************************************
         For statistics header
 ***********************************************************/
-static const ULONG SupportedStatisticsFlags = NDIS_STATISTICS_FLAGS_VALID_DIRECTED_FRAMES_RCV |
-                                              NDIS_STATISTICS_FLAGS_VALID_DIRECTED_FRAMES_XMIT |
-                                              NDIS_STATISTICS_FLAGS_VALID_DIRECTED_BYTES_RCV |
-                                              NDIS_STATISTICS_FLAGS_VALID_DIRECTED_BYTES_XMIT |
-                                              NDIS_STATISTICS_FLAGS_VALID_BYTES_RCV |
-                                              NDIS_STATISTICS_FLAGS_VALID_BYTES_XMIT |
-                                              NDIS_STATISTICS_FLAGS_VALID_MULTICAST_BYTES_RCV |
-                                              NDIS_STATISTICS_FLAGS_VALID_BROADCAST_BYTES_RCV |
-                                              NDIS_STATISTICS_FLAGS_VALID_MULTICAST_FRAMES_RCV |
-                                              NDIS_STATISTICS_FLAGS_VALID_BROADCAST_FRAMES_RCV |
-                                              NDIS_STATISTICS_FLAGS_VALID_MULTICAST_FRAMES_XMIT |
-                                              NDIS_STATISTICS_FLAGS_VALID_BROADCAST_FRAMES_XMIT |
-                                              NDIS_STATISTICS_FLAGS_VALID_MULTICAST_BYTES_RCV |
-                                              NDIS_STATISTICS_FLAGS_VALID_BROADCAST_BYTES_RCV |
-                                              NDIS_STATISTICS_FLAGS_VALID_RCV_ERROR |
-                                              NDIS_STATISTICS_FLAGS_VALID_RCV_DISCARDS |
-                                              NDIS_STATISTICS_FLAGS_VALID_XMIT_ERROR |
-                                              NDIS_STATISTICS_FLAGS_VALID_XMIT_DISCARDS |
-                                              NDIS_STATISTICS_FLAGS_VALID_MULTICAST_BYTES_XMIT |
-                                              NDIS_STATISTICS_FLAGS_VALID_BROADCAST_BYTES_XMIT | 0;
+static const ULONG SupportedStatisticsFlags =
+    NDIS_STATISTICS_FLAGS_VALID_DIRECTED_FRAMES_RCV | NDIS_STATISTICS_FLAGS_VALID_DIRECTED_FRAMES_XMIT |
+    NDIS_STATISTICS_FLAGS_VALID_DIRECTED_BYTES_RCV | NDIS_STATISTICS_FLAGS_VALID_DIRECTED_BYTES_XMIT |
+    NDIS_STATISTICS_FLAGS_VALID_BYTES_RCV | NDIS_STATISTICS_FLAGS_VALID_BYTES_XMIT |
+    NDIS_STATISTICS_FLAGS_VALID_MULTICAST_BYTES_RCV | NDIS_STATISTICS_FLAGS_VALID_BROADCAST_BYTES_RCV |
+    NDIS_STATISTICS_FLAGS_VALID_MULTICAST_FRAMES_RCV | NDIS_STATISTICS_FLAGS_VALID_BROADCAST_FRAMES_RCV |
+    NDIS_STATISTICS_FLAGS_VALID_MULTICAST_FRAMES_XMIT | NDIS_STATISTICS_FLAGS_VALID_BROADCAST_FRAMES_XMIT |
+    NDIS_STATISTICS_FLAGS_VALID_MULTICAST_BYTES_RCV | NDIS_STATISTICS_FLAGS_VALID_BROADCAST_BYTES_RCV |
+    NDIS_STATISTICS_FLAGS_VALID_RCV_ERROR | NDIS_STATISTICS_FLAGS_VALID_RCV_DISCARDS |
+    NDIS_STATISTICS_FLAGS_VALID_XMIT_ERROR | NDIS_STATISTICS_FLAGS_VALID_XMIT_DISCARDS |
+    NDIS_STATISTICS_FLAGS_VALID_MULTICAST_BYTES_XMIT | NDIS_STATISTICS_FLAGS_VALID_BROADCAST_BYTES_XMIT | 0;
 
 /**********************************************************
         For miniport registration
 ***********************************************************/
-static const ULONG SupportedStatistics = NDIS_STATISTICS_XMIT_OK_SUPPORTED | NDIS_STATISTICS_RCV_OK_SUPPORTED |
-                                         NDIS_STATISTICS_XMIT_ERROR_SUPPORTED | NDIS_STATISTICS_RCV_ERROR_SUPPORTED |
-                                         NDIS_STATISTICS_RCV_NO_BUFFER_SUPPORTED |
-                                         NDIS_STATISTICS_DIRECTED_BYTES_XMIT_SUPPORTED |
-                                         NDIS_STATISTICS_DIRECTED_FRAMES_XMIT_SUPPORTED |
-                                         NDIS_STATISTICS_MULTICAST_BYTES_XMIT_SUPPORTED |
-                                         NDIS_STATISTICS_MULTICAST_FRAMES_XMIT_SUPPORTED |
-                                         NDIS_STATISTICS_BROADCAST_BYTES_XMIT_SUPPORTED |
-                                         NDIS_STATISTICS_BROADCAST_FRAMES_XMIT_SUPPORTED |
-                                         NDIS_STATISTICS_DIRECTED_BYTES_RCV_SUPPORTED |
-                                         NDIS_STATISTICS_DIRECTED_FRAMES_RCV_SUPPORTED |
-                                         NDIS_STATISTICS_MULTICAST_BYTES_RCV_SUPPORTED |
-                                         NDIS_STATISTICS_MULTICAST_FRAMES_RCV_SUPPORTED |
-                                         NDIS_STATISTICS_BROADCAST_BYTES_RCV_SUPPORTED |
-                                         NDIS_STATISTICS_BROADCAST_FRAMES_RCV_SUPPORTED |
-                                         // NDIS_STATISTICS_RCV_CRC_ERROR_SUPPORTED               |
-                                         NDIS_STATISTICS_TRANSMIT_QUEUE_LENGTH_SUPPORTED |
-                                         // NDIS_STATISTICS_BYTES_RCV_SUPPORTED                     |
-                                         // NDIS_STATISTICS_BYTES_XMIT_SUPPORTED                    |
-                                         NDIS_STATISTICS_RCV_DISCARDS_SUPPORTED |
-                                         NDIS_STATISTICS_GEN_STATISTICS_SUPPORTED |
-                                         NDIS_STATISTICS_XMIT_DISCARDS_SUPPORTED | 0;
+static const ULONG SupportedStatistics =
+    NDIS_STATISTICS_XMIT_OK_SUPPORTED | NDIS_STATISTICS_RCV_OK_SUPPORTED | NDIS_STATISTICS_XMIT_ERROR_SUPPORTED |
+    NDIS_STATISTICS_RCV_ERROR_SUPPORTED | NDIS_STATISTICS_RCV_NO_BUFFER_SUPPORTED |
+    NDIS_STATISTICS_DIRECTED_BYTES_XMIT_SUPPORTED | NDIS_STATISTICS_DIRECTED_FRAMES_XMIT_SUPPORTED |
+    NDIS_STATISTICS_MULTICAST_BYTES_XMIT_SUPPORTED | NDIS_STATISTICS_MULTICAST_FRAMES_XMIT_SUPPORTED |
+    NDIS_STATISTICS_BROADCAST_BYTES_XMIT_SUPPORTED | NDIS_STATISTICS_BROADCAST_FRAMES_XMIT_SUPPORTED |
+    NDIS_STATISTICS_DIRECTED_BYTES_RCV_SUPPORTED | NDIS_STATISTICS_DIRECTED_FRAMES_RCV_SUPPORTED |
+    NDIS_STATISTICS_MULTICAST_BYTES_RCV_SUPPORTED | NDIS_STATISTICS_MULTICAST_FRAMES_RCV_SUPPORTED |
+    NDIS_STATISTICS_BROADCAST_BYTES_RCV_SUPPORTED | NDIS_STATISTICS_BROADCAST_FRAMES_RCV_SUPPORTED |
+    // NDIS_STATISTICS_RCV_CRC_ERROR_SUPPORTED               |
+    NDIS_STATISTICS_TRANSMIT_QUEUE_LENGTH_SUPPORTED |
+    // NDIS_STATISTICS_BYTES_RCV_SUPPORTED                     |
+    // NDIS_STATISTICS_BYTES_XMIT_SUPPORTED                    |
+    NDIS_STATISTICS_RCV_DISCARDS_SUPPORTED | NDIS_STATISTICS_GEN_STATISTICS_SUPPORTED |
+    NDIS_STATISTICS_XMIT_DISCARDS_SUPPORTED | 0;
 
 /**********************************************************
 For common query provides array of supported OID
@@ -923,13 +924,13 @@ static void FillOffloadStructure(NDIS_OFFLOAD *po, tOffloadSettingsFlags f)
 #if (NDIS_SUPPORT_NDIS683)
     if (CheckNdisVersion(6, 83))
     {
-        po->UdpSegmentation.IPv4.Encapsulation = f.fUsov4 ? NDIS_ENCAPSULATION_IEEE_802_3
-                                                          : NDIS_ENCAPSULATION_NOT_SUPPORTED;
+        po->UdpSegmentation.IPv4.Encapsulation =
+            f.fUsov4 ? NDIS_ENCAPSULATION_IEEE_802_3 : NDIS_ENCAPSULATION_NOT_SUPPORTED;
         po->UdpSegmentation.IPv4.MaxOffLoadSize = f.fUsov4 ? PARANDIS_MAX_USO_SIZE : 0;
         po->UdpSegmentation.IPv4.MinSegmentCount = f.fUsov4 ? PARANDIS_MIN_LSO_SEGMENTS : 0;
 
-        po->UdpSegmentation.IPv6.Encapsulation = f.fUsov6 ? NDIS_ENCAPSULATION_IEEE_802_3
-                                                          : NDIS_ENCAPSULATION_NOT_SUPPORTED;
+        po->UdpSegmentation.IPv6.Encapsulation =
+            f.fUsov6 ? NDIS_ENCAPSULATION_IEEE_802_3 : NDIS_ENCAPSULATION_NOT_SUPPORTED;
         po->UdpSegmentation.IPv6.MaxOffLoadSize = f.fUsov6 ? PARANDIS_MAX_USO_SIZE : 0;
         po->UdpSegmentation.IPv6.MinSegmentCount = f.fUsov6 ? PARANDIS_MIN_LSO_SEGMENTS : 0;
 #if (NDIS_SUPPORT_NDIS684)
@@ -1012,8 +1013,8 @@ static void BuildOffloadStatusReport(
     // see
 #if 1
 #define SYNC_STRUCT(_struct, field)                                                                                    \
-    update->##_struct.##field = (Current->##_struct.##field == NDIS_OFFLOAD_SUPPORTED) ? NDIS_OFFLOAD_SET_ON           \
-                                                                                       : NDIS_OFFLOAD_SET_OFF
+    update->##_struct.##field =                                                                                        \
+        (Current->##_struct.##field == NDIS_OFFLOAD_SUPPORTED) ? NDIS_OFFLOAD_SET_ON : NDIS_OFFLOAD_SET_OFF
 #define SYNC_FIELD_TX4(field) SYNC_STRUCT(IPv4Transmit, field)
 #define SYNC_FIELD_RX4(field) SYNC_STRUCT(IPv4Receive, field)
 #define SYNC_FIELD_TX6(field) SYNC_STRUCT(IPv6Transmit, field)
@@ -1603,15 +1604,17 @@ void ParaNdis6_Fill620PowerCapabilities(PNDIS_PM_CAPABILITIES pPower620Caps)
     pPower620Caps->NumNSOffloadIPv6Addresses = 0;
 
     // if wake on magic packet supported
-    pPower620Caps->MinMagicPacketWakeUp = (pPower620Caps->SupportedWoLPacketPatterns & NDIS_PM_WOL_MAGIC_PACKET_SUPPORTED) ? NdisDeviceStateD3
-                                                                                                                           : NdisDeviceStateUnspecified;
+    pPower620Caps->MinMagicPacketWakeUp =
+        (pPower620Caps->SupportedWoLPacketPatterns & NDIS_PM_WOL_MAGIC_PACKET_SUPPORTED) ? NdisDeviceStateD3
+                                                                                         : NdisDeviceStateUnspecified;
 
     // if wake on link change supported
     pPower620Caps->MinLinkChangeWakeUp = NdisDeviceStateUnspecified;
 
     // if wake on pattern supported
-    pPower620Caps->MinPatternWakeUp = (pPower620Caps->SupportedWoLPacketPatterns & ~NDIS_PM_WOL_MAGIC_PACKET_SUPPORTED) ? NdisDeviceStateD3
-                                                                                                                        : NdisDeviceStateUnspecified;
+    pPower620Caps->MinPatternWakeUp = (pPower620Caps->SupportedWoLPacketPatterns & ~NDIS_PM_WOL_MAGIC_PACKET_SUPPORTED)
+                                          ? NdisDeviceStateD3
+                                          : NdisDeviceStateUnspecified;
 }
 #endif
 

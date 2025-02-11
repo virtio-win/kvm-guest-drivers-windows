@@ -352,7 +352,8 @@ static VOID MiniportInterruptDPC(IN NDIS_HANDLE MiniportInterruptContext,
     bool requiresDPCRescheduling;
 
 #if NDIS_SUPPORT_NDIS620
-    PNDIS_RECEIVE_THROTTLE_PARAMETERS RxThrottleParameters = (PNDIS_RECEIVE_THROTTLE_PARAMETERS)ReceiveThrottleParameters;
+    PNDIS_RECEIVE_THROTTLE_PARAMETERS RxThrottleParameters =
+        (PNDIS_RECEIVE_THROTTLE_PARAMETERS)ReceiveThrottleParameters;
     DEBUG_ENTRY(5);
     RxThrottleParameters->MoreNblsPending = 0;
     requiresDPCRescheduling = ParaNdis_RXTXDPCWorkBody(pContext, RxThrottleParameters->MaxNblsToIndicate);
@@ -418,7 +419,8 @@ static VOID MiniportMSIInterruptDpc(IN PVOID MiniportInterruptContext,
     bool requireDPCRescheduling;
 
 #if NDIS_SUPPORT_NDIS620
-    PNDIS_RECEIVE_THROTTLE_PARAMETERS RxThrottleParameters = (PNDIS_RECEIVE_THROTTLE_PARAMETERS)ReceiveThrottleParameters;
+    PNDIS_RECEIVE_THROTTLE_PARAMETERS RxThrottleParameters =
+        (PNDIS_RECEIVE_THROTTLE_PARAMETERS)ReceiveThrottleParameters;
 
     RxThrottleParameters->MoreNblsPending = 0;
     requireDPCRescheduling = ParaNdis_RXTXDPCWorkBody(pContext, RxThrottleParameters->MaxNblsToIndicate);
@@ -1059,9 +1061,8 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(PARANDIS_ADAPTER *pContext,
                 }
                 else
                 {
-                    *pnCoalescedSegmentsCount = PktGetTCPCoalescedSegmentsCount(pContext,
-                                                                                pPacketInfo,
-                                                                                pHeader->hdr.gso_size);
+                    *pnCoalescedSegmentsCount =
+                        PktGetTCPCoalescedSegmentsCount(pContext, pPacketInfo, pHeader->hdr.gso_size);
                     pContext->extraStatistics.framesCoalescedHost++;
                 }
                 NBLSetRSCInfo(pContext, pNBL, pPacketInfo, *pnCoalescedSegmentsCount, 0);
@@ -1102,11 +1103,11 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(PARANDIS_ADAPTER *pContext,
             pNBL->Status = NDIS_STATUS_SUCCESS;
 #if defined(ENABLE_HISTORY_LOG)
             {
-                tTcpIpPacketParsingResult packetReview = ParaNdis_CheckSumVerify(RtlOffsetToPointer(pPacketInfo->headersBuffer,
-                                                                                                    ETH_HEADER_SIZE),
-                                                                                 pPacketInfo->dataLength,
-                                                                                 pcrIpChecksum | pcrTcpChecksum | pcrUdpChecksum,
-                                                                                 __FUNCTION__);
+                tTcpIpPacketParsingResult packetReview =
+                    ParaNdis_CheckSumVerify(RtlOffsetToPointer(pPacketInfo->headersBuffer, ETH_HEADER_SIZE),
+                                            pPacketInfo->dataLength,
+                                            pcrIpChecksum | pcrTcpChecksum | pcrUdpChecksum,
+                                            __FUNCTION__);
                 ParaNdis_DebugHistory(pContext,
                                       hopPacketReceived,
                                       pNBL,

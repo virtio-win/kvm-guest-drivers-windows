@@ -105,10 +105,10 @@ static VOID PostLinkState(PARANDIS_ADAPTER *pContext, NDIS_MEDIA_CONNECT_STATE c
     state.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
     state.Header.Size = NDIS_SIZEOF_LINK_STATE_REVISION_1;
     state.MediaConnectState = connectState;
-    state.MediaDuplexState = connectState == MediaConnectStateConnected ? pContext->LinkProperties.DuplexState
-                                                                        : MediaDuplexStateUnknown;
-    state.RcvLinkSpeed = state.XmitLinkSpeed = connectState == MediaConnectStateConnected ? pContext->LinkProperties.Speed
-                                                                                          : NDIS_LINK_SPEED_UNKNOWN;
+    state.MediaDuplexState =
+        connectState == MediaConnectStateConnected ? pContext->LinkProperties.DuplexState : MediaDuplexStateUnknown;
+    state.RcvLinkSpeed = state.XmitLinkSpeed =
+        connectState == MediaConnectStateConnected ? pContext->LinkProperties.Speed : NDIS_LINK_SPEED_UNKNOWN;
     state.PauseFunctions = NdisPauseFunctionsUnsupported;
 
     NdisZeroMemory(&indication, sizeof(indication));
@@ -192,9 +192,12 @@ static NDIS_STATUS ParaNdis6_Initialize(NDIS_HANDLE miniportAdapterHandle,
         pContext->ulUniqueID = NdisInterlockedIncrement(&gID);
 
         NdisZeroMemory(&miniportAttributes, sizeof(miniportAttributes));
-        miniportAttributes.RegistrationAttributes.Header.Type = NDIS_OBJECT_TYPE_MINIPORT_ADAPTER_REGISTRATION_ATTRIBUTES;
-        miniportAttributes.RegistrationAttributes.Header.Revision = NDIS_MINIPORT_ADAPTER_REGISTRATION_ATTRIBUTES_REVISION_1;
-        miniportAttributes.RegistrationAttributes.Header.Size = NDIS_SIZEOF_MINIPORT_ADAPTER_REGISTRATION_ATTRIBUTES_REVISION_1;
+        miniportAttributes.RegistrationAttributes.Header.Type =
+            NDIS_OBJECT_TYPE_MINIPORT_ADAPTER_REGISTRATION_ATTRIBUTES;
+        miniportAttributes.RegistrationAttributes.Header.Revision =
+            NDIS_MINIPORT_ADAPTER_REGISTRATION_ATTRIBUTES_REVISION_1;
+        miniportAttributes.RegistrationAttributes.Header.Size =
+            NDIS_SIZEOF_MINIPORT_ADAPTER_REGISTRATION_ATTRIBUTES_REVISION_1;
         miniportAttributes.RegistrationAttributes.MiniportAdapterContext = pContext;
         miniportAttributes.RegistrationAttributes.AttributeFlags = NDIS_MINIPORT_ATTRIBUTES_SURPRISE_REMOVE_OK |
                                                                    NDIS_MINIPORT_ATTRIBUTES_HARDWARE_DEVICE |
@@ -254,12 +257,12 @@ static NDIS_STATUS ParaNdis6_Initialize(NDIS_HANDLE miniportAdapterHandle,
         miniportAttributes.GeneralAttributes.MtuSize = pContext->MaxPacketSize.nMaxDataSize;
         miniportAttributes.GeneralAttributes.LookaheadSize = pContext->MaxPacketSize.nMaxFullSizeOS;
         miniportAttributes.GeneralAttributes.MaxXmitLinkSpeed = miniportAttributes.GeneralAttributes.MaxRcvLinkSpeed =
-                                                                                                            pContext->LinkProperties.Speed;
+            pContext->LinkProperties.Speed;
         miniportAttributes.GeneralAttributes.MediaConnectState = pContext->fCurrentLinkState;
         if (pContext->fCurrentLinkState == MediaConnectStateConnected)
         {
             miniportAttributes.GeneralAttributes.XmitLinkSpeed = miniportAttributes.GeneralAttributes.RcvLinkSpeed =
-                                                                                                                pContext->LinkProperties.Speed;
+                pContext->LinkProperties.Speed;
             miniportAttributes.GeneralAttributes.MediaDuplexState = pContext->LinkProperties.DuplexState;
             DPrintf(0,
                     "[%s] Initially connected @%d Mbps\n",
@@ -269,18 +272,19 @@ static NDIS_STATUS ParaNdis6_Initialize(NDIS_HANDLE miniportAdapterHandle,
         else
         {
             miniportAttributes.GeneralAttributes.XmitLinkSpeed = miniportAttributes.GeneralAttributes.RcvLinkSpeed =
-                                                                                                                NDIS_LINK_SPEED_UNKNOWN;
+                NDIS_LINK_SPEED_UNKNOWN;
             miniportAttributes.GeneralAttributes.MediaDuplexState = MediaDuplexStateUnknown;
             DPrintf(0, "[%s] Initially not connected\n", __FUNCTION__);
         }
-        miniportAttributes.GeneralAttributes.MacOptions = NDIS_MAC_OPTION_COPY_LOOKAHEAD_DATA | /* NIC has no internal
-                                                                                                   loopback support */
-                                                          NDIS_MAC_OPTION_TRANSFERS_NOT_PEND |  /* Must be set since
-                                                                                                   using
-                                                                                                   NdisMIndicateReceivePacket
-                                                                                                 */
-                                                          NDIS_MAC_OPTION_NO_LOOPBACK; /* NIC has no internal loopback
-                                                                                          support */
+        miniportAttributes.GeneralAttributes.MacOptions =
+            NDIS_MAC_OPTION_COPY_LOOKAHEAD_DATA | /* NIC has no internal
+                                                     loopback support */
+            NDIS_MAC_OPTION_TRANSFERS_NOT_PEND |  /* Must be set since
+                                                     using
+                                                     NdisMIndicateReceivePacket
+                                                   */
+            NDIS_MAC_OPTION_NO_LOOPBACK;          /* NIC has no internal loopback
+                                                     support */
         if (IsPrioritySupported(pContext))
         {
             miniportAttributes.GeneralAttributes.MacOptions |= NDIS_MAC_OPTION_8021P_PRIORITY;
@@ -601,9 +605,12 @@ static NDIS_STATUS ParaNdis6_AddDevice(IN NDIS_HANDLE MiniportAdapterHandle, IN 
     UNREFERENCED_PARAMETER(MiniportDriverContext);
 
     DEBUG_ENTRY(0);
-    MiniportAttributes.AddDeviceRegistrationAttributes.Header.Type = NDIS_OBJECT_TYPE_MINIPORT_ADD_DEVICE_REGISTRATION_ATTRIBUTES;
-    MiniportAttributes.AddDeviceRegistrationAttributes.Header.Revision = NDIS_MINIPORT_ADD_DEVICE_REGISTRATION_ATTRIBUTES_REVISION_1;
-    MiniportAttributes.AddDeviceRegistrationAttributes.Header.Size = NDIS_SIZEOF_MINIPORT_ADD_DEVICE_REGISTRATION_ATTRIBUTES_REVISION_1;
+    MiniportAttributes.AddDeviceRegistrationAttributes.Header.Type =
+        NDIS_OBJECT_TYPE_MINIPORT_ADD_DEVICE_REGISTRATION_ATTRIBUTES;
+    MiniportAttributes.AddDeviceRegistrationAttributes.Header.Revision =
+        NDIS_MINIPORT_ADD_DEVICE_REGISTRATION_ATTRIBUTES_REVISION_1;
+    MiniportAttributes.AddDeviceRegistrationAttributes.Header.Size =
+        NDIS_SIZEOF_MINIPORT_ADD_DEVICE_REGISTRATION_ATTRIBUTES_REVISION_1;
     MiniportAttributes.AddDeviceRegistrationAttributes.MiniportAddDeviceContext = MiniportAdapterHandle;
     MiniportAttributes.AddDeviceRegistrationAttributes.Flags = 0;
     status = NdisMSetMiniportAttributes(MiniportAdapterHandle, &MiniportAttributes);
@@ -861,11 +868,11 @@ static PIO_RESOURCE_REQUIREMENTS_LIST ParseFilterResourceIrp(IN NDIS_HANDLE Mini
             __FUNCTION__,
             bRemoveMSIResources ? "(Remove MSI resources...)" : "(Don't remove MSI resources)");
 
-    newPrrl = (PIO_RESOURCE_REQUIREMENTS_LIST)NdisAllocateMemoryWithTagPriority(MiniportAddDeviceContext,
-                                                                                prrl->ListSize + (bRemoveMSIResources ? 0
-                                                                                                                      : QueueNumber * sizeof(IO_RESOURCE_DESCRIPTOR)),
-                                                                                PARANDIS_MEMORY_TAG,
-                                                                                NormalPoolPriority);
+    newPrrl = (PIO_RESOURCE_REQUIREMENTS_LIST)NdisAllocateMemoryWithTagPriority(
+        MiniportAddDeviceContext,
+        prrl->ListSize + (bRemoveMSIResources ? 0 : QueueNumber * sizeof(IO_RESOURCE_DESCRIPTOR)),
+        PARANDIS_MEMORY_TAG,
+        NormalPoolPriority);
 
     InitializeNewResourceRequirementsList(&newRRLData, newPrrl, prrl);
     if (prrl)
@@ -963,9 +970,8 @@ static NDIS_STATUS ParaNdis6_FilterResource(IN NDIS_HANDLE MiniportAddDeviceCont
 
     PrintPRRL(prrl);
 
-    PIO_RESOURCE_REQUIREMENTS_LIST newPrrl = ParseFilterResourceIrp(MiniportAddDeviceContext,
-                                                                    prrl,
-                                                                    BOOLEAN(bDisableMSI));
+    PIO_RESOURCE_REQUIREMENTS_LIST newPrrl =
+        ParseFilterResourceIrp(MiniportAddDeviceContext, prrl, BOOLEAN(bDisableMSI));
 
     if (newPrrl)
     {

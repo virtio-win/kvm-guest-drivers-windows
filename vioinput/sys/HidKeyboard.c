@@ -488,9 +488,8 @@ HIDKeyboardProbe(PINPUT_DEVICE pContext,
         }
 
         // allocate and initialize a buffer holding the last seen output report
-        pKeyboardDesc->pLastOutputReport = ExAllocatePoolUninitialized(NonPagedPool,
-                                                                       pKeyboardDesc->cbOutputReport,
-                                                                       VIOINPUT_DRIVER_MEMORY_TAG);
+        pKeyboardDesc->pLastOutputReport =
+            ExAllocatePoolUninitialized(NonPagedPool, pKeyboardDesc->cbOutputReport, VIOINPUT_DRIVER_MEMORY_TAG);
         if (pKeyboardDesc->pLastOutputReport == NULL)
         {
             return STATUS_INSUFFICIENT_RESOURCES;
