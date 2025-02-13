@@ -487,6 +487,11 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
     adaptExt->slot_number = ConfigInfo->SlotNumber;
     adaptExt->dump_mode = IsCrashDumpMode;
 
+    adaptExt->action_on_reset = VirtioResetCompleteRequests;
+    VioStorReadRegistryParameter(DeviceExtension,
+                                 REGISTRY_ACTION_ON_RESET,
+                                 FIELD_OFFSET(ADAPTER_EXTENSION, action_on_reset));
+
     ConfigInfo->Master = TRUE;
     ConfigInfo->ScatterGather = TRUE;
     ConfigInfo->DmaWidth = Width32Bits;
@@ -1203,7 +1208,21 @@ VirtIoStartIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
         case SRB_FUNCTION_RESET_DEVICE:
         case SRB_FUNCTION_RESET_LOGICAL_UNIT:
             {
-                CompletePendingRequests(DeviceExtension);
+                switch (adaptExt->action_on_reset)
+                {
+                    case VirtioResetCompleteRequests:
+                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Completing all pending SRBs\n");
+                        CompletePendingRequests(DeviceExtension);
+                        break;
+                    case VirtioResetDoNothing:
+                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Doing nothing with all pending SRBs\n");
+                        break;
+                    case VirtioResetBugCheck:
+                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Let's bugcheck due to this reset event\n");
+                        KeBugCheckEx(0xDEADDEAD, (ULONG_PTR)Srb, SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb));
+                        break;
+                }
+
                 CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_SUCCESS);
 #ifdef DBG
                 RhelDbgPrint(TRACE_LEVEL_INFORMATION,
@@ -1425,7 +1444,21 @@ VirtIoResetBus(IN PVOID DeviceExtension, IN ULONG PathId)
     PADAPTER_EXTENSION adaptExt;
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
-    CompletePendingRequests(DeviceExtension);
+    switch (adaptExt->action_on_reset)
+    {
+        case VirtioResetCompleteRequests:
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Completing all pending SRBs\n");
+            CompletePendingRequests(DeviceExtension);
+            break;
+        case VirtioResetDoNothing:
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Doing nothing with all pending SRBs\n");
+            break;
+        case VirtioResetBugCheck:
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Let's bugcheck due to this reset event\n");
+            KeBugCheckEx(0xDEADDEAD, (ULONG_PTR)DeviceExtension, PathId, (ULONG_PTR)-1, (ULONG_PTR)-1);
+            break;
+    }
+
     return TRUE;
 }
 
