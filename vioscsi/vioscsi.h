@@ -292,6 +292,22 @@ typedef enum ACTION_ON_RESET
     VioscsiResetBugCheck = 0xDEADDEAD,
 } ACTION_ON_RESET;
 
+typedef enum _CUSTOM_STOR_SPINLOCK
+{
+    Skip_Locking = 0,
+    No_Lock = 0,
+#if defined(NTDDI_WIN11_GE) && (NTDDI_VERSION >= NTDDI_WIN11_GE)
+    Invalid_Lock = InvalidLock,
+#else
+    Invalid_Lock = 0,
+#endif
+    Dpc_Lock = DpcLock,
+    StartIo_Lock = StartIoLock,
+    Interrupt_Lock = InterruptLock,
+    ThreadedDpc_Lock = ThreadedDpcLock,
+    DpcLevel_Lock = DpcLevelLock
+} CUSTOM_STOR_SPINLOCK;
+
 typedef struct _ADAPTER_EXTENSION
 {
     VirtIODevice vdev;

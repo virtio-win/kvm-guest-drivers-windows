@@ -130,7 +130,7 @@ SynchronizedKickEventRoutine(IN PVOID DeviceExtension, IN PVOID Context);
 
 VOID VioScsiCompleteDpcRoutine(IN PSTOR_DPC Dpc, IN PVOID Context, IN PVOID SystemArgument1, IN PVOID SystemArgument2);
 
-VOID ProcessBuffer(IN PVOID DeviceExtension, IN ULONG MessageId, IN STOR_SPINLOCK LockMode);
+VOID ProcessBuffer(IN PVOID DeviceExtension, IN ULONG MessageId, IN CUSTOM_STOR_SPINLOCK LockMode);
 
 VOID
 // FORCEINLINE
