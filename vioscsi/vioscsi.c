@@ -360,6 +360,7 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
     RtlZeroMemory(adaptExt, sizeof(ADAPTER_EXTENSION));
 
     adaptExt->dump_mode = IsCrashDumpMode;
+    adaptExt->last_srb_id = 1;
     adaptExt->hba_id = HBA_ID;
     ConfigInfo->Master = TRUE;
     ConfigInfo->ScatterGather = TRUE;
@@ -838,6 +839,17 @@ VioScsiStartIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
     }
     else
     {
+        PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+        PSRB_EXTENSION srbExt = SRB_EXTENSION(Srb);
+
+        srbExt->id = adaptExt->last_srb_id;
+        adaptExt->last_srb_id++;
+        if (adaptExt->last_srb_id == 0 || (adaptExt->tmf_cmd.SrbExtension &&
+                                           adaptExt->last_srb_id == (ULONG_PTR)&adaptExt->tmf_cmd.SrbExtension->cmd))
+        {
+            adaptExt->last_srb_id++;
+        }
+
         SendSRB(DeviceExtension, (PSRB_TYPE)Srb);
     }
     EXIT_FN_SRB();
@@ -1423,13 +1435,12 @@ VOID FORCEINLINE DispatchQueue(IN PVOID DeviceExtension, IN ULONG MessageId)
 
 VOID ProcessBuffer(IN PVOID DeviceExtension, IN ULONG MessageId, IN STOR_SPINLOCK LockMode)
 {
-    PVirtIOSCSICmd cmd;
+    ULONG_PTR srbId;
     unsigned int len;
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     ULONG QueueNumber = MESSAGE_TO_QUEUE(MessageId);
     STOR_LOCK_HANDLE LockHandle = {0};
     struct virtqueue *vq;
-    PSRB_TYPE Srb = NULL;
     PSRB_EXTENSION srbExt = NULL;
     PREQUEST_LIST element;
     ULONG vq_req_idx;
@@ -1457,23 +1468,15 @@ VOID ProcessBuffer(IN PVOID DeviceExtension, IN ULONG MessageId, IN STOR_SPINLOC
     do
     {
         virtqueue_disable_cb(vq);
-        while ((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(vq, &len)) != NULL)
+        while ((srbId = (ULONG_PTR)virtqueue_get_buf(vq, &len)) != 0)
         {
             PLIST_ENTRY le = NULL;
             BOOLEAN bFound = FALSE;
 
-            Srb = (PSRB_TYPE)(cmd->srb);
-            if (!Srb)
-            {
-                continue;
-            }
-            srbExt = SRB_EXTENSION(Srb);
             for (le = element->srb_list.Flink; le != &element->srb_list && !bFound; le = le->Flink)
             {
-                PSRB_EXTENSION currSrbExt = CONTAINING_RECORD(le, SRB_EXTENSION, list_entry);
-                PSCSI_REQUEST_BLOCK currSrb = currSrbExt->Srb;
-
-                if (currSrbExt == srbExt && (PSRB_TYPE)currSrb == Srb)
+                srbExt = CONTAINING_RECORD(le, SRB_EXTENSION, list_entry);
+                if (srbExt->id == srbId)
                 {
                     RemoveEntryList(le);
                     bFound = TRUE;
@@ -1481,9 +1484,15 @@ VOID ProcessBuffer(IN PVOID DeviceExtension, IN ULONG MessageId, IN STOR_SPINLOC
                     break;
                 }
             }
+
+            if (!bFound)
+            {
+                RhelDbgPrint(TRACE_LEVEL_WARNING, " No SRB found for ID 0x%p\n", (void *)srbId);
+            }
+
             if (bFound)
             {
-                HandleResponse(DeviceExtension, cmd);
+                HandleResponse(DeviceExtension, &srbExt->cmd);
             }
         }
     } while (!virtqueue_enable_cb(vq));
