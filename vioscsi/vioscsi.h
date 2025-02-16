@@ -260,6 +260,7 @@ typedef struct _SRB_EXTENSION
     VIO_SG vio_sg[VIRTIO_MAX_SG];
     VRING_DESC_ALIAS desc_alias[VIRTIO_MAX_SG];
     ULONGLONG time;
+    ULONG_PTR id;
 } SRB_EXTENSION, *PSRB_EXTENSION;
 #pragma pack()
 
@@ -352,6 +353,7 @@ typedef struct _ADAPTER_EXTENSION
     ULONGLONG fw_ver;
     ULONG resp_time;
     BOOLEAN bRemoved;
+    ULONG_PTR last_srb_id;
 } ADAPTER_EXTENSION, *PADAPTER_EXTENSION;
 
 #ifndef PCIX_TABLE_POINTER
