@@ -134,7 +134,7 @@ RhelDoFlush(PVOID DeviceExtension, PSRB_TYPE Srb, BOOLEAN resend, BOOLEAN bIsr)
                                               &srbExt->sg[0],
                                               srbExt->out,
                                               srbExt->in,
-                                              &srbExt->vbr,
+                                              (void *)srbExt->id,
                                               va,
                                               pa);
 
@@ -221,7 +221,7 @@ RhelDoReadWrite(PVOID DeviceExtension, PSRB_TYPE Srb)
                                               &srbExt->sg[0],
                                               srbExt->out,
                                               srbExt->in,
-                                              &srbExt->vbr,
+                                              (void *)srbExt->id,
                                               va,
                                               pa);
 
@@ -378,7 +378,7 @@ RhelDoUnMap(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
                                               &srbExt->sg[0],
                                               srbExt->out,
                                               srbExt->in,
-                                              &srbExt->vbr,
+                                              (void *)srbExt->id,
                                               va,
                                               pa);
 
@@ -476,7 +476,7 @@ RhelGetSerialNumber(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
                                               &srbExt->sg[0],
                                               srbExt->out,
                                               srbExt->in,
-                                              &srbExt->vbr,
+                                              (void *)srbExt->id,
                                               va,
                                               pa);
 
