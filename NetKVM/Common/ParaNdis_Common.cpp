@@ -2132,7 +2132,7 @@ VOID ParaNdis_OnPnPEvent(PARANDIS_ADAPTER *pContext, NDIS_DEVICE_PNP_EVENT pEven
         ParaNdis_ResetVirtIONetDevice(pContext);
     }
     pContext->PnpEvents[pContext->nPnpEventIndex++] = pEvent;
-    if (pContext->nPnpEventIndex > sizeof(pContext->PnpEvents) / sizeof(pContext->PnpEvents[0]))
+    if (pContext->nPnpEventIndex >= sizeof(pContext->PnpEvents) / sizeof(pContext->PnpEvents[0]))
     {
         pContext->nPnpEventIndex = 0;
     }
