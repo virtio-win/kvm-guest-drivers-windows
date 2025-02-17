@@ -80,16 +80,18 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define IO_PORT_LENGTH                     0x40
 #define MAX_CPU                            256u
 #define MAX_DISCARD_SEGMENTS               256u
-
-#define VIRTIO_BLK_QUEUE_LAST              MAX_CPU
-
-#define VIRTIO_BLK_MSIX_CONFIG_VECTOR      0
 #define MIN_DISCARD_SECTOR_ALIGNMENT       8
+
+#define VIRTIO_BLK_MSIX_VQ_OFFSET          1
+#define VIRTIO_BLK_MSIX_CONFIG_VECTOR      0
+#define VIRTIO_BLK_REQUEST_QUEUE_0         0
+#define VIRTIO_BLK_QUEUE_LAST              MAX_CPU
 
 #define BLOCK_SERIAL_STRLEN                20
 
+#define REGISTRY_MAX_PH_SEGMENTS           "MaxPhysicalSegments"
 #define MAX_PHYS_SEGMENTS                  512
-#define VIRTIO_MAX_SG                      (3 + MAX_PHYS_SEGMENTS)
+#define VIRTIO_MAX_SG                      (MAX_PHYS_SEGMENTS + 1)
 
 #define VIOBLK_POOL_TAG                    'BoiV'
 
@@ -219,7 +221,7 @@ typedef struct _ADAPTER_EXTENSION
     ULONG poolOffset;
 
     struct virtqueue *vq[VIRTIO_BLK_QUEUE_LAST];
-    USHORT num_queues;
+    ULONG num_queues;
     INQUIRYDATA inquiry_data;
     blk_config info;
     ULONG queue_depth;
@@ -249,6 +251,7 @@ typedef struct _ADAPTER_EXTENSION
     BOOLEAN removed;
     BOOLEAN stopped;
     ULONG max_tx_length;
+    ULONG max_segments;
     PGROUP_AFFINITY pmsg_affinity;
     ULONG num_affinity;
     STOR_ADDR_BTL8 device_address;
