@@ -652,12 +652,70 @@ VOID RhelSetGuestFeatures(IN PVOID DeviceExtension)
         guestFeatures |= (1ULL << VIRTIO_F_ORDER_PLATFORM);
     }
 
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                 " Host Features : %llu | Guest Features : %llu\n",
+                 adaptExt->features,
+                 guestFeatures);
+    RhelDbgPrint(TRACE_GUEST_FEATURES,
+                 " VIRTIO_F_VERSION_1 flag is : %s \n",
+                 (guestFeatures & (1ULL << VIRTIO_F_VERSION_1)) ? "ON" : "OFF");
+    RhelDbgPrint(TRACE_GUEST_FEATURES,
+                 " VIRTIO_F_RING_PACKED flag is : %s \n",
+                 (guestFeatures & (1ULL << VIRTIO_F_RING_PACKED)) ? "ON" : "OFF");
+    RhelDbgPrint(TRACE_GUEST_FEATURES,
+                 " VIRTIO_F_ANY_LAYOUT flag is : %s \n",
+                 (guestFeatures & (1ULL << VIRTIO_F_ANY_LAYOUT)) ? "ON" : "OFF");
+    RhelDbgPrint(TRACE_GUEST_FEATURES,
+                 " VIRTIO_F_ACCESS_PLATFORM flag is : %s \n",
+                 (guestFeatures & (1ULL << VIRTIO_F_ACCESS_PLATFORM)) ? "ON" : "OFF");
+    RhelDbgPrint(TRACE_GUEST_FEATURES,
+                 " VIRTIO_RING_F_EVENT_IDX flag is : %s \n",
+                 (guestFeatures & (1ULL << VIRTIO_RING_F_EVENT_IDX)) ? "ON" : "OFF");
+    RhelDbgPrint(TRACE_GUEST_FEATURES,
+                 " VIRTIO_RING_F_INDIRECT_DESC flag is : %s \n",
+                 (guestFeatures & (1ULL << VIRTIO_RING_F_INDIRECT_DESC)) ? "ON" : "OFF");
+    RhelDbgPrint(TRACE_GUEST_FEATURES,
+                 " VIRTIO_BLK_F_FLUSH flag is : %s \n",
+                 (guestFeatures & (1ULL << VIRTIO_BLK_F_FLUSH)) ? "ON" : "OFF");
+    RhelDbgPrint(TRACE_GUEST_FEATURES,
+                 " VIRTIO_BLK_F_BARRIER flag is : %s \n",
+                 (guestFeatures & (1ULL << VIRTIO_BLK_F_BARRIER)) ? "ON" : "OFF");
+    RhelDbgPrint(TRACE_GUEST_FEATURES,
+                 " VIRTIO_BLK_F_RO flag is : %s \n",
+                 (guestFeatures & (1ULL << VIRTIO_BLK_F_RO)) ? "ON" : "OFF");
+    RhelDbgPrint(TRACE_GUEST_FEATURES,
+                 " VIRTIO_BLK_F_SIZE_MAX flag is : %s \n",
+                 (guestFeatures & (1ULL << VIRTIO_BLK_F_SIZE_MAX)) ? "ON" : "OFF");
+    RhelDbgPrint(TRACE_GUEST_FEATURES,
+                 " VIRTIO_BLK_F_SEG_MAX flag is : %s \n",
+                 (guestFeatures & (1ULL << VIRTIO_BLK_F_SEG_MAX)) ? "ON" : "OFF");
+    RhelDbgPrint(TRACE_GUEST_FEATURES,
+                 " VIRTIO_BLK_F_BLK_SIZE flag is : %s \n",
+                 (guestFeatures & (1ULL << VIRTIO_BLK_F_BLK_SIZE)) ? "ON" : "OFF");
+    RhelDbgPrint(TRACE_GUEST_FEATURES,
+                 " VIRTIO_BLK_F_GEOMETRY flag is : %s \n",
+                 (guestFeatures & (1ULL << VIRTIO_BLK_F_GEOMETRY)) ? "ON" : "OFF");
+    RhelDbgPrint(TRACE_GUEST_FEATURES,
+                 " VIRTIO_BLK_F_MQ flag is : %s \n",
+                 (guestFeatures & (1ULL << VIRTIO_BLK_F_MQ)) ? "ON" : "OFF");
+    RhelDbgPrint(TRACE_GUEST_FEATURES,
+                 " VIRTIO_BLK_F_DISCARD flag is : %s \n",
+                 (guestFeatures & (1ULL << VIRTIO_BLK_F_DISCARD)) ? "ON" : "OFF");
+    RhelDbgPrint(TRACE_GUEST_FEATURES,
+                 " VIRTIO_BLK_F_WRITE_ZEROES flag is : %s \n",
+                 (guestFeatures & (1ULL << VIRTIO_BLK_F_WRITE_ZEROES)) ? "ON" : "OFF");
+    RhelDbgPrint(TRACE_GUEST_FEATURES,
+                 " VIRTIO_F_ORDER_PLATFORM flag is : %s \n",
+                 (guestFeatures & (1ULL << VIRTIO_F_ORDER_PLATFORM)) ? "ON" : "OFF");
+
     if (!NT_SUCCESS(virtio_set_features(&adaptExt->vdev, guestFeatures)))
     {
-        RhelDbgPrint(TRACE_LEVEL_FATAL, " virtio_set_features failed\n");
-        return;
+        RhelDbgPrint(TRACE_LEVEL_WARNING, " virtio_set_features() FAILED...!!!\n");
     }
-    RhelDbgPrint(TRACE_LEVEL_VERBOSE, " Host Features %llu gust features %llu\n", adaptExt->features, guestFeatures);
+    else
+    {
+        RhelDbgPrint(TRACE_GUEST_FEATURES, " virtio_set_features() executed successfully.\n");
+    }
 }
 
 BOOLEAN
