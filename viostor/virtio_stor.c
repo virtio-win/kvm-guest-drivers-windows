@@ -130,6 +130,229 @@ VOID WppCleanupRoutine(PVOID arg1)
 }
 #endif
 
+USHORT CopyBufferToAnsiString(void *_pDest, const void *_pSrc, const char delimiter, size_t _maxlength)
+{
+    PCHAR dst = (PCHAR)_pDest;
+    PCHAR src = (PCHAR)_pSrc;
+    USHORT _length = _maxlength;
+
+    while (_length && (*src != delimiter))
+    {
+        *dst++ = *src++;
+        --_length;
+    };
+    *dst = '\0';
+    return _length;
+}
+
+BOOLEAN VioStorReadRegistryParameter(IN PVOID DeviceExtension, IN PUCHAR ValueName, IN LONG offset)
+{
+    BOOLEAN bReadResult = FALSE;
+    BOOLEAN bUseAltPerHbaRegRead = FALSE;
+    ULONG pBufferLength = sizeof(ULONG);
+    UCHAR *pBuffer = NULL;
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    ULONG spgspn_rc, i, j;
+    STOR_ADDRESS HwAddress = {0};
+    PSTOR_ADDRESS pHwAddress = &HwAddress;
+    CHAR valname_as_str[64] = {0};
+    CHAR hba_id_as_str[4] = {0};
+    USHORT shAdapterId = (USHORT)adaptExt->slot_number - 1;
+    ULONG value_as_ulong;
+
+    /* Get a clean buffer to store the registry value... */
+    pBuffer = StorPortAllocateRegistryBuffer(DeviceExtension, &pBufferLength);
+    if (pBuffer == NULL)
+    {
+        RhelDbgPrint(TRACE_LEVEL_WARNING, " StorPortAllocateRegistryBuffer failed to allocate buffer\n");
+        return FALSE;
+    }
+    memset(pBuffer, 0, sizeof(ULONG));
+
+    /* Check if we can get a System PortNumber to access the \Parameters\Device(d) subkey to get a per HBA value.
+     * FIXME NOTE
+     *
+     * Regarding StorPortGetSystemPortNumber():
+     *
+     * StorPort always reports STOR_STATUS_INVALID_DEVICE_STATE and does not update pHwAddress->Port.
+     * Calls to StorPortRegistryRead() and StorPortRegistryWrite() only read or write to \Parameters\Device-1,
+     * which appears to be an uninitialized value. Therefore, the alternate per HBA read technique will always be used.
+     *
+     * Please refer to PR #1216 for more details.
+     *
+     * FIXME NOTE END
+     */
+    pHwAddress->Type = STOR_ADDRESS_TYPE_BTL8;
+    pHwAddress->AddressLength = STOR_ADDR_BTL8_ADDRESS_LENGTH;
+    RhelDbgPrint(TRACE_REGISTRY,
+                 " Checking whether the HBA system port number and HBA specific registry are available for reading... "
+                 "\n");
+    spgspn_rc = StorPortGetSystemPortNumber(DeviceExtension, pHwAddress);
+    if (spgspn_rc = STOR_STATUS_INVALID_DEVICE_STATE)
+    {
+        RhelDbgPrint(TRACE_REGISTRY,
+                     " WARNING : !!!...HBA Port not ready yet...!!! Returns : 0x%x (STOR_STATUS_INVALID_DEVICE_STATE) "
+                     "\n",
+                     spgspn_rc);
+        /*
+         * When we are unable to get a valid system PortNumber, we need to
+         * use an alternate per HBA registry read technique. The technique
+         * implemented here uses per HBA registry value names based on the
+         * Storport provided slot_number minus one, padded to hundreds,
+         * e.g. \Parameters\Device\Valuename_123.
+         *
+         * This permits up to 999 HBAs. That ought to be enough... c( O.O )ɔ
+         */
+        bUseAltPerHbaRegRead = TRUE;
+        RhelDbgPrint(TRACE_REGISTRY,
+                     " Using alternate per HBA registry read technique [\\Parameters\\Device\\Value_(ddd)]. \n");
+
+        /* Grab the first 60 characters of the target Registry Value.
+         * Value name limit is 16,383 characters, so this is important.
+         * We leave the last 4 characters for the hba_id_as_str values.
+         * NULL terminator wraps things up. Also used in TRACING.
+         */
+        CopyBufferToAnsiString(&valname_as_str, ValueName, '\0', 60);
+        CopyBufferToAnsiString(&hba_id_as_str, &shAdapterId, '\0', 4);
+
+        /* Convert from integer to padded ASCII numbers. */
+        if (shAdapterId / 100)
+        {
+            j = 0;
+            hba_id_as_str[j] = (UCHAR)(shAdapterId / 100) + 48;
+        }
+        else
+        {
+            hba_id_as_str[0] = 48;
+            if (shAdapterId / 10)
+            {
+                j = 1;
+                hba_id_as_str[j] = (UCHAR)(shAdapterId / 10) + 48;
+            }
+            else
+            {
+                hba_id_as_str[1] = 48;
+                j = 2;
+                hba_id_as_str[j] = (UCHAR)shAdapterId + 48;
+            }
+        }
+        if ((j < 1) && (shAdapterId / 10))
+        {
+            j = 1;
+            hba_id_as_str[j] = (UCHAR)(((shAdapterId - ((shAdapterId / 100) * 100)) / 10) + 48);
+        }
+        else if ((j < 2) && (shAdapterId > 9))
+        {
+            j = 2;
+            hba_id_as_str[j] = (UCHAR)((shAdapterId - ((shAdapterId / 10) * 10)) + 48);
+        }
+        else
+        {
+            j = 1;
+            hba_id_as_str[j] = 48;
+        }
+        if ((j < 2) && (shAdapterId > 0))
+        {
+            j = 2;
+            hba_id_as_str[j] = (UCHAR)((shAdapterId - ((shAdapterId / 10) * 10)) + 48);
+        }
+        else if (j < 2)
+        {
+            j = 2;
+            hba_id_as_str[j] = 48;
+        }
+        /* NULL-terminate the string. */
+        hba_id_as_str[3] = '\0';
+        /* Skip the exisitng ValueName. */
+        for (i = 0; valname_as_str[i] != '\0'; ++i)
+        {
+        }
+        /* Append an underscore. */
+        valname_as_str[i] = '\x5F';
+        /* Append the padded HBA ID and NULL terminator. */
+        for (j = 0; j < 4; ++j)
+        {
+            valname_as_str[i + j + 1] = hba_id_as_str[j];
+        }
+
+        PUCHAR ValueNamePerHba = (UCHAR *)&valname_as_str;
+        bReadResult = StorPortRegistryRead(DeviceExtension,
+                                           ValueNamePerHba,
+                                           1,
+                                           MINIPORT_REG_DWORD,
+                                           pBuffer,
+                                           &pBufferLength);
+    }
+    else
+    {
+        RhelDbgPrint(TRACE_REGISTRY, " HBA Port : %u | Returns : 0x%x \n", pHwAddress->Port, spgspn_rc);
+        RhelDbgPrint(TRACE_REGISTRY, " Using StorPort-based per HBA registry read [\\Parameters\\Device(d)]. \n");
+        /* FIXME : THIS DOES NOT WORK. IT WILL NOT READ \Parameters\Device(d) subkeys...
+         * NOTE  : Only MINIPORT_REG_DWORD values are supported.
+         */
+        bReadResult = StorPortRegistryRead(DeviceExtension, ValueName, 0, MINIPORT_REG_DWORD, pBuffer, &pBufferLength);
+        /* Grab the first 64 characters of the target Registry Value.
+         * Value name limit is 16,383 characters, so this is important.
+         * NULL terminator wraps things up. Used in TRACING.
+         */
+        CopyBufferToAnsiString(&valname_as_str, ValueName, '\0', 64);
+    }
+
+    if ((bReadResult == FALSE) || (pBufferLength == 0))
+    {
+        RhelDbgPrint(TRACE_REGISTRY,
+                     " StorPortRegistryRead was unable to find a per HBA value %s. Attempting to find a global "
+                     "value... \n",
+                     (bUseAltPerHbaRegRead) ? "using \\Parameters\\Device\\Value_(ddd) value names"
+                                            : "at the \\Parameters\\Device(d) subkey");
+        bReadResult = FALSE;
+        pBufferLength = sizeof(ULONG);
+        memset(pBuffer, 0, sizeof(ULONG));
+
+        /* Do a "Global" read of the Parameters\Device subkey...
+         * NOTE : Only MINIPORT_REG_DWORD values are supported.
+         */
+        bReadResult = StorPortRegistryRead(DeviceExtension, ValueName, 1, MINIPORT_REG_DWORD, pBuffer, &pBufferLength);
+        /* Grab the first 64 characters of the target Registry Value.
+         * Value name limit is 16,383 characters, so this is important.
+         * NULL terminator wraps things up. Used in TRACING.
+         */
+        CopyBufferToAnsiString(&valname_as_str, ValueName, '\0', 64);
+    }
+    /* Give me the DWORD Registry Value as a ULONG from the pointer.
+     * Used in TRACING.
+     */
+    memcpy(&value_as_ulong, pBuffer, sizeof(ULONG));
+
+    if ((bReadResult == FALSE) || (pBufferLength == 0))
+    {
+        RhelDbgPrint(TRACE_REGISTRY,
+                     " StorPortRegistryRead of %s returned NOT FOUND or EMPTY, pBufferLength = %d, Possible "
+                     "pBufferLength Hint = 0x%x (%lu) \n",
+                     valname_as_str,
+                     pBufferLength,
+                     value_as_ulong,
+                     value_as_ulong);
+        StorPortFreeRegistryBuffer(DeviceExtension, pBuffer);
+        return FALSE;
+    }
+    else
+    {
+        RhelDbgPrint(TRACE_REGISTRY,
+                     " StorPortRegistryRead of %s returned SUCCESS, pBufferLength = %d, Value = 0x%x (%lu) \n",
+                     valname_as_str,
+                     pBufferLength,
+                     value_as_ulong,
+                     value_as_ulong);
+
+        StorPortCopyMemory((PVOID)((UINT_PTR)adaptExt + offset), (PVOID)pBuffer, sizeof(ULONG));
+
+        StorPortFreeRegistryBuffer(DeviceExtension, pBuffer);
+
+        return TRUE;
+    }
+}
+
 ULONG
 DriverEntry(IN PVOID DriverObject, IN PVOID RegistryPath)
 {
@@ -238,7 +461,7 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
 {
     PACCESS_RANGE accessRange;
     PADAPTER_EXTENSION adaptExt;
-    USHORT queueLength;
+    USHORT queue_length;
     ULONG pci_cfg_len;
     ULONG res, i;
 
@@ -246,6 +469,8 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
     ULONG num_cpus;
     ULONG max_cpus;
     ULONG max_queues;
+    ULONG max_sectors;
+    ULONG max_segs_candidate[3] = {0};
     ULONG Size;
     ULONG HeapSize;
 
@@ -376,60 +601,204 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
         return res;
     }
 
+    adaptExt->indirect = FALSE;
+    adaptExt->max_segments = SCSI_MINIMUM_PHYSICAL_BREAKS;
+
     RhelGetDiskGeometry(DeviceExtension);
     RhelSetGuestFeatures(DeviceExtension);
 
-    ConfigInfo->NumberOfBuses = 1;
-    ConfigInfo->MaximumNumberOfTargets = 1;
-    ConfigInfo->MaximumNumberOfLogicalUnits = 1;
-
     ConfigInfo->CachesData = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_FLUSH) ? TRUE : FALSE;
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " VIRTIO_BLK_F_WCACHE = %d\n", ConfigInfo->CachesData);
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " VIRTIO_BLK_F_MQ = %d\n", CHECKBIT(adaptExt->features, VIRTIO_BLK_F_MQ));
-
-    virtio_query_queue_allocation(&adaptExt->vdev,
-                                  0,
-                                  &queueLength,
-                                  &adaptExt->pageAllocationSize,
-                                  &adaptExt->poolAllocationSize);
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " VIRTIO_BLK_F_WCACHE = %s\n", (ConfigInfo->CachesData) ? "ON" : "OFF");
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                 " VIRTIO_BLK_F_MQ = %s\n",
+                 (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_MQ)) ? "ON" : "OFF");
 
     if (!adaptExt->dump_mode)
     {
         adaptExt->indirect = CHECKBIT(adaptExt->features, VIRTIO_RING_F_INDIRECT_DESC);
     }
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " VIRTIO_RING_F_INDIRECT_DESC = %s\n", (adaptExt->indirect) ? "ON" : "OFF");
 
-    if (adaptExt->dump_mode)
-    {
-        ConfigInfo->NumberOfPhysicalBreaks = SCSI_MINIMUM_PHYSICAL_BREAKS;
-    }
-    else
-    {
-        ConfigInfo->NumberOfPhysicalBreaks = MAX_PHYS_SEGMENTS;
-    }
+    ConfigInfo->NumberOfBuses = 1;
+    ConfigInfo->MaximumNumberOfTargets = 1;
+    ConfigInfo->MaximumNumberOfLogicalUnits = 1;
+    ConfigInfo->MaximumTransferLength = SP_UNINITIALIZED_VALUE;  // Unlimited
+    ConfigInfo->NumberOfPhysicalBreaks = SP_UNINITIALIZED_VALUE; // Unlimited
 
-    if (adaptExt->indirect)
+    if (!adaptExt->dump_mode)
     {
-        adaptExt->queue_depth = queueLength;
-    }
-    else
-    {
-        ConfigInfo->NumberOfPhysicalBreaks = max(SCSI_MINIMUM_PHYSICAL_BREAKS, (queueLength / 4));
-        adaptExt->queue_depth = max(((queueLength / ConfigInfo->NumberOfPhysicalBreaks) - 1), 1);
-    }
-    if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_SEG_MAX))
-    {
-        ULONG size_max = adaptExt->info.size_max;
-        ULONG seg_max = adaptExt->info.seg_max;
-        if ((size_max > 0) && (seg_max > 0))
+        /* Begin max_segments determinations... */
+        /* Allow user to override max_segments via reg key
+         * [HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\viostor\Parameters\Device]
+         * "MaxPhysicalSegments"={dword value here}
+         *
+         * ATTENTION : This should be the maximum number of memory pages (typ. 4KiB each) in a transfer
+         *             Equivalent to any of the following:
+         *             NumberOfPhysicalBreaks - 1 (NOPB includes known off-by-one error)
+         *             VIRTIO_MAX_SG - 1
+         *             MaximumSGList - 1 (SCSI Port legacy value)
+         *
+         * ATTENTION : This should be the same as the max_segments value of the backing device.
+         *
+         *  WARNING  : This is adapter-wide. Using disks with different max_segments values will
+         *             result in sub-optimal performance.
+         */
+        if (VioStorReadRegistryParameter(DeviceExtension,
+                                         REGISTRY_MAX_PH_SEGMENTS,
+                                         FIELD_OFFSET(ADAPTER_EXTENSION, max_segments)))
         {
-            seg_max = (ULONG)((ULONGLONG)seg_max * size_max) / (ROUND_TO_PAGES(size_max));
-            ConfigInfo->NumberOfPhysicalBreaks = seg_max - 1;
+            /* Grab the maximum SEGMENTS value from the registry */
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                         " max_segments candidate was specified in the registry : %lu \n",
+                         adaptExt->max_segments);
         }
-    }
+        else if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_SEG_MAX))
+        {
+            if ((adaptExt->info.size_max > 0) && (adaptExt->info.seg_max > 0))
+            {
+                /* Grab the maximum SEGMENTS value via Guest Features */
+                adaptExt->max_segments = (ULONG)((ULONGLONG)adaptExt->info.seg_max * adaptExt->info.size_max) /
+                                         (ROUND_TO_PAGES(adaptExt->info.size_max));
+                RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                             " max_segments candidate was derived from valid Guest Features : %lu \n",
+                             adaptExt->max_segments);
+            }
+        }
+        else
+        {
+            /* Grab the VirtIO reported maximum SEGMENTS value from the HBA and put it somewhere mutable */
+            adaptExt->max_segments = adaptExt->info.seg_max;
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                         " max_segments candidate was NOT specified in the registry or derived via valid Guest "
+                         "Features. We will attempt to derive the value by other means...\n");
+        }
 
-    ConfigInfo->MaximumTransferLength = ConfigInfo->NumberOfPhysicalBreaks * PAGE_SIZE;
-    ConfigInfo->NumberOfPhysicalBreaks++;
+        /* Use our maximum SEGMENTS value OR use a derived value... */
+        if (adaptExt->indirect)
+        {
+            max_segs_candidate[1] = adaptExt->max_segments;
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                         " max_segments candidate derived from MAX SEGMENTS (reported by QEMU/KVM) as "
+                         "VIRTIO_RING_F_INDIRECT_DESC is ON: %lu \n",
+                         max_segs_candidate[1]);
+        }
+        else
+        {
+            Size = 0;
+            virtio_query_queue_allocation(&adaptExt->vdev, VIRTIO_BLK_REQUEST_QUEUE_0, &queue_length, &Size, &HeapSize);
+            max_segs_candidate[1] = max(SCSI_MINIMUM_PHYSICAL_BREAKS, (queue_length / 4));
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                         " max_segments candidate derived from reported Queue Length as VIRTIO_RING_F_INDIRECT_DESC is "
+                         "OFF: %lu \n",
+                         max_segs_candidate[1]);
+        }
+
+        /* Grab the VirtIO reported maximum SECTORS value from the HBA to start with */
+        if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_GEOMETRY))
+        {
+            max_sectors = adaptExt->info.geometry.cylinders * adaptExt->info.geometry.sectors /
+                          adaptExt->info.geometry.heads;
+            if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_BLK_SIZE))
+            {
+                max_segs_candidate[2] = (max_sectors * adaptExt->info.blk_size) / PAGE_SIZE;
+            }
+            else
+            {
+                max_segs_candidate[2] = (max_sectors * SECTOR_SIZE) / PAGE_SIZE;
+            }
+        }
+        else
+        {
+            max_sectors = 0;
+            max_segs_candidate[2] = 0;
+        }
+        RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                     " max_segments candidate derived from %lu total sectors : %lu \n",
+                     max_sectors,
+                     max_segs_candidate[2]);
+
+        /* Choose the best candidate... */
+        if (max_segs_candidate[1] == max_segs_candidate[2])
+        {
+            /* Start with a comparison of equality */
+            max_segs_candidate[0] = max_segs_candidate[1];
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                         " max_segs_candidate[0] : init - the candidates were the same value : %lu \n",
+                         max_segs_candidate[0]);
+        }
+        else if ((max_segs_candidate[2] > 0) && (max_segs_candidate[2] < MAX_PHYS_SEGMENTS))
+        {
+            /* Use the value derived from the QEMU/KVM hint if it is below the MAX_PHYS_SEGMENTS */
+            max_segs_candidate[0] = max_segs_candidate[2];
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                         " max_segs_candidate[0] : init - the total numner of sectors (%lu) was used to select the "
+                         "candidate : %lu \n",
+                         max_sectors,
+                         max_segs_candidate[0]);
+        }
+        else
+        {
+            /* Take the smallest candidate */
+            max_segs_candidate[0] = min((max_segs_candidate[1]), (max_segs_candidate[2]));
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                         " max_segs_candidate[0] : init - the smallest candidate was selected : %lu \n",
+                         max_segs_candidate[0]);
+        }
+
+        /* Check the value is within SG list bounds */
+        max_segs_candidate[0] = min(max(SCSI_MINIMUM_PHYSICAL_BREAKS, max_segs_candidate[0]), (VIRTIO_MAX_SG - 1));
+        RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                     " max_segs_candidate[0] : within SG list bounds (%lu) : %lu\n",
+                     (VIRTIO_MAX_SG - 1),
+                     max_segs_candidate[0]);
+
+        /* Check the value is within physical bounds */
+        max_segs_candidate[0] = min(max(SCSI_MINIMUM_PHYSICAL_BREAKS, max_segs_candidate[0]), MAX_PHYS_SEGMENTS);
+        RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                     " max_segs_candidate[0] : within physical bounds (%lu) : %lu\n",
+                     MAX_PHYS_SEGMENTS,
+                     max_segs_candidate[0]);
+
+        /* Update max_segments for all cases */
+        adaptExt->max_segments = max_segs_candidate[0];
+    }
+    /* Here we enforce legacy off-by-one NumberOfPhysicalBreaks (NOPB) behaviour for StorPort.
+     * This behaviour was retained in StorPort to maintain backwards compatibility.
+     * This is analogous to the legacy MaximumSGList parameter in the SCSI Port driver.
+     * Where:
+     * MaximumSGList = ((MAX_BLOCK_SIZE)/PAGE_SIZE) + 1
+     * The default x86/x64 values being:
+     * MaximumSGList = (64KiB/4KiB) + 1 = 16 + 1 = 17 (0x11)
+     * The MAX_BLOCK_SIZE limit is no longer 64KiB, but 2048KiB (2MiB):
+     * NOPB or MaximumSGList = (2048KiB/4KiB) + 1 = 512 + 1 = 513 (0x201)
+     *
+     * ATTENTION: The MS NOPB documentation for both the SCSI Port and StorPort drivers is incorrect.
+     *
+     * As max_segments = MAX_BLOCK_SIZE/PAGE_SIZE we use:
+     */
+    ConfigInfo->NumberOfPhysicalBreaks = adaptExt->max_segments + 1;
+
+    /* Here we use the efficient single step calculation for MaximumTransferLength
+     *
+     * The alternative would be:
+     * ConfigInfo->MaximumTransferLength = adaptExt->max_segments;
+     * ConfigInfo->MaximumTransferLength <<= PAGE_SHIFT;
+     * ...where #define PAGE_SHIFT 12L
+     *
+     */
+    ConfigInfo->MaximumTransferLength = adaptExt->max_segments * PAGE_SIZE;
     adaptExt->max_tx_length = ConfigInfo->MaximumTransferLength;
+
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                 " adaptExt->max_segments : 0x%x (%lu) | ConfigInfo->NumberOfPhysicalBreaks : 0x%x (%lu) | "
+                 "ConfigInfo->MaximumTransferLength : 0x%x (%lu) Bytes (%lu KiB) \n",
+                 adaptExt->max_segments,
+                 adaptExt->max_segments,
+                 ConfigInfo->NumberOfPhysicalBreaks,
+                 ConfigInfo->NumberOfPhysicalBreaks,
+                 ConfigInfo->MaximumTransferLength,
+                 ConfigInfo->MaximumTransferLength,
+                 (ConfigInfo->MaximumTransferLength / 1024));
 
     num_cpus = KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
     max_cpus = KeQueryMaximumProcessorCountEx(ALL_PROCESSOR_GROUPS);
@@ -437,14 +806,12 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
     num_cpus = max(1, num_cpus);
     max_cpus = max(1, max_cpus);
 
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                 " Detected Number Of CPUs : %lu | Maximum Number Of CPUs : %lu\n",
+                 num_cpus,
+                 max_cpus);
+
     adaptExt->num_queues = 1;
-    if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_MQ))
-    {
-        virtio_get_config(&adaptExt->vdev,
-                          FIELD_OFFSET(blk_config, num_queues),
-                          &adaptExt->num_queues,
-                          sizeof(adaptExt->num_queues));
-    }
 
     if (adaptExt->dump_mode || !adaptExt->msix_enabled)
     {
@@ -452,10 +819,20 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
     }
     else
     {
+        if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_MQ))
+        {
+            virtio_get_config(&adaptExt->vdev,
+                              FIELD_OFFSET(blk_config, num_queues),
+                              &adaptExt->num_queues,
+                              sizeof(adaptExt->num_queues));
+        }
         adaptExt->num_queues = min(adaptExt->num_queues, (USHORT)num_cpus);
     }
 
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Queues %d CPUs %d\n", adaptExt->num_queues, num_cpus);
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                 " VirtIO Request Queues : %lu | CPUs : %lu \n",
+                 adaptExt->num_queues,
+                 num_cpus);
 
     max_queues = min(max_cpus, adaptExt->num_queues);
     adaptExt->pageAllocationSize = 0;
@@ -466,7 +843,7 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
 
     for (index = 0; index < max_queues; ++index)
     {
-        virtio_query_queue_allocation(&adaptExt->vdev, index, &queueLength, &Size, &HeapSize);
+        virtio_query_queue_allocation(&adaptExt->vdev, index, &queue_length, &Size, &HeapSize);
         if (Size == 0)
         {
             LogError(DeviceExtension, SP_INTERNAL_ADAPTER_ERROR, __LINE__);
