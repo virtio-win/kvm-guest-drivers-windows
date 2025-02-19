@@ -121,6 +121,61 @@ People *love* thorough bug reports.
    ```bash
    bash Tools/clang-format-helper.sh check 'VirtIO' '' ''
    ```
+   For `NetKVM` driver:
+   
+   ```bash
+   bash Tools/clang-format-helper.sh check './NetKVM' './.clang-format' './Common/trace.h|./Common/virtio_net.h|./linux/if_ether.h'
+   ```
+   For `pvpanic` driver:
+   
+   ```bash
+   bash Tools/clang-format-helper.sh check './pvpanic' './.clang-format' './pvpanic/trace.h'
+   ```
+   For `viocrypt` driver:
+   
+   ```bash
+   bash Tools/clang-format-helper.sh check './viocrypt' './.clang-format' './sys/Wpptrace.h'
+   ```
+   For `viofs` driver:
+   
+   ```bash
+   bash Tools/clang-format-helper.sh check './viofs' './.clang-format' './pci/trace.h|./shared/fuse.h|./svc/scope_exit.h'
+   ```
+   For `viogpu` driver:
+   
+   ```bash
+   bash Tools/clang-format-helper.sh check './viogpu' './.clang-format' './viogpudo/trace.h'
+   ```
+   For `vioinput` driver:
+   
+   ```bash
+   bash Tools/clang-format-helper.sh check './vioinput' './.clang-format' './sys/trace.h'
+   ```
+   For `viomem` driver:
+   
+   ```bash
+   bash Tools/clang-format-helper.sh check './viomem' './.clang-format' './sys/trace.h'
+   ```
+   For `viorng` driver:
+   
+   ```bash
+   bash Tools/clang-format-helper.sh check './viorng' './.clang-format' './viorng/trace.h'
+   ```
+   For `vioserial` driver:
+   
+   ```bash
+   bash Tools/clang-format-helper.sh check './vioserial' './.clang-format' './sys/trace.h'
+   ```
+   For `viosock` driver:
+   
+   ```bash
+   bash Tools/clang-format-helper.sh check './viosock' './.clang-format' './lib/trace.h|./sys/trace.h|./viosock-wsk-test/wpp-trace.h|./wsk/wpp-trace.h'
+   ```
+   For `viostor` driver:
+   
+   ```bash
+   bash Tools/clang-format-helper.sh check './viostor' './.clang-format' './virtio_stor_trace.h'
+   ```
    </details>
 
 ## HCK\HLK tests
