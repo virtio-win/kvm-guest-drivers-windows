@@ -75,6 +75,14 @@ Common property definitions used by all drivers:
     <Substitution Include="INX_BASE_ON_SYSTEM_ROOT_DRIVER_DIR" Condition="'$(Configuration)'=='Win11 Release' OR '$(Configuration)'=='Win11 Debug'">
       <ReplaceWith>%2513%25</ReplaceWith>
     </Substitution>
+
+    <Substitution Include="INX_NETKVM_DMAREMAP" Condition="'$(Configuration)'=='Win10 Release' OR '$(Configuration)'=='Win10 Debug'">
+      <ReplaceWith>0</ReplaceWith>
+    </Substitution>
+    <Substitution Include="INX_NETKVM_DMAREMAP" Condition="'$(Configuration)'=='Win11 Release' OR '$(Configuration)'=='Win11 Debug'">
+      <ReplaceWith>2</ReplaceWith>
+    </Substitution>
+
   </ItemGroup>
 
   <!-- WPP settings -->

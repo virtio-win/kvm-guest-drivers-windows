@@ -244,7 +244,7 @@ HKR, , TypesSupported,   0x00010001, 7
 HKR,,TextModeFlags,0x00010001, 0x0001
 HKR,Parameters,DisableMSI,,"0"
 HKR,Parameters,EarlyDebug,,"3"
-HKR,Parameters,DmaRemappingCompatible,0x00010001,2
+HKR,Parameters,DmaRemappingCompatible,0x00010001,INX_NETKVM_DMAREMAP
 
 
 [SourceDisksNames]
