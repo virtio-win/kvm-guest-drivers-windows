@@ -9,17 +9,17 @@ jobs:
       matrix:
         path:
           - check: '.'
-            exclude: './.*/.*trace.h|./NetKVM|./viocrypt|./viofs|./viosock|./VirtIO'
+            exclude: './VirtIO|./.*/.*trace.h|./NetKVM/Common/virtio_net.h|./NetKVM/linux/if_ether.h|./viofs/shared/fuse.h|./viofs/svc/scope_exit.h'
           - check: 'VirtIO'
             exclude: ''
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Run clang-format style check for C/C++ programs.
-      run: |
-        sudo apt-get update
-        sudo apt-get install --no-install-recommends -y clang-format-16
-        bash Tools/clang-format-helper.sh check ${CHECK_PATH} "" ${EXCLUDE_REGEX}
-      env:
-        CHECK_PATH: ${{ matrix.path['check'] }}
-        EXCLUDE_REGEX: ${{ matrix.path['exclude'] }}
+      - uses: actions/checkout@v4
+      - name: Run clang-format style check for C/C++ programs.
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y clang-format-16
+          bash Tools/clang-format-helper.sh check ${CHECK_PATH} "" ${EXCLUDE_REGEX}
+        env:
+          CHECK_PATH: ${{ matrix.path['check'] }}
+          EXCLUDE_REGEX: ${{ matrix.path['exclude'] }}
