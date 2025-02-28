@@ -65,6 +65,7 @@ BOOL InstallService()
     SC_HANDLE newService;
     SC_HANDLE scm;
     TCHAR szBuffer[255];
+    TCHAR szDependencies[255] = {0};
     TCHAR szPath[MAX_PATH];
 
     GetModuleFileName(GetModuleHandle(NULL), szPath, MAX_PATH);
@@ -77,6 +78,12 @@ BOOL InstallService()
         return FALSE;
     }
     if (FAILED(StringCchCat(szBuffer, 255, TEXT("\""))))
+    {
+        return FALSE;
+    }
+
+    // Balloon Service depends from Windows Management Instrumentation
+    if (FAILED(StringCchCopy(szDependencies, 255, TEXT("Winmgmt"))))
     {
         return FALSE;
     }
@@ -96,7 +103,7 @@ BOOL InstallService()
                                szBuffer,
                                NULL,
                                NULL,
-                               NULL,
+                               szDependencies,
                                NULL,
                                NULL);
     if (!newService)
