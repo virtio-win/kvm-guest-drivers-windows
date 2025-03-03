@@ -1,2 +1,2 @@
 @echo off
-call ..\build\clean.bat
+call  ..\build\clean.bat
