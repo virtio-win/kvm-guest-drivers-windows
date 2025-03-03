@@ -9,11 +9,11 @@
 #include "..\inc\vio_sockets.h"
 
 
-void create_vsock_addr(PSOCKADDR_VM addr)
+void create_vsock_addr(PSOCKADDR_VM addr, UINT svm_cid = 0)
 {
 	//addr->svm_cid = VMADDR_CID_ANY;
 	//addr->svm_port = VMADDR_PORT_ANY;
-	addr->svm_cid = 3;
+	addr->svm_cid = svm_cid == 0 ? 3 : svm_cid;
 	addr->svm_port = 22;
 }
 
@@ -153,7 +153,7 @@ void StartThreads(SOCKET vsock, SOCKET tcp)
 
 
 
-int __cdecl main()
+int __cdecl main(int argc, char **argv)
 {
 	ADDRESS_FAMILY vsock_AF;
 	SOCKADDR_VM vsock_addr = { 0 };
@@ -167,7 +167,15 @@ int __cdecl main()
 
 	WSADATA wsaData = { 0 };
 
-	create_vsock_addr(&vsock_addr);
+	UINT cid = 0;
+	if (argc == 2)
+	{
+		sscanf_s(argv[1], "%u", &cid);
+	}
+
+	create_vsock_addr(&vsock_addr, cid);
+	_tprintf(_T("SOCKADDR_VM: svm_cid = %u, svm_port = %u\n"), vsock_addr.svm_cid, vsock_addr.svm_port);
+
 	create_tcp_addr(&tcp_addr);
 
 	int iRes = WSAStartup(MAKEWORD(2, 2), &wsaData);
