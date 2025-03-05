@@ -594,6 +594,8 @@ BOOLEAN VioGpuBuf::Init(_In_ UINT cnt)
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
+    m_uCountMin = cnt;
+
     for (UINT i = 0; i < cnt; ++i)
     {
         PGPU_VBUFFER pvbuf = reinterpret_cast<PGPU_VBUFFER>(new (NonPagedPoolNx) BYTE[VBUFFER_SIZE]);
@@ -690,35 +692,37 @@ PGPU_VBUFFER VioGpuBuf::GetBuf(_In_ int size, _In_ int resp_size, _In_opt_ void 
         VioGpuDbgBreak();
     }
 
-    if (!IsListEmpty(&m_FreeBufs))
+    if (IsListEmpty(&m_FreeBufs))
     {
-        pListItem = RemoveHeadList(&m_FreeBufs);
-        pbuf = CONTAINING_RECORD(pListItem, GPU_VBUFFER, list_entry);
-        ASSERT(pvbuf);
-        memset(pbuf, 0, VBUFFER_SIZE);
-        ASSERT(size > MAX_INLINE_CMD_SIZE);
-
-        pbuf->buf = (char *)((ULONG_PTR)pbuf + sizeof(*pbuf));
-        pbuf->size = size;
-        pbuf->auto_release = true;
-
-        pbuf->resp_size = resp_size;
-        if (resp_size <= MAX_INLINE_RESP_SIZE)
-        {
-            pbuf->resp_buf = (char *)((ULONG_PTR)pbuf->buf + size);
-        }
-        else
-        {
-            pbuf->resp_buf = (char *)resp_buf;
-        }
-        ASSERT(vbuf->resp_buf);
-        InsertTailList(&m_InUseBufs, &pbuf->list_entry);
+        pbuf = reinterpret_cast<PGPU_VBUFFER>(new (NonPagedPoolNx) BYTE[VBUFFER_SIZE]);
+        ++m_uCount;
     }
     else
     {
-        DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s Cannot allocate buffer\n", __FUNCTION__));
-        VioGpuDbgBreak();
+        pListItem = RemoveHeadList(&m_FreeBufs);
+        pbuf = CONTAINING_RECORD(pListItem, GPU_VBUFFER, list_entry);
     }
+
+    ASSERT(pvbuf);
+    memset(pbuf, 0, VBUFFER_SIZE);
+    ASSERT(size > MAX_INLINE_CMD_SIZE);
+
+    pbuf->buf = (char *)((ULONG_PTR)pbuf + sizeof(*pbuf));
+    pbuf->size = size;
+    pbuf->auto_release = true;
+
+    pbuf->resp_size = resp_size;
+    if (resp_size <= MAX_INLINE_RESP_SIZE)
+    {
+        pbuf->resp_buf = (char *)((ULONG_PTR)pbuf->buf + size);
+    }
+    else
+    {
+        pbuf->resp_buf = (char *)resp_buf;
+    }
+    ASSERT(vbuf->resp_buf);
+    InsertTailList(&m_InUseBufs, &pbuf->list_entry);
+
     if (SavedIrql < DISPATCH_LEVEL)
     {
         KeReleaseSpinLock(&m_SpinLock, SavedIrql);
@@ -778,7 +782,16 @@ void VioGpuBuf::FreeBuf(_In_ PGPU_VBUFFER pbuf)
         pbuf->data_size = 0;
     }
 
-    InsertTailList(&m_FreeBufs, &pbuf->list_entry);
+    if (m_uCount > m_uCountMin)
+    {
+        delete[] reinterpret_cast<PBYTE>(pbuf);
+        --m_uCount;
+    }
+    else
+    {
+        InsertTailList(&m_FreeBufs, &pbuf->list_entry);
+    }
+
     KeReleaseSpinLock(&m_SpinLock, OldIrql);
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
