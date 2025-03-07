@@ -703,7 +703,7 @@ PGPU_VBUFFER VioGpuBuf::GetBuf(_In_ int size, _In_ int resp_size, _In_opt_ void 
         pbuf = CONTAINING_RECORD(pListItem, GPU_VBUFFER, list_entry);
     }
 
-    ASSERT(pvbuf);
+    ASSERT(pbuf);
     memset(pbuf, 0, VBUFFER_SIZE);
     ASSERT(size > MAX_INLINE_CMD_SIZE);
 
@@ -720,7 +720,7 @@ PGPU_VBUFFER VioGpuBuf::GetBuf(_In_ int size, _In_ int resp_size, _In_opt_ void 
     {
         pbuf->resp_buf = (char *)resp_buf;
     }
-    ASSERT(vbuf->resp_buf);
+    ASSERT(pbuf->resp_buf);
     InsertTailList(&m_InUseBufs, &pbuf->list_entry);
 
     if (SavedIrql < DISPATCH_LEVEL)
