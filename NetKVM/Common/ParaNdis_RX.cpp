@@ -666,7 +666,12 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
             {
                 if (m_Context->bPollModeEnabled)
                 {
+                    // ensure the NDIS just schedules the other poll and does not do anything
+                    // otherwise if both polls are configured to the same CPU
+                    // this may cause a deadlock in return nbl path
+                    KIRQL prev = KeRaiseIrqlToSynchLevel();
                     ParaNdisPollNotify(m_Context, nTargetReceiveQueueNum, "RSS");
+                    KeLowerIrql(prev);
                 }
                 else
                 {
