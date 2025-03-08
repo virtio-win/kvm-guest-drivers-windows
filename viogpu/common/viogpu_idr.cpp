@@ -30,7 +30,7 @@
 #include "viogpu_idr.h"
 #include "viogpu.h"
 #include "baseobj.h"
-#if !DBG
+#if EVENT_TRACING
 #include "viogpu_idr.tmh"
 #endif
 

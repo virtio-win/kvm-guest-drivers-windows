@@ -32,7 +32,7 @@
 #include "helper.h"
 #include "baseobj.h"
 
-#if !DBG
+#if EVENT_TRACING
 #include "driver.tmh"
 #endif
 
@@ -46,7 +46,7 @@ int bBreakAlways;
 
 tDebugPrintFunc VirtioDebugPrintProc;
 
-#ifdef DBG
+#ifndef EVENT_TRACING
 void InitializeDebugPrints(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING RegistryPath)
 {
     UNREFERENCED_PARAMETER(DriverObject);
@@ -621,7 +621,7 @@ VOID APIENTRY VioGpuDodSystemDisplayWrite(_In_ VOID *pDeviceContext,
     pVioGpuDod->SystemDisplayWrite(Source, SourceWidth, SourceHeight, SourceStride, PositionX, PositionY);
 }
 
-#if defined(DBG)
+#if !defined(EVENT_TRACING)
 
 #if defined(COM_DEBUG)
 

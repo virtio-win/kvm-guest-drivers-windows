@@ -35,7 +35,7 @@
 #include "viogpum.h"
 #include "edid.h"
 
-#if !DBG
+#if EVENT_TRACING
 #include "viogpudo.tmh"
 #endif
 
