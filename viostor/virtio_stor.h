@@ -41,6 +41,7 @@
 #include "virtio_ring.h"
 #include "virtio_stor_utils.h"
 #include "virtio_stor_hw_helper.h"
+#include "virtio_status_table.h"
 
 typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
@@ -257,6 +258,7 @@ typedef struct _ADAPTER_EXTENSION
     BOOLEAN reset_in_progress;
     ULONGLONG fw_ver;
     ULONG_PTR last_srb_id;
+    STATUS_TABLE StatusTable;
 #ifdef DBG
     LONG srb_cnt;
     LONG inqueue_cnt;

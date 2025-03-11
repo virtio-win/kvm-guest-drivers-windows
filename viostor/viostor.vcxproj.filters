@@ -36,6 +36,9 @@
     <ClInclude Include="virtio_stor_trace.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="virtio_status_table.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="virtio_stor.rc">
@@ -53,6 +56,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="virtio_stor_utils.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="virtio_status_table.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

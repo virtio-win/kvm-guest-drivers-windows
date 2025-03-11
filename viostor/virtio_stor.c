@@ -259,6 +259,7 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
+    StatusTableInit(&adaptExt->StatusTable);
     adaptExt->last_srb_id = 1;
     adaptExt->system_io_bus_number = ConfigInfo->SystemIoBusNumber;
     adaptExt->slot_number = ConfigInfo->SlotNumber;
@@ -2124,9 +2125,11 @@ VOID VioStorCompleteRequest(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOO
         {
             PLIST_ENTRY le = NULL;
             BOOLEAN bFound = FALSE;
+            unsigned char vbrStatus = 0;
 #ifdef DBG
             InterlockedDecrement((LONG volatile *)&adaptExt->inqueue_cnt);
 #endif
+            StatusTableDelete(&adaptExt->StatusTable, srbId, &vbrStatus);
             for (le = element->srb_list.Flink; le != &element->srb_list && !bFound; le = le->Flink)
             {
                 pblk_req req = CONTAINING_RECORD(le, blk_req, list_entry);
@@ -2140,6 +2143,7 @@ VOID VioStorCompleteRequest(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOO
                 _Analysis_assume_(srbExt != NULL);
                 if (srbExt->id == srbId)
                 {
+                    srbExt->vbr.status = vbrStatus;
                     RemoveEntryList(le);
                     element->srb_cnt--;
                     bFound = TRUE;
