@@ -91,6 +91,11 @@ bool CPciResources::Init(NDIS_HANDLE DrvHandle, PNDIS_RESOURCE_LIST RList)
 
     m_DrvHandle = DrvHandle;
 
+    if (!RList)
+    {
+        return false;
+    }
+
     ULONG read = NdisMGetBusData(m_DrvHandle, PCI_WHICHSPACE_CONFIG, 0, &pci_config, sizeof(pci_config));
     if (read != sizeof(pci_config))
     {
