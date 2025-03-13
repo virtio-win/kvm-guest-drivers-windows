@@ -1559,20 +1559,15 @@ Provides startup information about offload capabilities and settings
 NDIS_STATUS ParaNdis6_GetRegistrationOffloadInfo(PARANDIS_ADAPTER *pContext,
                                                  NDIS_MINIPORT_ADAPTER_OFFLOAD_ATTRIBUTES *poa)
 {
-    NDIS_STATUS status = NDIS_STATUS_NOT_SUPPORTED;
+    NDIS_STATUS status = NDIS_STATUS_SUCCESS;
     NdisZeroMemory(poa, sizeof(*poa));
-    /* something supported? */
-    if (pContext->Offload.flagsValue)
-    {
-        poa->Header.Type = NDIS_OBJECT_TYPE_MINIPORT_ADAPTER_OFFLOAD_ATTRIBUTES;
-        poa->Header.Revision = NDIS_MINIPORT_ADAPTER_OFFLOAD_ATTRIBUTES_REVISION_1;
-        poa->Header.Size = NDIS_SIZEOF_MINIPORT_ADAPTER_OFFLOAD_ATTRIBUTES_REVISION_1;
-        poa->DefaultOffloadConfiguration = &pContext->ReportedOffloadConfiguration;
-        poa->HardwareOffloadCapabilities = &pContext->ReportedOffloadCapabilities;
-        DumpOffloadStructure(poa->HardwareOffloadCapabilities, "Initial Capabilities");
-        DumpOffloadStructure(poa->DefaultOffloadConfiguration, "Initial Configuration");
-        status = NDIS_STATUS_SUCCESS;
-    }
+    poa->Header.Type = NDIS_OBJECT_TYPE_MINIPORT_ADAPTER_OFFLOAD_ATTRIBUTES;
+    poa->Header.Revision = NDIS_MINIPORT_ADAPTER_OFFLOAD_ATTRIBUTES_REVISION_1;
+    poa->Header.Size = NDIS_SIZEOF_MINIPORT_ADAPTER_OFFLOAD_ATTRIBUTES_REVISION_1;
+    poa->DefaultOffloadConfiguration = &pContext->ReportedOffloadConfiguration;
+    poa->HardwareOffloadCapabilities = &pContext->ReportedOffloadCapabilities;
+    DumpOffloadStructure(poa->HardwareOffloadCapabilities, "Initial Capabilities");
+    DumpOffloadStructure(poa->DefaultOffloadConfiguration, "Initial Configuration");
     return status;
 }
 
