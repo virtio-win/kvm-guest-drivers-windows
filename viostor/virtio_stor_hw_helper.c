@@ -68,7 +68,7 @@ static BOOLEAN _SendSRB(PVOID DeviceExtension,
                         ULONGLONG PA)
 {
     ULONG dummy = 1;
-    unsigned char *pStatus = NULL;
+    PSTATUS_TABLE_ENTRY opEntry = NULL;
     PADAPTER_EXTENSION adaptExt = NULL;
     PSRB_EXTENSION srbExt = NULL;
     PREQUEST_LIST element;
@@ -79,20 +79,31 @@ static BOOLEAN _SendSRB(PVOID DeviceExtension,
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     srbExt = SRB_EXTENSION(Srb);
-    pStatus = StatusTableInsert(&adaptExt->StatusTable, srbExt->id);
-    if (pStatus == NULL)
+    opEntry = StatusTableInsert(&adaptExt->StatusTable, srbExt->id);
+    if (opEntry == NULL)
     {
         RhelDbgPrint(TRACE_LEVEL_WARNING, " Unable to allocate space for holding status for Srb 0x%p\n", Srb);
         return FALSE;
     }
 
+    opEntry->OutHdr = srbExt->vbr.out_hdr;
+    srbExt->sg[0].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &opEntry->OutHdr, &dummy);
+    srbExt->sg[0].length = sizeof(opEntry->OutHdr);
+    if (srbExt->sg[0].physAddr.QuadPart == 0)
+    {
+        RhelDbgPrint(TRACE_LEVEL_WARNING, " Unable to translate address 0x%p, Srb 0x%p\n", &opEntry->OutHdr, Srb);
+        StatusTableDelete(&adaptExt->StatusTable, srbExt->id, NULL);
+        return FALSE;
+    }
+
     srbExt->sg[srbExt->in + srbExt->out - 1].physAddr = StorPortGetPhysicalAddress(DeviceExtension,
                                                                                    NULL,
-                                                                                   pStatus,
+                                                                                   &opEntry->Status,
                                                                                    &dummy);
+    srbExt->sg[srbExt->in + srbExt->out - 1].length = sizeof(opEntry->Status);
     if (srbExt->sg[srbExt->in + srbExt->out - 1].physAddr.QuadPart == 0)
     {
-        RhelDbgPrint(TRACE_LEVEL_WARNING, " Unable to translate address 0x%p, Srb 0x%p\n", pStatus, Srb);
+        RhelDbgPrint(TRACE_LEVEL_WARNING, " Unable to translate address 0x%p, Srb 0x%p\n", &opEntry->Status, Srb);
         StatusTableDelete(&adaptExt->StatusTable, srbExt->id, NULL);
         return FALSE;
     }
@@ -146,7 +157,6 @@ RhelDoFlush(PVOID DeviceExtension, PSRB_TYPE Srb, BOOLEAN resend, BOOLEAN bIsr)
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     PSRB_EXTENSION srbExt = SRB_EXTENSION(Srb);
-    ULONG fragLen = 0UL;
     PVOID va = NULL;
     ULONGLONG pa = 0ULL;
 
@@ -196,11 +206,6 @@ RhelDoFlush(PVOID DeviceExtension, PSRB_TYPE Srb, BOOLEAN resend, BOOLEAN bIsr)
     srbExt->vbr.out_hdr.type = VIRTIO_BLK_T_FLUSH;
     srbExt->out = 1;
     srbExt->in = 1;
-
-    srbExt->sg[0].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.out_hdr, &fragLen);
-    srbExt->sg[0].length = sizeof(srbExt->vbr.out_hdr);
-    srbExt->sg[1].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
-    srbExt->sg[1].length = sizeof(srbExt->vbr.status);
 
     return _SendSRB(DeviceExtension, Srb, QueueNumber, MessageId, resend, va, pa);
 }
@@ -332,12 +337,8 @@ RhelDoUnMap(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     srbExt->out = 2;
     srbExt->in = 1;
 
-    srbExt->sg[0].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.out_hdr, &fragLen);
-    srbExt->sg[0].length = sizeof(srbExt->vbr.out_hdr);
     srbExt->sg[1].physAddr = MmGetPhysicalAddress(&adaptExt->blk_discard[0]);
     srbExt->sg[1].length = sizeof(blk_discard_write_zeroes) * BlockDescrCount;
-    srbExt->sg[2].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
-    srbExt->sg[2].length = sizeof(srbExt->vbr.status);
 
     if (adaptExt->num_queues > 1)
     {
@@ -427,12 +428,8 @@ RhelGetSerialNumber(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     srbExt->out = 1;
     srbExt->in = 2;
 
-    srbExt->sg[0].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.out_hdr, &fragLen);
-    srbExt->sg[0].length = sizeof(srbExt->vbr.out_hdr);
     srbExt->sg[1].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &adaptExt->sn[0], &fragLen);
     srbExt->sg[1].length = sizeof(adaptExt->sn);
-    srbExt->sg[2].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
-    srbExt->sg[2].length = sizeof(srbExt->vbr.status);
 
     return _SendSRB(DeviceExtension, Srb, QueueNumber, MessageId, FALSE, va, pa);
 }

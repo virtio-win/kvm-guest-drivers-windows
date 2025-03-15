@@ -30,6 +30,7 @@
  * SUCH DAMAGE.
  */
 #include <ntddk.h>
+#include "virtio_stor.h"
 #include "virtio_stor_trace.h"
 #include "virtio_status_table.h"
 #if defined(EVENT_TRACING)
@@ -65,12 +66,12 @@ void StatusTableInit(PSTATUS_TABLE Table)
     return;
 }
 
-unsigned char *StatusTableInsert(PSTATUS_TABLE Table, ULONG64 Id)
+PSTATUS_TABLE_ENTRY StatusTableInsert(PSTATUS_TABLE Table, ULONG64 Id)
 {
     size_t index = 0;
     size_t attempt = 0;
     size_t nextIndex = 0;
-    unsigned char *ret = NULL;
+    PSTATUS_TABLE_ENTRY ret = NULL;
     PSTATUS_TABLE_ENTRY entry = NULL;
 
     while (InterlockedCompareExchange(&Table->Lock, 1, 0))
@@ -88,7 +89,7 @@ unsigned char *StatusTableInsert(PSTATUS_TABLE Table, ULONG64 Id)
             entry->Present = 1;
             entry->Deleted = 0;
             entry->Id = Id;
-            ret = &entry->Status;
+            ret = entry;
             break;
         }
 

@@ -41,7 +41,6 @@
 #include "virtio_ring.h"
 #include "virtio_stor_utils.h"
 #include "virtio_stor_hw_helper.h"
-#include "virtio_status_table.h"
 
 typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
@@ -206,6 +205,23 @@ typedef struct _REQUEST_LIST
     LIST_ENTRY srb_list;
     ULONG srb_cnt;
 } REQUEST_LIST, *PREQUEST_LIST;
+
+typedef struct _STATUS_TABLE_ENTRY
+{
+    blk_outhdr OutHdr;
+    unsigned char Status;
+    ULONG64 Id;
+    int Present : 1;
+    int Deleted : 1;
+} STATUS_TABLE_ENTRY, *PSTATUS_TABLE_ENTRY;
+
+#define VIRTIO_STATUS_TABLE_SIZE 769
+
+typedef struct _STATUS_TABLE
+{
+    STATUS_TABLE_ENTRY Entries[VIRTIO_STATUS_TABLE_SIZE];
+    volatile LONG Lock;
+} STATUS_TABLE, *PSTATUS_TABLE;
 
 typedef struct _ADAPTER_EXTENSION
 {
