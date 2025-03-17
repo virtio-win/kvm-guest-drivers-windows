@@ -2139,9 +2139,14 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
     DEBUG_ENTRY(0);
     ParaNdis_DebugHistory(pContext, _etagHistoryLogOperation::hopPowerOff, NULL, 1, 0, 0);
 
-    pContext->m_StateMachine.NotifySuspended();
-
     pContext->bConnected = FALSE;
+
+    for (UINT i = 0; i < pContext->nPathBundles; i++)
+    {
+        pContext->pPathBundles[i].rxPath.Shutdown();
+    }
+
+    pContext->m_StateMachine.NotifySuspended();
 
     ParaNdis_ResetVirtIONetDevice(pContext);
 
@@ -2163,7 +2168,6 @@ VOID ParaNdis_PowerOff(PARANDIS_ADAPTER *pContext)
     for (UINT i = 0; i < pContext->nPathBundles; i++)
     {
         pContext->pPathBundles[i].txPath.Shutdown();
-        pContext->pPathBundles[i].rxPath.Shutdown();
     }
 
     if (pContext->bCXPathCreated)

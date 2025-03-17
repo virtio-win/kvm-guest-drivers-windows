@@ -283,6 +283,9 @@ static ULONG ShallPassPacket(PARANDIS_ADAPTER* pContext, PNET_PACKET_INFO pPacke
 {
     ULONG i;
 
+    if (!pContext->bConnected)
+        return FALSE;
+
     if (pPacketInfo->dataLength > pContext->MaxPacketSize.nMaxFullSizeOsRx + ETH_PRIORITY_HEADER_SIZE)
         return FALSE;
 
