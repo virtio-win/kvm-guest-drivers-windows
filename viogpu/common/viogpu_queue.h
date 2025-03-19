@@ -81,6 +81,7 @@ class VioGpuBuf
     LIST_ENTRY m_InUseBufs;
     KSPIN_LOCK m_SpinLock;
     UINT m_uCount;
+    UINT m_uCountMin = 0;
 };
 
 class VioGpuMemSegment
