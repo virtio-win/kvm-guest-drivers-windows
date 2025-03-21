@@ -727,6 +727,11 @@ bool CParaNdisTX::SendMapped(bool IsInterrupt, CRawCNBLList &toWaitingList)
             }
         }
     }
+    else
+    {
+        // carrier loss or removal
+        DropAllNBls(toWaitingList, ParaNdis_ExactSendFailureStatus(m_Context));
+    }
 
     if (IsInterrupt)
     {
