@@ -363,6 +363,8 @@ class CParaNdisTX : public CParaNdisTemplatePath<CTXVirtQueue>, public CNdisAllo
 
     bool SendMapped(bool IsInterrupt, CRawCNBLList &toWaitingList);
 
+    void DropAllNBls(CRawCNBLList &Completed, NDIS_STATUS Status);
+
     bool FillQueue();
 
     void PostProcessPendingTask(CRawCNBList &toFree, CRawCNBLList &completed);

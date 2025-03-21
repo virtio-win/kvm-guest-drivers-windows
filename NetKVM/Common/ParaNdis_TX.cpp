@@ -598,6 +598,23 @@ PNET_BUFFER_LIST CParaNdisTX::ProcessWaitingList(CRawCNBLList &completed)
     return CompletedNBLs;
 }
 
+// call under TX lock
+void CParaNdisTX::DropAllNBls(CRawCNBLList &Completed, NDIS_STATUS Status)
+{
+    while (HaveMappedNBLs())
+    {
+        CNBL *nbl = PopMappedNBL();
+        nbl->SetStatus(Status);
+        Completed.Push(nbl);
+        while (nbl->HaveMappedBuffers())
+        {
+            CNB *nb = nbl->PopMappedNB();
+            CNB::Destroy(nb);
+            nbl->NBComplete();
+        }
+    }
+}
+
 void CParaNdisTX::Notify(SMNotifications message)
 {
     CRawCNBList nbToFree;
@@ -617,19 +634,7 @@ void CParaNdisTX::Notify(SMNotifications message)
     DoWithTXLock([&]() {
         //
         m_VirtQueue.ProcessTXCompletions(nbToFree, true);
-
-        while (HaveMappedNBLs())
-        {
-            CNBL *nbl = PopMappedNBL();
-            nbl->SetStatus(NDIS_STATUS_SEND_ABORTED);
-            completedNBLs.Push(nbl);
-            while (nbl->HaveMappedBuffers())
-            {
-                CNB *nb = nbl->PopMappedNB();
-                CNB::Destroy(nb);
-                nbl->NBComplete();
-            }
-        }
+        DropAllNBls(completedNBLs, NDIS_STATUS_SEND_ABORTED);
     });
 
     PostProcessPendingTask(nbToFree, completedNBLs);
