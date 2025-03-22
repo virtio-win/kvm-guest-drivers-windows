@@ -106,6 +106,13 @@ class CNB : public CNdisAllocatableViaHelper<CNB>
     DECLARE_CNDISLIST_ENTRY(CNB);
 };
 
+typedef struct _tChainOfNbls
+{
+    CNdisRefCounter m_NumChained;
+    CNdisRefCounter m_NumCompleted;
+    CNBL *m_FirstInChain;
+} CChainOfNbls;
+
 class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, public CAllocationHelper<CNB>
 {
   public:
@@ -130,6 +137,46 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, 
     {
         return (ParsePriority() && ParseBuffers() && ParseOffloads());
     }
+#if NBL_CHAINS
+    void SetInChain(PNET_BUFFER_LIST FirstInChain)
+    {
+        if (FirstInChain != m_NBL)
+        {
+            m_Chain.m_FirstInChain = (CNBL *)FirstInChain->Scratch;
+            m_Chain.m_FirstInChain->m_Chain.m_NumChained.AddRef();
+            // TODO: decide about it
+            m_Chain.m_FirstInChain->AddRef();
+        }
+    }
+    void UnsetInChain()
+    {
+        if (m_Chain.m_FirstInChain)
+        {
+            m_Chain.m_FirstInChain->m_Chain.m_NumChained.Release();
+            m_Chain.m_FirstInChain->Release();
+            m_Chain.m_FirstInChain = nullptr;
+        }
+    }
+    void CompleteInChain()
+    {
+        if (m_Chain.m_FirstInChain)
+        {
+            m_Chain.m_FirstInChain->m_Chain.m_NumCompleted.AddRef();
+            m_Chain.m_FirstInChain->Release();
+        }
+    }
+#else
+    void SetInChain(PNET_BUFFER_LIST FirstInChain)
+    {
+        UNREFERENCED_PARAMETER(FirstInChain);
+    }
+    void UnsetInChain()
+    {
+    }
+    void CompleteInChain()
+    {
+    }
+#endif
     void StartMapping();
     void RegisterMappedNB(CNB *NB);
     bool MappingSucceeded()
@@ -297,6 +344,8 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, 
     NDIS_UDP_SEGMENTATION_OFFLOAD_NET_BUFFER_LIST_INFO m_UsoInfo;
 #endif
     CAllocationHelper<CNB> *m_NBAllocator;
+
+    CChainOfNbls m_Chain = {};
 
     CNBL(const CNBL &) = delete;
     CNBL &operator=(const CNBL &) = delete;
