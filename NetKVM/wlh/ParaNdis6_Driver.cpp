@@ -446,7 +446,7 @@ static VOID ParaNdis6_SendNetBufferLists(NDIS_HANDLE miniportAdapterContext,
     }
 #ifdef PARANDIS_SUPPORT_RSS
     CNdisPassiveReadAutoLock autoLock(pContext->RSSParameters.rwLock);
-    if (pContext->RSS2QueueMap != nullptr)
+    if (pContext->nPathBundles > 1 && pContext->RSS2QueueMap != nullptr)
     {
         while (pNBL)
         {
