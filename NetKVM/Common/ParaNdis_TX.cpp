@@ -615,6 +615,8 @@ PNET_BUFFER_LIST CNBL::DetachInternalObject()
 
 PNET_BUFFER_LIST CParaNdisTX::ProcessWaitingList(CRawCNBLList &completed)
 {
+    // TODO: keep NBLs order and check NBL chain when extracting NBLs
+
     PNET_BUFFER_LIST CompletedNBLs = nullptr;
 
     // locked part under waiting list lock
