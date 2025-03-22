@@ -397,8 +397,9 @@ void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
     PNET_BUFFER_LIST nextNBL = nullptr;
     NDIS_STATUS RejectionStatus = NDIS_STATUS_FAILURE;
     BOOLEAN CallCompletion = CallCompletionForNBL(m_Context, NBL);
+    ULONG count = ParaNdis_CountNBLs(NBL);
 
-    if (!m_StateMachine.RegisterOutstandingItems(ParaNdis_CountNBLs(NBL), &RejectionStatus))
+    if (!m_StateMachine.RegisterOutstandingItems(count, &RejectionStatus))
     {
         if (CallCompletion)
         {
@@ -411,6 +412,7 @@ void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
         return;
     }
 
+    TraceNoPrefix(3, "%s:Q#%d NBL count = %d\n", __FUNCTION__, m_queueIndex, count);
     for (auto currNBL = NBL; currNBL != nullptr; currNBL = nextNBL)
     {
         nextNBL = NET_BUFFER_LIST_NEXT_NBL(currNBL);
