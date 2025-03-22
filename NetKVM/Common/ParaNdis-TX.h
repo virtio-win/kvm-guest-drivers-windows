@@ -137,6 +137,7 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, 
     {
         return (ParsePriority() && ParseBuffers() && ParseOffloads());
     }
+#define NBL_CHAINS 1
 #if NBL_CHAINS
     void SetInChain(PNET_BUFFER_LIST FirstInChain)
     {
@@ -144,25 +145,31 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, 
         {
             m_Chain.m_FirstInChain = (CNBL *)FirstInChain->Scratch;
             m_Chain.m_FirstInChain->m_Chain.m_NumChained.AddRef();
-            // TODO: decide about it
             m_Chain.m_FirstInChain->AddRef();
         }
     }
     void UnsetInChain()
     {
+        // the NBL was failed mapping, if does not go
+        // to transmit path
         if (m_Chain.m_FirstInChain)
         {
             m_Chain.m_FirstInChain->m_Chain.m_NumChained.Release();
-            m_Chain.m_FirstInChain->Release();
-            m_Chain.m_FirstInChain = nullptr;
+            // the head of chain will be released in the destructor
         }
     }
     void CompleteInChain()
     {
-        if (m_Chain.m_FirstInChain)
+        auto head = m_Chain.m_FirstInChain;
+        if (head)
         {
-            m_Chain.m_FirstInChain->m_Chain.m_NumCompleted.AddRef();
-            m_Chain.m_FirstInChain->Release();
+            LONG completed = head->m_Chain.m_NumCompleted.AddRef();
+            if (head->m_Chain.m_NumChained < completed)
+            {
+                // this is a fatal problem, probably caused by
+                // double completion, may cause to list corruption
+                // TODO: assertion??
+            }
         }
     }
 #else
@@ -196,11 +203,6 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, 
     bool HaveMappedBuffers()
     {
         return !m_Buffers.IsEmpty();
-    }
-
-    bool HaveDetachedBuffers()
-    {
-        return m_MappedBuffersDetached != 0;
     }
 
     PNET_BUFFER_LIST DetachInternalObject();
@@ -324,6 +326,7 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, 
     // align storage for CNB on pointer size boundary and provide enough room for it
     ULONG_PTR m_CNB_Storage[(sizeof(CNB) + sizeof(ULONG_PTR) - 1) / sizeof(ULONG_PTR)];
     bool m_HaveFailedMappings = false;
+    bool m_AllNBCompleted = false;
 
     CNdisList<CNB, CRawAccess, CNonCountingObject> m_Buffers;
 

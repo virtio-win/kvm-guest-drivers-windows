@@ -26,6 +26,13 @@ CNBL::~CNBL()
 {
     CDpcIrqlRaiser OnDpc;
 
+    auto head = m_Chain.m_FirstInChain;
+
+    if (head)
+    {
+        head->Release();
+    }
+
     m_Buffers.ForEachDetached([this](CNB *NB) { CNB::Destroy(NB); });
 
     if (m_NBL)
@@ -391,11 +398,14 @@ void CParaNdisTX::CompleteOutstandingInternalNBL(PNET_BUFFER_LIST NBL, BOOLEAN U
     }
 }
 
+// called in DISPATCH (under read lock of RSS parameters)
+// if called with internal (announce) NBL, the NBL is always single
 void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
 {
     PNET_BUFFER_LIST nextNBL = nullptr;
     NDIS_STATUS RejectionStatus = NDIS_STATUS_FAILURE;
     BOOLEAN CallCompletion = CallCompletionForNBL(m_Context, NBL);
+    CRawCNBLList chain;
     ULONG count = ParaNdis_CountNBLs(NBL);
 
     if (!m_StateMachine.RegisterOutstandingItems(count, &RejectionStatus))
@@ -431,19 +441,35 @@ void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
                 CompleteOutstandingInternalNBL(NBL);
             }
             DPrintf(0, "ERROR: Failed to allocate CNBL instance\n");
+            // regular NBL chain and first NBL failed to allocate memory
+            // we'll refer next one as the first NBL in chain
+            // not relevant for internal NBL, as it is always single
+            if (currNBL == NBL)
+            {
+                NBL = nextNBL;
+                CallCompletion = true;
+            }
             continue;
         }
 
         if (NBLHolder->Prepare() && ParaNdis_IsTxRxPossible(m_Context))
         {
-            NBLHolder->StartMapping();
+            NBLHolder->SetInChain(NBL);
+            chain.PushBack(NBLHolder);
         }
         else
         {
             NBLHolder->SetStatus(ParaNdis_ExactSendFailureStatus(m_Context));
             NBLHolder->Release();
+            if (currNBL == NBL)
+            {
+                NBL = nextNBL;
+                CallCompletion = true;
+            }
         }
     }
+
+    chain.ForEachDetached([](CNBL *nbl) { nbl->StartMapping(); });
 }
 
 void CParaNdisTX::NBLMappingDone(CNBL *NBLHolder)
@@ -463,6 +489,8 @@ void CParaNdisTX::NBLMappingDone(CNBL *NBLHolder)
     else
     {
         NBLHolder->SetStatus(NDIS_STATUS_FAILURE);
+        // this is ok if this CNBL is not first one
+        NBLHolder->UnsetInChain();
         NBLHolder->Release();
     }
 }
@@ -537,13 +565,33 @@ void CNBL::PushMappedNB(CNB *NB)
 
 void CNBL::NBComplete()
 {
-    m_BuffersDone.AddRef();
+    // do we need 'detached' at all?
+    // 2 simultaneous users may never see both
+    // currentDone = m_BuffersNumber and detached = 0
     m_MappedBuffersDetached.Release();
+    if (m_BuffersDone.AddRef() == (LONG)m_BuffersNumber)
+    {
+        CompleteInChain();
+        m_AllNBCompleted = true;
+    }
 }
 
 bool CNBL::IsSendDone()
 {
-    return (LONG)m_BuffersDone == (LONG)m_BuffersNumber && !HaveDetachedBuffers();
+    // m_Chain.m_FirstInChain = NULL for first NBL in chain, also for single NBL
+    //    for single NBL m_NumChained = m_NumCompleted = 0
+    //    for head of chain - m_NumChained >= 1
+    // m_Chain.m_FirstInChain != NULL for any additional NBLs
+    if (!m_AllNBCompleted)
+    {
+        return false;
+    }
+    CNBL *head = m_Chain.m_FirstInChain;
+    if (head == nullptr)
+    {
+        return m_Chain.m_NumChained == m_Chain.m_NumCompleted;
+    }
+    return head->IsSendDone();
 }
 
 PNET_BUFFER_LIST CNBL::DetachInternalObject()
