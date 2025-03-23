@@ -67,6 +67,7 @@ extern "C"
 
 ULONG bDisableMSI = FALSE;
 
+static LARGE_INTEGER PerformanceFrequency;
 static NDIS_HANDLE DriverHandle;
 static LONG gID = 0;
 static bool ProtocolActive;
@@ -1254,6 +1255,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
     if (status == NDIS_STATUS_SUCCESS)
     {
         DEBUG_EXIT_STATUS(4, status);
+        KeQueryPerformanceCounter(&PerformanceFrequency);
     }
     else
     {

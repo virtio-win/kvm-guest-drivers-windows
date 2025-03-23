@@ -952,8 +952,7 @@ static inline void ParaNdis_CompleteNBLChainWithStatus(NDIS_HANDLE MiniportHandl
 
 static FORCEINLINE void UpdateTimestamp(ULONGLONG &Variable)
 {
-    LARGE_INTEGER li;
-    NdisGetCurrentSystemTime(&li);
+    LARGE_INTEGER li = KeQueryPerformanceCounter(NULL);
     Variable = li.QuadPart;
 }
 
