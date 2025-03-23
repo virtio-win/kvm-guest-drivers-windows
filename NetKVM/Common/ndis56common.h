@@ -472,7 +472,6 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
     VirtIODevice IODevice = {};
     CNdisSharedMemory *pPageAllocator = NULL;
 
-    LARGE_INTEGER LastTxCompletionTimeStamp = {};
 #ifdef PARANDIS_DEBUG_INTERRUPTS
     LARGE_INTEGER LastInterruptTimeStamp = {};
 #endif

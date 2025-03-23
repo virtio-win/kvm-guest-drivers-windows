@@ -324,7 +324,7 @@ UINT CTXVirtQueue::ReleaseTransmitBuffers(CRawCNBList &listDone)
     }
     if (i)
     {
-        NdisGetCurrentSystemTime(&m_Context->LastTxCompletionTimeStamp);
+        UpdateTimestamp(m_LastTxCompletionTimestamp);
         m_DoKickOnNoBuffer = true;
     }
     DPrintf((i ? 3 : 5), "[%s] returning i = %d\n", __FUNCTION__, i);

@@ -378,6 +378,7 @@ class CTXVirtQueue : public CVirtQueue
 
     CNdisList<CTXDescriptor, CRawAccess, CCountingObject> m_Descriptors;
     CNdisList<CTXDescriptor, CRawAccess, CNonCountingObject> m_DescriptorsInUse;
+    ULONGLONG m_LastTxCompletionTimestamp = 0;
     ULONG m_TotalDescriptors = 0;
     ULONG m_FreeHWBuffers = 0;
     // TODO: Temporary
