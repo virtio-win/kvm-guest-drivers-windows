@@ -159,6 +159,11 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, 
         return (ParsePriority() && ParseBuffers() && ParseOffloads());
     }
 #if NBL_CHAINS
+    void Die()
+    {
+        // RtlFailFast(FAST_FAIL_RANGE_CHECK_FAILURE);
+        DbgBreakPoint();
+    }
     void SetInChain(PNET_BUFFER_LIST FirstInChain)
     {
         if (FirstInChain != m_NBL)
@@ -202,6 +207,7 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, 
                 // this is a fatal problem, probably caused by
                 // double completion, may cause to list corruption
                 // TODO: assertion??
+                Die();
             }
         }
     }
