@@ -103,6 +103,9 @@ static const LPCSTR OpNames[] = {
     "PacketReceived       ",
     "OidRequest           ",
     "PnpEvent             ",
+    "NBLDestructor        ",
+    "SendCompleteChain    ",
+    "SendDone             ",
 };
 // clang-format on
 
