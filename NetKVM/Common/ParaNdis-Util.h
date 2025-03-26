@@ -335,6 +335,13 @@ class CRefCountingObject
         }
     }
 
+    // this is provided only for tracking / reference
+    // and can't be used for any decision
+    ULONG GetCurrentRefCounterUnsafe()
+    {
+        return (LONG)m_RefCounter;
+    }
+
   protected:
     virtual void OnLastReferenceGone() = 0;
 
