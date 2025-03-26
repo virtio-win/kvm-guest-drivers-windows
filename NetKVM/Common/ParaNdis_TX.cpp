@@ -39,6 +39,7 @@ CNBL::~CNBL()
 
     if (m_NBL)
     {
+        Die();
         auto NBL = DetachInternalObject();
         NETKVM_ASSERT(NET_BUFFER_LIST_NEXT_NBL(NBL) == nullptr);
         if (CallCompletionForNBL(m_Context, NBL))
@@ -593,6 +594,10 @@ bool CNBL::IsSendDone()
     //    for single NBL m_NumChained = m_NumCompleted = 0
     //    for head of chain - m_NumChained >= 1
     // m_Chain.m_FirstInChain != NULL for any additional NBLs
+    if (!m_NBL)
+    {
+        Die();
+    }
     if (!m_AllNBCompleted)
     {
         return false;

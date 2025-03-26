@@ -1,6 +1,6 @@
 #pragma once
 
-// #define ENABLE_HISTORY_LOG
+#define ENABLE_HISTORY_LOG
 // #define KEEP_PENDING_NBL
 
 #if !defined(KEEP_PENDING_NBL)
