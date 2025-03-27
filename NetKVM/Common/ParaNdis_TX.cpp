@@ -611,8 +611,10 @@ bool CNBL::IsSendDone()
     //    for single NBL m_NumChained = m_NumCompleted = 0
     //    for head of chain - m_NumChained >= 1
     // m_Chain.m_FirstInChain != NULL for any additional NBLs
-    if (!m_NBL)
+    if (!m_NBL && m_Chain.m_FirstInChain)
     {
+        // to be removed later, without carrier loss etc
+        // this can happen only with chained NBLs, not with head
         Die();
     }
     if (!m_AllNBCompleted)
