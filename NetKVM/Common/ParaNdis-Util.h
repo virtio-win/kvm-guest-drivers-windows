@@ -276,7 +276,8 @@ class CNdisRefCounter
     }
     operator LONG()
     {
-        return m_Counter;
+        // for example when need it, note the Tx.m_DpcWaiting
+        return InterlockedCompareExchange(&m_Counter, 0, 0);
     }
 
   private:
