@@ -39,7 +39,12 @@ CNBL::~CNBL()
 
     if (m_NBL)
     {
-        Die();
+        // with erroneous status we can get here
+        // from Send() or NBLMappingDone()
+        if (m_NBL->Status == NDIS_STATUS_SUCCESS)
+        {
+            Die();
+        }
         auto NBL = DetachInternalObject();
         NETKVM_ASSERT(NET_BUFFER_LIST_NEXT_NBL(NBL) == nullptr);
         if (CallCompletionForNBL(m_Context, NBL))
