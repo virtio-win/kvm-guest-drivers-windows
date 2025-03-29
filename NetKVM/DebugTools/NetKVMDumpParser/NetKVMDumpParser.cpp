@@ -41,6 +41,31 @@
 
 FILE *outf = stdout;
 
+typedef CString(*TimeStampConversionFunc)(LONGLONG BaseTime, LARGE_INTEGER TimeStamp);
+
+static CString PresentKernelSystemTime(LONGLONG BaseTime, LARGE_INTEGER TimeStamp)
+{
+    FILETIME ft;
+    SYSTEMTIME st;
+    ft.dwLowDateTime = TimeStamp.LowPart;
+    ft.dwHighDateTime = TimeStamp.HighPart;
+    FileTimeToSystemTime(&ft, &st);
+    CString s;
+    s.Format("%02d.%02d.%02d.%03d", st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
+    return s;
+}
+
+static CString PresentTimeDiffInMicros(LONGLONG BaseTime, LARGE_INTEGER TimeStamp)
+{
+    LONGLONG diff = (BaseTime - TimeStamp.QuadPart) / 10;
+    CString s;
+    s.Format("%06d.%06d", (LONG)(diff / 1000000), (LONG)(diff % 1000000));
+    return s;
+}
+
+TimeStampConversionFunc func = PresentTimeDiffInMicros;
+const char* conv = "diff in micros";
+
 // #define UNDER_DEBUGGING
 
 #ifndef UNDER_DEBUGGING
@@ -573,7 +598,6 @@ static void ParseHistoryEntry(LONGLONG basetime, tBugCheckHistoryDataEntry *phis
     }
     else if (phist[Index].Context)
     {
-        LONGLONG diffInt = (basetime - phist[Index].TimeStamp.QuadPart) / 10;
         CString sOp = HistoryOperationName(phist[Index].operation);
 
 #if (PARANDIS_DEBUG_HISTORY_DATA_VERSION == 0)
@@ -586,17 +610,59 @@ static void ParseHistoryEntry(LONGLONG basetime, tBugCheckHistoryDataEntry *phis
               phist[Index].lParam4,
               phist[Index].pParam1);
 #elif (PARANDIS_DEBUG_HISTORY_DATA_VERSION == 1)
-        PRINT("CPU[%d] IRQL[%d] %s %I64X [-%09I64d] x%08X x%08X x%08X %I64X",
+        PRINT("CPU[%d] IRQL[%d] %s %I64X [%s] x%08X x%08X x%08X %I64X",
               phist[Index].uProcessor,
               phist[Index].uIRQL,
               sOp.GetBuffer(),
               phist[Index].Context,
-              diffInt,
+              func(basetime, phist[Index].TimeStamp).GetString(),
               phist[Index].lParam2,
               phist[Index].lParam3,
               phist[Index].lParam4,
               phist[Index].pParam1);
 #endif
+    }
+}
+
+// historySize - number of entries in history
+// when parsinf dump:
+//  basetime - time of crash
+//  Index    - index in the middle of the table (currentIndex)
+// when parsing file
+//  basetime = 0
+//  Index = -1
+static void ParseHistoryData(LONGLONG basetime, tBugCheckHistoryDataEntry *phist, ULONG historySize, LONG Index)
+{
+    if (Index < 0)
+    {
+        Index = 0;
+        // find start index (where we have a break of timestamp) &
+        // basetime (maximum timestamp in the table)
+        ULONGLONG prev = phist->TimeStamp.QuadPart;
+        for (int n = 0; n < (LONG)historySize; n++)
+        {
+            ULONGLONG cur = phist[n].TimeStamp.QuadPart;
+            LONGLONG diff = LONGLONG(cur - prev);
+            if (diff < 0)
+            {
+                Index = n;
+                basetime = prev;
+                PRINT("Found current history entry at %d", n);
+                break;
+            }
+            prev = cur;
+        }
+    }
+
+    ParseHistoryEntry(NULL, NULL, 0);
+    LONG n;
+    for (n = Index; n < (LONG)historySize; n++)
+    {
+        ParseHistoryEntry(basetime, phist, n);
+    }
+    for (n = 0; n < Index; n++)
+    {
+        ParseHistoryEntry(basetime, phist, n);
     }
 }
 
@@ -641,15 +707,7 @@ void tDumpParser::ParseCrashData(tBugCheckStaticDataHeader *ph, ULONG64 databuff
                   pd->CurrentHistoryIndex);
             LONG Index = pd->CurrentHistoryIndex % pd->SizeOfHistory;
             LONG EndIndex = Index;
-            ParseHistoryEntry(NULL, NULL, 0);
-            for (; Index < (LONG)pd->SizeOfHistory; Index++)
-            {
-                ParseHistoryEntry(ph->qCrashTime.QuadPart, phist, Index);
-            }
-            for (Index = 0; Index < EndIndex; Index++)
-            {
-                ParseHistoryEntry(ph->qCrashTime.QuadPart, phist, Index);
-            }
+            ParseHistoryData(ph->qCrashTime.QuadPart, phist, pd->SizeOfHistory, Index);
         }
         else
         {
@@ -915,11 +973,26 @@ CString tDumpParser::GetProperty(eSystemProperty Prop)
 #define UNDER_DEBUGGING
 #endif
 
+static bool IsDumpFile(const CString &Name)
+{
+    auto dot = Name.ReverseFind('.');
+    if (dot < 0)
+    {
+        return false;
+    }
+    CString s = Name.GetString() + dot + 1;
+    return !s.CompareNoCase(TEXT("dmp"));
+}
+
 int ParseDumpFile(int argc, TCHAR *argv[])
 {
-    if (argc == 2)
+    func = PresentTimeDiffInMicros;
+    conv = "diff in micros";
+    bool bDoHistory = false;
+    if (argc >= 2)
     {
         CString s = argv[1];
+        bDoHistory = !IsDumpFile(s);
         s += ".txt";
         FILE *f = fopen(s.GetBuffer(), "w+t");
         if (f)
@@ -930,7 +1003,63 @@ int ParseDumpFile(int argc, TCHAR *argv[])
 #ifdef UNDER_DEBUGGING
         fputs("UNDER_DEBUGGING, the output is redirected to debugger", f);
 #endif
-        if (!Parser.LoadFile(argv[1]))
+        if (argc > 2)
+        {
+            switch (argv[2][0])
+            {
+                case 't':
+                    func = PresentKernelSystemTime;
+                    conv = "system time";
+                    break;
+                default:
+                    break;
+            }
+            PRINT("Converting time as time as %s", conv);
+        }
+        if (bDoHistory)
+        {
+            PRINT("Parsing data file %s", argv[1]);
+            FILE *fdata = fopen(argv[1], "rb");
+            if (!fdata)
+            {
+                PRINT("Failed to open file %s", argv[1]);
+                return ERROR_FILE_NOT_FOUND;
+            }
+            // get file size and load the file into memory
+            ULONG size = 0;
+            PVOID buffer = NULL;
+            fseek(fdata, 0, SEEK_END);
+            long offset = ftell(fdata);
+            PRINT("Got offset %d", offset);
+            fseek(fdata, 0, SEEK_SET);
+            if (offset > 0)
+            {
+                size = offset;
+            }
+            if (!size)
+            {
+                PRINT("File %s is empty", argv[1]);
+                return ERROR_FILE_CORRUPT;
+            }
+            if (size % sizeof(tBugCheckHistoryDataEntry))
+            {
+                PRINT("Size of %s is not valid", argv[1]);
+                return ERROR_FILE_CORRUPT;
+            }
+            buffer = malloc(size);
+            if (!buffer)
+            {
+                PRINT("Failed to allocate memory");
+                return ERROR_FILE_CORRUPT;
+            }
+            fread(buffer, 1, size, fdata);
+            size = size / sizeof(tBugCheckHistoryDataEntry);
+            PRINT("%d entries in the table", size);
+            ParseHistoryData(0, (tBugCheckHistoryDataEntry *)buffer, size, -1);
+            free(buffer);
+            fclose(fdata);
+        }
+        else if (!Parser.LoadFile(argv[1]))
         {
             PRINT("Failed to load dump file %s", argv[1]);
         }
@@ -941,7 +1070,9 @@ int ParseDumpFile(int argc, TCHAR *argv[])
     }
     else
     {
-        PRINT("%s", SessionStatusValues[0].name);
+        puts("Arguments:");
+        puts("  <dump file>");
+        puts("  <history file> t|d for time conversion");
     }
     return 0;
 }
