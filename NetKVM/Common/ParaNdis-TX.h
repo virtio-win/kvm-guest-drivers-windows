@@ -7,7 +7,7 @@
 
 /* Must be a power of 2 */
 #define PARANDIS_TX_LOCK_FREE_QUEUE_DEFAULT_SIZE 2048
-#define NBL_MAINTAIN_HISTORY                     0
+#define NBL_MAINTAIN_HISTORY                     1
 
 /* the maximum number of pages that a single network packet can span.
 refer linux kernel code #define MAX_SKB_FRAGS (65536/PAGE_SIZE + 1), */
