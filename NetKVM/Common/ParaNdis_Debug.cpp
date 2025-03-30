@@ -355,7 +355,9 @@ VOID ParaNdis_OnBugCheck(IN KBUGCHECK_CALLBACK_REASON Reason,
 #endif
 
 #if defined(ENABLE_HISTORY_LOG)
-void ParaNdis_DebugHistory(PARANDIS_ADAPTER *pContext,
+static LONG CurrentHistoryIndex = 0;
+
+void ParaNdis_DebugHistory(PVOID pContext,
                            eHistoryLogOperation op,
                            PVOID pParam1,
                            ULONG lParam2,
@@ -363,19 +365,17 @@ void ParaNdis_DebugHistory(PARANDIS_ADAPTER *pContext,
                            ULONG lParam4)
 {
     tBugCheckHistoryDataEntry *phe;
-    ULONG index = InterlockedIncrement(&BugCheckData.StaticData.Data.CurrentHistoryIndex);
+    ULONG index = InterlockedIncrement(&CurrentHistoryIndex);
     index = (index - 1) % MAX_HISTORY;
     phe = &BugCheckData.StaticData.History[index];
     phe->Context = (UINT_PTR)pContext;
-    phe->operation = op;
+    phe->operation = (ULONG)op;
     phe->pParam1 = (UINT_PTR)pParam1;
     phe->lParam2 = lParam2;
     phe->lParam3 = lParam3;
     phe->lParam4 = lParam4;
-#if (PARANDIS_DEBUG_HISTORY_DATA_VERSION == 1)
     phe->uIRQL = KeGetCurrentIrql();
     phe->uProcessor = KeGetCurrentProcessorNumber();
-#endif
     NdisGetCurrentSystemTime(&phe->TimeStamp);
 }
 
