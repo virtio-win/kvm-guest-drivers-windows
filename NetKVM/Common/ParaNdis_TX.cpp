@@ -33,6 +33,8 @@ CNBL::~CNBL()
         head->Release();
     }
 
+    ParaNdis_DebugHistory(this, eHistoryLogOperation::hopNBLDestructor, m_NBL, 0, 0, 0);
+
     m_Buffers.ForEachDetached([this](CNB *NB) { CNB::Destroy(NB); });
 
     if (m_NBL)
@@ -408,6 +410,8 @@ void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
     CRawCNBLList chain;
     ULONG count = ParaNdis_CountNBLs(NBL);
 
+    ParaNdis_DebugHistory(NBL, eHistoryLogOperation::hopSend, NULL, count, 0, 0);
+
     if (!m_StateMachine.RegisterOutstandingItems(count, &RejectionStatus))
     {
         if (CallCompletion)
@@ -454,6 +458,7 @@ void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
 
         if (NBLHolder->Prepare() && ParaNdis_IsTxRxPossible(m_Context))
         {
+            ParaNdis_DebugHistory(NBLHolder, eHistoryLogOperation::hopSendNBLRequest, currNBL, currNBL == NBL, 0, 0);
             NBLHolder->SetInChain(NBL);
             chain.PushBack(NBLHolder);
         }
@@ -571,6 +576,12 @@ void CNBL::NBComplete()
     m_MappedBuffersDetached.Release();
     if (m_BuffersDone.AddRef() == (LONG)m_BuffersNumber)
     {
+        ParaNdis_DebugHistory(this,
+                              eHistoryLogOperation::hopSendComplete,
+                              m_NBL,
+                              !m_Chain.m_FirstInChain,
+                              0, // status
+                              GetCurrentRefCounterUnsafe());
         CompleteInChain();
         m_AllNBCompleted = true;
     }
@@ -634,6 +645,7 @@ PNET_BUFFER_LIST CParaNdisTX::ProcessWaitingList(CRawCNBLList &completed)
     completed.ForEachDetached([&](CNBL *NBL) {
         NBL->SetStatus(NDIS_STATUS_SUCCESS);
         auto RawNBL = NBL->DetachInternalObject();
+        ParaNdis_DebugHistory(NBL, eHistoryLogOperation::hopSendDone, RawNBL, 0, 0, NBL->GetCurrentRefCounterUnsafe());
         NBL->Release();
         if (CallCompletionForNBL(m_Context, RawNBL))
         {
