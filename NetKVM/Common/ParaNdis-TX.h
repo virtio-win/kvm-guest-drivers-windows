@@ -174,6 +174,12 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, 
     {
         // the NBL was failed mapping, if does not go
         // to transmit path
+        ParaNdis_DebugHistory(this,
+                              eHistoryLogOperation::hopSendComplete,
+                              m_NBL,
+                              !m_Chain.m_FirstInChain,
+                              m_NBL->Status,
+                              GetCurrentRefCounterUnsafe());
         if (m_Chain.m_FirstInChain)
         {
             m_Chain.m_FirstInChain->m_Chain.m_NumChained.Release();
@@ -186,6 +192,13 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, 
         if (head)
         {
             LONG completed = head->m_Chain.m_NumCompleted.AddRef();
+            ParaNdis_DebugHistory(this,
+                                  eHistoryLogOperation::hopSendCompleteChain,
+                                  head,
+                                  completed,
+                                  m_Chain.m_NumChained,
+                                  head->GetCurrentRefCounterUnsafe());
+            AddHistory(__FUNCTION__, "", "Head", head, "Completed", completed);
             if (head->m_Chain.m_NumChained < completed)
             {
                 // this is a fatal problem, probably caused by

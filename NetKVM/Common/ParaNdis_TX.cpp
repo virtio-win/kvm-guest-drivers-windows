@@ -33,6 +33,8 @@ CNBL::~CNBL()
         head->Release();
     }
 
+    ParaNdis_DebugHistory(this, eHistoryLogOperation::hopNBLDestructor, m_NBL, 0, 0, 0);
+
     m_Buffers.ForEachDetached([this](CNB *NB) { CNB::Destroy(NB); });
 
     if (m_NBL)
@@ -101,6 +103,7 @@ void CNBL::RegisterMappedNB(CNB *NB)
     UNREFERENCED_PARAMETER(NB);
     if (m_BuffersNumber == (ULONG)m_BuffersMapped.AddRef())
     {
+        AddHistory(__FUNCTION__, "", "", NULL, "Buffers", m_BuffersNumber);
         m_ParentTXPath->NBLMappingDone(this);
     }
 }
@@ -410,6 +413,8 @@ void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
     CRawCNBLList chain;
     ULONG count = ParaNdis_CountNBLs(NBL);
 
+    ParaNdis_DebugHistory(NBL, eHistoryLogOperation::hopSend, NULL, count, 0, m_queueIndex);
+
     if (!m_StateMachine.RegisterOutstandingItems(count, &RejectionStatus))
     {
         if (CallCompletion)
@@ -456,6 +461,17 @@ void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
 
         if (NBLHolder->Prepare() && ParaNdis_IsTxRxPossible(m_Context))
         {
+            if (currNBL == NBL)
+            {
+                LPCSTR title = nextNBL ? "NBL-Head" : "NBL-Single";
+                NBLHolder->AddHistory(__FUNCTION__, "Created", title, currNBL);
+                ParaNdis_DebugHistory(NBLHolder, eHistoryLogOperation::hopSendNBLRequest, currNBL, 1, 0, m_queueIndex);
+            }
+            else
+            {
+                NBLHolder->AddHistory(__FUNCTION__, "Created", "NBL-Chained", currNBL);
+                ParaNdis_DebugHistory(NBLHolder, eHistoryLogOperation::hopSendNBLRequest, currNBL, 0, 0, m_queueIndex);
+            }
             NBLHolder->SetInChain(NBL);
             chain.PushBack(NBLHolder);
         }
@@ -483,7 +499,10 @@ void CParaNdisTX::NBLMappingDone(CNBL *NBLHolder)
         UpdateTimestamp(m_AuditState.LastSendTime);
         m_SendQueue.Enqueue(NBLHolder);
 
-        if (m_DpcWaiting == 0)
+        LONG isDpcThere = m_DpcWaiting;
+        NBLHolder->AddHistory(__FUNCTION__, "", "", NULL, "Skip processing", isDpcThere);
+
+        if (isDpcThere == 0)
         {
             DoPendingTasks(NBLHolder);
         }
@@ -574,6 +593,13 @@ void CNBL::NBComplete()
     m_MappedBuffersDetached.Release();
     if (m_BuffersDone.AddRef() == (LONG)m_BuffersNumber)
     {
+        AddHistory(__FUNCTION__, "", "", NULL, "Buffers", m_BuffersNumber);
+        ParaNdis_DebugHistory(this,
+                              eHistoryLogOperation::hopSendComplete,
+                              m_NBL,
+                              !m_Chain.m_FirstInChain,
+                              0, // status
+                              GetCurrentRefCounterUnsafe());
         CompleteInChain();
         m_AllNBCompleted = true;
     }
@@ -675,6 +701,7 @@ PNET_BUFFER_LIST CParaNdisTX::ProcessWaitingList(CRawCNBLList &completed)
     completed.ForEachDetached([&](CNBL *NBL) {
         NBL->SetStatus(NDIS_STATUS_SUCCESS);
         auto RawNBL = NBL->DetachInternalObject();
+        ParaNdis_DebugHistory(NBL, eHistoryLogOperation::hopSendDone, RawNBL, 0, 0, NBL->GetCurrentRefCounterUnsafe());
         NBL->Release();
         if (CallCompletionForNBL(m_Context, RawNBL))
         {
