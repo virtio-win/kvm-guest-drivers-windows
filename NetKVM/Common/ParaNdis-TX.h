@@ -3,6 +3,7 @@
 #include "ParaNdis-AbstractPath.h"
 #include "ParaNdis_GuestAnnounce.h"
 #include "ParaNdis_LockFreeQueue.h"
+#include "ParaNdis_DebugHistory.h"
 
 /* Must be a power of 2 */
 #define PARANDIS_TX_LOCK_FREE_QUEUE_DEFAULT_SIZE 2048
