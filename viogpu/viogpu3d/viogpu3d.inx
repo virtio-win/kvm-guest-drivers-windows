@@ -1,0 +1,116 @@
+;/*++
+;
+;INX_COPYRIGHT_1
+;INX_COPYRIGHT_2
+;
+; viogpu3d.inf
+;
+
+[Version]
+Signature="$Windows NT$"
+Class=Display
+ClassGUID={4d36e968-e325-11ce-bfc1-08002be10318}
+Provider=%RHEL%
+DriverVer= 09/05/2018, 1.01.01.0002
+CatalogFile=viogpu3d.cat
+PnpLockdown     = 1
+
+[DestinationDirs]
+VioGpu3D_Files.Driver = 12   ; drivers
+VioGpu3D_Files.Usermode = 13 ; DriverStore
+
+
+
+[SourceDisksNames]
+1 = %DiskId1%,,,""
+
+[SourceDisksFiles]
+viogpu3d.sys = 1,,f
+viogpu_d3d10.dll = 1,,
+viogpu_wgl.dll = 1,,
+z.dll = 1,,
+
+[Manufacturer]
+%RHEL%=RHEL,NT$ARCH$
+
+[RHEL.NT$ARCH$]
+%VioGpu3D.DeviceDesc% = VioGpu3D_Inst, PCI\VEN_1AF4&DEV_1050&SUBSYS_11001AF4&REV_01
+
+[VioGpu3D_Files.Driver]
+viogpu3d.sys,,,2
+
+[VioGpu3D_Files.Usermode]
+viogpu_d3d10.dll,,,0
+viogpu_wgl.dll,,,0
+z.dll,,,0
+
+[VioGpu3D_Inst]
+Include=msdv.inf
+FeatureScore=F9
+CopyFiles=VioGpu3D_Files.Driver, VioGpu3D_Files.Usermode
+AddReg=VioGpu3D_DeviceSettings
+
+
+[VioGpu3D_Inst.Services]
+AddService = VioGpu3D,0x00000002,VioGpu3D_Service_Inst, VioGpu3D_EventLog_Inst
+
+[VioGpu3D_Inst.HW]
+AddReg = VioGpu3D_PCI_MSIX
+
+
+[VioGpu3D_Service_Inst]
+ServiceType = %SERVICE_KERNEL_DRIVER%
+StartType = %SERVICE_DEMAND_START%
+ErrorControl = %SERVICE_ERROR_IGNORE%
+ServiceBinary = %12%\viogpu3d.sys
+
+[VioGpu3D_EventLog_Inst]
+AddReg = VioGpu3D_EventLog_Inst.AddReg
+
+[VioGpu3D_EventLog_Inst.AddReg]
+HKR,,EventMessageFile,%REG_EXPAND_SZ%,"%%SystemRoot%%\System32\IoLogMsg.dll"
+HKR,,TypesSupported,%REG_DWORD%,7
+
+[VioGpu3D_DeviceSettings]
+HKR,, HWCursor,                    %REG_DWORD%, 0
+HKR,, FlexResolution,              %REG_DWORD%, 1
+HKR,, UsePhysicalMemory,           %REG_DWORD%, 0
+HKR,, UserModeDriverName,          %REG_MULTI_SZ%, %13%\viogpu_d3d10.dll,%13%\viogpu_d3d10.dll,%13%\viogpu_d3d10.dll,%13%\viogpu_d3d10.dll
+HKR,, OpenGLDriverName,            %REG_MULTI_SZ%, %13%\viogpu_wgl.dll
+HKR,, OpenGLFlags,                 %REG_DWORD%, 3
+HKR,, OpenGLVersion,               %REG_DWORD%, 4096
+HKLM,"SYSTEM\CurrentControlSet\Control\GraphicsDrivers\Scheduler",EnablePreemption,%REG_DWORD%,0
+HKLM,"SYSTEM\CurrentControlSet\Control\GraphicsDrivers",TdrDebugMode,%REG_DWORD%,1
+
+[VioGpu3D_PCI_MSIX]
+HKR, "Interrupt Management",, 0x00000010
+HKR, "Interrupt Management\MessageSignaledInterruptProperties",, 0x00000010
+HKR, "Interrupt Management\MessageSignaledInterruptProperties", MSISupported, 0x00010001, 0
+HKR, "Interrupt Management\MessageSignaledInterruptProperties", MessageNumberLimit, 0x00010001, 4
+;HKR, "Interrupt Management\Affinity Policy",, 0x00000010
+;HKR, "Interrupt Management\Affinity Policy", DevicePolicy, 0x00010001, 5
+;HKR, "Interrupt Management\Affinity Policy", DevicePriority, 0x00010001, 3
+
+[Strings]
+
+;  *******Localizable Strings*******
+diskId1 = "Red Hat VirtIO GPU controller Installation Disk"
+VioGpu3D.DeviceDesc = "Red Hat VirtIO GPU 3D controller"
+RHEL = "Red Hat, Inc."
+
+;  *******Non Localizable Strings*******
+SERVICE_BOOT_START = 0x0
+SERVICE_SYSTEM_START = 0x1
+SERVICE_AUTO_START = 0x2
+SERVICE_DEMAND_START = 0x3
+SERVICE_DISABLED = 0x4
+
+SERVICE_KERNEL_DRIVER = 0x1
+SERVICE_ERROR_IGNORE = 0x0
+SERVICE_ERROR_NORMAL = 0x1
+SERVICE_ERROR_SEVERE = 0x2
+SERVICE_ERROR_CRITICAL = 0x3
+
+REG_MULTI_SZ   = 0x00010000
+REG_EXPAND_SZ = 0x00020000
+REG_DWORD = 0x00010001
