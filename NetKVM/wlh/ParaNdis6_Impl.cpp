@@ -1100,7 +1100,7 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(PARANDIS_ADAPTER *pContext,
                     (ULONG)(ULONG_PTR)qCSInfo.Value);
 
             pNBL->Status = NDIS_STATUS_SUCCESS;
-#if defined(ENABLE_HISTORY_LOG)
+#if 0
             {
                 tTcpIpPacketParsingResult packetReview = ParaNdis_CheckSumVerify(RtlOffsetToPointer(pPacketInfo->headersBuffer,
                                                                                                     ETH_HEADER_SIZE),

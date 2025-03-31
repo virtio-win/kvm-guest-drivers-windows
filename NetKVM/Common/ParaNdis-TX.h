@@ -3,9 +3,11 @@
 #include "ParaNdis-AbstractPath.h"
 #include "ParaNdis_GuestAnnounce.h"
 #include "ParaNdis_LockFreeQueue.h"
+#include "ParaNdis_DebugHistory.h"
 
 /* Must be a power of 2 */
 #define PARANDIS_TX_LOCK_FREE_QUEUE_DEFAULT_SIZE 2048
+#define NBL_MAINTAIN_HISTORY                     1
 
 /* the maximum number of pages that a single network packet can span.
 refer linux kernel code #define MAX_SKB_FRAGS (65536/PAGE_SIZE + 1), */
@@ -105,6 +107,31 @@ class CNB : public CNdisAllocatableViaHelper<CNB>
     DECLARE_CNDISLIST_ENTRY(CNB);
 };
 
+typedef struct _tChainOfNbls
+{
+    CNdisRefCounter m_NumChained;
+    CNdisRefCounter m_NumCompleted;
+    CNBL *m_FirstInChain;
+} CChainOfNbls;
+
+class NBLHistory : public CNdisAllocatable<NBLHistory, 'NBLH'>
+{
+    DECLARE_CNDISLIST_ENTRY(NBLHistory);
+  public:
+    NBLHistory(LPCSTR Func, LPCSTR Title, LPCSTR ParameterMeaning, PVOID Parameter, LPCSTR ValueMeaning, ULONG Value);
+  protected:
+    ULONGLONG m_Timestamp;
+    LPCSTR m_Function;
+    LPCSTR m_Title;
+    LPCSTR m_ParameterMeaning;
+    PVOID m_Parameter;
+    LPCSTR m_ValueMeaning;
+    ULONG m_Value;
+    ULONG m_CurrentCPU;
+};
+
+typedef CNdisList<NBLHistory, CLockedAccess, CNonCountingObject> CHistoryList;
+
 class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, public CAllocationHelper<CNB>
 {
   public:
@@ -129,6 +156,72 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, 
     {
         return (ParsePriority() && ParseBuffers() && ParseOffloads());
     }
+#define NBL_CHAINS 1
+#if NBL_CHAINS
+    void Die()
+    {
+        // RtlFailFast(FAST_FAIL_RANGE_CHECK_FAILURE);
+        DbgBreakPoint();
+    }
+    void SetInChain(PNET_BUFFER_LIST FirstInChain)
+    {
+        if (FirstInChain != m_NBL)
+        {
+            m_Chain.m_FirstInChain = (CNBL *)FirstInChain->Scratch;
+            m_Chain.m_FirstInChain->m_Chain.m_NumChained.AddRef();
+            m_Chain.m_FirstInChain->AddRef();
+        }
+    }
+    void UnsetInChain()
+    {
+        // the NBL was failed mapping, if does not go
+        // to transmit path
+        ParaNdis_DebugHistory(this,
+                              eHistoryLogOperation::hopSendComplete,
+                              m_NBL,
+                              !m_Chain.m_FirstInChain,
+                              m_NBL->Status,
+                              GetCurrentRefCounterUnsafe());
+        if (m_Chain.m_FirstInChain)
+        {
+            m_Chain.m_FirstInChain->m_Chain.m_NumChained.Release();
+            // the head of chain will be released in the destructor
+        }
+    }
+    void CompleteInChain()
+    {
+        auto head = m_Chain.m_FirstInChain;
+        if (head)
+        {
+            LONG completed = head->m_Chain.m_NumCompleted.AddRef();
+            ParaNdis_DebugHistory(this,
+                                  eHistoryLogOperation::hopSendCompleteChain,
+                                  head,
+                                  completed,
+                                  0,
+                                  head->GetCurrentRefCounterUnsafe());
+            AddHistory(__FUNCTION__, "", "Head", head, "Completed", completed);
+            if (head->m_Chain.m_NumChained < completed)
+            {
+                // this is a fatal problem, probably caused by
+                // double completion, may cause to list corruption
+                // TODO: assertion??
+                Die();
+            }
+        }
+    }
+#else
+    void SetInChain(PNET_BUFFER_LIST FirstInChain)
+    {
+        UNREFERENCED_PARAMETER(FirstInChain);
+    }
+    void UnsetInChain()
+    {
+    }
+    void CompleteInChain()
+    {
+    }
+#endif
     void StartMapping();
     void RegisterMappedNB(CNB *NB);
     bool MappingSucceeded()
@@ -148,11 +241,6 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, 
     bool HaveMappedBuffers()
     {
         return !m_Buffers.IsEmpty();
-    }
-
-    bool HaveDetachedBuffers()
-    {
-        return m_MappedBuffersDetached != 0;
     }
 
     PNET_BUFFER_LIST DetachInternalObject();
@@ -238,7 +326,18 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, 
     {
         return m_ParentTXPath;
     }
-
+#if NBL_MAINTAIN_HISTORY
+    void AddHistory(LPCSTR Func,
+                    LPCSTR Title,
+                    LPCSTR ParameterMeaning = NULL,
+                    PVOID Parameter = NULL,
+                    LPCSTR ValueMeaning = NULL,
+                    ULONG Value = NULL);
+#else
+    void AddHistory(...)
+    {
+    }
+#endif
   private:
     virtual void OnLastReferenceGone() override;
 
@@ -276,6 +375,7 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, 
     // align storage for CNB on pointer size boundary and provide enough room for it
     ULONG_PTR m_CNB_Storage[(sizeof(CNB) + sizeof(ULONG_PTR) - 1) / sizeof(ULONG_PTR)];
     bool m_HaveFailedMappings = false;
+    bool m_AllNBCompleted = false;
 
     CNdisList<CNB, CRawAccess, CNonCountingObject> m_Buffers;
 
@@ -296,6 +396,9 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, 
     NDIS_UDP_SEGMENTATION_OFFLOAD_NET_BUFFER_LIST_INFO m_UsoInfo;
 #endif
     CAllocationHelper<CNB> *m_NBAllocator;
+
+    CChainOfNbls m_Chain = {};
+    CHistoryList m_History;
 
     CNBL(const CNBL &) = delete;
     CNBL &operator=(const CNBL &) = delete;
@@ -362,6 +465,8 @@ class CParaNdisTX : public CParaNdisTemplatePath<CTXVirtQueue>, public CNdisAllo
     virtual void Notify(SMNotifications message) override;
 
     bool SendMapped(bool IsInterrupt, CRawCNBLList &toWaitingList);
+
+    void DropAllNBls(CRawCNBLList &Completed, NDIS_STATUS Status);
 
     bool FillQueue();
 

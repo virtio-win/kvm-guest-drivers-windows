@@ -608,12 +608,14 @@ NDIS_STATUS ParaNdis6_OidRequest(NDIS_HANDLE miniportAdapterContext, PNDIS_OID_R
     ParaNdis_GetOidSupportRules(pNdisRequest->DATA.SET_INFORMATION.Oid, &Rules, OidsDB);
     _oid.ulToDoFlags = Rules.Flags;
 
+#if 0
     ParaNdis_DebugHistory(pContext,
                           _etagHistoryLogOperation::hopOidRequest,
                           NULL,
                           pNdisRequest->DATA.SET_INFORMATION.Oid,
                           pNdisRequest->RequestType,
                           1);
+#endif
     DPrintf(Rules.nEntryLevel,
             "[%s] OID type %d, id 0x%X(%s) of %d\n",
             __FUNCTION__,
@@ -695,12 +697,14 @@ NDIS_STATUS ParaNdis6_OidRequest(NDIS_HANDLE miniportAdapterContext, PNDIS_OID_R
                 break;
         }
     }
+#if 0
     ParaNdis_DebugHistory(pContext,
                           _etagHistoryLogOperation::hopOidRequest,
                           NULL,
                           pNdisRequest->DATA.SET_INFORMATION.Oid,
                           status,
                           0);
+#endif
     if (status != NDIS_STATUS_PENDING)
     {
         DPrintf(((status != NDIS_STATUS_SUCCESS) ? Rules.nExitFailLevel : Rules.nExitOKLevel),

@@ -1,6 +1,5 @@
 #include "ndis56common.h"
 #include "kdebugprint.h"
-#include "ParaNdis_DebugHistory.h"
 #include "Trace.h"
 #ifdef NETKVM_WPP_ENABLED
 #include "ParaNdis_TX.tmh"
@@ -27,10 +26,25 @@ CNBL::~CNBL()
 {
     CDpcIrqlRaiser OnDpc;
 
+    auto head = m_Chain.m_FirstInChain;
+
+    if (head)
+    {
+        head->Release();
+    }
+
+    ParaNdis_DebugHistory(this, eHistoryLogOperation::hopNBLDestructor, m_NBL, 0, 0, 0);
+
     m_Buffers.ForEachDetached([this](CNB *NB) { CNB::Destroy(NB); });
 
     if (m_NBL)
     {
+        // with erroneous status we can get here
+        // from Send() or NBLMappingDone()
+        if (m_NBL->Status == NDIS_STATUS_SUCCESS)
+        {
+            Die();
+        }
         auto NBL = DetachInternalObject();
         NETKVM_ASSERT(NET_BUFFER_LIST_NEXT_NBL(NBL) == nullptr);
         if (CallCompletionForNBL(m_Context, NBL))
@@ -42,6 +56,8 @@ CNBL::~CNBL()
             m_ParentTXPath->CompleteOutstandingInternalNBL(NBL);
         }
     }
+
+    m_History.ForEachDetached([this](NBLHistory *Entry) { NBLHistory::Destroy(Entry, m_Context->MiniportHandle); });
 }
 
 bool CNBL::ParsePriority()
@@ -93,6 +109,7 @@ void CNBL::RegisterMappedNB(CNB *NB)
     UNREFERENCED_PARAMETER(NB);
     if (m_BuffersNumber == (ULONG)m_BuffersMapped.AddRef())
     {
+        AddHistory(__FUNCTION__, "", "", NULL, "Buffers", m_BuffersNumber);
         m_ParentTXPath->NBLMappingDone(this);
     }
 }
@@ -392,13 +409,19 @@ void CParaNdisTX::CompleteOutstandingInternalNBL(PNET_BUFFER_LIST NBL, BOOLEAN U
     }
 }
 
+// called in DISPATCH (under read lock of RSS parameters)
+// if called with internal (announce) NBL, the NBL is always single
 void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
 {
     PNET_BUFFER_LIST nextNBL = nullptr;
     NDIS_STATUS RejectionStatus = NDIS_STATUS_FAILURE;
     BOOLEAN CallCompletion = CallCompletionForNBL(m_Context, NBL);
+    CRawCNBLList chain;
+    ULONG count = ParaNdis_CountNBLs(NBL);
 
-    if (!m_StateMachine.RegisterOutstandingItems(ParaNdis_CountNBLs(NBL), &RejectionStatus))
+    ParaNdis_DebugHistory(NBL, eHistoryLogOperation::hopSend, NULL, count, 0, 0);
+
+    if (!m_StateMachine.RegisterOutstandingItems(count, &RejectionStatus))
     {
         if (CallCompletion)
         {
@@ -411,6 +434,7 @@ void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
         return;
     }
 
+    TraceNoPrefix(3, "%s:Q#%d NBL count = %d\n", __FUNCTION__, m_queueIndex, count);
     for (auto currNBL = NBL; currNBL != nullptr; currNBL = nextNBL)
     {
         nextNBL = NET_BUFFER_LIST_NEXT_NBL(currNBL);
@@ -430,19 +454,46 @@ void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
                 CompleteOutstandingInternalNBL(NBL);
             }
             DPrintf(0, "ERROR: Failed to allocate CNBL instance\n");
+            // regular NBL chain and first NBL failed to allocate memory
+            // we'll refer next one as the first NBL in chain
+            // not relevant for internal NBL, as it is always single
+            if (currNBL == NBL)
+            {
+                NBL = nextNBL;
+                CallCompletion = true;
+            }
             continue;
         }
 
         if (NBLHolder->Prepare() && ParaNdis_IsTxRxPossible(m_Context))
         {
-            NBLHolder->StartMapping();
+            if (currNBL == NBL)
+            {
+                LPCSTR title = nextNBL ? "NBL-Head" : "NBL-Single";
+                NBLHolder->AddHistory(__FUNCTION__, "Created", title, currNBL);
+                ParaNdis_DebugHistory(NBLHolder, eHistoryLogOperation::hopSendNBLRequest, currNBL, 1, 0, 0);
+            }
+            else
+            {
+                NBLHolder->AddHistory(__FUNCTION__, "Created", "NBL-Chained", currNBL);
+                ParaNdis_DebugHistory(NBLHolder, eHistoryLogOperation::hopSendNBLRequest, currNBL, 0, 0, 0);
+            }
+            NBLHolder->SetInChain(NBL);
+            chain.PushBack(NBLHolder);
         }
         else
         {
             NBLHolder->SetStatus(ParaNdis_ExactSendFailureStatus(m_Context));
             NBLHolder->Release();
+            if (currNBL == NBL)
+            {
+                NBL = nextNBL;
+                CallCompletion = true;
+            }
         }
     }
+
+    chain.ForEachDetached([](CNBL *nbl) { nbl->StartMapping(); });
 }
 
 void CParaNdisTX::NBLMappingDone(CNBL *NBLHolder)
@@ -454,7 +505,10 @@ void CParaNdisTX::NBLMappingDone(CNBL *NBLHolder)
         UpdateTimestamp(m_AuditState.LastSendTime);
         m_SendQueue.Enqueue(NBLHolder);
 
-        if (m_DpcWaiting == 0)
+        LONG isDpcThere = m_DpcWaiting;
+        NBLHolder->AddHistory(__FUNCTION__, "", "", NULL, "Skip processing", isDpcThere);
+
+        if (isDpcThere == 0)
         {
             DoPendingTasks(NBLHolder);
         }
@@ -462,6 +516,8 @@ void CParaNdisTX::NBLMappingDone(CNBL *NBLHolder)
     else
     {
         NBLHolder->SetStatus(NDIS_STATUS_FAILURE);
+        // this is ok if this CNBL is not first one
+        NBLHolder->UnsetInChain();
         NBLHolder->Release();
     }
 }
@@ -536,13 +592,46 @@ void CNBL::PushMappedNB(CNB *NB)
 
 void CNBL::NBComplete()
 {
-    m_BuffersDone.AddRef();
+    // do we need 'detached' at all?
+    // 2 simultaneous users may never see both
+    // currentDone = m_BuffersNumber and detached = 0
     m_MappedBuffersDetached.Release();
+    if (m_BuffersDone.AddRef() == (LONG)m_BuffersNumber)
+    {
+        AddHistory(__FUNCTION__, "", "", NULL, "Buffers", m_BuffersNumber);
+        ParaNdis_DebugHistory(this,
+                              eHistoryLogOperation::hopSendComplete,
+                              m_NBL,
+                              !m_Chain.m_FirstInChain,
+                              0, // status
+                              GetCurrentRefCounterUnsafe());
+        CompleteInChain();
+        m_AllNBCompleted = true;
+    }
 }
 
 bool CNBL::IsSendDone()
 {
-    return (LONG)m_BuffersDone == (LONG)m_BuffersNumber && !HaveDetachedBuffers();
+    // m_Chain.m_FirstInChain = NULL for first NBL in chain, also for single NBL
+    //    for single NBL m_NumChained = m_NumCompleted = 0
+    //    for head of chain - m_NumChained >= 1
+    // m_Chain.m_FirstInChain != NULL for any additional NBLs
+    if (!m_NBL && m_Chain.m_FirstInChain)
+    {
+        // to be removed later, without carrier loss etc
+        // this can happen only with chained NBLs, not with head
+        Die();
+    }
+    if (!m_AllNBCompleted)
+    {
+        return false;
+    }
+    CNBL *head = m_Chain.m_FirstInChain;
+    if (head == nullptr)
+    {
+        return m_Chain.m_NumChained == m_Chain.m_NumCompleted;
+    }
+    return head->IsSendDone();
 }
 
 PNET_BUFFER_LIST CNBL::DetachInternalObject()
@@ -564,8 +653,48 @@ PNET_BUFFER_LIST CNBL::DetachInternalObject()
     return Res;
 }
 
+NBLHistory::NBLHistory(LPCSTR Func,
+                       LPCSTR Title,
+                       LPCSTR ParameterMeaning,
+                       PVOID Parameter,
+                       LPCSTR ValueMeaning,
+                       ULONG Value)
+{
+    m_Function = Func;
+    m_Title = Title;
+    m_ParameterMeaning = ParameterMeaning;
+    m_Parameter = Parameter;
+    m_ValueMeaning = ValueMeaning;
+    m_Value = Value;
+    m_CurrentCPU = KeGetCurrentProcessorNumber();
+    UpdateTimestamp(m_Timestamp);
+}
+
+#if NBL_MAINTAIN_HISTORY
+void CNBL::AddHistory(LPCSTR Func,
+                      LPCSTR Title,
+                      LPCSTR ParameterMeaning,
+                      PVOID Parameter,
+                      LPCSTR ValueMeaning,
+                      ULONG Value)
+{
+    auto entry = new (m_Context->MiniportHandle) NBLHistory(Func,
+                                                            Title,
+                                                            ParameterMeaning,
+                                                            Parameter,
+                                                            ValueMeaning,
+                                                            Value);
+    if (entry)
+    {
+        m_History.PushBack(entry);
+    }
+}
+#endif
+
 PNET_BUFFER_LIST CParaNdisTX::ProcessWaitingList(CRawCNBLList &completed)
 {
+    // TODO: keep NBLs order and check NBL chain when extracting NBLs
+
     PNET_BUFFER_LIST CompletedNBLs = nullptr;
 
     // locked part under waiting list lock
@@ -583,6 +712,7 @@ PNET_BUFFER_LIST CParaNdisTX::ProcessWaitingList(CRawCNBLList &completed)
     completed.ForEachDetached([&](CNBL *NBL) {
         NBL->SetStatus(NDIS_STATUS_SUCCESS);
         auto RawNBL = NBL->DetachInternalObject();
+        ParaNdis_DebugHistory(NBL, eHistoryLogOperation::hopSendDone, RawNBL, 0, 0, NBL->GetCurrentRefCounterUnsafe());
         NBL->Release();
         if (CallCompletionForNBL(m_Context, RawNBL))
         {
@@ -596,6 +726,23 @@ PNET_BUFFER_LIST CParaNdisTX::ProcessWaitingList(CRawCNBLList &completed)
     });
 
     return CompletedNBLs;
+}
+
+// call under TX lock
+void CParaNdisTX::DropAllNBls(CRawCNBLList &Completed, NDIS_STATUS Status)
+{
+    while (HaveMappedNBLs())
+    {
+        CNBL *nbl = PopMappedNBL();
+        nbl->SetStatus(Status);
+        Completed.Push(nbl);
+        while (nbl->HaveMappedBuffers())
+        {
+            CNB *nb = nbl->PopMappedNB();
+            CNB::Destroy(nb);
+            nbl->NBComplete();
+        }
+    }
 }
 
 void CParaNdisTX::Notify(SMNotifications message)
@@ -617,19 +764,7 @@ void CParaNdisTX::Notify(SMNotifications message)
     DoWithTXLock([&]() {
         //
         m_VirtQueue.ProcessTXCompletions(nbToFree, true);
-
-        while (HaveMappedNBLs())
-        {
-            CNBL *nbl = PopMappedNBL();
-            nbl->SetStatus(NDIS_STATUS_SEND_ABORTED);
-            completedNBLs.Push(nbl);
-            while (nbl->HaveMappedBuffers())
-            {
-                CNB *nb = nbl->PopMappedNB();
-                CNB::Destroy(nb);
-                nbl->NBComplete();
-            }
-        }
+        DropAllNBls(completedNBLs, NDIS_STATUS_SEND_ABORTED);
     });
 
     PostProcessPendingTask(nbToFree, completedNBLs);
@@ -721,6 +856,11 @@ bool CParaNdisTX::SendMapped(bool IsInterrupt, CRawCNBLList &toWaitingList)
                 NETKVM_ASSERT(false);
             }
         }
+    }
+    else
+    {
+        // carrier loss or removal
+        DropAllNBls(toWaitingList, ParaNdis_ExactSendFailureStatus(m_Context));
     }
 
     if (IsInterrupt)

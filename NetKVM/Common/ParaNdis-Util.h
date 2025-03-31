@@ -335,6 +335,13 @@ class CRefCountingObject
         }
     }
 
+    // this is provided only for tracking / reference
+    // and can't be used for any decision
+    ULONG GetCurrentRefCounterUnsafe()
+    {
+        return (LONG)m_RefCounter;
+    }
+
   protected:
     virtual void OnLastReferenceGone() = 0;
 
@@ -945,8 +952,7 @@ static inline void ParaNdis_CompleteNBLChainWithStatus(NDIS_HANDLE MiniportHandl
 
 static FORCEINLINE void UpdateTimestamp(ULONGLONG &Variable)
 {
-    LARGE_INTEGER li;
-    NdisGetCurrentSystemTime(&li);
+    LARGE_INTEGER li = KeQueryPerformanceCounter(NULL);
     Variable = li.QuadPart;
 }
 

@@ -103,6 +103,9 @@ static const LPCSTR OpNames[] = {
     "PacketReceived       ",
     "OidRequest           ",
     "PnpEvent             ",
+    "NBLDestructor        ",
+    "SendCompleteChain    ",
+    "SendDone             ",
 };
 // clang-format on
 
@@ -597,6 +600,48 @@ static void ParseHistoryEntry(LONGLONG basetime, tBugCheckHistoryDataEntry *phis
     }
 }
 
+// historySize - number of entries in history
+// when parsinf dump:
+//  basetime - time of crash
+//  Index    - index in the middle of the table (currentIndex)
+// when parsing file
+//  basetime = 0
+//  Index = -1
+static void ParseHistoryData(LONGLONG basetime, tBugCheckHistoryDataEntry *phist, ULONG historySize, LONG Index)
+{
+    if (Index < 0)
+    {
+        Index = 0;
+        // find start index (where we have a break of timestamp) &
+        // basetime (maximum timestamp in the table)
+        ULONGLONG prev = phist->TimeStamp.QuadPart;
+        for (int n = 0; n < (LONG)historySize; n++)
+        {
+            ULONGLONG cur = phist[n].TimeStamp.QuadPart;
+            LONGLONG diff = LONGLONG(cur - prev);
+            if (diff < 0)
+            {
+                Index = n;
+                basetime = prev;
+                PRINT("Found current history entry at %d", n);
+                break;
+            }
+            prev = cur;
+        }
+    }
+
+    ParseHistoryEntry(NULL, NULL, 0);
+    LONG n;
+    for (n = Index; n < (LONG)historySize; n++)
+    {
+        ParseHistoryEntry(basetime, phist, n);
+    }
+    for (n = 0; n < Index; n++)
+    {
+        ParseHistoryEntry(basetime, phist, n);
+    }
+}
+
 void tDumpParser::ParseCrashData(tBugCheckStaticDataHeader *ph, ULONG64 databuffer, ULONG bytesRead, BOOL bWithSymbols)
 {
     UINT i;
@@ -638,15 +683,7 @@ void tDumpParser::ParseCrashData(tBugCheckStaticDataHeader *ph, ULONG64 databuff
                   pd->CurrentHistoryIndex);
             LONG Index = pd->CurrentHistoryIndex % pd->SizeOfHistory;
             LONG EndIndex = Index;
-            ParseHistoryEntry(NULL, NULL, 0);
-            for (; Index < (LONG)pd->SizeOfHistory; Index++)
-            {
-                ParseHistoryEntry(ph->qCrashTime.QuadPart, phist, Index);
-            }
-            for (Index = 0; Index < EndIndex; Index++)
-            {
-                ParseHistoryEntry(ph->qCrashTime.QuadPart, phist, Index);
-            }
+            ParseHistoryData(ph->qCrashTime.QuadPart, phist, pd->SizeOfHistory, Index);
         }
         else
         {
@@ -914,7 +951,7 @@ CString tDumpParser::GetProperty(eSystemProperty Prop)
 
 int ParseDumpFile(int argc, TCHAR *argv[])
 {
-    if (argc == 2)
+    if (argc >= 2)
     {
         CString s = argv[1];
         s += ".txt";
@@ -927,7 +964,50 @@ int ParseDumpFile(int argc, TCHAR *argv[])
 #ifdef UNDER_DEBUGGING
         fputs("UNDER_DEBUGGING, the output is redirected to debugger", f);
 #endif
-        if (!Parser.LoadFile(argv[1]))
+        if (argc > 2)
+        {
+            PRINT("Parsing data file %s", argv[1]);
+            FILE *fdata = fopen(argv[1], "rb");
+            if (!fdata)
+            {
+                PRINT("Failed to open file %s", argv[1]);
+                return ERROR_FILE_NOT_FOUND;
+            }
+            // get file size and load the file into memory
+            ULONG size = 0;
+            PVOID buffer = NULL;
+            fseek(fdata, 0, SEEK_END);
+            long offset = ftell(fdata);
+            PRINT("Got offset %d", offset);
+            fseek(fdata, 0, SEEK_SET);
+            if (offset > 0)
+            {
+                size = offset;
+            }
+            if (!size)
+            {
+                PRINT("File %s is empty", argv[1]);
+                return ERROR_FILE_CORRUPT;
+            }
+            if (size % sizeof(tBugCheckHistoryDataEntry))
+            {
+                PRINT("Size of %s is not valid", argv[1]);
+                return ERROR_FILE_CORRUPT;
+            }
+            buffer = malloc(size);
+            if (!buffer)
+            {
+                PRINT("Failed to allocate memory");
+                return ERROR_FILE_CORRUPT;
+            }
+            fread(buffer, 1, size, fdata);
+            size = size / sizeof(tBugCheckHistoryDataEntry);
+            PRINT("%d entries in the table", size);
+            ParseHistoryData(0, (tBugCheckHistoryDataEntry *)buffer, size, -1);
+            free(buffer);
+            fclose(fdata);
+        }
+        else if (!Parser.LoadFile(argv[1]))
         {
             PRINT("Failed to load dump file %s", argv[1]);
         }

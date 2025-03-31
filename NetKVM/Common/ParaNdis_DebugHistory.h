@@ -1,6 +1,6 @@
 #pragma once
 
-// #define ENABLE_HISTORY_LOG
+#define ENABLE_HISTORY_LOG
 // #define KEEP_PENDING_NBL
 
 #if !defined(KEEP_PENDING_NBL)
@@ -26,7 +26,7 @@ void ParaNdis_DebugNBLOut(ULONG index, PNET_BUFFER_LIST nbl);
 
 #if !defined(ENABLE_HISTORY_LOG)
 
-void FORCEINLINE ParaNdis_DebugHistory(PARANDIS_ADAPTER *pContext,
+void FORCEINLINE ParaNdis_DebugHistory(PVOID pContext,
                                        eHistoryLogOperation op,
                                        PVOID pParam1,
                                        ULONG lParam2,
@@ -43,7 +43,7 @@ void FORCEINLINE ParaNdis_DebugHistory(PARANDIS_ADAPTER *pContext,
 
 #else
 
-void ParaNdis_DebugHistory(PARANDIS_ADAPTER *pContext,
+void ParaNdis_DebugHistory(PVOID pContext,
                            eHistoryLogOperation op,
                            PVOID pParam1,
                            ULONG lParam2,

@@ -67,6 +67,7 @@ extern "C"
 
 ULONG bDisableMSI = FALSE;
 
+static LARGE_INTEGER PerformanceFrequency;
 static NDIS_HANDLE DriverHandle;
 static LONG gID = 0;
 static bool ProtocolActive;
@@ -446,18 +447,37 @@ static VOID ParaNdis6_SendNetBufferLists(NDIS_HANDLE miniportAdapterContext,
     }
 #ifdef PARANDIS_SUPPORT_RSS
     CNdisPassiveReadAutoLock autoLock(pContext->RSSParameters.rwLock);
-    if (pContext->RSS2QueueMap != nullptr)
+    auto queueMap = pContext->RSS2QueueMap;
+    if (pContext->nPathBundles > 1 && queueMap != nullptr)
     {
+        PNET_BUFFER_LIST head = NULL, *tail = &head;
+        ULONG index = 0, mask = pContext->RSSParameters.ActiveRSSScalingSettings.RSSHashMask;
         while (pNBL)
         {
             ULONG RSSHashValue = NET_BUFFER_LIST_GET_HASH_VALUE(pNBL);
-            ULONG indirectionIndex = RSSHashValue & (pContext->RSSParameters.ActiveRSSScalingSettings.RSSHashMask);
-
-            PNET_BUFFER_LIST nextNBL = NET_BUFFER_LIST_NEXT_NBL(pNBL);
-            NET_BUFFER_LIST_NEXT_NBL(pNBL) = NULL;
-
-            pContext->RSS2QueueMap[indirectionIndex]->txPath.Send(pNBL);
-            pNBL = nextNBL;
+            ULONG indirectionIndex = RSSHashValue & mask;
+            if (indirectionIndex != index)
+            {
+                // flush collected chain, if any
+                if (head)
+                {
+                    queueMap[index]->txPath.Send(head);
+                    head = NULL;
+                    tail = &head;
+                }
+                // update index
+                index = indirectionIndex;
+            }
+            // collect current NBL into per-queue chain
+            *tail = pNBL;
+            tail = &NET_BUFFER_LIST_NEXT_NBL(pNBL);
+            pNBL = *tail;
+            *tail = NULL;
+        }
+        // flush last chain, if any
+        if (head)
+        {
+            queueMap[index]->txPath.Send(head);
         }
     }
     else
@@ -1235,6 +1255,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath
     if (status == NDIS_STATUS_SUCCESS)
     {
         DEBUG_EXIT_STATUS(4, status);
+        KeQueryPerformanceCounter(&PerformanceFrequency);
     }
     else
     {
