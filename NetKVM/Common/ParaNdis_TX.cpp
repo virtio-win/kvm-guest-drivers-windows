@@ -421,7 +421,7 @@ void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
     CRawCNBLList chain;
     ULONG count = ParaNdis_CountNBLs(NBL);
 
-    ParaNdis_DebugHistory(NBL, eHistoryLogOperation::hopSend, NULL, count, 0, 0);
+    ParaNdis_DebugHistory(NBL, eHistoryLogOperation::hopSend, NULL, count, 0, m_queueIndex);
 
     if (!m_StateMachine.RegisterOutstandingItems(count, &RejectionStatus))
     {
