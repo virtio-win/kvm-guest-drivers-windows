@@ -169,8 +169,10 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, 
         if (FirstInChain != m_NBL)
         {
             m_Chain.m_FirstInChain = (CNBL *)FirstInChain->Scratch;
-            m_Chain.m_FirstInChain->m_Chain.m_NumChained.AddRef();
+            LONG serial = m_Chain.m_FirstInChain->m_Chain.m_NumChained.AddRef();
             m_Chain.m_FirstInChain->AddRef();
+            // set the serial number in chain for information
+            m_Chain.m_NumChained.AddRef(serial);
         }
     }
     void UnsetInChain()
@@ -199,7 +201,7 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, 
                                   eHistoryLogOperation::hopSendCompleteChain,
                                   head,
                                   completed,
-                                  0,
+                                  m_Chain.m_NumChained,
                                   head->GetCurrentRefCounterUnsafe());
             AddHistory(__FUNCTION__, "", "Head", head, "Completed", completed);
             if (head->m_Chain.m_NumChained < completed)
