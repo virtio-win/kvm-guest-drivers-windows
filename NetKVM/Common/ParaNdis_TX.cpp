@@ -685,6 +685,7 @@ PNET_BUFFER_LIST CParaNdisTX::ProcessWaitingList(CRawCNBLList &completed)
     // TODO: keep NBLs order and check NBL chain when extracting NBLs
 
     PNET_BUFFER_LIST CompletedNBLs = nullptr;
+    PNET_BUFFER_LIST *tail = &CompletedNBLs;
 
     // locked part under waiting list lock
     {
@@ -705,8 +706,12 @@ PNET_BUFFER_LIST CParaNdisTX::ProcessWaitingList(CRawCNBLList &completed)
         NBL->Release();
         if (CallCompletionForNBL(m_Context, RawNBL))
         {
-            NET_BUFFER_LIST_NEXT_NBL(RawNBL) = CompletedNBLs;
-            CompletedNBLs = RawNBL;
+            *tail = RawNBL;
+            do
+            {
+                tail = &NET_BUFFER_LIST_NEXT_NBL(*tail);
+
+            } while (*tail);
         }
         else
         {
