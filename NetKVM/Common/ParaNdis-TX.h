@@ -231,6 +231,10 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, 
             m_TransferSize += ChunkSize;
         }
     }
+    bool HasNBL() const
+    {
+        return m_NBL != nullptr;
+    }
     ULONG NumberOfBuffers() const
     {
         return m_BuffersNumber;
