@@ -473,12 +473,12 @@ void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
             {
                 LPCSTR title = nextNBL ? "NBL-Head" : "NBL-Single";
                 NBLHolder->AddHistory(__FUNCTION__, "Created", title, currNBL);
-                ParaNdis_DebugHistory(NBLHolder, eHistoryLogOperation::hopSendNBLRequest, currNBL, 1, 0, 0);
+                ParaNdis_DebugHistory(NBLHolder, eHistoryLogOperation::hopSendNBLRequest, currNBL, 1, 0, m_queueIndex);
             }
             else
             {
                 NBLHolder->AddHistory(__FUNCTION__, "Created", "NBL-Chained", currNBL);
-                ParaNdis_DebugHistory(NBLHolder, eHistoryLogOperation::hopSendNBLRequest, currNBL, 0, 0, 0);
+                ParaNdis_DebugHistory(NBLHolder, eHistoryLogOperation::hopSendNBLRequest, currNBL, 0, 0, m_queueIndex);
             }
             NBLHolder->SetInChain(NBL);
             chain.PushBack(NBLHolder);
