@@ -149,7 +149,10 @@ void NdisPollHandler::HandlePoll(NDIS_POLL_DATA *PollData)
     // the handler will be invoked anyway
     if (PollData->Receive.NumberOfRemainingNbls || PollData->Transmit.NumberOfRemainingNbls)
     {
+        // ensure the poll will be scheduled
+        KIRQL prev = KeRaiseIrqlToSynchLevel();
         ParaNdisPollNotify(m_AdapterContext, m_Index, "Self");
+        KeLowerIrql(prev);
     }
 }
 
