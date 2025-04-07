@@ -227,11 +227,6 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, 
         return !m_Buffers.IsEmpty();
     }
 
-    bool HaveDetachedBuffers()
-    {
-        return m_MappedBuffersDetached != 0;
-    }
-
     PNET_BUFFER_LIST DetachInternalObject();
     // TODO: Needs review
     void NBComplete();
