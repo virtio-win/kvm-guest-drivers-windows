@@ -41,7 +41,7 @@
 
 FILE *outf = stdout;
 
-typedef CString(*TimeStampConversionFunc)(LONGLONG BaseTime, LARGE_INTEGER TimeStamp);
+typedef CString (*TimeStampConversionFunc)(LONGLONG BaseTime, LARGE_INTEGER TimeStamp);
 
 static CString PresentKernelSystemTime(LONGLONG BaseTime, LARGE_INTEGER TimeStamp)
 {
@@ -64,7 +64,7 @@ static CString PresentTimeDiffInMicros(LONGLONG BaseTime, LARGE_INTEGER TimeStam
 }
 
 TimeStampConversionFunc func = PresentTimeDiffInMicros;
-const char* conv = "diff in micros";
+const char *conv = "diff in micros";
 
 // #define UNDER_DEBUGGING
 
