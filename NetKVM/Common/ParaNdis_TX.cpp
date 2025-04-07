@@ -48,6 +48,9 @@ CNBL::~CNBL()
         }
 #endif
         auto NBL = DetachInternalObject();
+        // Is there a flow where we have 'next'?
+        // i.e. first CNBL in a chain with at least
+        // one completed follower
         NETKVM_ASSERT(NET_BUFFER_LIST_NEXT_NBL(NBL) == nullptr);
         if (CallCompletionForNBL(m_Context, NBL))
         {
@@ -512,7 +515,14 @@ void CParaNdisTX::NBLMappingDone(CNBL *NBLHolder)
 
         if (isDpcThere == 0)
         {
+#if SPAWN_TX_PROCESS_FROM_SEND_PATH
+            // this can make NBLs in chain to be completed out of order
             DoPendingTasks(NBLHolder);
+#else
+            KIRQL prev = KeRaiseIrqlToSynchLevel();
+            FireDPC(m_messageIndex);
+            KeLowerIrql(prev);
+#endif
         }
     }
     else

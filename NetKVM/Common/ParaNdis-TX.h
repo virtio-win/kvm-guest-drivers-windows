@@ -9,6 +9,7 @@
 #define PARANDIS_TX_LOCK_FREE_QUEUE_DEFAULT_SIZE 2048
 #define NBL_MAINTAIN_HISTORY                     0
 #define NBL_CHAINS                               1
+#define SPAWN_TX_PROCESS_FROM_SEND_PATH          1
 #define REPAIR_CHAIN                             (NBL_CHAINS && 1)
 
 /* the maximum number of pages that a single network packet can span.
