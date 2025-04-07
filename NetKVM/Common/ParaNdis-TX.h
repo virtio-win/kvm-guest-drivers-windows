@@ -8,6 +8,8 @@
 /* Must be a power of 2 */
 #define PARANDIS_TX_LOCK_FREE_QUEUE_DEFAULT_SIZE 2048
 #define NBL_MAINTAIN_HISTORY                     0
+#define NBL_CHAINS                               0
+#define REPAIR_CHAIN                             (NBL_CHAINS && 1)
 
 /* the maximum number of pages that a single network packet can span.
 refer linux kernel code #define MAX_SKB_FRAGS (65536/PAGE_SIZE + 1), */
@@ -191,6 +193,23 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, 
         auto head = m_Chain.m_FirstInChain;
         if (head)
         {
+            if (m_NBL)
+            {
+                // Detach NBL from chained CNBL and chain it the end
+                // of the chain started from m_NBL of the first CNBL
+                // The NBL is fully completed, so STATUS_SUCCESS
+                SetStatus(NDIS_STATUS_SUCCESS);
+                auto rawNbl = DetachInternalObject();
+                // save the serial number in chain
+                rawNbl->Scratch = (PVOID)(LONG)m_Chain.m_NumChained;
+                PNET_BUFFER_LIST *next = &NET_BUFFER_LIST_NEXT_NBL(head->m_NBL);
+
+                // Attach to the tail of NBLs atomically
+                while (InterlockedCompareExchangePointer((PVOID *)next, rawNbl, nullptr))
+                {
+                    next = &NET_BUFFER_LIST_NEXT_NBL(*next);
+                }
+            }
             LONG completed = head->m_Chain.m_NumCompleted.AddRef();
             ParaNdis_DebugHistory(this,
                                   eHistoryLogOperation::hopSendCompleteChain,
