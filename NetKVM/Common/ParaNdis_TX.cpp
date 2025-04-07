@@ -691,8 +691,7 @@ PNET_BUFFER_LIST CParaNdisTX::ProcessWaitingList(CRawCNBLList &completed)
     {
         TDPCSpinLocker LockedContext(m_WaitingListLock);
 
-        completed.ForEachDetachedIf([](CNBL *NBL) { return !NBL->IsSendDone(); },
-                                    [&](CNBL *NBL) { m_WaitingList.PushBack(NBL); });
+        completed.ForEachDetached([&](CNBL *NBL) { m_WaitingList.PushBack(NBL); });
 
         m_WaitingList.ForEachDetachedIf([](CNBL *NBL) { return NBL->IsSendDone(); },
                                         [&](CNBL *NBL) { completed.PushBack(NBL); });
