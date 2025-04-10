@@ -357,6 +357,8 @@ class tDumpParser : public DebugBaseEventCallbacks, public IDebugOutputCallbacks
             DebugSymbols->AddSymbolOptions(SYMOPT_DEBUG);
             // DebugSymbols->RemoveSymbolOptions(SYMOPT_DEFERRED_LOADS);
             DebugSymbols->AppendSymbolPath(".");
+            DebugSymbols->AppendSymbolPath("C:\\ProgramData\\dbg\\sym");
+            DebugSymbols->AppendSymbolPath("C:\\Symbols");
         }
         else
         {
@@ -386,7 +388,7 @@ class tDumpParser : public DebugBaseEventCallbacks, public IDebugOutputCallbacks
         return hr == S_OK;
     }
     void ProcessDumpFile();
-    void FindOurTaggedCrashData(BOOL bWithSymbols);
+    bool FindOurTaggedCrashData(BOOL bWithSymbols);
     BOOL CheckLoadedSymbols(tModule *pModule);
     void ProcessSymbols(tModule *pModule);
     void ParseCrashData(tBugCheckStaticDataHeader *ph, ULONG64 databuffer, ULONG bytesRead, BOOL bWithSymbols);
@@ -445,6 +447,51 @@ class tDumpParser : public DebugBaseEventCallbacks, public IDebugOutputCallbacks
             s += sv;
         }
         return s;
+    }
+
+    bool ResolveSymbol(LPCSTR Name, ULONG &Size, CString &Type, ULONG64 &Offset)
+    {
+        CString sFullName;
+        ULONG64 moduleBase;
+        ULONG typeId;
+        HRESULT result;
+        LPCSTR moduleName = "netkvm";
+        char buffer[1024];
+        if (strchr(Name, '!'))
+        {
+            sFullName = Name;
+        }
+        else
+        {
+            sFullName.Format("%s!%s", moduleName, Name);
+        }
+        result = DebugSymbols->GetOffsetByName(sFullName, &Offset);
+        if (FAILED(result))
+        {
+            PRINT("Can't find %s, error %X\n", sFullName.GetString(), result);
+            return false;
+        }
+        result = DebugSymbols->GetSymbolTypeId(sFullName, &typeId, &moduleBase);
+        if (FAILED(result))
+        {
+            Type = "<unknown>";
+            return true;
+        }
+        result = DebugSymbols->GetTypeName(moduleBase, typeId, buffer, sizeof(buffer), nullptr);
+        if (FAILED(result))
+        {
+            Type = "<hard to say>";
+        }
+        else
+        {
+            Type = buffer;
+        }
+        result = DebugSymbols->GetTypeSize(moduleBase, typeId, &Size);
+        if (FAILED(result))
+        {
+            PRINT("Can't get size of %s, error %X\n", Name, result);
+        }
+        return true;
     }
 
   protected:
@@ -669,6 +716,16 @@ static void ParseHistoryData(LONGLONG basetime, tBugCheckHistoryDataEntry *phist
 void tDumpParser::ParseCrashData(tBugCheckStaticDataHeader *ph, ULONG64 databuffer, ULONG bytesRead, BOOL bWithSymbols)
 {
     UINT i;
+
+    PRINT("Versions: static data %d, per-NIC data %d, ptr size %d, %d contexts, crash "
+          "time %I64X",
+          ph->StaticDataVersion,
+          ph->PerNicDataVersion,
+          ph->SizeOfPointer,
+          ph->ulMaxContexts,
+          ph->qCrashTime.QuadPart);
+    PRINT("Per-NIC data at %I64X, Static data at %I64X(%lld bytes)", ph->PerNicData, ph->DataArea, ph->DataAreaSize);
+
     for (i = 0; i < ph->ulMaxContexts; ++i)
     {
         if (ph->PerNicDataVersion == 0)
@@ -720,6 +777,23 @@ void tDumpParser::ParseCrashData(tBugCheckStaticDataHeader *ph, ULONG64 databuff
         tBugCheckStaticDataContent_V1 *pd = (tBugCheckStaticDataContent_V1 *)(ph->DataArea - databuffer + (PUCHAR)ph);
         if (pd->PendingNblEntryVersion == 0)
         {
+            PRINT(PRINT_SEPARATOR);
+            auto pd0 = &pd->StaticDataV0;
+            if (pd0->SizeOfHistory > 2)
+            {
+                PRINT("History: version %d, %d entries of %d",
+                      pd0->HistoryDataVersion,
+                      pd0->SizeOfHistory,
+                      pd0->SizeOfHistoryEntry);
+                tBugCheckHistoryDataEntry_V1 *phist = (tBugCheckHistoryDataEntry *)(pd0->HistoryData - databuffer +
+                                                                                    (PUCHAR)ph);
+                ParseHistoryData(ph->qCrashTime.QuadPart, phist, pd0->SizeOfHistory, -1);
+            }
+            else
+            {
+                PRINT("History records are not available");
+            }
+            PRINT(PRINT_SEPARATOR);
             tPendingNBlEntry_V0 *pNBL = (tPendingNBlEntry_V0 *)(pd->PendingNblData - databuffer + (PUCHAR)ph);
             if (pd->MaxPendingNbl > 1)
             {
@@ -740,8 +814,9 @@ void tDumpParser::ParseCrashData(tBugCheckStaticDataHeader *ph, ULONG64 databuff
     }
 }
 
-void tDumpParser::FindOurTaggedCrashData(BOOL bWithSymbols)
+bool tDumpParser::FindOurTaggedCrashData(BOOL bWithSymbols)
 {
+    bool bFound = false;
     ULONG64 h;
     if (S_OK == DataSpaces->StartEnumTagged(&h))
     {
@@ -756,6 +831,7 @@ void tDumpParser::FindOurTaggedCrashData(BOOL bWithSymbols)
             if (IsEqualGUID(ParaNdis_CrashGuid, guid))
             {
                 PRINT("Found NetKVM GUID");
+                bFound = true;
                 if (S_OK == DataSpaces->ReadTagged(&guid, 0, ourBuffer, size, &size))
                 {
                     if (size >= sizeof(tBugCheckDataLocation))
@@ -773,17 +849,6 @@ void tDumpParser::FindOurTaggedCrashData(BOOL bWithSymbols)
                                 PRINT("Retrieved %d bytes of data", bytesRead);
                                 if (bytesRead >= sizeof(tBugCheckStaticDataHeader))
                                 {
-                                    PRINT("Versions: static data %d, per-NIC data %d, ptr size %d, %d contexts, crash "
-                                          "time %I64X",
-                                          ph->StaticDataVersion,
-                                          ph->PerNicDataVersion,
-                                          ph->SizeOfPointer,
-                                          ph->ulMaxContexts,
-                                          ph->qCrashTime.QuadPart);
-                                    PRINT("Per-NIC data at %I64X, Static data at %I64X(%lld bytes)",
-                                          ph->PerNicData,
-                                          ph->DataArea,
-                                          ph->DataAreaSize);
                                     ParseCrashData(ph, bcdl->Address, bytesRead, bWithSymbols);
                                 }
                             }
@@ -796,6 +861,7 @@ void tDumpParser::FindOurTaggedCrashData(BOOL bWithSymbols)
         }
         DataSpaces->EndEnumTagged(h);
     }
+    return bFound;
 }
 
 static BOOL GetModuleName(ULONG Which, ULONG64 Base, DEBUG_SYMBOLS_IF *DebugSymbols, CString &s)
@@ -901,7 +967,30 @@ void tDumpParser::ProcessDumpFile()
     s = GetProperty(espSystemTime);
     PRINT("Crash time:%s", s.GetBuffer());
     bSymbols = CheckLoadedSymbols(&module);
-    FindOurTaggedCrashData(bSymbols);
+    if (!FindOurTaggedCrashData(bSymbols) && bSymbols)
+    {
+        // retrieve entire netkvm!BugCheckData
+        ULONG size, bytesRead;
+        ULONG64 addr;
+        CString type;
+        if (ResolveSymbol("BugCheckData", size, type, addr) && size)
+        {
+            PVOID databuffer = malloc(size);
+            if (databuffer)
+            {
+                if (S_OK == DataSpaces->ReadVirtual(addr, databuffer, size, &bytesRead))
+                {
+                    tBugCheckStaticDataHeader *ph = (tBugCheckStaticDataHeader *)databuffer;
+                    PRINT("Retrieved %d bytes of data", bytesRead);
+                    if (bytesRead >= sizeof(tBugCheckStaticDataHeader))
+                    {
+                        ParseCrashData(ph, addr, bytesRead, true);
+                    }
+                }
+                free(databuffer);
+            }
+        }
+    }
 }
 
 CString tDumpParser::GetProperty(eSystemProperty Prop)
