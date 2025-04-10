@@ -1,6 +1,5 @@
 #include "ndis56common.h"
 #include "kdebugprint.h"
-#include "ParaNdis_DebugHistory.h"
 #include "Trace.h"
 #ifdef NETKVM_WPP_ENABLED
 #include "ParaNdis_TX.tmh"
@@ -42,6 +41,8 @@ CNBL::~CNBL()
             m_ParentTXPath->CompleteOutstandingInternalNBL(NBL);
         }
     }
+
+    m_History.ForEachDetached([this](NBLHistory *Entry) { NBLHistory::Destroy(Entry, m_Context->MiniportHandle); });
 }
 
 bool CNBL::ParsePriority()
@@ -397,8 +398,9 @@ void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
     PNET_BUFFER_LIST nextNBL = nullptr;
     NDIS_STATUS RejectionStatus = NDIS_STATUS_FAILURE;
     BOOLEAN CallCompletion = CallCompletionForNBL(m_Context, NBL);
+    ULONG count = ParaNdis_CountNBLs(NBL);
 
-    if (!m_StateMachine.RegisterOutstandingItems(ParaNdis_CountNBLs(NBL), &RejectionStatus))
+    if (!m_StateMachine.RegisterOutstandingItems(count, &RejectionStatus))
     {
         if (CallCompletion)
         {
@@ -411,6 +413,7 @@ void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
         return;
     }
 
+    TraceNoPrefix(3, "%s:Q#%d NBL count = %d\n", __FUNCTION__, m_queueIndex, count);
     for (auto currNBL = NBL; currNBL != nullptr; currNBL = nextNBL)
     {
         nextNBL = NET_BUFFER_LIST_NEXT_NBL(currNBL);
@@ -461,7 +464,9 @@ void CParaNdisTX::NBLMappingDone(CNBL *NBLHolder)
     }
     else
     {
+        DPrintf(0, "[%s] ERROR: one or more NBs failed to be mapped!\n", __FUNCTION__);
         NBLHolder->SetStatus(NDIS_STATUS_FAILURE);
+        m_Context->Statistics.ifOutErrors += NBLHolder->NumberOfBuffers();
         NBLHolder->Release();
     }
 }
@@ -564,6 +569,44 @@ PNET_BUFFER_LIST CNBL::DetachInternalObject()
     return Res;
 }
 
+NBLHistory::NBLHistory(LPCSTR Func,
+                       LPCSTR Title,
+                       LPCSTR ParameterMeaning,
+                       PVOID Parameter,
+                       LPCSTR ValueMeaning,
+                       ULONG Value)
+{
+    m_Function = Func;
+    m_Title = Title;
+    m_ParameterMeaning = ParameterMeaning;
+    m_Parameter = Parameter;
+    m_ValueMeaning = ValueMeaning;
+    m_Value = Value;
+    m_CurrentCPU = KeGetCurrentProcessorNumber();
+    UpdateTimestamp(m_Timestamp);
+}
+
+#if NBL_MAINTAIN_HISTORY
+void CNBL::AddHistory(LPCSTR Func,
+                      LPCSTR Title,
+                      LPCSTR ParameterMeaning,
+                      PVOID Parameter,
+                      LPCSTR ValueMeaning,
+                      ULONG Value)
+{
+    auto entry = new (m_Context->MiniportHandle) NBLHistory(Func,
+                                                            Title,
+                                                            ParameterMeaning,
+                                                            Parameter,
+                                                            ValueMeaning,
+                                                            Value);
+    if (entry)
+    {
+        m_History.PushBack(entry);
+    }
+}
+#endif
+
 PNET_BUFFER_LIST CParaNdisTX::ProcessWaitingList(CRawCNBLList &completed)
 {
     PNET_BUFFER_LIST CompletedNBLs = nullptr;
@@ -598,6 +641,23 @@ PNET_BUFFER_LIST CParaNdisTX::ProcessWaitingList(CRawCNBLList &completed)
     return CompletedNBLs;
 }
 
+// call under TX lock
+void CParaNdisTX::DropAllNBls(CRawCNBLList &Completed, NDIS_STATUS Status)
+{
+    while (HaveMappedNBLs())
+    {
+        CNBL *nbl = PopMappedNBL();
+        nbl->SetStatus(Status);
+        Completed.Push(nbl);
+        while (nbl->HaveMappedBuffers())
+        {
+            CNB *nb = nbl->PopMappedNB();
+            CNB::Destroy(nb);
+            nbl->NBComplete();
+        }
+    }
+}
+
 void CParaNdisTX::Notify(SMNotifications message)
 {
     CRawCNBList nbToFree;
@@ -617,19 +677,7 @@ void CParaNdisTX::Notify(SMNotifications message)
     DoWithTXLock([&]() {
         //
         m_VirtQueue.ProcessTXCompletions(nbToFree, true);
-
-        while (HaveMappedNBLs())
-        {
-            CNBL *nbl = PopMappedNBL();
-            nbl->SetStatus(NDIS_STATUS_SEND_ABORTED);
-            completedNBLs.Push(nbl);
-            while (nbl->HaveMappedBuffers())
-            {
-                CNB *nb = nbl->PopMappedNB();
-                CNB::Destroy(nb);
-                nbl->NBComplete();
-            }
-        }
+        DropAllNBls(completedNBLs, NDIS_STATUS_SEND_ABORTED);
     });
 
     PostProcessPendingTask(nbToFree, completedNBLs);
@@ -721,6 +769,11 @@ bool CParaNdisTX::SendMapped(bool IsInterrupt, CRawCNBLList &toWaitingList)
                 NETKVM_ASSERT(false);
             }
         }
+    }
+    else
+    {
+        // link loss or removal
+        DropAllNBls(toWaitingList, ParaNdis_ExactSendFailureStatus(m_Context));
     }
 
     if (IsInterrupt)

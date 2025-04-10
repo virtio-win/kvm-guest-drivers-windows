@@ -61,7 +61,10 @@ typedef enum class _etagHistoryLogOperation
     hopTxProcess,
     hopPacketReceived, // implementation, when the packet prepared for indication (nbl, length, prio tag, type)
     hopOidRequest,     // implementation, none, OID, on entry(type, 1), on exit (status, 0), on complete (status, 2)
-    hopPnpEvent        // common, none, event, 0, 0
+    hopPnpEvent,       // common, none, event, 0, 0
+    hopNBLDestructor,
+    hopSendCompleteChain,
+    hopSendDone,
 } eHistoryLogOperation;
 
 // {E51FCE18-B3E7-441e-B18C-D9E9B71616F3}
