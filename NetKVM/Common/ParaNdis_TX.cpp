@@ -41,6 +41,8 @@ CNBL::~CNBL()
             m_ParentTXPath->CompleteOutstandingInternalNBL(NBL);
         }
     }
+
+    m_History.ForEachDetached([this](NBLHistory *Entry) { NBLHistory::Destroy(Entry, m_Context->MiniportHandle); });
 }
 
 bool CNBL::ParsePriority()
@@ -566,6 +568,44 @@ PNET_BUFFER_LIST CNBL::DetachInternalObject()
     m_NBL = nullptr;
     return Res;
 }
+
+NBLHistory::NBLHistory(LPCSTR Func,
+                       LPCSTR Title,
+                       LPCSTR ParameterMeaning,
+                       PVOID Parameter,
+                       LPCSTR ValueMeaning,
+                       ULONG Value)
+{
+    m_Function = Func;
+    m_Title = Title;
+    m_ParameterMeaning = ParameterMeaning;
+    m_Parameter = Parameter;
+    m_ValueMeaning = ValueMeaning;
+    m_Value = Value;
+    m_CurrentCPU = KeGetCurrentProcessorNumber();
+    UpdateTimestamp(m_Timestamp);
+}
+
+#if NBL_MAINTAIN_HISTORY
+void CNBL::AddHistory(LPCSTR Func,
+                      LPCSTR Title,
+                      LPCSTR ParameterMeaning,
+                      PVOID Parameter,
+                      LPCSTR ValueMeaning,
+                      ULONG Value)
+{
+    auto entry = new (m_Context->MiniportHandle) NBLHistory(Func,
+                                                            Title,
+                                                            ParameterMeaning,
+                                                            Parameter,
+                                                            ValueMeaning,
+                                                            Value);
+    if (entry)
+    {
+        m_History.PushBack(entry);
+    }
+}
+#endif
 
 PNET_BUFFER_LIST CParaNdisTX::ProcessWaitingList(CRawCNBLList &completed)
 {

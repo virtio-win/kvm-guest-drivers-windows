@@ -7,6 +7,7 @@
 
 /* Must be a power of 2 */
 #define PARANDIS_TX_LOCK_FREE_QUEUE_DEFAULT_SIZE 2048
+#define NBL_MAINTAIN_HISTORY                     0
 
 /* the maximum number of pages that a single network packet can span.
 refer linux kernel code #define MAX_SKB_FRAGS (65536/PAGE_SIZE + 1), */
@@ -105,6 +106,26 @@ class CNB : public CNdisAllocatableViaHelper<CNB>
 
     DECLARE_CNDISLIST_ENTRY(CNB);
 };
+
+class NBLHistory : public CNdisAllocatable<NBLHistory, 'NBLH'>
+{
+    DECLARE_CNDISLIST_ENTRY(NBLHistory);
+
+  public:
+    NBLHistory(LPCSTR Func, LPCSTR Title, LPCSTR ParameterMeaning, PVOID Parameter, LPCSTR ValueMeaning, ULONG Value);
+
+  protected:
+    ULONGLONG m_Timestamp;
+    LPCSTR m_Function;
+    LPCSTR m_Title;
+    LPCSTR m_ParameterMeaning;
+    PVOID m_Parameter;
+    LPCSTR m_ValueMeaning;
+    ULONG m_Value;
+    ULONG m_CurrentCPU;
+};
+
+typedef CNdisList<NBLHistory, CLockedAccess, CNonCountingObject> CHistoryList;
 
 class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, public CAllocationHelper<CNB>
 {
@@ -243,7 +264,18 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, 
     {
         return m_ParentTXPath;
     }
-
+#if NBL_MAINTAIN_HISTORY
+    void AddHistory(LPCSTR Func,
+                    LPCSTR Title,
+                    LPCSTR ParameterMeaning = NULL,
+                    PVOID Parameter = NULL,
+                    LPCSTR ValueMeaning = NULL,
+                    ULONG Value = NULL);
+#else
+    void AddHistory(...)
+    {
+    }
+#endif
   private:
     virtual void OnLastReferenceGone() override;
 
@@ -301,6 +333,8 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, 
     NDIS_UDP_SEGMENTATION_OFFLOAD_NET_BUFFER_LIST_INFO m_UsoInfo;
 #endif
     CAllocationHelper<CNB> *m_NBAllocator;
+
+    CHistoryList m_History;
 
     CNBL(const CNBL &) = delete;
     CNBL &operator=(const CNBL &) = delete;
