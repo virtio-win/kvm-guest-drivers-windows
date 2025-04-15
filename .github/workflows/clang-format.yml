@@ -9,7 +9,7 @@ jobs:
       matrix:
         path:
           - check: '.'
-            exclude: './VirtIO|./.*/.*trace.h|./NetKVM/Common/virtio_net.h|./NetKVM/linux/if_ether.h|./viofs/shared/fuse.h|./viofs/svc/scope_exit.h'
+            exclude: './VirtIO|./.*/.*trace.h|./.*/wpp_.*_path.*.h|./NetKVM/Common/virtio_net.h|./NetKVM/linux/if_ether.h|./viofs/shared/fuse.h|./viofs/svc/scope_exit.h'
           - check: 'VirtIO'
             exclude: ''
 
