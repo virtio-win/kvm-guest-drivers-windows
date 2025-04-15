@@ -24,7 +24,7 @@
  **********************************************************************/
 #include "viogpu.h"
 #include "..\viogpudo\viogpudo.h"
-#if !DBG
+#if EVENT_TRACING
 #include "viogpu_pci.tmh"
 #endif
 
