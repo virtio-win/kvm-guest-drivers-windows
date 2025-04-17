@@ -88,6 +88,75 @@ function Export-EventLogs {
     }
 }
 
+function Ensure-DiskSpd {
+    $scriptDir = $null
+    try {
+        $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+    } catch {}
+    if (-not $scriptDir -or $scriptDir -eq '' -or -not (Test-Path $scriptDir)) {
+        $scriptDir = (Get-Location).Path
+    }
+
+    $diskspdExe = Join-Path $scriptDir 'diskspd.exe'
+    $zipPath = Join-Path $scriptDir 'DiskSpd.ZIP'
+    $extractDir = Join-Path $scriptDir 'DiskSpdExtracted'
+
+    if (-not (Test-Path $diskspdExe)) {
+        if (-not (Test-Path $zipPath)) {
+            Write-Warning "DiskSpd.zip not found. Please place it next to the script."
+            return $null
+        }
+        Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
+
+        $arch = $env:PROCESSOR_ARCHITECTURE
+        switch ($arch.ToLower()) {
+            "amd64"   { $subdir = "amd64" }
+            "arm64"   { $subdir = "arm64" }
+            "x86"     { $subdir = "x86" }
+            "x86_64"  { $subdir = "amd64" }
+            "ia64"    { $subdir = "amd64" }
+            default   { $subdir = "amd64"; Write-Host "DEBUG: Unknown arch '$arch', defaulting to amd64" }
+        }
+        Write-Host "DEBUG: subdir is '$subdir'"
+
+        $diskspdSource = Get-ChildItem -Path $extractDir -Recurse -Filter "diskspd.exe" | Where-Object { $_.FullName -like "*\$subdir\*" } | Select-Object -First 1
+
+        if ($diskspdSource) {
+            Copy-Item $diskspdSource.FullName $diskspdExe -Force
+        } else {
+            Write-Warning "Could not find diskspd.exe for platform $arch in $extractDir."
+            return $null
+        }
+    }
+    return $diskspdExe
+}
+
+function Export-IOLimits {
+    try {
+        $diskspdExe = Ensure-DiskSpd
+        if (-not $diskspdExe) {
+            Write-Warning "diskspd.exe not available. Skipping IO Limits collection."
+            return
+        }
+        $lunDisks = Get-Disk
+        foreach ($disk in $lunDisks) {
+            $diskNumber = $disk.Number
+            $partitions = Get-Partition -DiskNumber $diskNumber | Where-Object { $_.DriveLetter }
+            foreach ($partition in $partitions) {
+                $diskLetter = $partition.DriveLetter
+                $outputFile = Join-Path $logfolderPath "IO_results_$diskLetter.txt"
+                $testFile = "$diskLetter`:\test.dat"
+                $result = & $diskspdExe -b1M -d30 -o32 -t4 -W -r -L -w0 -c512M $testFile 2>&1 | Tee-Object -FilePath $outputFile
+                Remove-Item -Path $testFile -ErrorAction SilentlyContinue
+                $output = "Disk Letter: $diskLetter, DiskSpd output: $outputFile"
+                $output | Out-File -FilePath (Join-Path $logfolderPath 'IOLimits.txt') -Append
+            }
+        }
+    } catch {
+        Write-Warning "Failed to collect IO Limits: $_"
+    }
+}
+
 function Export-DriversList {
     try {
         Get-WindowsDriver -Online -All | Select-Object -Property * | Export-Csv -Path (Join-Path $logfolderPath 'drv_list.csv') -NoTypeInformation
@@ -276,6 +345,7 @@ Write-Output "Log folder path: $logfolderPath"
 try {
     Start-Transcript -Path $progressFile -Append
     $transcriptStarted = $true
+    Export-IOLimits
     Export-SystemConfiguration
     Export-EventLogs
     Export-DriversList
