@@ -1282,6 +1282,7 @@ VioScsiUnitControl(IN PVOID DeviceExtension, IN SCSI_UNIT_CONTROL_TYPE ControlTy
                                          SRB_LUN(currSrb));
                             element->srb_cnt--;
                         }
+                        entry = entry->Flink;
                     }
                 }
                 StorPortReleaseSpinLock(DeviceExtension, &LockHandle);
