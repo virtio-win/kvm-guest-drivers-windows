@@ -1017,7 +1017,7 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(PARANDIS_ADAPTER *pContext,
 
         if (pNBL)
         {
-            virtio_net_hdr_mrg_rxbuf *pHeader = (virtio_net_hdr_mrg_rxbuf *)pBuffersDesc->PhysicalPages[0].Virtual;
+            virtio_net_hdr_mrg_rxbuf *pHeader = (virtio_net_hdr_mrg_rxbuf *)pBuffersDesc->PhysicalPages[pBuffersDesc->HeaderPage].Virtual;
             tChecksumCheckResult csRes;
             NDIS_TCP_IP_CHECKSUM_NET_BUFFER_LIST_INFO qCSInfo;
             qCSInfo.Value = NULL;
@@ -1059,7 +1059,7 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(PARANDIS_ADAPTER *pContext,
                                                  pHeader->hdr.flags,
                                                  &pBuffersDesc->PhysicalPages[PARANDIS_FIRST_RX_DATA_PAGE],
                                                  pPacketInfo,
-                                                 nBytesStripped,
+                                                 nBytesStripped + pBuffersDesc->DataStartOffset,
                                                  TRUE);
             }
             if (csRes.value)
