@@ -1169,8 +1169,18 @@ static void PrepareRXLayout(PARANDIS_ADAPTER *pContext)
 // #define RX_LAYOUT_AS_BEFORE
 #ifndef RX_LAYOUT_AS_BEFORE
     USHORT alignment = 32;
-    pContext->RxLayout.ReserveForHeader = ALIGN_UP_BY(pContext->nVirtioHeaderSize, alignment);
-    ULONG rxPayloadSize = pContext->MaxPacketSize.nMaxDataSizeHwRx;
+    ULONG rxPayloadSize;
+    bool combineHeaderAndData = pContext->bAnyLayout;
+    if (combineHeaderAndData)
+    {
+        pContext->RxLayout.ReserveForHeader = 0;
+        rxPayloadSize = pContext->MaxPacketSize.nMaxDataSizeHwRx + pContext->nVirtioHeaderSize;
+    }
+    else
+    {
+        pContext->RxLayout.ReserveForHeader = ALIGN_UP_BY(pContext->nVirtioHeaderSize, alignment);
+        rxPayloadSize = pContext->MaxPacketSize.nMaxDataSizeHwRx;
+    }
     // include the header
     pContext->RxLayout.TotalAllocationsPerBuffer = USHORT(rxPayloadSize / PAGE_SIZE) + 1;
     USHORT tail = rxPayloadSize % PAGE_SIZE;
