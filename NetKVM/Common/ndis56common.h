@@ -441,11 +441,17 @@ struct _tagRxNetDescriptor
 {
     LIST_ENTRY listEntry;
     LIST_ENTRY ReceiveQueueListEntry;
-
+    USHORT BufferSGLength;
+    // number of configured pages
+    USHORT NumPages;
+    // might be 0 or 1 (if combined)
+    USHORT HeaderPage;
+    // data is always pages[1] but might
+    // be after the virtio header
+    USHORT DataStartOffset;
 #define PARANDIS_FIRST_RX_DATA_PAGE (1)
     struct VirtIOBufferDescriptor *BufferSGArray;
     tCompletePhysicalAddress *PhysicalPages;
-    ULONG BufferSGLength;
     tCompletePhysicalAddress IndirectArea;
     tPacketHolderType Holder;
 

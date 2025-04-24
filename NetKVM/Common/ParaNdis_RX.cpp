@@ -221,6 +221,8 @@ pRxNetDescriptor CParaNdisRX::CreateRxDescriptorOnInit()
     NdisZeroMemory(p->PhysicalPages, sizeof(*p->PhysicalPages) * sgArraySize);
 
     p->BufferSGLength = 0;
+    p->HeaderPage = m_Context->RxLayout.ReserveForHeader ? 0 : 1;
+    p->DataStartOffset = (p->HeaderPage == 0) ? 0 : (USHORT)m_Context->nVirtioHeaderSize;
 
     while (ulNumDataPages > 0)
     {
