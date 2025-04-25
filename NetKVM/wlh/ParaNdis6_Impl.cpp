@@ -784,23 +784,6 @@ VOID ParaNdis_FinalizeCleanup(PARANDIS_ADAPTER *pContext)
     }
 }
 
-static void ParaNdis_AdjustRxBufferHolderLength(pRxNetDescriptor p, ULONG ulDataOffset)
-{
-    PMDL NextMdlLinkage = p->Holder;
-    ULONG ulBytesLeft = p->PacketInfo.dataLength + ulDataOffset;
-    ULONG ulPageDescIndex = PARANDIS_FIRST_RX_DATA_PAGE;
-
-    while (NextMdlLinkage != NULL)
-    {
-        ULONG ulThisMdlBytes = min(p->PhysicalPages[ulPageDescIndex].size, ulBytesLeft);
-        NdisAdjustMdlLength(NextMdlLinkage, ulThisMdlBytes);
-        ulBytesLeft -= ulThisMdlBytes;
-        NextMdlLinkage = NDIS_MDL_LINKAGE(NextMdlLinkage);
-        ulPageDescIndex++;
-    }
-    NETKVM_ASSERT(ulBytesLeft == 0);
-}
-
 #if PARANDIS_SUPPORT_RSS
 static ULONG HashReportToHashType(USHORT report)
 {
@@ -1024,7 +1007,7 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(PARANDIS_ADAPTER *pContext,
         }
 
         ParaNdis_PadPacketToMinimalLength(pPacketInfo);
-        ParaNdis_AdjustRxBufferHolderLength(pBuffersDesc, nBytesStripped);
+
         pNBL = NdisAllocateNetBufferAndNetBufferList(pContext->BufferListsPool,
                                                      0,
                                                      0,

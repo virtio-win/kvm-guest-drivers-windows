@@ -25,7 +25,6 @@ static void ParaNdis_UnbindRxBufferFromPacket(pRxNetDescriptor p)
         PMDL pThisMDL = NextMdlLinkage;
         NextMdlLinkage = NDIS_MDL_LINKAGE(pThisMDL);
 
-        NdisAdjustMdlLength(pThisMDL, p->PhysicalPages[ulPageDescIndex].size);
         NdisFreeMdl(pThisMDL);
         ulPageDescIndex++;
     }
