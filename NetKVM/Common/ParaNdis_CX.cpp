@@ -6,6 +6,9 @@
 #include "ParaNdis_CX.tmh"
 #endif
 
+#define LONG_CTL_TIMEOUT  500000
+#define SHORT_CTL_TIMEOUT 1000
+
 CParaNdisCX::CParaNdisCX(PPARANDIS_ADAPTER Context)
 {
     m_Context = Context;
@@ -82,6 +85,62 @@ ULONG CParaNdisCX::FillSGArray(struct VirtIOBufferDescriptor sg[/*4*/], CommandD
     return offset;
 }
 
+// should be called under m_Lock
+// returns false it there is no response at all
+// if there is some response returns true and
+// sets Code to received response code if possible
+bool CParaNdisCX::GetResponse(UCHAR &Code, int MicrosecondsToWait, int LogLevel)
+{
+    PUCHAR pBase = (PUCHAR)m_ControlData.Virtual;
+    UINT len = 0;
+    auto ctl = (virtio_net_ctrl_hdr *)pBase;
+    UCHAR cls = ctl->class_of_command;
+    UCHAR cmd = ctl->cmd;
+    void *p;
+
+    p = m_VirtQueue.GetBuf(&len);
+    for (int i = 0; i < MicrosecondsToWait && !p; ++i)
+    {
+        UINT interval = 1;
+        NdisStallExecution(interval);
+        p = m_VirtQueue.GetBuf(&len);
+    }
+    if (!p)
+    {
+        // timed out
+        DPrintf(0, "%s - ERROR: cmd %d.%d timed out\n", __FUNCTION__, cls, cmd);
+        m_Context->extraStatistics.ctrlTimedOut++;
+        return false;
+    }
+    if (len == sizeof(virtio_net_ctrl_ack))
+    {
+        // the response status is probably OK or ERR
+        Code = *(virtio_net_ctrl_ack *)(pBase + m_ResultOffset);
+        m_Context->extraStatistics.ctrlFailed += Code != VIRTIO_NET_OK;
+        switch (Code)
+        {
+            case VIRTIO_NET_OK:
+                DPrintf(LogLevel, "%s: - %d.%d finished OK\n", __FUNCTION__, cls, cmd);
+                break;
+            case VIRTIO_NET_ERR:
+                DPrintf(0, "%s - VIRTIO_NET_ERROR returned for %d.%d\n", __FUNCTION__, cls, cmd);
+                break;
+            default:
+                // TODO: raise error if the code is not one of these
+                DPrintf(0, "%s: unexpected ERROR %d for %d.%d\n", __FUNCTION__, Code, cls, cmd);
+                break;
+        }
+        return true;
+    }
+    // the length of response is wrong, we can't expect
+    // meaningful result, the device is probably broken
+    DPrintf(0, "%s - ERROR: wrong len %d on %d.%d\n", __FUNCTION__, len, cls, cmd);
+    m_Context->extraStatistics.ctrlFailed++;
+    Code = (UCHAR)(-1);
+    // TODO: raise error
+    return true;
+}
+
 BOOLEAN CParaNdisCX::SendControlMessage(UCHAR cls,
                                         UCHAR cmd,
                                         PVOID buffer1,
@@ -91,7 +150,6 @@ BOOLEAN CParaNdisCX::SendControlMessage(UCHAR cls,
                                         int levelIfOK)
 {
     BOOLEAN bOK = FALSE;
-    PUCHAR pBase = (PUCHAR)m_ControlData.Virtual;
     UINT nOut = 0;
     CommandData data;
     data.cls = cls;
@@ -113,45 +171,26 @@ BOOLEAN CParaNdisCX::SendControlMessage(UCHAR cls,
 
         if (0 <= m_VirtQueue.AddBuf(sg, nOut, 1, (PVOID)1, NULL, 0))
         {
-            UINT len;
-            void *p;
+            UCHAR result = VIRTIO_NET_ERR;
+
+            m_ResultOffset = offset;
+
             m_Context->m_CxStateMachine.RegisterOutstandingItem();
 
             m_VirtQueue.Kick();
-            p = m_VirtQueue.GetBuf(&len);
-            for (int i = 0; i < 500000 && !p; ++i)
-            {
-                UINT interval = 1;
-                NdisStallExecution(interval);
-                p = m_VirtQueue.GetBuf(&len);
-            }
-            m_Context->m_CxStateMachine.UnregisterOutstandingItem();
 
-            if (!p)
+            if (!GetResponse(result, LONG_CTL_TIMEOUT, levelIfOK))
             {
-                DPrintf(0, "%s - ERROR: get_buf failed\n", __FUNCTION__);
-                m_Context->extraStatistics.ctrlTimedOut++;
-            }
-            else if (len != sizeof(virtio_net_ctrl_ack))
-            {
-                DPrintf(0, "%s - ERROR: wrong len %d\n", __FUNCTION__, len);
-                m_Context->extraStatistics.ctrlFailed++;
-            }
-            else if (*(virtio_net_ctrl_ack *)(pBase + offset) != VIRTIO_NET_OK)
-            {
-                DPrintf(0,
-                        "%s - ERROR: error %d returned for class %d\n",
-                        __FUNCTION__,
-                        *(virtio_net_ctrl_ack *)(pBase + offset),
-                        cls);
-                m_Context->extraStatistics.ctrlFailed++;
+                // timed out
             }
             else
             {
-                // everything is OK
-                DPrintf(levelIfOK, "%s OK(%d.%d,buffers of %d and %d) \n", __FUNCTION__, cls, cmd, size1, size2);
-                bOK = TRUE;
+                // OK/error/invalid
+                bOK = result == VIRTIO_NET_OK;
             }
+            // we just keep the previous behavior at the moment
+            // although the command is inside and can't be aborted
+            m_Context->m_CxStateMachine.UnregisterOutstandingItem();
         }
         else
         {

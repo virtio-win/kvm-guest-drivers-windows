@@ -26,6 +26,8 @@ class CParaNdisCX : public CParaNdisTemplatePath<CVirtQueue>, public CPlacementA
   protected:
     tCompletePhysicalAddress m_ControlData;
     KDPC m_DPC;
+    // updated under m_Lock
+    ULONG m_ResultOffset = 0;
     struct CommandData
     {
         UCHAR cls;
@@ -37,4 +39,5 @@ class CParaNdisCX : public CParaNdisTemplatePath<CVirtQueue>, public CPlacementA
         int logLevel;
     };
     ULONG FillSGArray(struct VirtIOBufferDescriptor sg[/*4*/], CommandData &data, UINT &nOut);
+    bool GetResponse(UCHAR &Code, int MicrosecondsToWait, int LogLevel);
 };
