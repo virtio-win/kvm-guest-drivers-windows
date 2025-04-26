@@ -22,8 +22,8 @@ class CParaNdisCX : public CParaNdisTemplatePath<CVirtQueue>, public CPlacementA
                                             int levelIfOK);
 
     bool FireDPC(ULONG messageId) override;
-    KDPC m_DPC;
 
   protected:
     tCompletePhysicalAddress m_ControlData;
+    KDPC m_DPC;
 };
