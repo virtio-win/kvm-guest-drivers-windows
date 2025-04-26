@@ -90,6 +90,8 @@ BOOLEAN CParaNdisCX::SendControlMessage(UCHAR cls,
         sg[nOut].length = sizeof(virtio_net_ctrl_ack);
         *(virtio_net_ctrl_ack *)(pBase + offset) = VIRTIO_NET_ERR;
 
+        m_Context->extraStatistics.ctrlCommands++;
+
         if (0 <= m_VirtQueue.AddBuf(sg, nOut, 1, (PVOID)1, NULL, 0))
         {
             UINT len;
@@ -109,10 +111,12 @@ BOOLEAN CParaNdisCX::SendControlMessage(UCHAR cls,
             if (!p)
             {
                 DPrintf(0, "%s - ERROR: get_buf failed\n", __FUNCTION__);
+                m_Context->extraStatistics.ctrlTimedOut++;
             }
             else if (len != sizeof(virtio_net_ctrl_ack))
             {
                 DPrintf(0, "%s - ERROR: wrong len %d\n", __FUNCTION__, len);
+                m_Context->extraStatistics.ctrlFailed++;
             }
             else if (*(virtio_net_ctrl_ack *)(pBase + offset) != VIRTIO_NET_OK)
             {
@@ -121,6 +125,7 @@ BOOLEAN CParaNdisCX::SendControlMessage(UCHAR cls,
                         __FUNCTION__,
                         *(virtio_net_ctrl_ack *)(pBase + offset),
                         cls);
+                m_Context->extraStatistics.ctrlFailed++;
             }
             else
             {
@@ -132,11 +137,13 @@ BOOLEAN CParaNdisCX::SendControlMessage(UCHAR cls,
         else
         {
             DPrintf(0, "%s - ERROR: add_buf failed\n", __FUNCTION__);
+            m_Context->extraStatistics.ctrlFailed++;
         }
     }
     else
     {
         DPrintf(0, "%s (buffer %d,%d) - ERROR: message too LARGE\n", __FUNCTION__, size1, size2);
+        m_Context->extraStatistics.ctrlFailed++;
     }
     return bOK;
 }
