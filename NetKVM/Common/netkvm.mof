@@ -84,6 +84,15 @@ class NetKvm_Rss
     [read,WmiDataId(7)] uint32 Errors;
 };
 
+[WMI,
+guid("{A76B478A-3485-49D0-B0A9-E61E17930578}")]
+class NetKvm_Ctrl
+{
+    [read,WmiDataId(1)] uint32 Commands;
+    [read,WmiDataId(2)] uint32 CommandsTimedOut;
+    [read,WmiDataId(3)] uint32 CommandsFailed;
+};
+
 [Dynamic : ToInstance, Provider("WMIProv"), WMI,
 guid("{85888FE2-CBCE-4857-A512-4694CF5B2797}")]
 class NetKvm_Diag : MSNdis
@@ -93,4 +102,5 @@ class NetKvm_Diag : MSNdis
     [read,WmiDataId(1)] NetKvm_Tx tx;
     [read,WmiDataId(2)] NetKvm_Rx rx;
     [read,WmiDataId(3)] NetKvm_Rss rss;
+    [read,WmiDataId(4)] NetKvm_Ctrl ctrl;
 };
