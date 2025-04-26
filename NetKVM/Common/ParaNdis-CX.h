@@ -26,4 +26,15 @@ class CParaNdisCX : public CParaNdisTemplatePath<CVirtQueue>, public CPlacementA
   protected:
     tCompletePhysicalAddress m_ControlData;
     KDPC m_DPC;
+    struct CommandData
+    {
+        UCHAR cls;
+        UCHAR cmd;
+        PVOID buffer1;
+        ULONG size1;
+        PVOID buffer2;
+        ULONG size2;
+        int logLevel;
+    };
+    ULONG FillSGArray(struct VirtIOBufferDescriptor sg[/*4*/], CommandData &data, UINT &nOut);
 };

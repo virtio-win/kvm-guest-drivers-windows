@@ -39,6 +39,49 @@ bool CParaNdisCX::Create(UINT DeviceQueueIndex)
     return m_VirtQueue.Create(DeviceQueueIndex, &m_Context->IODevice, m_Context->MiniportHandle);
 }
 
+// should be called under m_Lock
+// fills the data area with command parameters
+// returns the offset of the response field
+ULONG CParaNdisCX::FillSGArray(struct VirtIOBufferDescriptor sg[/*4*/], CommandData &data, UINT &nOut)
+{
+    PUCHAR pBase = (PUCHAR)m_ControlData.Virtual;
+    PHYSICAL_ADDRESS phBase = m_ControlData.Physical;
+    ULONG offset = 0;
+    nOut = 1;
+
+    ((virtio_net_ctrl_hdr *)pBase)->class_of_command = data.cls;
+    ((virtio_net_ctrl_hdr *)pBase)->cmd = data.cmd;
+    sg[0].physAddr = phBase;
+    sg[0].length = sizeof(virtio_net_ctrl_hdr);
+    offset += (USHORT)sg[0].length;
+    offset = (offset + 3) & ~3;
+    if (data.size1)
+    {
+        NdisMoveMemory(pBase + offset, data.buffer1, data.size1);
+        sg[nOut].physAddr = phBase;
+        sg[nOut].physAddr.QuadPart += offset;
+        sg[nOut].length = data.size1;
+        offset += data.size1;
+        offset = (offset + 3) & ~3;
+        nOut++;
+    }
+    if (data.size2)
+    {
+        NdisMoveMemory(pBase + offset, data.buffer2, data.size2);
+        sg[nOut].physAddr = phBase;
+        sg[nOut].physAddr.QuadPart += offset;
+        sg[nOut].length = data.size2;
+        offset += data.size2;
+        offset = (offset + 3) & ~3;
+        nOut++;
+    }
+    sg[nOut].physAddr = phBase;
+    sg[nOut].physAddr.QuadPart += offset;
+    sg[nOut].length = sizeof(virtio_net_ctrl_ack);
+    *(virtio_net_ctrl_ack *)(pBase + offset) = VIRTIO_NET_ERR;
+    return offset;
+}
+
 BOOLEAN CParaNdisCX::SendControlMessage(UCHAR cls,
                                         UCHAR cmd,
                                         PVOID buffer1,
@@ -48,47 +91,23 @@ BOOLEAN CParaNdisCX::SendControlMessage(UCHAR cls,
                                         int levelIfOK)
 {
     BOOLEAN bOK = FALSE;
+    PUCHAR pBase = (PUCHAR)m_ControlData.Virtual;
+    UINT nOut = 0;
+    CommandData data;
+    data.cls = cls;
+    data.cmd = cmd;
+    data.buffer1 = buffer1;
+    data.buffer2 = buffer2;
+    data.size1 = size1;
+    data.size2 = size2;
+    data.logLevel = levelIfOK;
     CLockedContext<CNdisSpinLock> autoLock(m_Lock);
 
     if (m_ControlData.Virtual && m_ControlData.size > (size1 + size2 + 16) && m_VirtQueue.IsValid() &&
         m_VirtQueue.CanTouchHardware())
     {
         struct VirtIOBufferDescriptor sg[4];
-        PUCHAR pBase = (PUCHAR)m_ControlData.Virtual;
-        PHYSICAL_ADDRESS phBase = m_ControlData.Physical;
-        ULONG offset = 0;
-        UINT nOut = 1;
-
-        ((virtio_net_ctrl_hdr *)pBase)->class_of_command = cls;
-        ((virtio_net_ctrl_hdr *)pBase)->cmd = cmd;
-        sg[0].physAddr = phBase;
-        sg[0].length = sizeof(virtio_net_ctrl_hdr);
-        offset += sg[0].length;
-        offset = (offset + 3) & ~3;
-        if (size1)
-        {
-            NdisMoveMemory(pBase + offset, buffer1, size1);
-            sg[nOut].physAddr = phBase;
-            sg[nOut].physAddr.QuadPart += offset;
-            sg[nOut].length = size1;
-            offset += size1;
-            offset = (offset + 3) & ~3;
-            nOut++;
-        }
-        if (size2)
-        {
-            NdisMoveMemory(pBase + offset, buffer2, size2);
-            sg[nOut].physAddr = phBase;
-            sg[nOut].physAddr.QuadPart += offset;
-            sg[nOut].length = size2;
-            offset += size2;
-            offset = (offset + 3) & ~3;
-            nOut++;
-        }
-        sg[nOut].physAddr = phBase;
-        sg[nOut].physAddr.QuadPart += offset;
-        sg[nOut].length = sizeof(virtio_net_ctrl_ack);
-        *(virtio_net_ctrl_ack *)(pBase + offset) = VIRTIO_NET_ERR;
+        ULONG offset = FillSGArray(sg, data, nOut);
 
         m_Context->extraStatistics.ctrlCommands++;
 
