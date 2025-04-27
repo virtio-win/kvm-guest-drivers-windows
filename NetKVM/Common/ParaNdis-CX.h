@@ -40,4 +40,25 @@ class CParaNdisCX : public CParaNdisTemplatePath<CVirtQueue>, public CPlacementA
     };
     void FillSGArray(struct VirtIOBufferDescriptor sg[/*4*/], const CommandData &data, UINT &nOut);
     bool GetResponse(UCHAR &Code, int MicrosecondsToWait, int LogLevel);
+    class CQueuedCommand : public CNdisAllocatable<CQueuedCommand, 'CQXC'>
+    {
+      public:
+        CQueuedCommand(PPARANDIS_ADAPTER Ctx) : m_Context(Ctx)
+        {
+        }
+        bool Create(const CommandData &Data);
+        ~CQueuedCommand();
+        const CommandData &Data()
+        {
+            return m_Data;
+        }
+
+      private:
+        PPARANDIS_ADAPTER m_Context;
+        CommandData m_Data = {};
+        DECLARE_CNDISLIST_ENTRY(CQueuedCommand);
+    };
+    // used under m_Lock
+    CNdisList<CQueuedCommand, CRawAccess, CCountingObject> m_CommandQueue;
+    bool ScheduleCommand(const CommandData &Data);
 };
