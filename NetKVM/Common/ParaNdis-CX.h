@@ -38,6 +38,6 @@ class CParaNdisCX : public CParaNdisTemplatePath<CVirtQueue>, public CPlacementA
         ULONG size2;
         int logLevel;
     };
-    ULONG FillSGArray(struct VirtIOBufferDescriptor sg[/*4*/], CommandData &data, UINT &nOut);
+    void FillSGArray(struct VirtIOBufferDescriptor sg[/*4*/], const CommandData &data, UINT &nOut);
     bool GetResponse(UCHAR &Code, int MicrosecondsToWait, int LogLevel);
 };
