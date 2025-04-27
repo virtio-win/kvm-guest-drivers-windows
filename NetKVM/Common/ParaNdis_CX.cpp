@@ -18,10 +18,12 @@ CParaNdisCX::CParaNdisCX(PPARANDIS_ADAPTER Context)
 
 CParaNdisCX::~CParaNdisCX()
 {
+    CLockedContext<CNdisSpinLock> autoLock(m_Lock);
     if (m_ControlData.Virtual != nullptr)
     {
         ParaNdis_FreePhysicalMemory(m_Context, &m_ControlData);
     }
+    m_CommandQueue.ForEachDetached([&](CQueuedCommand *e) { CQueuedCommand::Destroy(e, m_Context->MiniportHandle); });
 }
 
 bool CParaNdisCX::Create(UINT DeviceQueueIndex)
@@ -218,4 +220,56 @@ bool CParaNdisCX::FireDPC(ULONG messageId)
     DPrintf(0, "[%s] message %u\n", __FUNCTION__, messageId);
     KeInsertQueueDpc(&m_DPC, NULL, NULL);
     return TRUE;
+}
+
+bool CParaNdisCX::CQueuedCommand::Create(const CommandData &Data)
+{
+    m_Data = Data;
+    m_Data.buffer1 = m_Data.buffer2 = NULL;
+    if (Data.buffer1 && Data.size1)
+    {
+        m_Data.buffer1 = ParaNdis_AllocateMemory(m_Context, m_Data.size1);
+        if (m_Data.buffer1)
+        {
+            NdisMoveMemory(m_Data.buffer1, Data.buffer1, m_Data.size1);
+        }
+    }
+    if (Data.buffer2 && Data.size2)
+    {
+        m_Data.buffer2 = ParaNdis_AllocateMemory(m_Context, m_Data.size2);
+        if (m_Data.buffer2)
+        {
+            NdisMoveMemory(m_Data.buffer2, Data.buffer2, m_Data.size2);
+        }
+    }
+    return (!m_Data.size1 || m_Data.buffer1) && (!m_Data.size2 || m_Data.buffer2);
+}
+
+CParaNdisCX::CQueuedCommand::~CQueuedCommand()
+{
+    if (m_Data.buffer1)
+    {
+        NdisFreeMemory(m_Data.buffer1, 0, 0);
+    }
+    if (m_Data.buffer2)
+    {
+        NdisFreeMemory(m_Data.buffer2, 0, 0);
+    }
+}
+
+bool CParaNdisCX::ScheduleCommand(const CommandData &Data)
+{
+    CQueuedCommand *e = new (m_Context->MiniportHandle) CQueuedCommand(m_Context);
+    if (e && e->Create(Data))
+    {
+        m_CommandQueue.PushBack(e);
+        DPrintf(0, "%s: command %d.%d scheduled\n", __FUNCTION__, Data.cls, Data.cmd);
+        return true;
+    }
+    if (e)
+    {
+        CQueuedCommand::Destroy(e, m_Context->MiniportHandle);
+    }
+    DPrintf(0, "%s: failed to %s %d.%d\n", __FUNCTION__, e ? "schedule" : "allocate", Data.cls, Data.cmd);
+    return false;
 }
