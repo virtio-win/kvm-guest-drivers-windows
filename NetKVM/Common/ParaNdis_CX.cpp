@@ -45,7 +45,7 @@ bool CParaNdisCX::Create(UINT DeviceQueueIndex)
 // should be called under m_Lock
 // fills the data area with command parameters
 // returns the offset of the response field
-ULONG CParaNdisCX::FillSGArray(struct VirtIOBufferDescriptor sg[/*4*/], CommandData &data, UINT &nOut)
+void CParaNdisCX::FillSGArray(struct VirtIOBufferDescriptor sg[/*4*/], const CommandData &data, UINT &nOut)
 {
     PUCHAR pBase = (PUCHAR)m_ControlData.Virtual;
     PHYSICAL_ADDRESS phBase = m_ControlData.Physical;
@@ -82,7 +82,7 @@ ULONG CParaNdisCX::FillSGArray(struct VirtIOBufferDescriptor sg[/*4*/], CommandD
     sg[nOut].physAddr.QuadPart += offset;
     sg[nOut].length = sizeof(virtio_net_ctrl_ack);
     *(virtio_net_ctrl_ack *)(pBase + offset) = VIRTIO_NET_ERR;
-    return offset;
+    m_ResultOffset = offset;
 }
 
 // should be called under m_Lock
@@ -165,15 +165,13 @@ BOOLEAN CParaNdisCX::SendControlMessage(UCHAR cls,
         m_VirtQueue.CanTouchHardware())
     {
         struct VirtIOBufferDescriptor sg[4];
-        ULONG offset = FillSGArray(sg, data, nOut);
+        FillSGArray(sg, data, nOut);
 
         m_Context->extraStatistics.ctrlCommands++;
 
         if (0 <= m_VirtQueue.AddBuf(sg, nOut, 1, (PVOID)1, NULL, 0))
         {
             UCHAR result = VIRTIO_NET_ERR;
-
-            m_ResultOffset = offset;
 
             m_Context->m_CxStateMachine.RegisterOutstandingItem();
 
