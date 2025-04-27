@@ -151,8 +151,12 @@ BOOLEAN CParaNdisCX::SendControlMessage(UCHAR cls,
                                         ULONG size2,
                                         int levelIfOK)
 {
-    BOOLEAN bOK = FALSE;
-    UINT nOut = 0;
+    if (m_ControlData.size <= (size1 + size2 + 16))
+    {
+        DPrintf(0, "%s (buffer %d,%d) - ERROR: message too LARGE\n", __FUNCTION__, size1, size2);
+        m_Context->extraStatistics.ctrlFailed++;
+        return FALSE;
+    }
     CommandData data;
     data.cls = cls;
     data.cmd = cmd;
@@ -162,9 +166,15 @@ BOOLEAN CParaNdisCX::SendControlMessage(UCHAR cls,
     data.size2 = size2;
     data.logLevel = levelIfOK;
     CLockedContext<CNdisSpinLock> autoLock(m_Lock);
+    return SendInternal(data, true);
+}
 
-    if (m_ControlData.Virtual && m_ControlData.size > (size1 + size2 + 16) && m_VirtQueue.IsValid() &&
-        m_VirtQueue.CanTouchHardware())
+// called under m_Lock
+BOOLEAN CParaNdisCX::SendInternal(const CommandData &data, bool initial)
+{
+    BOOLEAN bOK = FALSE;
+    UINT nOut = 0;
+    if (m_ControlData.Virtual && m_VirtQueue.IsValid() && m_VirtQueue.CanTouchHardware())
     {
         struct VirtIOBufferDescriptor sg[4];
         FillSGArray(sg, data, nOut);
@@ -174,12 +184,13 @@ BOOLEAN CParaNdisCX::SendControlMessage(UCHAR cls,
         if (0 <= m_VirtQueue.AddBuf(sg, nOut, 1, (PVOID)1, NULL, 0))
         {
             UCHAR result = VIRTIO_NET_ERR;
+            ULONG timeout = initial ? LONG_CTL_TIMEOUT : SHORT_CTL_TIMEOUT;
 
             m_Context->m_CxStateMachine.RegisterOutstandingItem();
 
             m_VirtQueue.Kick();
 
-            if (!GetResponse(result, LONG_CTL_TIMEOUT, levelIfOK))
+            if (!GetResponse(result, timeout, data.logLevel))
             {
                 // timed out
             }
@@ -200,7 +211,7 @@ BOOLEAN CParaNdisCX::SendControlMessage(UCHAR cls,
     }
     else
     {
-        DPrintf(0, "%s (buffer %d,%d) - ERROR: message too LARGE\n", __FUNCTION__, size1, size2);
+        DPrintf(0, "%s: control queue is not ready\n", __FUNCTION__);
         m_Context->extraStatistics.ctrlFailed++;
     }
     return bOK;

@@ -39,6 +39,7 @@ class CParaNdisCX : public CParaNdisTemplatePath<CVirtQueue>, public CPlacementA
         int logLevel;
     };
     void FillSGArray(struct VirtIOBufferDescriptor sg[/*4*/], const CommandData &data, UINT &nOut);
+    BOOLEAN SendInternal(const CommandData &data, bool initial);
     bool GetResponse(UCHAR &Code, int MicrosecondsToWait, int LogLevel);
     class CQueuedCommand : public CNdisAllocatable<CQueuedCommand, 'CQXC'>
     {
