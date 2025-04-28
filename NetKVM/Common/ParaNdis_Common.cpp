@@ -2008,6 +2008,14 @@ void ParaNdis_CXDPCWorkBody(PARANDIS_ADAPTER *pContext)
                                                 0);
             pContext->bGuestAnnounced = FALSE;
         }
+        if (pContext->bCXPathCreated)
+        {
+            // We call CX to process as many pending commands
+            // as we can. If we want in future to limit the
+            // Maintain by time, need to take care on restarting
+            // the CVQ or CX dpc if needed
+            pContext->CXPath.Maintain();
+        }
     }
     InterlockedDecrement(&pContext->counterDPCInside);
 }
