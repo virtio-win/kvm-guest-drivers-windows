@@ -111,7 +111,7 @@ bool CParaNdisCX::GetResponse(UCHAR &Code, int MicrosecondsToWait, int LogLevel)
     {
         // timed out
         DPrintf(0, "%s - ERROR: cmd %d.%d timed out\n", __FUNCTION__, cls, cmd);
-        m_Context->extraStatistics.ctrlTimedOut++;
+        m_Context->extraStatistics.ctrlTimedOut += m_PendingCommand.Set();
         return false;
     }
     if (len == sizeof(virtio_net_ctrl_ack))
@@ -132,6 +132,7 @@ bool CParaNdisCX::GetResponse(UCHAR &Code, int MicrosecondsToWait, int LogLevel)
                 DPrintf(0, "%s: unexpected ERROR %d for %d.%d\n", __FUNCTION__, Code, cls, cmd);
                 break;
         }
+        m_PendingCommand.Clear();
         return true;
     }
     // the length of response is wrong, we can't expect
@@ -140,6 +141,7 @@ bool CParaNdisCX::GetResponse(UCHAR &Code, int MicrosecondsToWait, int LogLevel)
     m_Context->extraStatistics.ctrlFailed++;
     Code = (UCHAR)(-1);
     // TODO: raise error
+    m_PendingCommand.Clear();
     return true;
 }
 
@@ -170,31 +172,59 @@ BOOLEAN CParaNdisCX::SendControlMessage(UCHAR cls,
 }
 
 // called under m_Lock
+// initial = true when called from SendControlMessage
+// initial = true when called from Maintain
+// timeout is long
+// if cvq is busy OR the list is full - queue current command
+// if possible, continue with one from the list
+// timeout is short
+// do not schedule current command and do not get it from the list
 BOOLEAN CParaNdisCX::SendInternal(const CommandData &data, bool initial)
 {
+    UCHAR result = VIRTIO_NET_ERR;
     BOOLEAN bOK = FALSE;
     UINT nOut = 0;
     if (m_ControlData.Virtual && m_VirtQueue.IsValid() && m_VirtQueue.CanTouchHardware())
     {
         struct VirtIOBufferDescriptor sg[4];
-        FillSGArray(sg, data, nOut);
+        int logLevel = data.logLevel;
+        if (m_PendingCommand.Pending())
+        {
+            GetResponse(result, SHORT_CTL_TIMEOUT, 0);
+        }
+        if (initial && (m_PendingCommand.Pending() || !m_CommandQueue.IsEmpty()))
+        {
+            ScheduleCommand(data);
+        }
+        if (m_PendingCommand.Pending())
+        {
+            return FALSE;
+        }
+        if (initial && !m_CommandQueue.IsEmpty())
+        {
+            // retrieve first queued command
+            CQueuedCommand *e = m_CommandQueue.Pop();
+            // use the data from it
+            FillSGArray(sg, e->Data(), nOut);
+            logLevel = e->Data().logLevel;
+            CQueuedCommand::Destroy(e, m_Context->MiniportHandle);
+        }
+        else
+        {
+            FillSGArray(sg, data, nOut);
+        }
 
         m_Context->extraStatistics.ctrlCommands++;
 
         if (0 <= m_VirtQueue.AddBuf(sg, nOut, 1, (PVOID)1, NULL, 0))
         {
-            UCHAR result = VIRTIO_NET_ERR;
             ULONG timeout = initial ? LONG_CTL_TIMEOUT : SHORT_CTL_TIMEOUT;
 
             m_Context->m_CxStateMachine.RegisterOutstandingItem();
 
             m_VirtQueue.Kick();
 
-            if (!GetResponse(result, timeout, data.logLevel))
-            {
-                // timed out
-            }
-            else
+            if (GetResponse(result, timeout, logLevel))
             {
                 // OK/error/invalid
                 bOK = result == VIRTIO_NET_OK;
@@ -283,4 +313,28 @@ bool CParaNdisCX::ScheduleCommand(const CommandData &Data)
     }
     DPrintf(0, "%s: failed to %s %d.%d\n", __FUNCTION__, e ? "schedule" : "allocate", Data.cls, Data.cmd);
     return false;
+}
+
+// to be called from CX DRPC
+// check pending command and submit the
+// next one if possible
+void CParaNdisCX::Maintain(UINT MaxLoops)
+{
+    CLockedContext<CNdisSpinLock> autoLock(m_Lock);
+    UCHAR result = VIRTIO_NET_ERR;
+    if (!m_PendingCommand.Pending() || GetResponse(result, SHORT_CTL_TIMEOUT, 0))
+    {
+        UINT n = 1;
+        while (!m_CommandQueue.IsEmpty() && n++ <= MaxLoops)
+        {
+            CQueuedCommand *e = m_CommandQueue.Pop();
+            SendInternal(e->Data(), false);
+            CQueuedCommand::Destroy(e, m_Context->MiniportHandle);
+            if (m_PendingCommand.Pending())
+            {
+                break;
+            }
+        }
+    }
+    m_VirtQueue.Restart();
 }

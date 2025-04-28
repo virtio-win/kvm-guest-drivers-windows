@@ -22,6 +22,7 @@ class CParaNdisCX : public CParaNdisTemplatePath<CVirtQueue>, public CPlacementA
                                             int levelIfOK);
 
     bool FireDPC(ULONG messageId) override;
+    void Maintain(UINT MaxLoops = MAXUINT);
 
   protected:
     tCompletePhysicalAddress m_ControlData;
@@ -62,4 +63,34 @@ class CParaNdisCX : public CParaNdisTemplatePath<CVirtQueue>, public CPlacementA
     // used under m_Lock
     CNdisList<CQueuedCommand, CRawAccess, CCountingObject> m_CommandQueue;
     bool ScheduleCommand(const CommandData &Data);
+    class CPendingCommand
+    {
+      public:
+        CPendingCommand()
+        {
+            Clear();
+        }
+        bool Pending() const
+        {
+            return m_Present;
+        }
+
+      private:
+        void Clear()
+        {
+            m_Present = m_Counted = false;
+        }
+        // returns true on first call, false of next ones
+        bool Set()
+        {
+            bool b = m_Counted;
+            m_Present = m_Counted = true;
+            return !b;
+        }
+        bool m_Present;
+        bool m_Counted;
+        friend bool CParaNdisCX::GetResponse(UCHAR &Code, int MicrosecondsToWait, int LogLevel);
+    };
+    // updated under m_Lock
+    CPendingCommand m_PendingCommand;
 };
