@@ -1,5 +1,7 @@
 :: Example of accessing NetKvm internals via WMI commands:
 @echo off
+where wmic >nul 2>&1
+if errorlevel 1 goto :nowmic
 if "%1"=="" goto help
 if /i "%1"=="debug" goto debug
 if /i "%1"=="cfg" goto cfg
@@ -8,6 +10,7 @@ if /i "%1"=="reset" goto reset
 if /i "%1"=="rss" goto rss_set
 if /i "%1"=="tx" goto tx
 if /i "%1"=="rx" goto rx
+if /i "%1"=="cx" goto cx
 
 goto help
 :debug
@@ -25,6 +28,8 @@ echo ---- RX statistics ---
 call :diag rx
 echo ---- RSS statistics --
 call :diag rss
+echo ---- CX statistics --
+call :diag ctrl
 goto :eof
 
 :tx
@@ -33,6 +38,10 @@ goto :eof
 
 :rx
 call :diag rx
+goto :eof
+
+:cx
+call :diag ctrl
 goto :eof
 
 :reset
@@ -62,6 +71,12 @@ goto :eof
 wmic /namespace:\\root\wmi path %* | findstr /v __ | findstr /v /r ^^^$
 goto :eof
 
+:nowmic
+echo WMIC is not available, trying to install...
+echo on
+dism /online /add-capability /capabilityname:wmic
+goto :eof
+
 :help
 echo Example of WMI controls to NetKvm
 echo %~nx0 command parameter
@@ -71,6 +86,7 @@ echo stat                   Retrieves all internal statistics
 echo tx                     Retrieves internal statistics for transmit
 echo rx                     Retrieves internal statistics for receive
 echo rss                    Retrieves internal statistics for RSS
+echo cx                     Retrieves internal statistics for controls
 echo rss 0/1                Disable/enable RSS device support
 echo reset [tx^|rs^|rss]      Resets internal statistics(default=all)
 goto :eof
