@@ -98,14 +98,18 @@ bool CParaNdisCX::GetResponse(UCHAR &Code, int MicrosecondsToWait, int LogLevel)
     auto ctl = (virtio_net_ctrl_hdr *)pBase;
     UCHAR cls = ctl->class_of_command;
     UCHAR cmd = ctl->cmd;
-    void *p;
+    void *p = NULL;
+    int i = 0;
 
-    p = m_VirtQueue.GetBuf(&len);
-    for (int i = 0; i < MicrosecondsToWait && !p; ++i)
+    while (ReadyForControls() && i++ <= MicrosecondsToWait)
     {
         UINT interval = 1;
-        NdisStallExecution(interval);
         p = m_VirtQueue.GetBuf(&len);
+        if (p)
+        {
+            break;
+        }
+        NdisStallExecution(interval);
     }
     if (!p)
     {
@@ -184,7 +188,7 @@ BOOLEAN CParaNdisCX::SendInternal(const CommandData &data, bool initial)
     UCHAR result = VIRTIO_NET_ERR;
     BOOLEAN bOK = FALSE;
     UINT nOut = 0;
-    if (m_ControlData.Virtual && m_VirtQueue.IsValid() && m_VirtQueue.CanTouchHardware())
+    if (ReadyForControls())
     {
         struct VirtIOBufferDescriptor sg[4];
         int logLevel = data.logLevel;
