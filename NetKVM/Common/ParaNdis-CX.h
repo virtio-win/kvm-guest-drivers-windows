@@ -63,6 +63,10 @@ class CParaNdisCX : public CParaNdisTemplatePath<CVirtQueue>, public CPlacementA
     // used under m_Lock
     CNdisList<CQueuedCommand, CRawAccess, CCountingObject> m_CommandQueue;
     bool ScheduleCommand(const CommandData &Data);
+    bool ReadyForControls()
+    {
+        return m_ControlData.Virtual && m_VirtQueue.IsValid() && m_VirtQueue.CanTouchHardware();
+    }
     class CPendingCommand
     {
       public:
