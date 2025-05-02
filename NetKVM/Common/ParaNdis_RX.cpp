@@ -239,6 +239,7 @@ pRxNetDescriptor CParaNdisRX::CreateRxDescriptorOnInit()
             else
             {
                 ulPagesToAlloc /= 2;
+                sizeToAlloc = PAGE_SIZE * ulPagesToAlloc;
             }
         }
 
