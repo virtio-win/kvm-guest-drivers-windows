@@ -107,6 +107,13 @@ BOOLEAN ParaNdis_InitialAllocatePhysicalMemory(PARANDIS_ADAPTER *pContext,
                                                ULONG ulSize,
                                                tCompletePhysicalAddress *pAddresses)
 {
+    // #define TEST_SMALL_RX_ALLOCATIONS 1
+#if TEST_SMALL_RX_ALLOCATIONS
+    if (ulSize > 0x1000)
+    {
+        return false;
+    }
+#endif
     NdisMAllocateSharedMemory(pContext->MiniportHandle, ulSize, TRUE, &pAddresses->Virtual, &pAddresses->Physical);
     if (pAddresses->Virtual != NULL)
     {
