@@ -75,5 +75,8 @@ RHEL inf substitutions and versioning used by all drivers.
     <Substitution Include="INX_PREFIX_QEMU">
       <ReplaceWith></ReplaceWith>
     </Substitution>
+    <Substitution Include="INX_NETKVM_SEPARATE_TAIL">
+      <ReplaceWith>1</ReplaceWith>
+    </Substitution>
   </ItemGroup>
 </Project>

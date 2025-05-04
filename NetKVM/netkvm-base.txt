@@ -124,6 +124,12 @@ HKR, Ndi\Params\RxCapacity\enum,    "1024",     0,          %String_1024%
 HKR, Ndi\Params\RxCapacity\enum,    "2048",     0,          %String_2048%
 HKR, Ndi\Params\RxCapacity\enum,    "4096",     0,          %String_4096%
 
+HKR, Ndi\Params\SeparateTail,       ParamDesc,  0,          %SeparateTail%
+HKR, Ndi\Params\SeparateTail,       Default,    0,          "INX_NETKVM_SEPARATE_TAIL"
+HKR, Ndi\Params\SeparateTail,       type,       0,          "enum"
+HKR, Ndi\Params\SeparateTail\enum,  "1",        0,          %Enable%
+HKR, Ndi\Params\SeparateTail\enum,  "0",        0,          %Disable%
+
 HKR, Ndi\Params\FastInit,           ParamDesc,  0,          %FastInit%
 HKR, Ndi\Params\FastInit,           Default,    0,          "1"
 HKR, Ndi\Params\FastInit,           type,       0,          "enum"
@@ -268,6 +274,7 @@ Priority = "Init.Do802.1PQ"
 JumboPacket = "Jumbo Packet"
 TxCapacity = "Init.MaxTxBuffers"
 RxCapacity = "Init.MaxRxBuffers"
+SeparateTail = "Init.SeparateRxTail"
 FastInit = "Fast Initialization"
 Offload.TxChecksum = "Offload.Tx.Checksum"
 Offload.TxLSO = "Offload.Tx.LSO"
