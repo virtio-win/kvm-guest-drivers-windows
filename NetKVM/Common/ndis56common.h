@@ -510,6 +510,7 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
     BOOLEAN bMultiQueue = false;
     BOOLEAN bPollModeTry = false;
     BOOLEAN bPollModeEnabled = false;
+    BOOLEAN bRxSeparateTail = false;
     USHORT nHardwareQueues = false;
     ULONG ulCurrentVlansFilterSet = false;
     tMulticastData MulticastData = {};

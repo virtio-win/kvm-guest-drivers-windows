@@ -152,6 +152,21 @@ bool CParaNdisRX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
     return true;
 }
 
+static void DumpDescriptor(pRxNetDescriptor p, int level)
+{
+    USHORT i;
+    for (i = 0; i < p->NumPages; ++i)
+    {
+        auto &page = p->PhysicalPages[i];
+        DPrintf(level, "page[%d]: %p of %d\n", i, (PVOID)page.Physical.QuadPart, page.size);
+    }
+    for (i = 0; i < p->BufferSGLength; ++i)
+    {
+        auto &sg = p->BufferSGArray[i];
+        DPrintf(level, "sg[%d]: %p of %d\n", i, (PVOID)sg.physAddr.QuadPart, sg.length);
+    }
+}
+
 int CParaNdisRX::PrepareReceiveBuffers()
 {
     int nRet = 0;
@@ -175,6 +190,8 @@ int CParaNdisRX::PrepareReceiveBuffers()
         }
 
         InsertTailList(&m_NetReceiveBuffers, &pBuffersDescriptor->listEntry);
+
+        DumpDescriptor(pBuffersDescriptor, i == 0 ? 2 : 7);
 
         m_NetNofReceiveBuffers++;
     }
@@ -201,6 +218,8 @@ pRxNetDescriptor CParaNdisRX::CreateRxDescriptorOnInit()
     //   if the data tail (payload % page size) is small it is also goes to the header block
     ULONG ulNumDataPages = m_Context->RxLayout.TotalAllocationsPerBuffer; // including header block
     ULONG sgArraySize = m_Context->RxLayout.IndirectEntries;
+    bool bLargeSingleAllocation = ulNumDataPages > 1 && m_Context->bRxSeparateTail == 0 &&
+                                  m_Context->RxLayout.ReserveForPacketTail;
 
     pRxNetDescriptor p = (pRxNetDescriptor)ParaNdis_AllocateMemory(m_Context, sizeof(*p));
     if (p == NULL)
@@ -238,6 +257,10 @@ pRxNetDescriptor CParaNdisRX::CreateRxDescriptorOnInit()
         // Allocate the first block separately, the rest can be one contiguous block
         ULONG ulPagesToAlloc = (pageNumber == 0) ? 1 : ulNumDataPages;
         ULONG sizeToAlloc = (pageNumber == 0) ? m_Context->RxLayout.HeaderPageAllocation : PAGE_SIZE * ulPagesToAlloc;
+        if (pageNumber > 0 && bLargeSingleAllocation)
+        {
+            sizeToAlloc += m_Context->RxLayout.ReserveForPacketTail;
+        }
 
         while (!ParaNdis_InitialAllocatePhysicalMemory(m_Context, sizeToAlloc, &p->PhysicalPages[pageNumber]))
         {
@@ -250,6 +273,7 @@ pRxNetDescriptor CParaNdisRX::CreateRxDescriptorOnInit()
             {
                 ulPagesToAlloc /= 2;
                 sizeToAlloc = PAGE_SIZE * ulPagesToAlloc;
+                bLargeSingleAllocation = false;
             }
         }
 
@@ -275,7 +299,7 @@ pRxNetDescriptor CParaNdisRX::CreateRxDescriptorOnInit()
     p->IndirectArea.Virtual = RtlOffsetToPointer(p->PhysicalPages[0].Virtual, offsetInTheHeader);
     p->IndirectArea.size = m_Context->RxLayout.ReserveForIndirectArea;
 
-    if (m_Context->RxLayout.ReserveForPacketTail)
+    if (m_Context->RxLayout.ReserveForPacketTail && !bLargeSingleAllocation)
     {
         // the payload tail is located in the header block
         offsetInTheHeader += m_Context->RxLayout.ReserveForIndirectArea;

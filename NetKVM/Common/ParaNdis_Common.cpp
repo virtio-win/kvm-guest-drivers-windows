@@ -79,6 +79,7 @@ typedef struct _tagConfigurationEntries
     tConfigurationEntry debugLevel;
     tConfigurationEntry TxCapacity;
     tConfigurationEntry RxCapacity;
+    tConfigurationEntry RxSeparateTail;
     tConfigurationEntry OffloadTxChecksum;
     tConfigurationEntry OffloadTxLSO;
     tConfigurationEntry OffloadRxCS;
@@ -120,6 +121,7 @@ static const tConfigurationEntries defaultConfiguration =
     { "DebugLevel",     2,  0,  8 },
     { "TxCapacity",     1024,   16, 1024 },
     { "RxCapacity",     256, 16, 4096 },
+    { "SeparateTail",   1,  0,  1 },
     { "Offload.TxChecksum", 0, 0, 31},
     { "Offload.TxLSO",  0, 0, 2},
     { "Offload.RxCS",   0, 0, 31},
@@ -256,6 +258,7 @@ static bool ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
             GetConfigurationEntry(cfg, &pConfiguration->PrioritySupport);
             GetConfigurationEntry(cfg, &pConfiguration->TxCapacity);
             GetConfigurationEntry(cfg, &pConfiguration->RxCapacity);
+            GetConfigurationEntry(cfg, &pConfiguration->RxSeparateTail);
             GetConfigurationEntry(cfg, &pConfiguration->OffloadTxChecksum);
             GetConfigurationEntry(cfg, &pConfiguration->OffloadTxLSO);
             GetConfigurationEntry(cfg, &pConfiguration->OffloadRxCS);
@@ -297,6 +300,7 @@ static bool ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
             pContext->bDoSupportPriority = pConfiguration->PrioritySupport.ulValue != 0;
             pContext->Offload.flagsValue = 0;
             pContext->MinRxBufferPercent = pConfiguration->MinRxBufferPercent.ulValue;
+            pContext->bRxSeparateTail = pConfiguration->RxSeparateTail.ulValue != 0;
             // TX caps: 1 - TCP, 2 - UDP, 4 - IP, 8 - TCPv6, 16 - UDPv6
             if (pConfiguration->OffloadTxChecksum.ulValue & 1)
             {
@@ -1215,14 +1219,15 @@ static void PrepareRXLayout(PARANDIS_ADAPTER *pContext)
     pContext->RxLayout.IndirectEntries = pContext->RxLayout.TotalAllocationsPerBuffer;
 #endif
     TraceNoPrefix(0,
-                  "[%s]: header: h%d + i%d(%d) + t%d = %d, allocs: %d\n",
+                  "[%s]: header: h%d + i%d(%d) + t%d = %d, allocs: %d, separate tail %s\n",
                   __FUNCTION__,
                   pContext->RxLayout.ReserveForHeader,
                   pContext->RxLayout.IndirectEntries,
                   pContext->RxLayout.ReserveForIndirectArea,
                   pContext->RxLayout.ReserveForPacketTail,
                   pContext->RxLayout.HeaderPageAllocation,
-                  pContext->RxLayout.TotalAllocationsPerBuffer);
+                  pContext->RxLayout.TotalAllocationsPerBuffer,
+                  pContext->bRxSeparateTail ? "on" : "off");
 }
 
 /**********************************************************
