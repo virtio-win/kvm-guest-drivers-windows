@@ -120,8 +120,8 @@ class CTXDescriptor : public CNdisAllocatable<CTXDescriptor, 'DTHR'>
                 bool AnyLayout)
     {
         m_MemoryBuffer.Initialize(DrvHandle);
-        // allocate 8K buffer
-        if (!m_MemoryBuffer.Allocate(PAGE_SIZE * 2))
+        // allocate 8K buffer (or 4K if indirect is not used)
+        if (!m_MemoryBuffer.Allocate(PAGE_SIZE * (Indirect ? 2 : 1)))
         {
             return false;
         }
@@ -138,10 +138,13 @@ class CTXDescriptor : public CNdisAllocatable<CTXDescriptor, 'DTHR'>
         m_Headers.Initialize(VirtioHeaderSize, headers);
 
         // second 4K is for indirect area
-        m_IndirectArea.Physical = m_MemoryBuffer.GetPA();
-        m_IndirectArea.Physical.QuadPart += PAGE_SIZE;
-        m_IndirectArea.Virtual = RtlOffsetToPointer(m_MemoryBuffer.GetVA(), PAGE_SIZE);
-        m_IndirectArea.size = PAGE_SIZE;
+        if (m_Indirect)
+        {
+            m_IndirectArea.Physical = m_MemoryBuffer.GetPA();
+            m_IndirectArea.Physical.QuadPart += PAGE_SIZE;
+            m_IndirectArea.Virtual = RtlOffsetToPointer(m_MemoryBuffer.GetVA(), PAGE_SIZE);
+            m_IndirectArea.size = PAGE_SIZE;
+        }
         return true;
     }
 
@@ -175,7 +178,7 @@ class CTXDescriptor : public CNdisAllocatable<CTXDescriptor, 'DTHR'>
   private:
     CTXHeaders m_Headers;
     CNdisSharedMemory m_MemoryBuffer;
-    tCompletePhysicalAddress m_IndirectArea;
+    tCompletePhysicalAddress m_IndirectArea = {};
     bool m_Indirect = false;
     bool m_AnyLayout = false;
 
