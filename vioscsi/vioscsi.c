@@ -1153,14 +1153,14 @@ VioScsiAdapterControl(IN PVOID DeviceExtension, IN SCSI_ADAPTER_CONTROL_TYPE Con
     ULONG Index;
     PADAPTER_EXTENSION adaptExt;
     SCSI_ADAPTER_CONTROL_STATUS status = ScsiAdapterControlUnsuccessful;
-    BOOLEAN SupportedControlTypes[17] = {0};
+    BOOLEAN SupportedControlTypes[ScsiAdapterControlMax] = {FALSE};
 
     ENTER_FN();
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    SupportedControlTypes[0] = 1;  // ScsiQuerySupportedControlTypes
-    SupportedControlTypes[1] = 1;  // ScsiStopAdapter
-    SupportedControlTypes[2] = 1;  // ScsiRestartAdapter
-    SupportedControlTypes[16] = 1; // ScsiAdapterSurpriseRemoval
+    SupportedControlTypes[ScsiQuerySupportedControlTypes] = TRUE;
+    SupportedControlTypes[ScsiStopAdapter] = TRUE;
+    SupportedControlTypes[ScsiRestartAdapter] = TRUE;
+    SupportedControlTypes[ScsiAdapterSurpriseRemoval] = TRUE;
 
     switch (ControlType)
     {
@@ -1169,7 +1169,8 @@ VioScsiAdapterControl(IN PVOID DeviceExtension, IN SCSI_ADAPTER_CONTROL_TYPE Con
             {
                 RhelDbgPrint(TRACE_LEVEL_VERBOSE, " ScsiQuerySupportedControlTypes\n");
                 ControlTypeList = (PSCSI_SUPPORTED_CONTROL_TYPE_LIST)Parameters;
-                AdjustedMaxControlType = (ControlTypeList->MaxControlType < 5) ? ControlTypeList->MaxControlType : 5;
+                AdjustedMaxControlType = (ControlTypeList->MaxControlType < ScsiAdapterControlMax) ? ControlTypeList->MaxControlType
+                                                                                                   : ScsiAdapterControlMax;
                 for (Index = 0; Index < AdjustedMaxControlType; Index++)
                 {
                     ControlTypeList->SupportedTypeList[Index] = SupportedControlTypes[Index];
@@ -1226,21 +1227,22 @@ VioScsiUnitControl(IN PVOID DeviceExtension, IN SCSI_UNIT_CONTROL_TYPE ControlTy
     ULONG index;
     PADAPTER_EXTENSION adaptExt;
     SCSI_UNIT_CONTROL_STATUS Status = ScsiUnitControlUnsuccessful;
-    BOOLEAN SupportedControlTypes[11] = {0};
+    BOOLEAN SupportedControlTypes[ScsiUnitControlMax] = {FALSE};
 
     ENTER_FN();
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    SupportedControlTypes[0] = 1;  // ScsiQuerySupportedControlTypes
-    SupportedControlTypes[2] = 1;  // ScsiUnitStart
-    SupportedControlTypes[9] = 1;  // ScsiUnitRemove
-    SupportedControlTypes[10] = 1; // ScsiUnitSurpriseRemoval
+    SupportedControlTypes[ScsiQuerySupportedControlTypes] = TRUE;
+    SupportedControlTypes[ScsiUnitStart] = TRUE;
+    SupportedControlTypes[ScsiUnitRemove] = TRUE;
+    SupportedControlTypes[ScsiUnitSurpriseRemoval] = TRUE;
 
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Unit Control Type %d\n", ControlType);
     switch (ControlType)
     {
         case ScsiQuerySupportedControlTypes:
             ControlTypeList = (PSCSI_SUPPORTED_CONTROL_TYPE_LIST)Parameters;
-            AdjustedMaxControlType = (ControlTypeList->MaxControlType < 11) ? ControlTypeList->MaxControlType : 11;
+            AdjustedMaxControlType = (ControlTypeList->MaxControlType < ScsiUnitControlMax) ? ControlTypeList->MaxControlType
+                                                                                            : ScsiUnitControlMax;
             for (index = 0; index < AdjustedMaxControlType; index++)
             {
                 ControlTypeList->SupportedTypeList[index] = SupportedControlTypes[index];
