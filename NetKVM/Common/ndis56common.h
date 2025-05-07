@@ -645,6 +645,8 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
 
     ULONG uMaxFragmentsInOneNB;
 
+    VOID RaiseUnrecoverableError(PCSTR Message);
+
     _PARANDIS_ADAPTER(const _PARANDIS_ADAPTER &) = delete;
     _PARANDIS_ADAPTER &operator=(const _PARANDIS_ADAPTER &) = delete;
 };
