@@ -132,8 +132,8 @@ bool CParaNdisCX::GetResponse(UCHAR &Code, int MicrosecondsToWait, int LogLevel)
                 DPrintf(0, "%s - VIRTIO_NET_ERROR returned for %d.%d\n", __FUNCTION__, cls, cmd);
                 break;
             default:
-                // TODO: raise error if the code is not one of these
                 DPrintf(0, "%s: unexpected ERROR %d for %d.%d\n", __FUNCTION__, Code, cls, cmd);
+                m_Context->RaiseUnrecoverableError(__FUNCTION__);
                 break;
         }
         m_PendingCommand.Clear();
@@ -144,7 +144,7 @@ bool CParaNdisCX::GetResponse(UCHAR &Code, int MicrosecondsToWait, int LogLevel)
     DPrintf(0, "%s - ERROR: wrong len %d on %d.%d\n", __FUNCTION__, len, cls, cmd);
     m_Context->extraStatistics.ctrlFailed++;
     Code = (UCHAR)(-1);
-    // TODO: raise error
+    m_Context->RaiseUnrecoverableError(__FUNCTION__);
     m_PendingCommand.Clear();
     return true;
 }

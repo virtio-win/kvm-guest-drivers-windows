@@ -179,3 +179,9 @@ void CSystemThread::ThreadProc()
     }
     m_hThread = NULL;
 }
+
+VOID _PARANDIS_ADAPTER::RaiseUnrecoverableError(PCSTR Message)
+{
+    DPrintf(0, "%s", Message);
+    NdisMRemoveMiniport(MiniportHandle);
+}
