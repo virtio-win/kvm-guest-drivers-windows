@@ -907,4 +907,6 @@ NDIS_STATUS ParaNdis_ExactSendFailureStatus(PARANDIS_ADAPTER *pContext);
 VOID ParaNdis_PropagateOid(PARANDIS_ADAPTER *pContext, NDIS_OID oid, PVOID buffer, UINT length);
 
 void ParaNdis_PrintIndirectionTable(const NDIS_RECEIVE_SCALE_PARAMETERS *Params);
+
+#define NDIS_ERR(handle, code, arg) NdisWriteErrorLogEntry(handle, NDIS_ERROR_CODE_##code, 2, __LINE__, arg)
 #endif
