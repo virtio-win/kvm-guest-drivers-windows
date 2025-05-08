@@ -179,6 +179,7 @@ static NDIS_STATUS ParaNdis6_Initialize(NDIS_HANDLE miniportAdapterHandle,
 
     if (!pContext)
     {
+        NDIS_ERR(miniportAdapterHandle, OUT_OF_RESOURCES, 0);
         DPrintf(0, "[%s] ERROR: Memory allocation failed!\n", __FUNCTION__);
         status = NDIS_STATUS_RESOURCES;
     }
@@ -209,6 +210,7 @@ static NDIS_STATUS ParaNdis6_Initialize(NDIS_HANDLE miniportAdapterHandle,
         status = NdisMSetMiniportAttributes(miniportAdapterHandle, &miniportAttributes);
         if (status != NDIS_STATUS_SUCCESS)
         {
+            NDIS_ERR(miniportAdapterHandle, UNSUPPORTED_CONFIGURATION, status);
             DPrintf(0, "[%s] ERROR: NdisMSetMiniportAttributes 1 failed (%X)!\n", __FUNCTION__, status);
         }
     }
@@ -224,6 +226,7 @@ static NDIS_STATUS ParaNdis6_Initialize(NDIS_HANDLE miniportAdapterHandle,
         status = ParaNdis_InitializeContext(pContext, miniportInitParameters->AllocatedResources);
         if (status != NDIS_STATUS_SUCCESS)
         {
+            NDIS_ERR(miniportAdapterHandle, DRIVER_FAILURE, status);
             DPrintf(0, "[%s] ERROR: ParaNdis6_InitializeContext failed (%X)!\n", __FUNCTION__, status);
         }
     }
@@ -315,6 +318,7 @@ static NDIS_STATUS ParaNdis6_Initialize(NDIS_HANDLE miniportAdapterHandle,
         status = NdisMSetMiniportAttributes(miniportAdapterHandle, &miniportAttributes);
         if (status != NDIS_STATUS_SUCCESS)
         {
+            NDIS_ERR(miniportAdapterHandle, UNSUPPORTED_CONFIGURATION, status);
             DPrintf(0, "[%s] ERROR: NdisMSetMiniportAttributes 2 failed (%X)!\n", __FUNCTION__, status);
         }
     }
@@ -333,8 +337,13 @@ static NDIS_STATUS ParaNdis6_Initialize(NDIS_HANDLE miniportAdapterHandle,
         }
         if (status != NDIS_STATUS_SUCCESS)
         {
+            NDIS_ERR(miniportAdapterHandle, UNSUPPORTED_CONFIGURATION, status);
             DPrintf(0, "[%s] ERROR: NdisMSetMiniportAttributes 3 failed (%X)!\n", __FUNCTION__, status);
         }
+    }
+    else
+    {
+        NDIS_ERR(miniportAdapterHandle, DRIVER_FAILURE, status);
     }
 
     if (status == NDIS_STATUS_SUCCESS)
