@@ -34,15 +34,19 @@
         WPP_DEFINE_BIT(TRACE_DRIVER)             /* bit  0 = 0x00000000 */ \
     )
 
+// our level 0 has the same meaning as TRACE_LEVEL_INFORMATION
+#define WPP_LEVEL_COMPARE(level) \
+    (WPP_CONTROL(WPP_BIT_ ## TRACE_DRIVER).Level >= (level + TRACE_LEVEL_INFORMATION))
+
 #define WPP_Flags_LEVEL_LOGGER(Flags, level)                                  \
     WPP_LEVEL_LOGGER(Flags)
 #define WPP_Flags_LEVEL_ENABLED(Flags, level)                                 \
-    (level <= virtioDebugLevel)
+    (level <= virtioDebugLevel || (WPP_LEVEL_COMPARE(level)))
 
-#define WPP_Flags_LEVEL_STATUS_LOGGER(Flags, level, status)                                  \
+#define WPP_Flags_LEVEL_STATUS_LOGGER(Flags, level, status)                   \
     WPP_LEVEL_LOGGER(Flags)
-#define WPP_Flags_LEVEL_STATUS_ENABLED(Flags, level, status)                                 \
-    (level <= virtioDebugLevel)
+#define WPP_Flags_LEVEL_STATUS_ENABLED(Flags, level, status)                  \
+    (level <= virtioDebugLevel || WPP_LEVEL_COMPARE(level))
 
 
 //
