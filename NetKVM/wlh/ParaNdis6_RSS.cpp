@@ -128,8 +128,7 @@ void ParaNdis6_CheckDeviceRSSCapabilities(PARANDIS_ADAPTER *pContext, bool &bRss
     if (bHash || bRss)
     {
         DPrintf(0,
-                "[%s] Device supports %s %s: key of %d, table of %d, hashes %X\n",
-                __FUNCTION__,
+                "Device supports %s %s: key of %d, table of %d, hashes %X",
                 bHash ? "Hash" : " ",
                 bRss ? "RSS" : " ",
                 pContext->DeviceRSSCapabilities.MaxKeySize,
@@ -151,7 +150,7 @@ void ParaNdis6_CheckDeviceRSSCapabilities(PARANDIS_ADAPTER *pContext, bool &bRss
     {
         bRss = false;
     }
-    DPrintf(0, "[%s] Driver will use: %s %s\n", __FUNCTION__, bHash ? "Hash" : " ", bRss ? "RSS" : " ");
+    DPrintf(0, "Driver will use: %s %s", bHash ? "Hash" : " ", bRss ? "RSS" : " ");
 }
 
 NDIS_RECEIVE_SCALE_CAPABILITIES *ParaNdis6_RSSCreateConfiguration(PARANDIS_ADAPTER *pContext)
@@ -386,7 +385,7 @@ static VOID FillCPUMappingArray(PPARANDIS_SCALING_SETTINGS RSSScalingSettings, C
 
     if (RSSScalingSettings->FirstQueueIndirectionIndex == INVALID_INDIRECTION_INDEX)
     {
-        DPrintf(0, "[%s] - CPU <-> queue assignment failed!", __FUNCTION__);
+        DPrintf(0, "CPU <-> queue assignment failed!");
         return;
     }
 
@@ -405,7 +404,7 @@ static VOID FillCPUMappingArray(PPARANDIS_SCALING_SETTINGS RSSScalingSettings, C
 
     if (IndirectionTableChanged)
     {
-        DPrintf(0, "[%s] Indirection table changed\n", __FUNCTION__);
+        DPrintf(0, "Indirection table changed");
     }
 }
 
@@ -439,7 +438,7 @@ NDIS_STATUS ParaNdis6_RSSSetParameters(PARANDIS_ADAPTER *pContext,
 
     if (ParamsLength < sizeof(Params->Header))
     {
-        DPrintf(0, "[%s] invalid length %d!\n", __FUNCTION__, ParamsLength);
+        DPrintf(0, "invalid length %d!", ParamsLength);
         return NDIS_STATUS_INVALID_LENGTH;
     }
 
@@ -447,7 +446,7 @@ NDIS_STATUS ParaNdis6_RSSSetParameters(PARANDIS_ADAPTER *pContext,
 
     if (ParamsLength < minimalLength)
     {
-        DPrintf(0, "[%s] invalid length (1) %d < %d!\n", __FUNCTION__, ParamsLength, minimalLength);
+        DPrintf(0, "invalid length (1) %d < %d!", ParamsLength, minimalLength);
         *ParamsBytesRead = sizeof(Params->Header);
         return NDIS_STATUS_INVALID_LENGTH;
     }
@@ -461,7 +460,7 @@ NDIS_STATUS ParaNdis6_RSSSetParameters(PARANDIS_ADAPTER *pContext,
     if (!(Params->Flags & (NDIS_RSS_PARAM_FLAG_HASH_INFO_UNCHANGED | NDIS_RSS_PARAM_FLAG_DISABLE_RSS)) &&
         !IsValidHashInfo(Params->HashInformation))
     {
-        DPrintf(0, "[%s] invalid: flags %X, hash info %X!\n", __FUNCTION__, Params->Flags, Params->HashInformation);
+        DPrintf(0, "invalid: flags %X, hash info %X!", Params->Flags, Params->HashInformation);
         return NDIS_STATUS_INVALID_PARAMETER;
     }
 
@@ -485,15 +484,11 @@ NDIS_STATUS ParaNdis6_RSSSetParameters(PARANDIS_ADAPTER *pContext,
             // to return INVALID_PROCESSOR_INDEX
             num.Reserved = 0;
             defaultCPUIndex = KeGetProcessorIndexFromNumber(&num);
-            TraceNoPrefix(0, "[%s] has default CPU idx %d\n", __FUNCTION__, defaultCPUIndex);
+            TraceNoPrefix(0, "has default CPU idx %d", defaultCPUIndex);
         }
 #endif
 
-        DPrintf(0,
-                "[%s] RSS Params: flags 0x%4.4x, hash information 0x%4.4lx\n",
-                __FUNCTION__,
-                Params->Flags,
-                Params->HashInformation);
+        DPrintf(0, "RSS Params: flags 0x%4.4x, hash information 0x%4.4lx", Params->Flags, Params->HashInformation);
 
         IndirectionTableEntries = Params->IndirectionTableSize / sizeof(PROCESSOR_NUMBER);
 
@@ -502,7 +497,7 @@ NDIS_STATUS ParaNdis6_RSSSetParameters(PARANDIS_ADAPTER *pContext,
              (ParamsLength < (Params->IndirectionTableOffset + Params->IndirectionTableSize)) ||
              !IsPowerOfTwo(IndirectionTableEntries)))
         {
-            DPrintf(0, "[%s] invalid length (2), flags %x\n", __FUNCTION__, Params->Flags);
+            DPrintf(0, "invalid length (2), flags %x", Params->Flags);
             return NDIS_STATUS_INVALID_LENGTH;
         }
 
@@ -510,14 +505,14 @@ NDIS_STATUS ParaNdis6_RSSSetParameters(PARANDIS_ADAPTER *pContext,
             ((Params->HashSecretKeySize > sizeof(RSSParameters->RSSHashingSettings.HashSecretKey)) ||
              (ParamsLength < (Params->HashSecretKeyOffset + Params->HashSecretKeySize))))
         {
-            DPrintf(0, "[%s] invalid length (3), flags %x\n", __FUNCTION__, Params->Flags);
+            DPrintf(0, "invalid length (3), flags %x", Params->Flags);
             return NDIS_STATUS_INVALID_LENGTH;
         }
 
         ProcessorMasksSize = Params->NumberOfProcessorMasks * Params->ProcessorMasksEntrySize;
         if (ParamsLength < Params->ProcessorMasksOffset + ProcessorMasksSize)
         {
-            DPrintf(0, "[%s] invalid length (4), flags %x\n", __FUNCTION__, Params->Flags);
+            DPrintf(0, "invalid length (4), flags %x", Params->Flags);
             return NDIS_STATUS_INVALID_LENGTH;
         }
 
@@ -957,11 +952,11 @@ static void PrintIndirectionTable(const NDIS_RECEIVE_SCALE_PARAMETERS *Params)
     ULONG IndirectionTableEntries = Params->IndirectionTableSize / sizeof(PROCESSOR_NUMBER);
 
     DPrintf(RSS_PRINT_LEVEL,
-            "Params: flags 0x%4.4x, hash information 0x%4.4lx\n",
+            "Params: flags 0x%4.4x, hash information 0x%4.4lx",
             Params->Flags,
             Params->HashInformation);
 
-    DPrintf(RSS_PRINT_LEVEL, "NDIS IndirectionTable[%lu]\n", IndirectionTableEntries);
+    DPrintf(RSS_PRINT_LEVEL, "NDIS IndirectionTable[%lu]", IndirectionTableEntries);
     // clang-format off
     ParaNdis_PrintTable<80, 20>(RSS_PRINT_LEVEL, (const PROCESSOR_NUMBER *)((char *)Params + Params->IndirectionTableOffset), IndirectionTableEntries,
         "%u/%u", [](const PROCESSOR_NUMBER *proc) { return proc->Group; }, [](const PROCESSOR_NUMBER *proc) { return proc->Number; });
@@ -972,7 +967,7 @@ static void PrintIndirectionTable(const PARANDIS_SCALING_SETTINGS *RSSScalingSet
 {
     ULONG IndirectionTableEntries = RSSScalingSetting->IndirectionTableSize / sizeof(PROCESSOR_NUMBER);
 
-    DPrintf(RSS_PRINT_LEVEL, "Driver IndirectionTable[%lu]\n", IndirectionTableEntries);
+    DPrintf(RSS_PRINT_LEVEL, "Driver IndirectionTable[%lu]", IndirectionTableEntries);
     // clang-format off
     ParaNdis_PrintTable<80, 20>(RSS_PRINT_LEVEL, RSSScalingSetting->IndirectionTable, IndirectionTableEntries,
         "%u/%u", [](const PROCESSOR_NUMBER *proc) { return proc->Group; }, [](const PROCESSOR_NUMBER *proc) { return proc->Number; });
@@ -985,7 +980,7 @@ static void PrintRSSSettings(const PPARANDIS_RSS_PARAMS RSSParameters)
     PARANDIS_SCALING_SETTINGS *scaling = &RSSParameters->RSSScalingSettings;
 
     DPrintf(RSS_PRINT_LEVEL,
-            "%lu cpus, %d queues, first queue CPU index %ld, default queue %d\n",
+            "%lu cpus, %d queues, first queue CPU index %ld, default queue %d",
             CPUNumber,
             RSSParameters->ReceiveQueuesNumber,
             scaling->FirstQueueIndirectionIndex,
@@ -993,10 +988,10 @@ static void PrintRSSSettings(const PPARANDIS_RSS_PARAMS RSSParameters)
 
     PrintIndirectionTable(scaling);
 
-    DPrintf(RSS_PRINT_LEVEL, "CPU mapping table[%u]:\n", scaling->CPUIndexMappingSize);
+    DPrintf(RSS_PRINT_LEVEL, "CPU mapping table[%u]:", scaling->CPUIndexMappingSize);
     ParaNdis_PrintCharArray(RSS_PRINT_LEVEL, scaling->CPUIndexMapping, scaling->CPUIndexMappingSize);
 
-    DPrintf(RSS_PRINT_LEVEL, "Queue indirection table[%u]:\n", RSSParameters->ReceiveQueuesNumber);
+    DPrintf(RSS_PRINT_LEVEL, "Queue indirection table[%u]:", RSSParameters->ReceiveQueuesNumber);
     ParaNdis_PrintCharArray(RSS_PRINT_LEVEL, scaling->QueueIndirectionTable, RSSParameters->ReceiveQueuesNumber);
 }
 
@@ -1020,7 +1015,7 @@ NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
                                                                 NormalPoolPriority);
     if (cpuIndexTable == nullptr)
     {
-        DPrintf(0, "[%s] cpu index table allocation failed\n", __FUNCTION__);
+        DPrintf(0, "cpu index table allocation failed");
         return NDIS_STATUS_RESOURCES;
     }
 
@@ -1031,13 +1026,13 @@ NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
         cpuIndex = pContext->pPathBundles[bundleIndex].rxPath.getCPUIndex();
         if (cpuIndex == INVALID_PROCESSOR_INDEX)
         {
-            DPrintf(0, "[%s]  Invalid CPU index for path %u\n", __FUNCTION__, bundleIndex);
+            DPrintf(0, "Invalid CPU index for path %u", bundleIndex);
             NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, cpuIndexTable, PARANDIS_MEMORY_TAG);
             return NDIS_STATUS_SOFT_ERRORS;
         }
         else if (cpuIndex >= cpuNumbers)
         {
-            DPrintf(0, "[%s]  CPU index %lu exceeds CPU range %lu\n", __FUNCTION__, cpuIndex, cpuNumbers);
+            DPrintf(0, "CPU index %lu exceeds CPU range %lu", cpuIndex, cpuNumbers);
             NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, cpuIndexTable, PARANDIS_MEMORY_TAG);
             return NDIS_STATUS_SOFT_ERRORS;
         }
@@ -1048,8 +1043,7 @@ NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
     }
 
     DPrintf(0,
-            "[%s] Entering, RSS table size = %lu, # of path bundles = %u. RSS2QueueLength = %u, RSS2QueueMap =0x%p\n",
-            __FUNCTION__,
+            "Entering, RSS table size = %lu, # of path bundles = %u. RSS2QueueLength = %u, RSS2QueueMap =0x%p",
             rssTableSize,
             pContext->nPathBundles,
             pContext->RSS2QueueLength,
@@ -1057,7 +1051,7 @@ NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
 
     if (pContext->RSS2QueueLength && pContext->RSS2QueueLength < rssTableSize)
     {
-        DPrintf(0, "[%s] Freeing RSS2Queue Map\n", __FUNCTION__);
+        DPrintf(0, "Freeing RSS2Queue Map");
         NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, pContext->RSS2QueueMap, PARANDIS_MEMORY_TAG);
         pContext->RSS2QueueLength = 0;
     }
@@ -1071,7 +1065,7 @@ NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
                                                                                      NormalPoolPriority);
         if (pContext->RSS2QueueMap == nullptr)
         {
-            DPrintf(0, "[%s] - Allocating RSS to queue mapping failed\n", __FUNCTION__);
+            DPrintf(0, "Allocating RSS to queue mapping failed");
             NdisFreeMemoryWithTagPriority(pContext->MiniportHandle, cpuIndexTable, PARANDIS_MEMORY_TAG);
             return NDIS_STATUS_RESOURCES;
         }
@@ -1089,14 +1083,9 @@ NDIS_STATUS ParaNdis_SetupRSSQueueMap(PARANDIS_ADAPTER *pContext)
         cpuIndex = NdisProcessorNumberToIndex(pContext->RSSParameters.RSSScalingSettings.IndirectionTable[rssIndex]);
         bundleIndex = cpuIndexTable[cpuIndex];
 
+        DPrintf(3, "filling the relationship, rssIndex = %u, bundleIndex = %u", rssIndex, bundleIndex);
         DPrintf(3,
-                "[%s] filling the relationship, rssIndex = %u, bundleIndex = %u\n",
-                __FUNCTION__,
-                rssIndex,
-                bundleIndex);
-        DPrintf(3,
-                "[%s] RSS proc number %u/%u, bundle affinity %u/%llu\n",
-                __FUNCTION__,
+                "RSS proc number %u/%u, bundle affinity %u/%llu",
                 pContext->RSSParameters.RSSScalingSettings.IndirectionTable[rssIndex].Group,
                 pContext->RSSParameters.RSSScalingSettings.IndirectionTable[rssIndex].Number,
                 pContext->pPathBundles[bundleIndex].txPath.DPCAffinity.Group,

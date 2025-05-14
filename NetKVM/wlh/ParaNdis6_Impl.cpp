@@ -377,7 +377,7 @@ static VOID MiniportInterruptDPC(IN NDIS_HANDLE MiniportInterruptContext,
     requiresDPCRescheduling = ParaNdis_RXTXDPCWorkBody(pContext, PARANDIS_UNLIMITED_PACKETS_TO_INDICATE);
     if (requiresDPCRescheduling)
     {
-        DPrintf(4, "[%s] Queued additional DPC for %d\n", __FUNCTION__, requiresDPCRescheduling);
+        DPrintf(4, "Queued additional DPC for %d", requiresDPCRescheduling);
         NdisMQueueDpc(pContext->InterruptHandle, 0, 1 << KeGetCurrentProcessorNumber(), MiniportDpcContext);
     }
 #endif /* NDIS_SUPPORT_NDIS620 */
@@ -499,16 +499,11 @@ NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
     if (pTable && pTable->MessageCount)
     {
         status = NDIS_STATUS_SUCCESS;
-        DPrintf(0,
-                "[%s] Using MSIX interrupts (%d messages, irql %d)\n",
-                __FUNCTION__,
-                pTable->MessageCount,
-                pTable->UnifiedIrql);
+        DPrintf(0, "Using MSIX interrupts (%d messages, irql %d)", pTable->MessageCount, pTable->UnifiedIrql);
         for (i = 0; i < pContext->pMSIXInfoTable->MessageCount; ++i)
         {
             DPrintf(0,
-                    "[%s] MSIX message%d=%08X=>%I64X\n",
-                    __FUNCTION__,
+                    "MSIX message%d=%08X=>%I64X",
                     i,
                     pTable->MessageInfo[i].MessageData,
                     pTable->MessageInfo[i].MessageAddress.QuadPart);
@@ -526,8 +521,7 @@ NDIS_STATUS ParaNdis_ConfigureMSIXVectors(PARANDIS_ADAPTER *pContext)
                 status = pContext->pPathBundles[j].rxPath.SetupMessageIndex(vector);
             }
             DPrintf(0,
-                    "[%s] Using messages %u/%u for RX/TX queue %u\n",
-                    __FUNCTION__,
+                    "Using messages %u/%u for RX/TX queue %u",
                     pContext->pPathBundles[j].rxPath.getMessageIndex(),
                     pContext->pPathBundles[j].txPath.getMessageIndex(),
                     j);
@@ -577,27 +571,27 @@ static void DebugParseOffloadBits()
         info.Value = (PVOID)(ULONG_PTR)val;
         if (info.Receive.IpChecksumFailed)
         {
-            DPrintf(level, "W.%X=IPCS failed\n", val);
+            DPrintf(level, "W.%X=IPCS failed", val);
         }
         if (info.Receive.IpChecksumSucceeded)
         {
-            DPrintf(level, "W.%X=IPCS OK\n", val);
+            DPrintf(level, "W.%X=IPCS OK", val);
         }
         if (info.Receive.TcpChecksumFailed)
         {
-            DPrintf(level, "W.%X=TCPCS failed\n", val);
+            DPrintf(level, "W.%X=TCPCS failed", val);
         }
         if (info.Receive.TcpChecksumSucceeded)
         {
-            DPrintf(level, "W.%X=TCPCS OK\n", val);
+            DPrintf(level, "W.%X=TCPCS OK", val);
         }
         if (info.Receive.UdpChecksumFailed)
         {
-            DPrintf(level, "W.%X=UDPCS failed\n", val);
+            DPrintf(level, "W.%X=UDPCS failed", val);
         }
         if (info.Receive.UdpChecksumSucceeded)
         {
-            DPrintf(level, "W.%X=UDPCS OK\n", val);
+            DPrintf(level, "W.%X=UDPCS OK", val);
         }
         val = val << 1;
     }
@@ -607,27 +601,27 @@ static void DebugParseOffloadBits()
         res.value = val;
         if (res.flags.IpFailed)
         {
-            DPrintf(level, "C.%X=IPCS failed\n", val);
+            DPrintf(level, "C.%X=IPCS failed", val);
         }
         if (res.flags.IpOK)
         {
-            DPrintf(level, "C.%X=IPCS OK\n", val);
+            DPrintf(level, "C.%X=IPCS OK", val);
         }
         if (res.flags.TcpFailed)
         {
-            DPrintf(level, "C.%X=TCPCS failed\n", val);
+            DPrintf(level, "C.%X=TCPCS failed", val);
         }
         if (res.flags.TcpOK)
         {
-            DPrintf(level, "C.%X=TCPCS OK\n", val);
+            DPrintf(level, "C.%X=TCPCS OK", val);
         }
         if (res.flags.UdpFailed)
         {
-            DPrintf(level, "C.%X=UDPCS failed\n", val);
+            DPrintf(level, "C.%X=UDPCS failed", val);
         }
         if (res.flags.UdpOK)
         {
-            DPrintf(level, "C.%X=UDPCS OK\n", val);
+            DPrintf(level, "C.%X=UDPCS OK", val);
         }
         val = val << 1;
     }
@@ -702,14 +696,13 @@ NDIS_STATUS ParaNdis_FinishSpecificInitialization(PARANDIS_ADAPTER *pContext)
     if (pContext->bUsingMSIX)
     {
         DPrintf(0,
-                "[%s] MSIX message table %savailable, count = %u\n",
-                __FUNCTION__,
+                "MSIX message table %savailable, count = %u",
                 (mic.MessageInfoTable == nullptr ? "not " : ""),
                 (mic.MessageInfoTable == nullptr ? 0 : mic.MessageInfoTable->MessageCount));
     }
     else
     {
-        DPrintf(0, "[%s] Not using MSIX\n", __FUNCTION__);
+        DPrintf(0, "Not using MSIX");
     }
 
     if (status == NDIS_STATUS_SUCCESS)
@@ -729,11 +722,11 @@ NDIS_STATUS ParaNdis_FinishSpecificInitialization(PARANDIS_ADAPTER *pContext)
         status = NdisMRegisterScatterGatherDma(pContext->MiniportHandle, &sgDesc, &pContext->DmaHandle);
         if (status != NDIS_STATUS_SUCCESS)
         {
-            DPrintf(0, "[%s] ERROR: NdisMRegisterScatterGatherDma failed (%X)!\n", __FUNCTION__, status);
+            DPrintf(0, "ERROR: NdisMRegisterScatterGatherDma failed (%X)!", status);
         }
         else
         {
-            DPrintf(0, "[%s] SG recommended size %d\n", __FUNCTION__, sgDesc.ScatterGatherListSize);
+            DPrintf(0, "SG recommended size %d", sgDesc.ScatterGatherListSize);
         }
     }
 
@@ -745,11 +738,7 @@ NDIS_STATUS ParaNdis_FinishSpecificInitialization(PARANDIS_ADAPTER *pContext)
         }
         else if (pContext->bUsingMSIX)
         {
-            DPrintf(0,
-                    "[%s] ERROR: Interrupt type %d, message table %p\n",
-                    __FUNCTION__,
-                    mic.InterruptType,
-                    mic.MessageInfoTable);
+            DPrintf(0, "ERROR: Interrupt type %d, message table %p", mic.InterruptType, mic.MessageInfoTable);
             status = NDIS_STATUS_RESOURCE_CONFLICT;
         }
         ParaNdis6_ApplyOffloadPersistentConfiguration(pContext);
@@ -963,18 +952,14 @@ static PNET_BUFFER_LIST CloneNblFreeOriginalForArm(PARANDIS_ADAPTER *pContext,
         }
         else
         {
-            DPrintf(0,
-                    "[%s] ERROR: Can't copy data to NBL (%d != %d)\n",
-                    __FUNCTION__,
-                    done,
-                    NET_BUFFER_DATA_LENGTH(src));
+            DPrintf(0, "ERROR: Can't copy data to NBL (%d != %d)", done, NET_BUFFER_DATA_LENGTH(src));
             NdisFreeNetBufferList(pNewNbl);
             pNewNbl = NULL;
         }
     }
     else
     {
-        DPrintf(0, "[%s] ERROR: Can't allocate NBL\n", __FUNCTION__);
+        DPrintf(0, "ERROR: Can't allocate NBL");
     }
     NdisFreeNetBufferList(original);
     return pNewNbl;
@@ -1080,7 +1065,7 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(PARANDIS_ADAPTER *pContext,
             }
             NET_BUFFER_LIST_INFO(pNBL, TcpIpChecksumNetBufferListInfo) = qCSInfo.Value;
             DPrintf(1,
-                    "datalen %d, GSO type/flags %d:%d, mss %d, %d segments, CS %X->%X\n",
+                    "datalen %d, GSO type/flags %d:%d, mss %d, %d segments, CS %X->%X",
                     pPacketInfo->dataLength,
                     pHeader->hdr.gso_type,
                     pHeader->hdr.flags,

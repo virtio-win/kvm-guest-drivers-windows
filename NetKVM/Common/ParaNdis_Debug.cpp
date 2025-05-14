@@ -190,7 +190,7 @@ void ParaNdis_DebugInitialize()
                                    KbCallbackSecondaryDumpData,
                                    (const PUCHAR) "NetKvm");
 #endif
-    DPrintf(0, "[%s] Crash callback %sregistered\n", __FUNCTION__, res ? "" : "NOT ");
+    DPrintf(0, "Crash callback %sregistered", res ? "" : "NOT ");
 }
 
 void ParaNdis_DebugCleanup(PDRIVER_OBJECT pDriverObject)
@@ -331,12 +331,8 @@ VOID ParaNdis_OnBugCheck(IN KBUGCHECK_CALLBACK_REASON Reason,
                 pDump->OutBufferLength = dumpSize;
                 bNative = FALSE;
             }
-            DPrintf(0,
-                    "[%s] system buffer of %d, saving data for %d NIC\n",
-                    __FUNCTION__,
-                    pDump->InBufferLength,
-                    nSaved);
-            DPrintf(0, "[%s] using %s buffer\n", __FUNCTION__, bNative ? "native" : "own");
+            DPrintf(0, "system buffer of %d, saving data for %d NIC", pDump->InBufferLength, nSaved);
+            DPrintf(0, "using %s buffer", bNative ? "native" : "own");
         }
         else if (pDump->OutBuffer == pDump->InBuffer)
         {
@@ -344,11 +340,10 @@ VOID ParaNdis_OnBugCheck(IN KBUGCHECK_CALLBACK_REASON Reason,
             RtlCopyMemory(pDump->InBuffer, &BugCheckData.Location, dumpSize);
             pDump->OutBufferLength = dumpSize;
             DPrintf(0,
-                    "[%s] written %d to 0x%llx\n",
-                    __FUNCTION__,
+                    "written %d to 0x%llx",
                     (ULONG)BugCheckData.Location.Size,
                     (UINT_PTR)BugCheckData.Location.Address);
-            DPrintf(0, "[%s] dump data (%d) at %p\n", __FUNCTION__, pDump->OutBufferLength, pDump->OutBuffer);
+            DPrintf(0, "dump data (%d) at %p", pDump->OutBufferLength, pDump->OutBuffer);
         }
     }
 }

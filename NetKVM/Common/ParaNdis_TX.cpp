@@ -67,7 +67,7 @@ bool CNBL::ParsePriority()
 
     if (priorityInfo.TagHeader.CanonicalFormatId || !IsValidVlanId(m_Context, priorityInfo.TagHeader.VlanId))
     {
-        DPrintf(0, "[%s] Discarded invalid priority tag %p\n", __FUNCTION__, priorityInfo.Value);
+        DPrintf(0, "Discarded invalid priority tag %p", priorityInfo.Value);
         return false;
     }
     else if (priorityInfo.Value)
@@ -85,7 +85,7 @@ bool CNBL::ParsePriority()
         if (priorityInfo.Value)
         {
             m_TCI = static_cast<UINT16>(priorityInfo.TagHeader.UserPriority << 13 | priorityInfo.TagHeader.VlanId);
-            DPrintf(1, "[%s] Populated priority tag %p\n", __FUNCTION__, priorityInfo.Value);
+            DPrintf(1, "Populated priority tag %p", priorityInfo.Value);
         }
     }
 
@@ -127,7 +127,7 @@ bool CNBL::ParseBuffers()
 
     if (m_MaxDataLength == 0)
     {
-        DPrintf(0, "[%s] - Empty NBL (%p) dropped\n", __FUNCTION__, m_NBL);
+        DPrintf(0, "Empty NBL (%p) dropped", m_NBL);
         return false;
     }
 
@@ -223,7 +223,7 @@ bool CNBL::ParseCSO(TClassPred IsClass, TOffloadPred IsOffload, TSupportedPred I
     {
         if (!IsSupported())
         {
-            DPrintf(0, "[%s] %s request when it is not supported\n", __FUNCTION__, OffloadName);
+            DPrintf(0, "%s request when it is not supported", OffloadName);
 #if FAIL_UNEXPECTED
             // ignore unexpected CS requests while this passes WHQL
             return false;
@@ -341,7 +341,7 @@ CParaNdisTX::~CParaNdisTX()
         NBL = m_SendQueue.Dequeue();
     }
 
-    DPrintf(1, "Pools state %d-> NB: %d, NBL: %d\n", m_queueIndex, m_nbPool.GetCount(), m_nblPool.GetCount());
+    DPrintf(1, "Pools state %d-> NB: %d, NBL: %d", m_queueIndex, m_nbPool.GetCount(), m_nblPool.GetCount());
     if (m_StateMachineRegistered)
     {
         m_Context->m_StateMachine.UnregisterFlow(m_StateMachine);
@@ -385,7 +385,7 @@ void CParaNdisTX::CompleteOutstandingNBLChain(PNET_BUFFER_LIST NBL, ULONG Flags)
 {
     ULONG NBLNum = ParaNdis_CountNBLs(NBL);
 
-    DPrintf(3, "[%s] completing %d nbls\n", __FUNCTION__, NBLNum);
+    DPrintf(3, "completing %d nbls", NBLNum);
     ParaNdis_CompleteNBLChain(m_Context->MiniportHandle, NBL, Flags);
 
     m_StateMachine.UnregisterOutstandingItems(NBLNum);
@@ -447,7 +447,7 @@ void CParaNdisTX::Send(PNET_BUFFER_LIST NBL)
             {
                 CompleteOutstandingInternalNBL(NBL);
             }
-            DPrintf(0, "ERROR: Failed to allocate CNBL instance\n");
+            DPrintf(0, "ERROR: Failed to allocate CNBL instance");
             // regular NBL chain and first NBL failed to allocate memory
             // we'll refer next one as the first NBL in chain
             // not relevant for internal NBL, as it is always single
@@ -509,7 +509,7 @@ void CParaNdisTX::NBLMappingDone(CNBL *NBLHolder)
     }
     else
     {
-        DPrintf(0, "[%s] ERROR: one or more NBs failed to be mapped!\n", __FUNCTION__);
+        DPrintf(0, "ERROR: one or more NBs failed to be mapped!");
         NBLHolder->SetStatus(NDIS_STATUS_FAILURE);
         m_Context->Statistics.ifOutErrors += NBLHolder->NumberOfBuffers();
         NBLHolder->UnsetInChain();
@@ -533,7 +533,7 @@ bool CParaNdisTX::AllocateExtraPages()
         }
         else
         {
-            DPrintf(0, "[%s] failed to allocate pages, [%d] pages have been allocated\n", __FUNCTION__, j);
+            DPrintf(0, "failed to allocate pages, [%d] pages have been allocated", j);
             return false;
         }
     }
@@ -860,7 +860,7 @@ void CParaNdisTX::Notify(SMNotifications message)
 void CParaNdisTX::CancelNBLs(PVOID CancelId)
 {
     UNREFERENCED_PARAMETER(CancelId);
-    DPrintf(0, "[%s] not supported\n", __FUNCTION__);
+    DPrintf(0, "not supported");
 }
 
 // called with TX lock held
@@ -1006,16 +1006,16 @@ void CParaNdisTX::CheckStuckPackets(ULONG GraceTimeMillies)
     {
         return;
     }
-    DPrintf(3, "[%s] TXQ#%d\n", __FUNCTION__, m_queueIndex);
+    DPrintf(3, "TXQ#%d", m_queueIndex);
 
     ULONG flags = IsStuck();
     if (flags)
     {
-        DPrintf(0, "[%s] STUCK condition=%d detected TXQ#%d\n", __FUNCTION__, flags, m_queueIndex);
+        DPrintf(0, "STUCK condition=%d detected TXQ#%d", flags, m_queueIndex);
         m_AuditState.Stucks++;
         DoPendingTasks(NULL);
         flags = IsStuck();
-        DPrintf(0, "[%s] On recovery: condition=%d TXQ#%d\n", __FUNCTION__, flags, m_queueIndex);
+        DPrintf(0, "On recovery: condition=%d TXQ#%d", flags, m_queueIndex);
         m_AuditState.Recovered += flags == 0;
     }
 }
@@ -1121,7 +1121,7 @@ void CNB::PopulateIPLength(IPHeader *IpHeader, USHORT IpLength) const
     }
     else
     {
-        DPrintf(0, "[%s] ERROR: Bad version of IP header!\n", __FUNCTION__);
+        DPrintf(0, "ERROR: Bad version of IP header!");
     }
 }
 
@@ -1177,12 +1177,7 @@ void CNB::SetupUSO(virtio_net_hdr *VirtioHeader, PVOID IpHeader, ULONG EthPayloa
         VHeader->gso_size = (USHORT)m_ParentNBL->UsoMSS();
         VHeader->csum_start = (USHORT)(m_ParentNBL->UsoHeaderOffset() + PriorityHdrLen);
         VHeader->csum_offset = UDP_CHECKSUM_OFFSET;
-        DPrintf(0,
-                "[%s] mss %d, hdr %d, total %d!\n",
-                __FUNCTION__,
-                VHeader->gso_size,
-                VHeader->hdr_len,
-                GetDataLength());
+        DPrintf(0, "mss %d, hdr %d, total %d", VHeader->gso_size, VHeader->hdr_len, GetDataLength());
     }
 }
 
@@ -1199,7 +1194,7 @@ USHORT CNB::QueryL4HeaderOffset(PVOID PacketData, ULONG IpHeaderOffset) const
     }
     else
     {
-        DPrintf(0, "[%s] ERROR: NOT an IP packet - expected troubles!\n", __FUNCTION__);
+        DPrintf(0, "ERROR: NOT an IP packet - expected troubles!");
         Res = 0;
     }
     return Res;
@@ -1345,8 +1340,7 @@ void CNB::PrepareOffloads(virtio_net_hdr *VirtioHeader,
 void CNB::Report(int level, bool Success)
 {
     DPrintf(level,
-            "[%s]:%s packet of %d:%d bytes:frag (NBL of %d)\n",
-            __FUNCTION__,
+            "%s packet of %d:%d bytes:frag (NBL of %d)",
             Success ? "OK" : "Failed",
             GetDataLength(),
             GetSGLLength(),
@@ -1502,7 +1496,7 @@ NBMappingStatus CNB::AllocateAndFillCopySGL(ULONG ParsedHeadersLength)
 
     if (m_ExtraNBStorage == nullptr)
     {
-        DPrintf(0, "[%s] ExtendedNBStorage allocation failed \n", __FUNCTION__);
+        DPrintf(0, "ExtendedNBStorage allocation failed");
         return NBMappingStatus::FAILURE;
     }
 
@@ -1523,7 +1517,7 @@ NBMappingStatus CNB::AllocateAndFillCopySGL(ULONG ParsedHeadersLength)
         ULONG Copied = CopyFromMdlChain(pVirtualAddress, toCopyNow, mdl, DataOffset);
         if (Copied != toCopyNow)
         {
-            DPrintf(0, "[%s] copy failed! expected %lu, copied %lu bytes\n", __FUNCTION__, toCopyNow, Copied);
+            DPrintf(0, "copy failed! expected %lu, copied %lu bytes", toCopyNow, Copied);
             return NBMappingStatus::FAILURE;
         }
         m_ExtraNBStorage->m_Elements[i].Address = m_ExtraNBStorage->m_UsedPages[i]->GetPA();

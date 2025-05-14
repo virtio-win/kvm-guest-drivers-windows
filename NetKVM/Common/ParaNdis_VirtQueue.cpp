@@ -19,7 +19,7 @@ bool CVirtQueue::AllocateQueueMemory()
     NTSTATUS status = virtio_query_queue_allocation(m_IODevice, m_Index, &NumEntries, &RingSize, &HeapSize);
     if (!NT_SUCCESS(status))
     {
-        DPrintf(0, "[%s] virtio_query_queue_allocation(%d) failed with error %x\n", __FUNCTION__, m_Index, status);
+        DPrintf(0, "virtio_query_queue_allocation(%d) failed with error %x", m_Index, status);
         return false;
     }
 
@@ -41,7 +41,7 @@ void CVirtQueue::Renew()
 
     if (!NT_SUCCESS(status))
     {
-        DPrintf(0, "[%s] - queue setup failed for index %u with error %x\n", __FUNCTION__, m_Index, status);
+        DPrintf(0, "queue setup failed for index %u with error %x", m_Index, status);
         m_VirtQueue = nullptr;
     }
 }
@@ -62,7 +62,7 @@ bool CVirtQueue::Create(UINT Index, VirtIODevice *IODevice, NDIS_HANDLE DrvHandl
     }
     else
     {
-        DPrintf(0, "[%s] - queue memory allocation failed, index = %d\n", __FUNCTION__, Index);
+        DPrintf(0, "queue memory allocation failed, index = %d", Index);
     }
 
     return m_VirtQueue != nullptr;
@@ -89,7 +89,7 @@ bool CTXVirtQueue::PrepareBuffers()
 
     if (SGTableCapacity > NumBuffers)
     {
-        DPrintf(0, "%s: Limit m_SGTableCapacity by %d\n", __FUNCTION__, NumBuffers);
+        DPrintf(0, "Limit m_SGTableCapacity by %d", NumBuffers);
         SGTableCapacity = NumBuffers;
     }
 
@@ -116,7 +116,7 @@ bool CTXVirtQueue::PrepareBuffers()
     }
 
     m_FreeHWBuffers = m_TotalHWBuffers = m_TotalDescriptors;
-    DPrintf(0, "[%s] available %d Tx descriptors\n", __FUNCTION__, m_TotalDescriptors);
+    DPrintf(0, "available %d Tx descriptors", m_TotalDescriptors);
 
     if (m_Context->extraStatistics.minFreeTxBuffers == 0 ||
         m_Context->extraStatistics.minFreeTxBuffers > m_FreeHWBuffers)
@@ -300,13 +300,13 @@ void CTXVirtQueue::ReleaseOneBuffer(CTXDescriptor *TXDescriptor, CRawCNBList &li
 {
     if (!TXDescriptor->GetUsedBuffersNum())
     {
-        DPrintf(0, "[%s] ERROR: nofUsedBuffers not set!\n", __FUNCTION__);
+        DPrintf(0, "ERROR: nofUsedBuffers not set!");
     }
     TXDescriptor->GetNB()->ReturnPages();
     m_FreeHWBuffers += TXDescriptor->GetUsedBuffersNum();
     listDone.PushBack(TXDescriptor->GetNB());
     m_Descriptors.Push(TXDescriptor);
-    DPrintf(3, "[%s] Free Tx: desc %d, buff %d\n", __FUNCTION__, m_Descriptors.GetCount(), m_FreeHWBuffers);
+    DPrintf(3, "Free Tx: desc %d, buff %d", m_Descriptors.GetCount(), m_FreeHWBuffers);
 }
 
 UINT CTXVirtQueue::ReleaseTransmitBuffers(CRawCNBList &listDone)
@@ -327,7 +327,7 @@ UINT CTXVirtQueue::ReleaseTransmitBuffers(CRawCNBList &listDone)
         UpdateTimestamp(m_LastTxCompletionTimestamp);
         m_DoKickOnNoBuffer = true;
     }
-    DPrintf((i ? 3 : 5), "[%s] returning i = %d\n", __FUNCTION__, i);
+    DPrintf((i ? 3 : 5), "returning i = %d", i);
     return i;
 }
 
@@ -345,7 +345,7 @@ void CTXVirtQueue::ProcessTXCompletions(CRawCNBList &listDone, bool bKill)
             LPCSTR func = __FUNCTION__;
             m_Killed = true;
             m_DescriptorsInUse.ForEachDetached([&](CTXDescriptor *TXDescriptor) {
-                DPrintf(0, "[%s] kill: releasing buffer\n", func);
+                TraceNoPrefix(0, "[%s] kill: releasing buffer\n", func);
                 ReleaseOneBuffer(TXDescriptor, listDone);
             });
         }

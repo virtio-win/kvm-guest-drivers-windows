@@ -122,11 +122,7 @@ void CParaNdisRX::RecalculateLimits()
     m_nReusedRxBuffersLimit = m_NetMaxReceiveBuffers / 4 + 1;
     m_nReusedRxBuffersCounter = 0;
     m_MinRxBufferLimit = m_NetMaxReceiveBuffers * m_Context->MinRxBufferPercent / 100;
-    DPrintf(0,
-            "[%s] m_NetMaxReceiveBuffers %d, m_MinRxBufferLimit %u\n",
-            __FUNCTION__,
-            m_NetMaxReceiveBuffers,
-            m_MinRxBufferLimit);
+    DPrintf(0, "m_NetMaxReceiveBuffers %d, m_MinRxBufferLimit %u", m_NetMaxReceiveBuffers, m_MinRxBufferLimit);
 }
 
 bool CParaNdisRX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
@@ -141,7 +137,7 @@ bool CParaNdisRX::Create(PPARANDIS_ADAPTER Context, UINT DeviceQueueIndex)
 
     if (!m_VirtQueue.Create(DeviceQueueIndex, &m_Context->IODevice, m_Context->MiniportHandle))
     {
-        DPrintf(0, ("CParaNdisRX::Create - virtqueue creation failed\n"));
+        DPrintf(0, "CParaNdisRX::Create - virtqueue creation failed");
         return false;
     }
 
@@ -158,12 +154,12 @@ static void DumpDescriptor(pRxNetDescriptor p, int level)
     for (i = 0; i < p->NumPages; ++i)
     {
         auto &page = p->PhysicalPages[i];
-        DPrintf(level, "page[%d]: %p of %d\n", i, (PVOID)page.Physical.QuadPart, page.size);
+        DPrintf(level, "page[%d]: %p of %d", i, (PVOID)page.Physical.QuadPart, page.size);
     }
     for (i = 0; i < p->BufferSGLength; ++i)
     {
         auto &sg = p->BufferSGArray[i];
-        DPrintf(level, "sg[%d]: %p of %d\n", i, (PVOID)sg.physAddr.QuadPart, sg.length);
+        DPrintf(level, "sg[%d]: %p of %d", i, (PVOID)sg.physAddr.QuadPart, sg.length);
     }
 }
 
@@ -341,7 +337,7 @@ BOOLEAN CParaNdisRX::AllocateMore()
     // if the queue is not ready, try again later
     if (!m_pVirtQueue->IsValid() || !m_Reinsert)
     {
-        DPrintf(1, " Queue is not ready, try later\n");
+        DPrintf(1, "Queue is not ready, try later");
         return true;
     }
 
@@ -415,7 +411,7 @@ void CParaNdisRX::ReuseReceiveBufferNoLock(pRxNetDescriptor pBuffersDescriptor)
         if (m_NetNofReceiveBuffers > m_NetMaxReceiveBuffers)
         {
             DPrintf(0,
-                    " Error: m_NetNofReceiveBuffers > m_NetMaxReceiveBuffers (%d>%d)\n",
+                    "Error: m_NetNofReceiveBuffers > m_NetMaxReceiveBuffers (%d>%d)",
                     m_NetNofReceiveBuffers,
                     m_NetMaxReceiveBuffers);
         }
@@ -430,7 +426,7 @@ void CParaNdisRX::ReuseReceiveBufferNoLock(pRxNetDescriptor pBuffersDescriptor)
     else
     {
         /* TODO - NetMaxReceiveBuffers per queue or per context ?*/
-        DPrintf(0, "FAILED TO REUSE THE BUFFER!!!!\n");
+        DPrintf(0, "FAILED TO REUSE THE BUFFER!!!!");
         ParaNdis_FreeRxBufferDescriptor(m_Context, pBuffersDescriptor);
         m_NetMaxReceiveBuffers--;
     }
@@ -757,7 +753,7 @@ void CParaNdisRX::PopulateQueue()
         else
         {
             /* TODO - NetMaxReceiveBuffers should take into account all queues */
-            DPrintf(0, "FAILED TO REUSE THE BUFFER!!!!\n");
+            DPrintf(0, "FAILED TO REUSE THE BUFFER!!!!");
             ParaNdis_FreeRxBufferDescriptor(m_Context, pBufferDescriptor);
             m_NetMaxReceiveBuffers--;
         }
