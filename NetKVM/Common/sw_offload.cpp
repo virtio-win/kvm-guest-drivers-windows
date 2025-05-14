@@ -233,7 +233,7 @@ static __inline tTcpIpPacketParsingResult ProcessTCPHeader(tTcpIpPacketParsingRe
     }
     else
     {
-        DPrintf(2, "tcp: %d < min headers %d\n", len, tcpipDataAt);
+        DPrintf(2, "tcp: %d < min headers %d", len, tcpipDataAt);
         res.xxpFull = FALSE;
         res.xxpStatus = static_cast<ULONG>(ppResult::ppresXxpIncomplete);
     }
@@ -256,7 +256,7 @@ static __inline tTcpIpPacketParsingResult ProcessUDPHeader(tTcpIpPacketParsingRe
         res.xxpStatus = static_cast<ULONG>(ppResult::ppresXxpKnown);
         res.xxpFull = TRUE;
         // may be full or not, but the datagram length is known
-        DPrintf(2, "udp: len %d, datagramLength %d\n", len, datagramLength);
+        DPrintf(2, "udp: len %d, datagramLength %d", len, datagramLength);
     }
     else
     {
@@ -292,7 +292,7 @@ static __inline tTcpIpPacketParsingResult QualifyIpPacket(IPHeader *pIpHeader, U
         ipHeaderSize = (ver_len & 0xF) << 2;
         fullLength = swap_short(pIpHeader->v4.ip_length);
         DPrintf(3,
-                "ip_version %d, ipHeaderSize %d, protocol %d, iplen %d, L2 payload length %d\n",
+                "ip_version %d, ipHeaderSize %d, protocol %d, iplen %d, L2 payload length %d",
                 ip_version,
                 ipHeaderSize,
                 pIpHeader->v4.ip_protocol,
@@ -309,9 +309,8 @@ static __inline tTcpIpPacketParsingResult QualifyIpPacket(IPHeader *pIpHeader, U
         if (ipHeaderSize >= fullLength || (verifyLength && len < fullLength))
         {
             DPrintf(2,
-                    "[%s] - truncated packet - ip_version %d, ipHeaderSize %d, protocol %d, iplen %d, L2 payload "
-                    "length %d, verify = %s\n",
-                    __FUNCTION__,
+                    "truncated packet - ip_version %d, ipHeaderSize %d, protocol %d, iplen %d, L2 payload "
+                    "length %d, verify = %s",
                     ip_version,
                     ipHeaderSize,
                     pIpHeader->v4.ip_protocol,
@@ -385,11 +384,7 @@ static __inline tTcpIpPacketParsingResult QualifyIpPacket(IPHeader *pIpHeader, U
                     }
                     else
                     {
-                        DPrintf(0,
-                                "[%s] ERROR: Break in the middle of ext. headers(len %d, hdr > %d)\n",
-                                __FUNCTION__,
-                                len,
-                                ipHeaderSize);
+                        DPrintf(0, "ERROR: Break in the middle of ext. headers(len %d, hdr > %d)", len, ipHeaderSize);
                         res.ipStatus = static_cast<ULONG>(ppResult::ppresNotIP);
                         bParsingDone = TRUE;
                     }
@@ -408,7 +403,7 @@ static __inline tTcpIpPacketParsingResult QualifyIpPacket(IPHeader *pIpHeader, U
         if ((ipHeaderSize <= MAX_SUPPORTED_IPV6_HEADERS) && (ipHeaderSize <= fullLength))
         {
             DPrintf(3,
-                    "ip_version %d, ipHeaderSize %d, protocol %d, iplen %d\n",
+                    "ip_version %d, ipHeaderSize %d, protocol %d, iplen %d",
                     ip_version,
                     ipHeaderSize,
                     nextHeader,
@@ -417,7 +412,7 @@ static __inline tTcpIpPacketParsingResult QualifyIpPacket(IPHeader *pIpHeader, U
         }
         else
         {
-            DPrintf(0, "[%s] ERROR: IP chain is too large (%d)\n", __FUNCTION__, ipHeaderSize);
+            DPrintf(0, "ERROR: IP chain is too large (%d)", ipHeaderSize);
             res.ipStatus = static_cast<ULONG>(ppResult::ppresNotIP);
         }
     }
@@ -794,7 +789,7 @@ static LPCSTR __inline GetXxpCSCase(tTcpIpPacketParsingResult res)
 static __inline VOID PrintOutParsingResult(tTcpIpPacketParsingResult res, int level, LPCSTR procname)
 {
     DPrintf(level,
-            "[%s] %s packet IPCS %s%s, checksum %s%s\n",
+            "[%s] %s packet IPCS %s%s, checksum %s%s",
             procname,
             GetPacketCase(res),
             GetIPCSCase(res),
