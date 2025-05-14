@@ -28,7 +28,7 @@
  */
 
 #include "helper.h"
-#include "trace.h"
+#include "tracing.h"
 
 int virtioDebugLevel;
 int bDebugPrint;
