@@ -124,7 +124,7 @@ NDIS_STATUS ParaNdis_OnSetPacketFilter(PARANDIS_ADAPTER *pContext, tOidDesc *pOi
     if (status == NDIS_STATUS_SUCCESS)
     {
         pContext->PacketFilter = newValue;
-        DPrintf(1, "[%s] PACKET FILTER SET TO %x\n", __FUNCTION__, pContext->PacketFilter);
+        DPrintf(1, "PACKET FILTER SET TO %x", pContext->PacketFilter);
         ParaNdis_UpdateDeviceFilters(pContext);
     }
     return status;
@@ -392,7 +392,7 @@ NDIS_STATUS ParaNdis_OidQueryCommon(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
         case OID_GEN_RCV_OK:
             SETINFO(ul64,
                     pContext->Statistics.ifHCInUcastPkts + pContext->Statistics.ifHCInMulticastPkts + pContext->Statistics.ifHCInBroadcastPkts);
-            DPrintf(4, "[%s] Total frames %I64u\n", __FUNCTION__, u.ul64);
+            DPrintf(4, "Total frames %I64u", u.ul64);
             break;
         case OID_GEN_XMIT_ERROR:
             SETINFO(ul64, pContext->Statistics.ifOutErrors);
@@ -634,7 +634,7 @@ NDIS_STATUS ParaNdis_OnOidSetNetworkAddresses(PARANDIS_ADAPTER *pContext, tOidDe
             pContext->guestAnnouncePackets.DestroyIPV6NBLs();
         }
         PUCHAR p = (PUCHAR)(&pnal->Address[0]);
-        DPrintf(2, "Received %d addresses, type %d\n", pnal->AddressCount, pnal->AddressType);
+        DPrintf(2, "Received %d addresses, type %d", pnal->AddressCount, pnal->AddressType);
         for (i = 0; i < (UINT)pnal->AddressCount; ++i)
         {
             NETWORK_ADDRESS *pna = (NETWORK_ADDRESS *)p;
@@ -644,7 +644,7 @@ NDIS_STATUS ParaNdis_OnOidSetNetworkAddresses(PARANDIS_ADAPTER *pContext, tOidDe
                 PNETWORK_ADDRESS_IP pIP = (PNETWORK_ADDRESS_IP)pna->Address;
                 pContext->guestAnnouncePackets.CreateNBL(pIP->in_addr);
                 DPrintf(0,
-                        "Received IP address %d.%d.%d.%d\n",
+                        "Received IP address %d.%d.%d.%d",
                         (pIP->in_addr >> 0) & 0xff,
                         (pIP->in_addr >> 8) & 0xff,
                         (pIP->in_addr >> 16) & 0xff,
@@ -671,7 +671,7 @@ NDIS_STATUS ParaNdis_OnOidSetNetworkAddresses(PARANDIS_ADAPTER *pContext, tOidDe
                     }
                 }
                 DPrintf(0,
-                        "address %d, type %d, len %d (%s)\n",
+                        "address %d, type %d, len %d (%s)",
                         i,
                         pna->AddressType,
                         pna->AddressLength,
@@ -710,8 +710,7 @@ static NDIS_STATUS ValidateWakeupPattern(PNDIS_PM_PACKET_PATTERN p, PULONG pVali
         }
         *pValidSize = ul;
         DPrintf(2,
-                "[%s] pattern of %d at %d, mask %d (%s)\n",
-                __FUNCTION__,
+                "pattern of %d at %d, mask %d (%s)",
                 p->PatternSize,
                 p->PatternOffset,
                 p->MaskSize,
@@ -777,7 +776,7 @@ NDIS_STATUS ParaNdis_OnEnableWakeup(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
     NDIS_STATUS status = ParaNdis_OidSetCopy(pOid, &pContext->ulEnableWakeup, sizeof(pContext->ulEnableWakeup));
     if (status == NDIS_STATUS_SUCCESS)
     {
-        DPrintf(0, "[%s] new value %lX\n", __FUNCTION__, pContext->ulEnableWakeup);
+        DPrintf(0, "new value %lX", pContext->ulEnableWakeup);
     }
     return status;
 }
@@ -797,7 +796,7 @@ NDIS_STATUS ParaNdis_OnSetVlanId(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
     {
         status = ParaNdis_OidSetCopy(pOid, &pContext->VlanId, sizeof(pContext->VlanId));
         pContext->VlanId &= 0xfff;
-        DPrintf(0, "[%s] new value %d on MAC %X\n", __FUNCTION__, pContext->VlanId, pContext->CurrentMacAddress[5]);
+        DPrintf(0, "new value %d on MAC %X", pContext->VlanId, pContext->CurrentMacAddress[5]);
         ParaNdis_DeviceFiltersUpdateVlanId(pContext);
     }
     return status;
