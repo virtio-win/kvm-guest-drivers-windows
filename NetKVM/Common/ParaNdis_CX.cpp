@@ -32,7 +32,7 @@ bool CParaNdisCX::Create(UINT DeviceQueueIndex)
 
     if (!ParaNdis_InitialAllocatePhysicalMemory(m_Context, 512, &m_ControlData))
     {
-        DPrintf(0, "CParaNdisCX::Create - ParaNdis_InitialAllocatePhysicalMemory failed for %u\n", DeviceQueueIndex);
+        DPrintf(0, "ParaNdis_InitialAllocatePhysicalMemory failed for %u", DeviceQueueIndex);
         m_ControlData.Virtual = nullptr;
         return false;
     }
@@ -114,7 +114,7 @@ bool CParaNdisCX::GetResponse(UCHAR &Code, int MicrosecondsToWait, int LogLevel)
     if (!p)
     {
         // timed out
-        DPrintf(0, "%s - ERROR: cmd %d.%d timed out\n", __FUNCTION__, cls, cmd);
+        DPrintf(0, "ERROR: cmd %d.%d timed out", cls, cmd);
         m_Context->extraStatistics.ctrlTimedOut += m_PendingCommand.Set();
         return false;
     }
@@ -126,13 +126,13 @@ bool CParaNdisCX::GetResponse(UCHAR &Code, int MicrosecondsToWait, int LogLevel)
         switch (Code)
         {
             case VIRTIO_NET_OK:
-                DPrintf(LogLevel, "%s: - %d.%d finished OK\n", __FUNCTION__, cls, cmd);
+                DPrintf(LogLevel, "%d.%d finished OK", cls, cmd);
                 break;
             case VIRTIO_NET_ERR:
-                DPrintf(0, "%s - VIRTIO_NET_ERROR returned for %d.%d\n", __FUNCTION__, cls, cmd);
+                DPrintf(0, "VIRTIO_NET_ERROR returned for %d.%d", cls, cmd);
                 break;
             default:
-                DPrintf(0, "%s: unexpected ERROR %d for %d.%d\n", __FUNCTION__, Code, cls, cmd);
+                DPrintf(0, "unexpected ERROR %d for %d.%d", Code, cls, cmd);
                 m_Context->RaiseUnrecoverableError(__FUNCTION__);
                 break;
         }
@@ -141,7 +141,7 @@ bool CParaNdisCX::GetResponse(UCHAR &Code, int MicrosecondsToWait, int LogLevel)
     }
     // the length of response is wrong, we can't expect
     // meaningful result, the device is probably broken
-    DPrintf(0, "%s - ERROR: wrong len %d on %d.%d\n", __FUNCTION__, len, cls, cmd);
+    DPrintf(0, "ERROR: wrong len %d on %d.%d", len, cls, cmd);
     m_Context->extraStatistics.ctrlFailed++;
     Code = (UCHAR)(-1);
     m_Context->RaiseUnrecoverableError(__FUNCTION__);
@@ -159,7 +159,7 @@ BOOLEAN CParaNdisCX::SendControlMessage(UCHAR cls,
 {
     if (m_ControlData.size <= (size1 + size2 + 16))
     {
-        DPrintf(0, "%s (buffer %d,%d) - ERROR: message too LARGE\n", __FUNCTION__, size1, size2);
+        DPrintf(0, "(buffer %d,%d) - ERROR: message too LARGE", size1, size2);
         m_Context->extraStatistics.ctrlFailed++;
         return FALSE;
     }
@@ -239,13 +239,13 @@ BOOLEAN CParaNdisCX::SendInternal(const CommandData &data, bool initial)
         }
         else
         {
-            DPrintf(0, "%s - ERROR: add_buf failed\n", __FUNCTION__);
+            DPrintf(0, "ERROR: add_buf failed");
             m_Context->extraStatistics.ctrlFailed++;
         }
     }
     else
     {
-        DPrintf(0, "%s: control queue is not ready\n", __FUNCTION__);
+        DPrintf(0, "control queue is not ready");
         m_Context->extraStatistics.ctrlFailed++;
     }
     return bOK;
@@ -253,7 +253,7 @@ BOOLEAN CParaNdisCX::SendInternal(const CommandData &data, bool initial)
 
 NDIS_STATUS CParaNdisCX::SetupMessageIndex(u16 vector)
 {
-    DPrintf(0, "[%s] Using message %u for controls\n", __FUNCTION__, vector);
+    DPrintf(0, "Using message %u for controls", vector);
 
     virtio_set_config_vector(&m_Context->IODevice, vector);
 
@@ -262,7 +262,7 @@ NDIS_STATUS CParaNdisCX::SetupMessageIndex(u16 vector)
 
 bool CParaNdisCX::FireDPC(ULONG messageId)
 {
-    DPrintf(0, "[%s] message %u\n", __FUNCTION__, messageId);
+    DPrintf(0, "message %u", messageId);
     KeInsertQueueDpc(&m_DPC, NULL, NULL);
     return TRUE;
 }
@@ -308,14 +308,14 @@ bool CParaNdisCX::ScheduleCommand(const CommandData &Data)
     if (e && e->Create(Data))
     {
         m_CommandQueue.PushBack(e);
-        DPrintf(0, "%s: command %d.%d scheduled\n", __FUNCTION__, Data.cls, Data.cmd);
+        DPrintf(0, "command %d.%d scheduled", Data.cls, Data.cmd);
         return true;
     }
     if (e)
     {
         CQueuedCommand::Destroy(e, m_Context->MiniportHandle);
     }
-    DPrintf(0, "%s: failed to %s %d.%d\n", __FUNCTION__, e ? "schedule" : "allocate", Data.cls, Data.cmd);
+    DPrintf(0, "failed to %s %d.%d\n", e ? "schedule" : "allocate", Data.cls, Data.cmd);
     return false;
 }
 
