@@ -10,13 +10,13 @@
 
 void ParaNdisPollNotify(PPARANDIS_ADAPTER pContext, UINT Index, const char *Origin)
 {
-    DPrintf(POLL_PRINT_LEVEL, " notify #%d from %s\n", Index, Origin);
+    DPrintf(POLL_PRINT_LEVEL, " notify #%d from %s", Index, Origin);
     NdisPollHandler *poll = &pContext->PollHandlers[Index];
     while (true)
     {
         if (poll->m_EnableNotify.AddRef() <= 1)
         {
-            DPrintf(POLL_PRINT_LEVEL, " trigger #%d\n", Index);
+            DPrintf(POLL_PRINT_LEVEL, " trigger #%d", Index);
             NdisRequestPoll(poll->m_PollContext, NULL);
             break;
         }
@@ -41,7 +41,7 @@ static void UpdatePollAffinities(PPARANDIS_ADAPTER pContext)
             NdisSetPollAffinity(poll->m_PollContext, &poll->m_ProcessorNumber);
         }
     }
-    DPrintf(0, "updated #%d affinities\n", done);
+    DPrintf(0, "updated #%d affinities", done);
 }
 
 bool NdisPollHandler::UpdateAffinity(const PROCESSOR_NUMBER &Number)
@@ -50,7 +50,7 @@ bool NdisPollHandler::UpdateAffinity(const PROCESSOR_NUMBER &Number)
     {
         m_ProcessorNumber = Number;
         m_UpdateAffinity = true;
-        DPrintf(POLL_PRINT_LEVEL, "[%s] #%d => %d:%d\n", __FUNCTION__, m_Index, Number.Group, Number.Number);
+        DPrintf(POLL_PRINT_LEVEL, "#%d => %d:%d", m_Index, Number.Group, Number.Number);
         return true;
     }
     return false;
@@ -96,7 +96,7 @@ void ParaNdisPollSetAffinity(PARANDIS_ADAPTER *pContext)
 
 void NdisPollHandler::EnableNotification(BOOLEAN Enable)
 {
-    DPrintf(POLL_PRINT_LEVEL, "[%s] #%d = %X\n", __FUNCTION__, m_Index, Enable);
+    DPrintf(POLL_PRINT_LEVEL, "#%d = %X", m_Index, Enable);
     if (Enable)
     {
         // allow triggering
@@ -113,7 +113,7 @@ void NdisPollHandler::EnableNotification(BOOLEAN Enable)
 // <= handle poll
 void NdisPollHandler::HandlePoll(NDIS_POLL_DATA *PollData)
 {
-    DPrintf(POLL_PRINT_LEVEL, "[%s] #%d\n", __FUNCTION__, m_Index);
+    DPrintf(POLL_PRINT_LEVEL, "#%d", m_Index);
     CDpcIrqlRaiser raise;
 
     // RX
@@ -121,8 +121,7 @@ void NdisPollHandler::HandlePoll(NDIS_POLL_DATA *PollData)
     if (PollData->Receive.NumberOfIndicatedNbls || PollData->Receive.NumberOfRemainingNbls)
     {
         DPrintf(POLL_PRINT_LEVEL,
-                "[%s] RX #%d indicated %d, max %d, still here %d\n",
-                __FUNCTION__,
+                "RX #%d indicated %d, max %d, still here %d",
                 m_Index,
                 PollData->Receive.NumberOfIndicatedNbls,
                 PollData->Receive.MaxNblsToIndicate,
@@ -136,7 +135,7 @@ void NdisPollHandler::HandlePoll(NDIS_POLL_DATA *PollData)
         if (bundle->txPath.DoPendingTasks(NULL))
         {
             PollData->Transmit.NumberOfRemainingNbls = NDIS_ANY_NUMBER_OF_NBLS;
-            DPrintf(POLL_PRINT_LEVEL, "[%s] TX #%d requests attention\n", __FUNCTION__, bundle->txPath.getQueueIndex());
+            DPrintf(POLL_PRINT_LEVEL, "TX #%d requests attention", bundle->txPath.getQueueIndex());
         }
     }
     // There are various cases when RX returns 0 NBLs and NumberOfRemainingNbls != 0.
@@ -186,7 +185,7 @@ bool NdisPollHandler::Register(PPARANDIS_ADAPTER AdapterContext, int Index)
         poll->EnableNotification(Notification->Enabled);
     };
     NDIS_STATUS status = NdisRegisterPoll(AdapterContext->MiniportHandle, this, &chars, &m_PollContext);
-    DPrintf(0, "[%s] poll #%d, status %X\n", __FUNCTION__, m_Index, status);
+    DPrintf(0, "poll #%d, status %X", m_Index, status);
     return m_PollContext != NULL;
 #else
     return false;
