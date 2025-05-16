@@ -4,6 +4,8 @@ SETLOCAL EnableDelayedExpansion
 SET Filename=%1.etl
 SET Guid=%2
 SET DataCollector="virtiowin"
+SET Level=6
+IF NOT "%3"=="" SET Level=%3
 
 IF [%Filename%]==[] (
     GOTO PRINT_HELP_TEXT
@@ -18,7 +20,7 @@ logman stop %DataCollector% -ets >NUL 2>&1
 logman delete %DataCollector% -ets >NUL 2>&1
 logman create trace %DataCollector% -o %Filename% -ow -ets
 IF !ERRORLEVEL! NEQ 0 EXIT /B 1
-logman update %DataCollector% -p %Guid% 0x7fffffff 6 -ets
+logman update %DataCollector% -p %Guid% 0x7fffffff %Level% -ets
 IF !ERRORLEVEL! NEQ 0 EXIT /B 1
 ECHO Recording started.
 ECHO Reproduce the problem, then press ENTER
