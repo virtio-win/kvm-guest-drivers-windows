@@ -1239,7 +1239,7 @@ VioScsiUnitControl(IN PVOID DeviceExtension, IN SCSI_UNIT_CONTROL_TYPE ControlTy
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Unit Control Type %d\n", ControlType);
     switch (ControlType)
     {
-        case ScsiQuerySupportedControlTypes:
+        case ScsiQuerySupportedUnitControlTypes:
             ControlTypeList = (PSCSI_SUPPORTED_CONTROL_TYPE_LIST)Parameters;
             AdjustedMaxControlType = (ControlTypeList->MaxControlType < ScsiUnitControlMax) ? ControlTypeList->MaxControlType
                                                                                             : ScsiUnitControlMax;
