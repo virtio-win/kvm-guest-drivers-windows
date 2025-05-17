@@ -263,6 +263,7 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, 
     // TODO: Needs review
     void NBComplete();
     bool IsSendDone();
+    bool CheckMappingNeeded();
 
     UCHAR ProtocolID()
     {
@@ -338,6 +339,10 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, 
     {
         return m_NBL != nullptr;
     }
+    bool MappingNeeded() const
+    {
+        return !m_SkipMapping;
+    }
     ULONG NumberOfBuffers() const
     {
         return m_BuffersNumber;
@@ -396,6 +401,7 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, 
     ULONG_PTR m_CNB_Storage[(sizeof(CNB) + sizeof(ULONG_PTR) - 1) / sizeof(ULONG_PTR)];
     bool m_HaveFailedMappings = false;
     bool m_AllNBCompleted = false;
+    bool m_SkipMapping = false;
 
     CNdisList<CNB, CRawAccess, CNonCountingObject> m_Buffers;
 

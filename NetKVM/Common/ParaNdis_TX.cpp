@@ -305,6 +305,18 @@ bool CNBL::ParseOffloads()
     return true;
 }
 
+bool CNBL::CheckMappingNeeded()
+{
+    // checksums are excluded for simplicity
+    // if the packet is short, without LSO, CSO and USO, any layout is ok
+    // then no need to map it
+    // TODO: + driver verifier? + DMAR
+    bool bNoMap = m_MaxDataLength < m_ParentTXPath->MaxSizeForPacketData() && !IsLSO();
+    bNoMap = bNoMap && !m_CsoInfo.Value && !IsUSO() && m_Context->bAnyLayout;
+    m_SkipMapping = bNoMap;
+    return !m_SkipMapping;
+}
+
 void CNBL::StartMapping()
 {
     CDpcIrqlRaiser OnDpc;
