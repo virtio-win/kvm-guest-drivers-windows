@@ -70,7 +70,7 @@ class CNB : public CNdisAllocatableViaHelper<CNB>
 
     ULONG GetSGLLength() const
     {
-        return m_SGL->NumberOfElements;
+        return m_SGL ? m_SGL->NumberOfElements : 1;
     }
 
     NBMappingStatus BindToDescriptor(CTXDescriptor &Descriptor);
