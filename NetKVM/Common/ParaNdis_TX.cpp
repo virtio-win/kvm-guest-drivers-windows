@@ -51,7 +51,9 @@ CNBL::~CNBL()
         }
     }
 
+#if NBL_MAINTAIN_HISTORY
     m_History.ForEachDetached([this](NBLHistory *Entry) { NBLHistory::Destroy(Entry, m_Context->MiniportHandle); });
+#endif
 }
 
 bool CNBL::ParsePriority()
