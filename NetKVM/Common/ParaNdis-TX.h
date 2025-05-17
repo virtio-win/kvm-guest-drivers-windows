@@ -423,7 +423,9 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, 
 #endif
     CAllocationHelper<CNB> *m_NBAllocator;
 
+#if NBL_MAINTAIN_HISTORY
     CHistoryList m_History;
+#endif
 
     CChainOfNbls m_Chain = {};
 
