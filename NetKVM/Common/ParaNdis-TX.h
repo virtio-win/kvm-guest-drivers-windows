@@ -481,7 +481,10 @@ class CParaNdisTX : public CParaNdisTemplatePath<CTXVirtQueue>, public CNdisAllo
     bool BorrowPages(CExtendedNBStorage *extraNBStorage, ULONG NeedPages);
     void ReturnPages(CExtendedNBStorage *extraNBStorage);
     void CheckStuckPackets(ULONG GraceTimeMillies);
-
+    ULONG MaxSizeForPacketData()
+    {
+        return m_VirtQueue.GetMaxSizeForPacketData();
+    }
   private:
     virtual void Notify(SMNotifications message) override;
 
