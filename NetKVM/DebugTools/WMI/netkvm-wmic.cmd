@@ -1,5 +1,7 @@
 :: Example of accessing NetKvm internals via WMI commands:
 @echo off
+where wmic >nul 2>&1
+if errorlevel 1 goto :nowmic
 if "%1"=="" goto help
 if /i "%1"=="debug" goto debug
 if /i "%1"=="cfg" goto cfg
@@ -12,11 +14,11 @@ if /i "%1"=="cx" goto cx
 
 goto help
 :debug
-call :dowmic_set netkvm_logging level %2
+call :dowmic netkvm_logging set level=%2
 goto :eof
 
 :cfg
-call :dowmic_get1 netkvm_config
+call :dowmic netkvm_config get /value
 goto :eof
 
 :stat
@@ -48,7 +50,7 @@ if "%2"=="rx" set resettype=1
 if "%2"=="tx" set resettype=2
 if "%2"=="rss" set resettype=4
 echo resetting type %resettype%...
-call :dowmic_set netkvm_diagreset type %resettype%
+call :dowmic netkvm_diagreset set type=%resettype%
 goto :eof
 
 :rss
@@ -57,29 +59,22 @@ goto :eof
 
 :rss_set
 if "%2"=="" goto rss
-call :dowmic_set NetKvm_DeviceRss value %2
+call :dowmic NetKvm_DeviceRss set value=%2
 goto :eof
 
 :diag
-call :dowmic_get2 netkvm_diag %1
+call :dowmic netkvm_diag get %1 /value
 goto :eof
 
-:: %1 - class
-:: %2 - field
-:dowmic_get2
-powershell "get-ciminstance -namespace root\wmi -classname %1 | select-object -expandproperty %2 | fl" | findstr /v /c:__ /c:PSComputerName /c:Active | findstr /v /r ^^^$
+:dowmic
+::echo executing %*
+wmic /namespace:\\root\wmi path %* | findstr /v __ | findstr /v /r ^^^$
 goto :eof
 
-:: %1 - class
-:dowmic_get1
-powershell "get-ciminstance -namespace root\wmi -classname %1 | fl" | findstr /v /c:__ /c:PSComputerName /c:Active | findstr /v /r ^^^$
-goto :eof
-
-:: %1 - class
-:: %2 - field name
-:: %3 - value
-:dowmic_set
-powershell "get-ciminstance -namespace root\wmi -classname %1 | set-ciminstance -arguments @{%2=%3}"
+:nowmic
+echo WMIC is not available, trying to install...
+echo on
+dism /online /add-capability /capabilityname:wmic
 goto :eof
 
 :help
