@@ -92,6 +92,11 @@ NTSTATUS VirtIOWdfInitialize(PVIRTIO_WDF_DRIVER pWdfDriver, WDFDEVICE Device,
     /* initialize the underlying VirtIODevice */
     status = virtio_device_initialize(&pWdfDriver->VIODevice, &VirtIOWdfSystemOps, pWdfDriver,
                                       pWdfDriver->nMSIInterrupts > 0);
+
+    if (NT_SUCCESS(status)) {
+        status = VirtIOWdfDeviceCheckIOMMUActive(pWdfDriver, Device);
+    }
+
     if (!NT_SUCCESS(status)) {
         PCIFreeBars(pWdfDriver);
     }
