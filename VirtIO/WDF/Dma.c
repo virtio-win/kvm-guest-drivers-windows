@@ -402,3 +402,49 @@ void VirtIOWdfDeviceDmaRxComplete(VirtIODevice *vdev, WDFDMATRANSACTION transact
     }
     DerefTransaction(ctx);
 }
+
+static BOOLEAN CheckIommuActive(PVIRTIO_DMA_TRANSACTION_PARAMS Params)
+{
+    VirtIODevice *vdev = Params->param1;
+    PVIRTIO_WDF_DRIVER pWdfDriver = vdev->DeviceContext;
+    KEVENT *ev = Params->param2;
+    PVIRTIO_WDF_DMA_TRANSACTION_CONTEXT ctx = GetDmaTransactionContext(Params->transaction);
+    ULONG nElems = Params->sgList->NumberOfElements;
+    PSCATTER_GATHER_ELEMENT elem = Params->sgList->Elements;
+    ULONG64 addr = *MmGetMdlPfnArray(ctx->mdl) << PAGE_SHIFT;
+    DPrintf(0, "%s: SG: %d elem, %I64X of %d\n", __FUNCTION__, nElems, elem->Address.QuadPart,
+            elem->Length);
+    DPrintf(0, "%s: MDL: %I64X\n", __FUNCTION__, addr);
+    pWdfDriver->IommuActive = addr == elem->Address.QuadPart ? WdfFalse : WdfTrue;
+    KeSetEvent(ev, IO_NO_INCREMENT, FALSE);
+    VirtIOWdfDeviceDmaRxComplete(Params->param1, Params->transaction, Params->size);
+    return TRUE;
+}
+
+NTSTATUS VirtIOWdfDeviceCheckIOMMUActive(VirtIODevice *vdev)
+{
+    PVIRTIO_WDF_DRIVER pWdfDriver = vdev->DeviceContext;
+    VIRTIO_DMA_TRANSACTION_PARAMS params = { 0 };
+    LARGE_INTEGER timeout = { 0 };
+    KEVENT ev;
+    KeInitializeEvent(&ev, NotificationEvent, FALSE);
+    params.allocationTag = pWdfDriver->MemoryTag;
+    params.size = PAGE_SIZE;
+    params.param1 = vdev;
+    params.param2 = &ev;
+    if (!VirtIOWdfDeviceDmaRxAsync(vdev, &params, CheckIommuActive)) {
+        // can't allocate or map the buffer, should not happen
+        return STATUS_SUCCESS;
+    }
+    timeout.QuadPart = Int32x32To64(5000, -10000);
+    // typically wait time is 0, theoretically might be some short time
+    KeWaitForSingleObject(&ev, Executive, KernelMode, FALSE, &timeout);
+    if (pWdfDriver->IommuActive == WdfTrue) {
+        ULONGLONG deviceFeatures = VirtIOWdfGetDeviceFeatures(pWdfDriver);
+        if (!virtio_is_feature_enabled(deviceFeatures, VIRTIO_F_ACCESS_PLATFORM)) {
+            DPrintf(0, "%s: VIRTIO_F_ACCESS_PLATFORM is not set\n", __FUNCTION__);
+            return STATUS_DEVICE_CONFIGURATION_ERROR;
+        }
+    }
+    return STATUS_SUCCESS;
+}

@@ -47,6 +47,7 @@ typedef struct virtio_wdf_driver {
     VirtIODevice VIODevice;
 
     ULONG MemoryTag;
+    WDF_TRI_STATE IommuActive;
     ULONGLONG uFeatures;
 
     BUS_INTERFACE_STANDARD PCIBus;
@@ -204,3 +205,4 @@ typedef struct virtio_dma_memory_sliced {
 
 PVIRTIO_DMA_MEMORY_SLICED VirtIOWdfDeviceAllocDmaMemorySliced(VirtIODevice *vdev, size_t blockSize,
                                                               ULONG sliceSize);
+NTSTATUS VirtIOWdfDeviceCheckIOMMUActive(VirtIODevice *vdev);

@@ -47,6 +47,7 @@ NTSTATUS VirtIOWdfInitialize(PVIRTIO_WDF_DRIVER pWdfDriver, WDFDEVICE Device,
 
     RtlZeroMemory(pWdfDriver, sizeof(*pWdfDriver));
     pWdfDriver->MemoryTag = MemoryTag;
+    pWdfDriver->IommuActive = WdfUseDefault;
 
     /* get the PCI bus interface */
     status = WdfFdoQueryForInterface(Device, &GUID_BUS_INTERFACE_STANDARD,
@@ -92,6 +93,11 @@ NTSTATUS VirtIOWdfInitialize(PVIRTIO_WDF_DRIVER pWdfDriver, WDFDEVICE Device,
     /* initialize the underlying VirtIODevice */
     status = virtio_device_initialize(&pWdfDriver->VIODevice, &VirtIOWdfSystemOps, pWdfDriver,
                                       pWdfDriver->nMSIInterrupts > 0);
+
+    if (NT_SUCCESS(status)) {
+        status = VirtIOWdfDeviceCheckIOMMUActive(&pWdfDriver->VIODevice);
+    }
+
     if (!NT_SUCCESS(status)) {
         PCIFreeBars(pWdfDriver);
     }
