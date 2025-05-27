@@ -3,6 +3,7 @@
  *
  * Copyright (c) 2016-2017 Red Hat, Inc.
  *
+ *
  * Author(s):
  *  Ladi Prosek <lprosek@redhat.com>
  *
