@@ -1272,6 +1272,7 @@ VioScsiUnitControl(IN PVOID DeviceExtension, IN SCSI_UNIT_CONTROL_TYPE ControlTy
                     {
                         PSRB_EXTENSION currSrbExt = CONTAINING_RECORD(entry, SRB_EXTENSION, list_entry);
                         PSCSI_REQUEST_BLOCK currSrb = currSrbExt->Srb;
+                        PLIST_ENTRY next = entry->Flink;
                         if (SRB_PATH_ID(currSrb) == stor_addr->Path && SRB_TARGET_ID(currSrb) == stor_addr->Target &&
                             SRB_LUN(currSrb) == stor_addr->Lun)
                         {
@@ -1282,9 +1283,10 @@ VioScsiUnitControl(IN PVOID DeviceExtension, IN SCSI_UNIT_CONTROL_TYPE ControlTy
                                          SRB_PATH_ID(currSrb),
                                          SRB_TARGET_ID(currSrb),
                                          SRB_LUN(currSrb));
+                            RemoveEntryList(entry);
                             element->srb_cnt--;
                         }
-                        entry = entry->Flink;
+                        entry = next;
                     }
                 }
                 StorPortReleaseSpinLock(DeviceExtension, &LockHandle);
