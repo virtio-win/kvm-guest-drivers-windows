@@ -72,6 +72,7 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "VirtIOWdfInitialize failed with %!STATUS!", status);
+        return status;
     }
 
     HostFeatures = VirtIOWdfGetDeviceFeatures(&context->VDevice);

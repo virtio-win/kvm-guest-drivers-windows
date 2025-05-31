@@ -33,6 +33,7 @@
 #include "virtio_pci.h"
 #include "VirtIOWdf.h"
 #include "private.h"
+#include <devpropdef.h>
 
 static EVT_WDF_OBJECT_CONTEXT_DESTROY OnDmaTransactionDestroy;
 static EVT_WDF_PROGRAM_DMA OnDmaTransactionProgramDma;
@@ -401,4 +402,49 @@ void VirtIOWdfDeviceDmaRxComplete(VirtIODevice *vdev, WDFDMATRANSACTION transact
         RtlCopyMemory(ctx->parameters.buffer, ctx->buffer, length);
     }
     DerefTransaction(ctx);
+}
+
+NTSTATUS VirtIOWdfDeviceCheckIOMMUActive(PVIRTIO_WDF_DRIVER pWdfDriver, WDFDEVICE wdfDev)
+{
+    ULONGLONG deviceFeatures = VirtIOWdfGetDeviceFeatures(pWdfDriver);
+    BOOLEAN bHasFeature = virtio_is_feature_enabled(deviceFeatures, VIRTIO_F_ACCESS_PLATFORM);
+
+    DPrintf(0, "%s: VIRTIO_F_ACCESS_PLATFORM is %s\n", __FUNCTION__,
+            bHasFeature ? "set" : "not set");
+
+    // https://learn.microsoft.com/en-us/windows-hardware/drivers/pci/enabling-dma-remapping-for-device-drivers
+
+    const DEVPROPKEY propKey = {
+        { 0x83da6326, 0x97a6, 0x4088, { 0x94, 0x53, 0xa1, 0x92, 0x3f, 0x57, 0x3b, 0x29 } }, 18
+    };
+    ULONG value = 0, reqSize = 0;
+    DEVPROPTYPE propType;
+    WDF_DEVICE_PROPERTY_DATA propData;
+    WDF_DEVICE_PROPERTY_DATA_INIT(&propData, &propKey);
+    NTSTATUS status =
+        WdfDeviceQueryPropertyEx(wdfDev, &propData, sizeof(value), &value, &reqSize, &propType);
+    DPrintf(0, "%s: status %X, dma remap=%d\n", __FUNCTION__, status, value);
+    if (!NT_SUCCESS(status) || value != 2 || bHasFeature) {
+        return STATUS_SUCCESS;
+    }
+
+    // the VIRTIO_F_ACCESS_PLATFORM is not set and there is
+    // a possibility of DMA remapping
+    WDFCOMMONBUFFER commonBuffer = NULL;
+    status = WdfCommonBufferCreate(pWdfDriver->DmaEnabler, PAGE_SIZE, WDF_NO_OBJECT_ATTRIBUTES,
+                                   &commonBuffer);
+    if (!NT_SUCCESS(status)) {
+        DPrintf(0, "%s: Can't allocate common buffer\n", __FUNCTION__);
+        return status;
+    }
+
+    // let's check whether the physical address returned from common buffer API
+    // is the same as returned from plain MmGetPhysicalAddress
+    PHYSICAL_ADDRESS pa = WdfCommonBufferGetAlignedLogicalAddress(commonBuffer);
+    PVOID va = WdfCommonBufferGetAlignedVirtualAddress(commonBuffer);
+    PHYSICAL_ADDRESS plain = MmGetPhysicalAddress(va);
+    DPrintf(0, "%s: buffer at %I64X, plain %I64X\n", __FUNCTION__, pa.QuadPart, plain.QuadPart);
+    status = plain.QuadPart == pa.QuadPart ? STATUS_SUCCESS : STATUS_DEVICE_CONFIGURATION_ERROR;
+    WdfObjectDelete(commonBuffer);
+    return status;
 }
