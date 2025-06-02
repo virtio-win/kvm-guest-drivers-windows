@@ -46,10 +46,19 @@
 
 #define VIOSOCK_NAME L"\\??\\Viosock"
 
+typedef struct _VIRTIO_VSOCK_CONFIG
+{
+    ULONG32 guest_cid;
+} VIRTIO_VSOCK_CONFIG, *PVIRTIO_VSOCK_CONFIG;
+
 #ifdef _WINBASE_
 
 #ifndef IOCTL_GET_AF
 #define IOCTL_GET_AF 0x0801300C
+#endif
+
+#ifndef IOCTL_GET_CONFIG
+#define IOCTL_GET_CONFIG 0x08013004
 #endif
 
 __inline ADDRESS_FAMILY ViosockGetAF()
@@ -75,6 +84,35 @@ __inline ADDRESS_FAMILY ViosockGetAF()
     }
     return (ADDRESS_FAMILY)dwAF;
 }
+
+_Success_(return) __inline BOOL ViosockGetConfig(_Out_ PVIRTIO_VSOCK_CONFIG pConfig)
+{
+    BOOL bResult = TRUE;
+    HANDLE hDevice = CreateFileW(VIOSOCK_NAME,
+                                 GENERIC_READ,
+                                 FILE_SHARE_READ,
+                                 NULL,
+                                 OPEN_EXISTING,
+                                 FILE_ATTRIBUTE_NORMAL,
+                                 NULL);
+
+    if (hDevice == INVALID_HANDLE_VALUE)
+    {
+        bResult = FALSE;
+    }
+    else
+    {
+        DWORD dwReturned;
+        if (!DeviceIoControl(hDevice, IOCTL_GET_CONFIG, NULL, 0, pConfig, sizeof(*pConfig), &dwReturned, NULL))
+        {
+            bResult = FALSE;
+        }
+
+        CloseHandle(hDevice);
+    }
+    return bResult;
+}
+
 #endif
 
 /* Option name for STREAM socket buffer size.  Use as the option name in
