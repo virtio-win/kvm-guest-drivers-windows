@@ -36,6 +36,9 @@
 #endif //_MSC_VER
 
 #include <ws2def.h>
+#include <initguid.h>
+// {6B58DC1F-01C3-440F-BE1C-B95D000F1FF5}
+DEFINE_GUID(GUID_DEVINTERFACE_VIOSOCK, 0x6b58dc1f, 0x1c3, 0x440f, 0xbe, 0x1c, 0xb9, 0x5d, 0x0, 0xf, 0x1f, 0xf5);
 
 #ifndef _WINSOCK2API_
 
