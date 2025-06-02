@@ -30,6 +30,9 @@
     <ProjectReference Include="..\sys\viosock.vcxproj">
       <Project>{c65da065-5828-45cf-89db-fc4f21bc9e05}</Project>
     </ProjectReference>
+    <ProjectReference Include="..\tcp-bridge\tcp-bridge.vcxproj">
+      <Project>{f1d3841d-fc2d-4cf1-be04-6cf5acbfc41f}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\viosock-test\viosock-test.vcxproj">
       <Project>{5e68cce9-f95d-4a6c-a5ad-dba7ce0ca63a}</Project>
     </ProjectReference>
