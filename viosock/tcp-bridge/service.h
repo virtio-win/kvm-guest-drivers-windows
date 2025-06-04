@@ -4,6 +4,8 @@
 #include <windows.h>
 #include <dbt.h>
 
+class CBridge;
+
 class CService
 {
   public:
@@ -42,6 +44,7 @@ class CService
     HANDLE m_evTerminate;
     BOOL m_bRunningService;
     DWORD m_Status;
+    CBridge *m_pBridge;
 };
 
 #endif

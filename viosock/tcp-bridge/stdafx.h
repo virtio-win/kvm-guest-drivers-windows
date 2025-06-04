@@ -19,4 +19,6 @@
 #include <tchar.h>
 #include "..\inc\vio_sockets.h"
 #include "service.h"
+#include "socket.h"
+#include "bridge.h"
 #include "utils.h"
