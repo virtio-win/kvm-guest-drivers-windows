@@ -6,6 +6,7 @@ CService::CService()
     m_evTerminate = NULL;
     m_bRunningService = FALSE;
     m_StatusHandle = NULL;
+    m_pBridge = NULL;
     m_Status = SERVICE_STOPPED;
 }
 
@@ -14,6 +15,7 @@ CService::~CService()
     m_evTerminate = NULL;
     m_bRunningService = FALSE;
     m_StatusHandle = NULL;
+    m_pBridge = NULL;
     m_Status = SERVICE_STOPPED;
 }
 
@@ -91,8 +93,9 @@ BOOL CService::SendStatusToSCM(DWORD dwCurrentState,
 
 void CService::StopService()
 {
-    if (m_bRunningService)
+    if (m_bRunningService && m_pBridge)
     {
+        m_pBridge->Stop();
         m_bRunningService = FALSE;
         m_Status = SERVICE_STOPPED;
     }
@@ -113,6 +116,8 @@ void CService::terminate(DWORD error)
     {
         SendStatusToSCM(SERVICE_STOPPED, error, 0, 0, 0);
     }
+
+    delete m_pBridge;
 }
 
 void CService::ServiceCtrlHandler(DWORD controlCode)
@@ -142,10 +147,12 @@ DWORD CService::ServiceHandleDeviceChange(DWORD evtype)
     {
         case DBT_DEVICEARRIVAL:
         case DBT_DEVICEQUERYREMOVEFAILED:
+            m_pBridge->Start();
             break;
 
         case DBT_DEVICEQUERYREMOVE:
         case DBT_DEVICEREMOVECOMPLETE:
+            m_pBridge->Stop();
             break;
 
         default:
@@ -173,6 +180,14 @@ void CService::ServiceMain(DWORD argc, LPTSTR *argv)
 
     res = SendStatusToSCM(SERVICE_START_PENDING, NO_ERROR, 0, 1, 5000);
     if (!res)
+    {
+        terminate(GetLastError());
+        return;
+    }
+
+    m_pBridge = new CBridge();
+    // Lets hardcode port 22 for now
+    if (!m_pBridge || !m_pBridge->Init(this, std::make_pair(22, 22)) || !m_pBridge->Start())
     {
         terminate(GetLastError());
         return;
