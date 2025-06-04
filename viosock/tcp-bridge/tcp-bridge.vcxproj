@@ -273,11 +273,15 @@
     <FilesToPackage Include="$(OutDir)$(TargetName).pdb" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="bridge.cpp" />
+    <ClCompile Include="socket.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="service.cpp" />
     <ClCompile Include="utils.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="bridge.h" />
+    <ClInclude Include="socket.h" />
     <ClInclude Include="service.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="utils.h" />
