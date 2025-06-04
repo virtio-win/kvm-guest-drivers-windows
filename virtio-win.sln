@@ -211,6 +211,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "viomem", "viomem", "{B192B6
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "viosockwspsvc", "viosock\wspsvc\viosockwspsvc.vcxproj", "{B8C784B3-7914-4539-B728-F2EAE5C9795E}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "tcp-bridge", "viosock\tcp-bridge\tcp-bridge.vcxproj", "{F1D3841D-FC2D-4CF1-BE04-6CF5ACBFC41F}"
+	ProjectSection(ProjectDependencies) = postProject
+		{315D93F9-0F5C-4ACD-AFB1-96B1E62559BC} = {315D93F9-0F5C-4ACD-AFB1-96B1E62559BC}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Win10 Release|ARM64 = Win10 Release|ARM64
@@ -691,6 +696,16 @@ Global
 		{B8C784B3-7914-4539-B728-F2EAE5C9795E}.Win11 Release|x64.Build.0 = Win11 Release|x64
 		{B8C784B3-7914-4539-B728-F2EAE5C9795E}.Win11 Release|x86.ActiveCfg = Win11 Release|Win32
 		{B8C784B3-7914-4539-B728-F2EAE5C9795E}.Win11 Release|x86.Build.0 = Win11 Release|Win32
+		{F1D3841D-FC2D-4CF1-BE04-6CF5ACBFC41F}.Win10 Release|ARM64.ActiveCfg = Win10 Release|Win32
+		{F1D3841D-FC2D-4CF1-BE04-6CF5ACBFC41F}.Win10 Release|x64.ActiveCfg = Win10 Release|x64
+		{F1D3841D-FC2D-4CF1-BE04-6CF5ACBFC41F}.Win10 Release|x64.Build.0 = Win10 Release|x64
+		{F1D3841D-FC2D-4CF1-BE04-6CF5ACBFC41F}.Win10 Release|x86.ActiveCfg = Win10 Release|Win32
+		{F1D3841D-FC2D-4CF1-BE04-6CF5ACBFC41F}.Win10 Release|x86.Build.0 = Win10 Release|Win32
+		{F1D3841D-FC2D-4CF1-BE04-6CF5ACBFC41F}.Win11 Release|ARM64.ActiveCfg = Win11 Release|Win32
+		{F1D3841D-FC2D-4CF1-BE04-6CF5ACBFC41F}.Win11 Release|x64.ActiveCfg = Win11 Release|x64
+		{F1D3841D-FC2D-4CF1-BE04-6CF5ACBFC41F}.Win11 Release|x64.Build.0 = Win11 Release|x64
+		{F1D3841D-FC2D-4CF1-BE04-6CF5ACBFC41F}.Win11 Release|x86.ActiveCfg = Win11 Release|Win32
+		{F1D3841D-FC2D-4CF1-BE04-6CF5ACBFC41F}.Win11 Release|x86.Build.0 = Win11 Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -739,6 +754,7 @@ Global
 		{4BEE8BEA-413F-4262-BC96-B03B509241E4} = {E8F15557-9E22-4EFB-92A5-8AB69ACEC7A8}
 		{9D17F7FB-A784-4958-8DB4-0D50118334F0} = {B192B63C-8AC5-4480-A14E-920F549FECA9}
 		{B8C784B3-7914-4539-B728-F2EAE5C9795E} = {02B3EFA9-96A2-4117-BDFF-38908F1DB93F}
+		{F1D3841D-FC2D-4CF1-BE04-6CF5ACBFC41F} = {02B3EFA9-96A2-4117-BDFF-38908F1DB93F}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {14F2DA75-8F24-42D5-BFE2-D7D0C03EAFA7}
