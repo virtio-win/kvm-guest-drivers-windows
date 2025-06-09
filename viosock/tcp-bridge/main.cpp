@@ -4,6 +4,10 @@ extern "C"
 #include "..\inc\install.h"
 }
 
+#if defined(EVENT_TRACING)
+#include "main.tmh"
+#endif
+
 LPWSTR ServiceName = (LPWSTR)L"VsockTcpBridge";
 LPWSTR DisplayName = (LPWSTR)L"Vsock Tcp Bridge";
 
@@ -26,6 +30,7 @@ SERVICE_TABLE_ENTRY serviceTableEx[] = {{ServiceName, (LPSERVICE_MAIN_FUNCTION)S
 
 int _cdecl wmain(__in ULONG argc, __in_ecount(argc) PWCHAR argv[])
 {
+    WPP_INIT_TRACING(ServiceName);
     int iResult = 0;
 
     WSADATA wsaData = {0};
@@ -84,6 +89,8 @@ int _cdecl wmain(__in ULONG argc, __in_ecount(argc) PWCHAR argv[])
     }
     else
     {
+        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "--> %s\n", __FUNCTION__);
+
         iResult = InstallProtocol();
         if (!iResult)
         {
@@ -103,5 +110,7 @@ int _cdecl wmain(__in ULONG argc, __in_ecount(argc) PWCHAR argv[])
             ErrorExit("StartServiceCtrlDispatcher", GetLastError());
         }
     }
+
+    WPP_CLEANUP();
     return 0;
 }

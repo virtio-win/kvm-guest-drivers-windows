@@ -1,5 +1,9 @@
 #include "stdafx.h"
 
+#if defined(EVENT_TRACING)
+#include "utils.tmh"
+#endif
+
 extern LPWSTR ServiceName;
 extern LPWSTR DisplayName;
 
@@ -7,38 +11,25 @@ extern CService srvc;
 
 void ErrorExit(const char *s, int err)
 {
-    printf("Failed. Error %d ", err);
-
-    LPTSTR lpMsgBuf;
-    if (FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-                      NULL,
-                      err,
-                      MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                      (LPTSTR)&lpMsgBuf,
-                      0,
-                      NULL) > 0)
+    LPSTR lpMsgBuf;
+    if (FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+                       NULL,
+                       err,
+                       MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                       (LPSTR)&lpMsgBuf,
+                       0,
+                       NULL) > 0)
     {
-        _tprintf(L"%s\n", lpMsgBuf);
+        TraceEvents(TRACE_LEVEL_FATAL, DBG_INIT, "%s failed. Error %d (%s)\n", s, err, lpMsgBuf);
         LocalFree(lpMsgBuf);
     }
     else
     {
-        printf("unknown error\n");
+        TraceEvents(TRACE_LEVEL_FATAL, DBG_INIT, "%s failed. Error %d (unknown error)\n", s, err);
     }
 
+    WPP_CLEANUP();
     ExitProcess(err);
-}
-
-void PrintMessage(const char *s)
-{
-#ifdef DBG
-    FILE *pLog;
-    if (fopen_s(&pLog, "vsock-tcp-bridge.log", "a") == 0)
-    {
-        fprintf(pLog, "%s\n", s);
-        fclose(pLog);
-    }
-#endif
 }
 
 void ShowUsage()

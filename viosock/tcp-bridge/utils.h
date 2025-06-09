@@ -14,6 +14,5 @@ BOOL ServiceControl(int ctrl);
 
 void ShowUsage();
 __declspec(noreturn) void ErrorExit(const char *s, int err);
-void PrintMessage(const char *s);
 
 #endif

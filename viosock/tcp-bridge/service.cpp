@@ -1,5 +1,9 @@
 #include "stdafx.h"
 
+#if defined(EVENT_TRACING)
+#include "service.tmh"
+#endif
+
 CService::CService()
 {
     m_hDevNotify = NULL;
@@ -104,6 +108,7 @@ void CService::StopService()
 
 void CService::terminate(DWORD error)
 {
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "--> %s error = %d\n", __FUNCTION__, error);
     UnregisterNotification(m_hDevNotify);
 
     if (m_evTerminate)
@@ -122,6 +127,8 @@ void CService::terminate(DWORD error)
 
 void CService::ServiceCtrlHandler(DWORD controlCode)
 {
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "--> %s controlCode = %d\n", __FUNCTION__, controlCode);
+
     switch (controlCode)
     {
         case SERVICE_CONTROL_STOP:
@@ -142,7 +149,8 @@ void CService::ServiceCtrlHandler(DWORD controlCode)
 
 DWORD CService::ServiceHandleDeviceChange(DWORD evtype)
 {
-    PrintMessage("ServiceHandleDeviceChange called");
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> %s evtype = %d\n", __FUNCTION__, evtype);
+
     switch (evtype)
     {
         case DBT_DEVICEARRIVAL:
@@ -164,7 +172,7 @@ DWORD CService::ServiceHandleDeviceChange(DWORD evtype)
 
 DWORD CService::ServiceHandlePowerEvent(DWORD evtype, DWORD flags)
 {
-    PrintMessage("ServiceHandlePowerEvent called");
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> %s evtype = %d, flags = %d\n", __FUNCTION__, evtype, flags);
     return NO_ERROR;
 }
 
@@ -327,6 +335,11 @@ HCMNOTIFICATION CService::RegisterDeviceInterfaceNotification()
 
     if (cr != CR_SUCCESS)
     {
+        TraceEvents(TRACE_LEVEL_ERROR,
+                    DBG_PNP,
+                    "CM_Register_Notification for interface failed, error = %d\n",
+                    (DWORD)cr);
+
         SetLastError(CM_MapCrToWin32Err(cr, ERROR_NOT_SUPPORTED));
     }
 
@@ -349,6 +362,8 @@ HCMNOTIFICATION CService::RegisterDeviceHandleNotification(HANDLE DeviceHandle)
 
     if (cr != CR_SUCCESS)
     {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "CM_Register_Notification for device failed, error = %d\n", (DWORD)cr);
+
         SetLastError(CM_MapCrToWin32Err(cr, ERROR_NOT_SUPPORTED));
     }
 
