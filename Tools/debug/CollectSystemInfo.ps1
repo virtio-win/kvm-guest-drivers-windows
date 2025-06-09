@@ -88,6 +88,124 @@ function Export-EventLogs {
     }
 }
 
+function Get-PerfIOLimits {
+    param($Drive, $Duration = 60, $Interval = 1)
+    $disk = if ($Drive -match ':$') { $Drive } else { "${Drive}:" }
+    $counters = @(
+        "\LogicalDisk($disk)\Disk Reads/sec",      # IOPS (Reads)
+        "\LogicalDisk($disk)\Disk Writes/sec",     # IOPS (Writes)
+        "\LogicalDisk($disk)\Avg. Disk sec/Read",  # Read Latency
+        "\LogicalDisk($disk)\Avg. Disk sec/Write", # Write Latency
+        "\LogicalDisk($disk)\Disk Bytes/sec",      # Throughput (Total)
+        "\LogicalDisk($disk)\Disk Read Bytes/sec", # Throughput (Read)
+        "\LogicalDisk($disk)\Disk Write Bytes/sec",# Throughput (Write)
+        "\LogicalDisk($disk)\Disk Transfers/sec",  # Total I/O Operations
+        "\LogicalDisk($disk)\Current Disk Queue Length" # Queue Length
+    )
+    $maxSamples = [math]::Ceiling($Duration / $Interval)
+    $data = $null
+    $out = [ordered]@{}
+
+    foreach ($path in $counters) {
+        $out[$path] = "PerfCounter Error"
+    }
+
+    try {
+        $data = Get-Counter -Counter $counters -SampleInterval $Interval -MaxSamples $maxSamples -ErrorAction Stop
+        
+        foreach ($path in $counters) {
+            $vals = $data.CounterSamples |
+                    Where-Object Path -like "*$path" | 
+                    Select-Object -ExpandProperty CookedValue
+            if ($vals.Count -eq 0) {
+                 $out[$path] = "N/A" # Keep N/A if counter exists but has no values
+                 continue
+            }
+            if ($path -match 'Reads/sec|Writes/sec|Transfers/sec') {
+                $maxValue = (@($vals) | Measure-Object -Maximum).Maximum
+                $out[$path] = "{0:N2} IOPS" -f $maxValue
+            } elseif ($path -match 'Bytes/sec') {
+                $maxValue = (@($vals) | Measure-Object -Maximum).Maximum
+                $out[$path] = "{0:N2} KB/s" -f ($maxValue / 1024)
+            } else {
+                $minValue = (@($vals) | Measure-Object -Minimum).Minimum
+                $ms = $minValue * 1000
+                $out[$path] = "{0:N2} ms" -f $ms
+            }
+        }
+    } catch {
+        Write-Warning "Failed to get performance counters for drive $disk. Error: $($_.Exception.Message)"
+    }
+
+    return $out
+}
+
+function Test-WinSatDisk {
+    param($Drive)
+    $ErrorActionPreference = 'SilentlyContinue'
+    $seqOutput = Invoke-Command { winsat disk -seq -read -drive $Drive } 2>&1
+    $ranOutput = Invoke-Command { winsat disk -ran -write -drive $Drive } 2>&1
+    $ErrorActionPreference = 'Continue'
+
+    $seqVal = $null
+    $ranVal = $null
+
+    foreach ($line in $seqOutput) {
+        if ($line -match 'Disk\s+Sequential\s+\d+(\.\d+)?\s+Read\s+([\d\.]+)\s+MB/s') {
+            $seqVal = $matches[2] + " MB/s"
+            break
+        }
+    }
+
+    foreach ($line in $ranOutput) {
+        if ($line -match 'Disk\s+Random\s+\d+(\.\d+)?\s+Write\s+([\d\.]+)\s+MB/s') {
+            $ranVal = $matches[2] + " MB/s"
+            break
+        }
+    }
+
+    if (-not $seqVal) {
+        $seqVal = ($seqOutput | Select-String 'Sequential Read' | ForEach-Object { ($_ -split ':\s*', 2)[-1].Trim() }) -join ''
+    }
+     if (-not $ranVal) {
+        $ranVal = ($ranOutput | Select-String 'Random Write'  | ForEach-Object { ($_ -split ':\s*', 2)[-1].Trim() }) -join ''
+    }
+
+    $result = [pscustomobject]@{
+        SequentialRead = if ($seqVal -and $seqVal -notmatch '^\s*$') { $seqVal } else { 'N/A' }
+        RandomWrite    = if ($ranVal -and $ranVal -notmatch '^\s*$') { $ranVal } else { 'N/A' }
+    }
+    return $result
+}
+
+function Export-IOLimits {
+    param($Duration = 60, $Interval = 1)
+    try {
+        $disks = Get-Disk
+        foreach ($disk in $disks) {
+            $parts = Get-Partition -DiskNumber $disk.Number | Where-Object DriveLetter
+            foreach ($p in $parts) {
+                $drive = "$($p.DriveLetter):"
+                $perf = Get-PerfIOLimits -Drive $drive -Duration $Duration -Interval $Interval
+                $ws   = Test-WinSatDisk     -Drive $drive
+                $outFile = Join-Path $logfolderPath "IOLimits_$($p.DriveLetter).txt"
+
+                $perf.GetEnumerator() | ForEach-Object {
+                    "$($_.Key): $($_.Value)" | Out-File -FilePath $outFile -Append
+                }
+
+                "SequentialRead: $($ws.SequentialRead)" | Out-File -FilePath $outFile -Append
+                "RandomWrite:   $($ws.RandomWrite)"    | Out-File -FilePath $outFile -Append
+                "Drive $drive I/O limits saved to $outFile" |
+                    Out-File -FilePath (Join-Path $logfolderPath 'IOLimits.txt') -Append
+            }
+        }
+        Write-Host 'IO Limits collection completed.'
+    } catch {
+        Write-Warning "Failed to collect IO Limits: $_"
+    }
+}
+
 function Export-DriversList {
     try {
         Get-WindowsDriver -Online -All | Select-Object -Property * | Export-Csv -Path (Join-Path $logfolderPath 'drv_list.csv') -NoTypeInformation
@@ -276,6 +394,7 @@ Write-Output "Log folder path: $logfolderPath"
 try {
     Start-Transcript -Path $progressFile -Append
     $transcriptStarted = $true
+    Export-IOLimits
     Export-SystemConfiguration
     Export-EventLogs
     Export-DriversList
