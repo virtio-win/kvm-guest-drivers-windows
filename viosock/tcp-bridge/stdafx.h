@@ -22,3 +22,4 @@
 #include "socket.h"
 #include "bridge.h"
 #include "utils.h"
+#include "trace.h"

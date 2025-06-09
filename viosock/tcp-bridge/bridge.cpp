@@ -2,6 +2,10 @@
 
 #include "stdafx.h"
 
+#if defined(EVENT_TRACING)
+#include "bridge.tmh"
+#endif
+
 CBridge::CBridge()
 {
     m_pService = NULL;
@@ -85,6 +89,7 @@ VOID CBridge::Finalize()
 
 DWORD WINAPI CBridge::ThreadV2T(LPVOID lpParam)
 {
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_THREAD_VT, "Thread V -> T started\n");
     CBridge *pBridge = reinterpret_cast<CBridge *>(lpParam);
 
     CHAR Buffer[0x1000];
@@ -93,18 +98,23 @@ DWORD WINAPI CBridge::ThreadV2T(LPVOID lpParam)
 
     while ((recvLen = recv(pBridge->m_VsockClientSocket->GetSocket(), Buffer, BufferLen, 0)) != SOCKET_ERROR)
     {
+        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_THREAD_VT_TRANSFER, "V -> T: recv %d bytes\n", recvLen);
         sendLen = send(pBridge->m_TcpSocket->GetSocket(), Buffer, recvLen, 0);
         if (sendLen == SOCKET_ERROR)
         {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_THREAD_VT_TRANSFER, "V -> T: send failed - 0x%x\n", WSAGetLastError());
             break;
         }
+        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_THREAD_VT_TRANSFER, "V -> T: %d bytes sent\n", sendLen);
     }
 
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_THREAD_VT, "Thread V -> T exited\n");
     return 0;
 }
 
 DWORD WINAPI CBridge::ThreadT2V(LPVOID lpParam)
 {
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_THREAD_VT, "Thread T -> V started\n");
     CBridge *pBridge = reinterpret_cast<CBridge *>(lpParam);
 
     CHAR Buffer[0x1000];
@@ -113,13 +123,17 @@ DWORD WINAPI CBridge::ThreadT2V(LPVOID lpParam)
 
     while ((recvLen = recv(pBridge->m_TcpSocket->GetSocket(), Buffer, BufferLen, 0)) != SOCKET_ERROR)
     {
+        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_THREAD_VT_TRANSFER, "T -> V: recv %d bytes\n", recvLen);
         sendLen = send(pBridge->m_VsockClientSocket->GetSocket(), Buffer, recvLen, 0);
         if (sendLen == SOCKET_ERROR)
         {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_THREAD_VT_TRANSFER, "T -> V: send failed - 0x%x\n", WSAGetLastError());
             break;
         }
+        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_THREAD_VT_TRANSFER, "T -> V: %d bytes sent\n", sendLen);
     }
 
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_THREAD_VT, "Thread T -> V exited\n");
     return 0;
 }
 
@@ -138,8 +152,9 @@ DWORD CBridge::Run()
 
     if (hDevice == INVALID_HANDLE_VALUE)
     {
-        PrintMessage("Failed to create file.");
-        return GetLastError();
+        DWORD err = GetLastError();
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "Failed to create VIOSOCK file notification - 0x%x\n", err);
+        return err;
     }
 
     HCMNOTIFICATION devnotify = m_pService->RegisterDeviceHandleNotification(hDevice);
@@ -147,7 +162,8 @@ DWORD CBridge::Run()
     if (!devnotify)
     {
         DWORD err = GetLastError();
-        PrintMessage("Failed to register handle notification.");
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "Failed to register handle notification - 0x%x\n", err);
+
         CloseHandle(hDevice);
         return err;
     }
@@ -158,24 +174,26 @@ DWORD CBridge::Run()
     {
         while (!ViosockGetConfig(&vsockConfig))
         {
-            PrintMessage("Failed to get VSock config");
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "Failed to get VSock config\n");
             Sleep(1000);
         }
         while ((vsockAF = ViosockGetAF()) == AF_UNSPEC)
         {
-            PrintMessage("Failed to get VSock address family");
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "Failed to get VSock address family\n");
             Sleep(1000);
         }
 
         m_VsockListenSocket->SetSocket(InitializeVsockListen(vsockAF, vsockConfig.guest_cid));
         if (m_VsockListenSocket->GetSocket() == INVALID_SOCKET)
         {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "InitializeVsockListen failed - 0x%x\n", WSAGetLastError());
             continue;
         }
 
         m_VsockClientSocket->SetSocket(AcceptVsockConnection());
         if (m_VsockClientSocket->GetSocket() == INVALID_SOCKET)
         {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "AcceptVsockConnection failed - 0x%x\n", WSAGetLastError());
             m_VsockListenSocket->Cleanup();
             continue;
         }
@@ -183,6 +201,7 @@ DWORD CBridge::Run()
         m_TcpSocket->SetSocket(InitializeAndConnectTcp());
         if (m_TcpSocket->GetSocket() == INVALID_SOCKET)
         {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "InitializeAndConnectTcp failed - 0x%x\n", WSAGetLastError());
             m_VsockClientSocket->Cleanup();
             m_VsockListenSocket->Cleanup();
             continue;
@@ -191,11 +210,15 @@ DWORD CBridge::Run()
         DWORD v2tId, t2vId;
         m_hThreadV2T = CreateThread(NULL, 0, ThreadV2T, this, 0, &v2tId);
         m_hThreadT2V = CreateThread(NULL, 0, ThreadT2V, this, 0, &t2vId);
-        PrintMessage("Two V <=> T threads started");
+        TraceEvents(TRACE_LEVEL_INFORMATION,
+                    DBG_THREAD_VT,
+                    "Two V <=> T threads created: V2T Id = %d, T2V Id = %d\n",
+                    v2tId,
+                    t2vId);
 
         HANDLE hThreadArray[] = {m_hThreadV2T, m_hThreadT2V};
         WaitForMultipleObjects(2, hThreadArray, FALSE, INFINITE);
-        PrintMessage("At least one V <=> T thread exited");
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_THREAD_VT, "At least one V <=> T thread exited\n");
 
         // VSock does not support async operation, so V <=> T threads are
         // working with sync & blocked API.
@@ -205,7 +228,7 @@ DWORD CBridge::Run()
         m_TcpSocket->Cleanup();
 
         WaitForMultipleObjects(2, hThreadArray, TRUE, INFINITE);
-        PrintMessage("Two V <=> T thread exited\n");
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_THREAD_VT, "Two V <=> T thread exited\n");
     }
 
     m_VsockClientSocket->Cleanup();
@@ -286,8 +309,11 @@ SOCKET CBridge::InitializeVsockListen(ADDRESS_FAMILY af, UINT cid)
     SOCKET listenSocket = socket(af, SOCK_STREAM, 0);
     if (listenSocket == INVALID_SOCKET)
     {
-        wsaerror = WSAGetLastError();
-        PrintMessage("Failed to create VSock socket");
+        TraceEvents(TRACE_LEVEL_ERROR,
+                    DBG_INIT,
+                    "Failed to create VSock socket - 0x%x, af = %d\n",
+                    WSAGetLastError(),
+                    af);
         return INVALID_SOCKET;
     }
 
@@ -297,8 +323,14 @@ SOCKET CBridge::InitializeVsockListen(ADDRESS_FAMILY af, UINT cid)
 
     if (ERROR_SUCCESS != bind(listenSocket, (struct sockaddr *)&vsockAddr, sizeof(vsockAddr)))
     {
-        wsaerror = WSAGetLastError();
-        PrintMessage("Failed to bind VSock socket");
+        TraceEvents(TRACE_LEVEL_ERROR,
+                    DBG_INIT,
+                    "Failed to bind VSock socket - 0x%x, af = %d, cid = %d, port = %d\n",
+                    WSAGetLastError(),
+                    af,
+                    cid,
+                    m_portMapping.first);
+
         closesocket(listenSocket);
         listenSocket = INVALID_SOCKET;
 
@@ -307,8 +339,8 @@ SOCKET CBridge::InitializeVsockListen(ADDRESS_FAMILY af, UINT cid)
 
     if (ERROR_SUCCESS != listen(listenSocket, SOMAXCONN))
     {
-        wsaerror = WSAGetLastError();
-        PrintMessage("Failed to listen VSock socket");
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "Failed to listen VSock socket - 0x%x\n", WSAGetLastError());
+
         closesocket(listenSocket);
         listenSocket = INVALID_SOCKET;
 
@@ -327,9 +359,7 @@ SOCKET CBridge::AcceptVsockConnection()
     SOCKET vsockClient = accept(m_VsockListenSocket->GetSocket(), (struct sockaddr *)&rAddr, &len);
     if (vsockClient == INVALID_SOCKET)
     {
-        wsaerror = WSAGetLastError();
-        PrintMessage("Failed to accept VSock client socket");
-
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "Failed to accept VSock client socket - 0x%x\n", WSAGetLastError());
         return INVALID_SOCKET;
     }
 
@@ -348,24 +378,28 @@ SOCKET CBridge::InitializeAndConnectTcp()
     result = InetPton(AF_INET, L"127.0.0.1", &localhostAddr.sin_addr.s_addr);
     if (result != 1)
     {
-        PrintMessage("Failed to create localhost addr");
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "Failed to create localhost addr - 0x%x\n", WSAGetLastError());
+
         return INVALID_SOCKET;
     }
 
     SOCKET tcpSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (tcpSocket == INVALID_SOCKET)
     {
-        wsaerror = WSAGetLastError();
-        PrintMessage("Failed to create TCP IPv4 socket");
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "Failed to create TCP IPv4 socket - 0x%x\n", WSAGetLastError());
         return INVALID_SOCKET;
     }
 
     result = connect(tcpSocket, (sockaddr *)&localhostAddr, sizeofaddr);
     if (result == SOCKET_ERROR)
     {
-        wsaerror = WSAGetLastError();
+        TraceEvents(TRACE_LEVEL_ERROR,
+                    DBG_INIT,
+                    "Failed to connect TCP IPv4 socket - 0x%x, port = %d\n",
+                    WSAGetLastError(),
+                    m_portMapping.second);
+
         closesocket(tcpSocket);
-        PrintMessage("Failed to connect TCP IPv4 socket");
         return INVALID_SOCKET;
     }
 
