@@ -38,6 +38,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "viosocklib-test", "viosockl
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ViosockPackage", "ViosockPackage\ViosockPackage.vcxproj", "{3F2854A7-A604-4006-A79B-9EAFC63015B8}"
 	ProjectSection(ProjectDependencies) = postProject
+		{F1D3841D-FC2D-4CF1-BE04-6CF5ACBFC41F} = {F1D3841D-FC2D-4CF1-BE04-6CF5ACBFC41F}
 		{96FDD976-0035-4E24-A61B-E93BED675101} = {96FDD976-0035-4E24-A61B-E93BED675101}
 		{315D93F9-0F5C-4ACD-AFB1-96B1E62559BC} = {315D93F9-0F5C-4ACD-AFB1-96B1E62559BC}
 	EndProjectSection
@@ -47,6 +48,11 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "viosockwsk-test", "viosock-wsk-test\viosock-wsk-test.vcxproj", "{A2A7AFFC-BEFE-4066-A1DD-23242FAFAD70}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "viosockwspsvc", "wspsvc\viosockwspsvc.vcxproj", "{B8C784B3-7914-4539-B728-F2EAE5C9795E}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "tcp-bridge", "tcp-bridge\tcp-bridge.vcxproj", "{F1D3841D-FC2D-4CF1-BE04-6CF5ACBFC41F}"
+	ProjectSection(ProjectDependencies) = postProject
+		{315D93F9-0F5C-4ACD-AFB1-96B1E62559BC} = {315D93F9-0F5C-4ACD-AFB1-96B1E62559BC}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -344,6 +350,18 @@ Global
 		{B8C784B3-7914-4539-B728-F2EAE5C9795E}.Win11 Release|x64.Build.0 = Win11 Release|x64
 		{B8C784B3-7914-4539-B728-F2EAE5C9795E}.Win11 Release|x86.ActiveCfg = Win11 Release|Win32
 		{B8C784B3-7914-4539-B728-F2EAE5C9795E}.Win11 Release|x86.Build.0 = Win11 Release|Win32
+		{F1D3841D-FC2D-4CF1-BE04-6CF5ACBFC41F}.Win10 Release|ARM64.ActiveCfg = Win10 Release|ARM64
+		{F1D3841D-FC2D-4CF1-BE04-6CF5ACBFC41F}.Win10 Release|ARM64.Build.0 = Win10 Release|ARM64
+		{F1D3841D-FC2D-4CF1-BE04-6CF5ACBFC41F}.Win10 Release|x64.ActiveCfg = Win10 Release|x64
+		{F1D3841D-FC2D-4CF1-BE04-6CF5ACBFC41F}.Win10 Release|x64.Build.0 = Win10 Release|x64
+		{F1D3841D-FC2D-4CF1-BE04-6CF5ACBFC41F}.Win10 Release|x86.ActiveCfg = Win10 Release|Win32
+		{F1D3841D-FC2D-4CF1-BE04-6CF5ACBFC41F}.Win10 Release|x86.Build.0 = Win10 Release|Win32
+		{F1D3841D-FC2D-4CF1-BE04-6CF5ACBFC41F}.Win11 Release|ARM64.ActiveCfg = Win11 Release|ARM64
+		{F1D3841D-FC2D-4CF1-BE04-6CF5ACBFC41F}.Win11 Release|ARM64.Build.0 = Win11 Release|ARM64
+		{F1D3841D-FC2D-4CF1-BE04-6CF5ACBFC41F}.Win11 Release|x64.ActiveCfg = Win11 Release|x64
+		{F1D3841D-FC2D-4CF1-BE04-6CF5ACBFC41F}.Win11 Release|x64.Build.0 = Win11 Release|x64
+		{F1D3841D-FC2D-4CF1-BE04-6CF5ACBFC41F}.Win11 Release|x86.ActiveCfg = Win11 Release|Win32
+		{F1D3841D-FC2D-4CF1-BE04-6CF5ACBFC41F}.Win11 Release|x86.Build.0 = Win11 Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -30,6 +30,7 @@
 #if !defined(VIOSOCK_H)
 #define VIOSOCK_H
 #include "public.h"
+#include "..\inc\vio_sockets.h"
 
 #define VIOSOCK_DRIVER_MEMORY_TAG (ULONG)'cosV'
 
