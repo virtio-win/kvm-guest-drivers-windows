@@ -206,6 +206,23 @@ typedef struct _REQUEST_LIST
     ULONG srb_cnt;
 } REQUEST_LIST, *PREQUEST_LIST;
 
+typedef struct _STATUS_TABLE_ENTRY
+{
+    blk_outhdr OutHdr;
+    unsigned char Status;
+    ULONG64 Id;
+    int Present : 1;
+    int Deleted : 1;
+} STATUS_TABLE_ENTRY, *PSTATUS_TABLE_ENTRY;
+
+#define VIRTIO_STATUS_TABLE_SIZE 769
+
+typedef struct _STATUS_TABLE
+{
+    STATUS_TABLE_ENTRY Entries[VIRTIO_STATUS_TABLE_SIZE];
+    volatile LONG Lock;
+} STATUS_TABLE, *PSTATUS_TABLE;
+
 typedef struct _ADAPTER_EXTENSION
 {
     VirtIODevice vdev;
@@ -257,6 +274,7 @@ typedef struct _ADAPTER_EXTENSION
     BOOLEAN reset_in_progress;
     ULONGLONG fw_ver;
     ULONG_PTR last_srb_id;
+    STATUS_TABLE StatusTable;
 #ifdef DBG
     LONG srb_cnt;
     LONG inqueue_cnt;
