@@ -45,8 +45,6 @@ static MINIPORT_MESSAGE_INTERRUPT_DPC MiniportMSIInterruptDpc;
 static MINIPORT_PROCESS_SG_LIST ProcessSGListHandler;
 static MINIPORT_ALLOCATE_SHARED_MEM_COMPLETE SharedMemAllocateCompleteHandler;
 
-static MINIPORT_PROCESS_SG_LIST ProcessSGListHandler;
-
 /**********************************************************
 Implements general-purpose memory allocation routine
 Parameters:
