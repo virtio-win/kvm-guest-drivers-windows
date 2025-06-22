@@ -32,9 +32,9 @@
 #include "vioscsi.h"
 #include "helper.h"
 #include "vioscsidt.h"
-#include "trace.h"
+#include "tracing.h"
 
-#if defined(EVENT_TRACING)
+#if defined(EVENT_TRACING) && !defined(RUN_UNCHECKED)
 #include "vioscsi.tmh"
 #endif
 
@@ -68,7 +68,7 @@ HW_DPC_ROUTINE VioScsiCompleteDpcRoutine;
 HW_PASSIVE_INITIALIZE_ROUTINE VioScsiPassiveInitializeRoutine;
 HW_MESSAGE_SIGNALED_INTERRUPT_ROUTINE VioScsiMSInterrupt;
 
-#ifdef EVENT_TRACING
+#if defined(EVENT_TRACING) && !defined(RUN_UNCHECKED)
 PVOID TraceContext = NULL;
 VOID WppCleanupRoutine(PVOID arg1)
 {
@@ -111,11 +111,17 @@ VioScsiProcessPnP(IN PVOID DeviceExtension, IN PSRB_TYPE Srb);
 
 BOOLEAN
 FORCEINLINE
-PreProcessRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb);
+PreProcessRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb, IN INL_FUNC_IDX idx_ICN, IN INL_FUNC_IDX idx_IFN);
 
-VOID FORCEINLINE PostProcessRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb);
+VOID FORCEINLINE PostProcessRequest(IN PVOID DeviceExtension,
+                                    IN PSRB_TYPE Srb,
+                                    IN INL_FUNC_IDX idx_ICN,
+                                    IN INL_FUNC_IDX idx_IFN);
 
-VOID FORCEINLINE DispatchQueue(IN PVOID DeviceExtension, IN ULONG MessageId);
+VOID FORCEINLINE DispatchQueue(IN PVOID DeviceExtension,
+                               IN ULONG MessageId,
+                               IN INL_FUNC_IDX idx_ICN,
+                               IN INL_FUNC_IDX idx_IFN);
 
 BOOLEAN
 VioScsiInterrupt(IN PVOID DeviceExtension);
@@ -218,6 +224,17 @@ USHORT CopyBufferToAnsiString(void *_pDest, const void *_pSrc, const char delimi
     return _length;
 }
 
+UCHAR *inline_func_string_map[] = {[0x00] = "VioScsiStartIo",
+                                   [0x01] = "VioScsiInterrupt",
+                                   [0x02] = "VioScsiMSInterrupt",
+                                   [0x03] = "ProcessQueue",
+                                   [0x04] = "DispatchQueue",
+                                   [0x05] = "ProcessBuffer",
+                                   [0x06] = "HandleResponse",
+                                   [0x07] = "CompleteRequest",
+                                   [0x08] = "PreProcessRequest",
+                                   [0x09] = "PostProcessRequest"};
+
 BOOLEAN VioScsiReadRegistryParameter(IN PVOID DeviceExtension, IN PUCHAR ValueName, IN LONG offset)
 {
     BOOLEAN Ret = FALSE;
@@ -229,7 +246,9 @@ BOOLEAN VioScsiReadRegistryParameter(IN PVOID DeviceExtension, IN PUCHAR ValueNa
     pBuf = StorPortAllocateRegistryBuffer(DeviceExtension, &Len);
     if (pBuf == NULL)
     {
+#if !defined(RUN_UNCHECKED)
         RhelDbgPrint(TRACE_LEVEL_FATAL, "StorPortAllocateRegistryBuffer failed to allocate buffer\n");
+#endif
         return FALSE;
     }
 
@@ -239,7 +258,9 @@ BOOLEAN VioScsiReadRegistryParameter(IN PVOID DeviceExtension, IN PUCHAR ValueNa
 
     if ((Ret == FALSE) || (Len == 0))
     {
+#if !defined(RUN_UNCHECKED)
         RhelDbgPrint(TRACE_LEVEL_FATAL, "StorPortRegistryRead returned 0x%x, Len = %d\n", Ret, Len);
+#endif
         StorPortFreeRegistryBuffer(DeviceExtension, pBuf);
         return FALSE;
     }
@@ -258,18 +279,22 @@ DriverEntry(IN PVOID DriverObject, IN PVOID RegistryPath)
     HW_INITIALIZATION_DATA hwInitData;
     ULONG initResult;
 
-#ifdef EVENT_TRACING
+#if defined(EVENT_TRACING) && !defined(RUN_UNCHECKED)
     STORAGE_TRACE_INIT_INFO initInfo;
 #endif
 
     InitializeDebugPrints((PDRIVER_OBJECT)DriverObject, (PUNICODE_STRING)RegistryPath);
 
     IsCrashDumpMode = FALSE;
+#if !defined(RUN_UNCHECKED)
     RhelDbgPrint(TRACE_LEVEL_FATAL, " Vioscsi driver started...built on %s %s\n", __DATE__, __TIME__);
+#endif
     if (RegistryPath == NULL)
     {
         IsCrashDumpMode = TRUE;
+#if !defined(RUN_UNCHECKED)
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Crash dump mode\n");
+#endif
     }
 
     RtlZeroMemory(&hwInitData, sizeof(HW_INITIALIZATION_DATA));
@@ -307,7 +332,7 @@ DriverEntry(IN PVOID DriverObject, IN PVOID RegistryPath)
 
     initResult = StorPortInitialize(DriverObject, RegistryPath, &hwInitData, NULL);
 
-#ifdef EVENT_TRACING
+#if defined(EVENT_TRACING) && !defined(RUN_UNCHECKED)
     TraceContext = NULL;
 
     memset(&initInfo, 0, sizeof(STORAGE_TRACE_INIT_INFO));
@@ -325,7 +350,9 @@ DriverEntry(IN PVOID DriverObject, IN PVOID RegistryPath)
     }
 #endif
 
+#if !defined(RUN_UNCHECKED)
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " Initialize returned 0x%x\n", initResult);
+#endif
 
     return initResult;
 }
@@ -338,6 +365,10 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
                    IN OUT PPORT_CONFIGURATION_INFORMATION ConfigInfo,
                    IN PBOOLEAN Again)
 {
+#if !defined(RUN_UNCHECKED)
+    ENTER_FN();
+#endif
+
     PADAPTER_EXTENSION adaptExt;
     PVOID uncachedExtensionVa;
     USHORT queueLength = 0;
@@ -353,8 +384,6 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
     UNREFERENCED_PARAMETER(BusInformation);
     UNREFERENCED_PARAMETER(ArgumentString);
     UNREFERENCED_PARAMETER(Again);
-
-    ENTER_FN();
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     RtlZeroMemory(adaptExt, sizeof(ADAPTER_EXTENSION));
@@ -378,7 +407,9 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
 
     if (!InitHW(DeviceExtension, ConfigInfo))
     {
+#if !defined(RUN_UNCHECKED)
         RhelDbgPrint(TRACE_LEVEL_FATAL, " Cannot initialize HardWare\n");
+#endif
         return SP_RETURN_NOT_FOUND;
     }
 
@@ -424,8 +455,10 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
     ConfigInfo->NumberOfPhysicalBreaks = adaptExt->max_physical_breaks + 1;
     ConfigInfo->MaximumTransferLength = adaptExt->max_physical_breaks * PAGE_SIZE;
 
+#if !defined(RUN_UNCHECKED)
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " NumberOfPhysicalBreaks %d\n", ConfigInfo->NumberOfPhysicalBreaks);
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " MaximumTransferLength %d\n", ConfigInfo->MaximumTransferLength);
+#endif
 
     num_cpus = KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
     max_cpus = KeQueryMaximumProcessorCountEx(ALL_PROCESSOR_GROUPS);
@@ -451,7 +484,9 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
     adaptExt->resp_time = 0;
     VioScsiReadRegistryParameter(DeviceExtension, REGISTRY_RESP_TIME_LIMIT, FIELD_OFFSET(ADAPTER_EXTENSION, resp_time));
 
+#if !defined(RUN_UNCHECKED)
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Queues %d CPUs %d\n", adaptExt->num_queues, num_cpus);
+#endif
 
     /* Figure out the maximum number of queues we will ever need to set up. Note that this may
      * be higher than adaptExt->num_queues, because the driver may be reinitialized by calling
@@ -467,7 +502,9 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
         max_queues = min(max_cpus, adaptExt->scsi_config.num_queues);
         if (adaptExt->num_queues > max_queues)
         {
+#if !defined(RUN_UNCHECKED)
             RhelDbgPrint(TRACE_LEVEL_WARNING, " Multiqueue can only use at most one queue per cpu.");
+#endif
             adaptExt->num_queues = max_queues;
         }
     }
@@ -494,7 +531,9 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
         {
             LogError(DeviceExtension, SP_INTERNAL_ADAPTER_ERROR, __LINE__);
 
+#if !defined(RUN_UNCHECKED)
             RhelDbgPrint(TRACE_LEVEL_FATAL, " Virtual queue %d config failed.\n", index);
+#endif
             return SP_RETURN_ERROR;
         }
         adaptExt->pageAllocationSize += ROUND_TO_PAGES(Size);
@@ -524,22 +563,28 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
     ConfigInfo->InitialLunQueueDepth = ConfigInfo->MaxIOsPerLun;
     ConfigInfo->MaxNumberOfIO = ConfigInfo->MaxIOsPerLun;
 
+#if !defined(RUN_UNCHECKED)
     RhelDbgPrint(TRACE_LEVEL_INFORMATION,
                  " breaks_number = %x  queue_depth = %x\n",
                  ConfigInfo->NumberOfPhysicalBreaks,
                  adaptExt->queue_depth);
+#endif
 
     extensionSize = PAGE_SIZE + adaptExt->pageAllocationSize + adaptExt->poolAllocationSize;
     uncachedExtensionVa = StorPortGetUncachedExtension(DeviceExtension, ConfigInfo, extensionSize);
+#if !defined(RUN_UNCHECKED)
     RhelDbgPrint(TRACE_LEVEL_INFORMATION,
                  " StorPortGetUncachedExtension uncachedExtensionVa = %p allocation size = %d\n",
                  uncachedExtensionVa,
                  extensionSize);
+#endif
     if (!uncachedExtensionVa)
     {
         LogError(DeviceExtension, SP_INTERNAL_ADAPTER_ERROR, __LINE__);
 
+#if !defined(RUN_UNCHECKED)
         RhelDbgPrint(TRACE_LEVEL_FATAL, " Can't get uncached extension allocation size = %d\n", extensionSize);
+#endif
         return SP_RETURN_ERROR;
     }
 
@@ -561,6 +606,7 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
     {
         adaptExt->poolAllocationVa = (PVOID)((ULONG_PTR)adaptExt->pageAllocationVa + adaptExt->pageAllocationSize);
     }
+#if !defined(RUN_UNCHECKED)
     RhelDbgPrint(TRACE_LEVEL_INFORMATION,
                  " Page-aligned area at %p, size = %d\n",
                  adaptExt->pageAllocationVa,
@@ -571,6 +617,7 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
                  adaptExt->poolAllocationSize);
 
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " pmsg_affinity = %p\n", adaptExt->pmsg_affinity);
+#endif
     if (!adaptExt->dump_mode && (adaptExt->num_queues > 1) && (adaptExt->pmsg_affinity == NULL))
     {
         adaptExt->num_affinity = adaptExt->num_queues + 3;
@@ -578,28 +625,50 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
                                             sizeof(GROUP_AFFINITY) * (ULONGLONG)adaptExt->num_affinity,
                                             VIOSCSI_POOL_TAG,
                                             (PVOID *)&adaptExt->pmsg_affinity);
+#if !defined(RUN_UNCHECKED)
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, " pmsg_affinity = %p Status = %lu\n", adaptExt->pmsg_affinity, Status);
+#endif
     }
     adaptExt->fw_ver = '0';
 
+#if !defined(RUN_UNCHECKED)
     EXIT_FN();
+#endif
     return SP_RETURN_FOUND;
 }
 
 BOOLEAN
-VioScsiPassiveInitializeRoutine(IN PVOID DeviceExtension)
+VioScsiPassiveInitializeDpcRoutine(IN PVOID DeviceExtension)
 {
+#if !defined(RUN_UNCHECKED)
+    ENTER_FN();
+#endif
+
     ULONG index;
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    ENTER_FN();
 
     for (index = 0; index < adaptExt->num_queues; ++index)
     {
+#if !defined(RUN_UNCHECKED)
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                     " Initializing StorPort DPC object for VIRTIO Request Queue %d (index %d)...\n",
+                     (index + 1),
+                     index);
+#endif
         StorPortInitializeDpc(DeviceExtension, &adaptExt->dpc[index], VioScsiCompleteDpcRoutine);
     }
-    adaptExt->dpc_ok = TRUE;
+
+    adaptExt->dpc_ready = TRUE;
+    virtio_device_ready(&adaptExt->vdev);
+
+#if !defined(RUN_UNCHECKED)
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                 " DPC Ready Status : %s | VIRTIO Device Presumed Ready."
+                 " VIRTIO_CONFIG_S_DRIVER_OK bit has been added to the device status.\n",
+                 (adaptExt->dpc_ready) ? "READY (Presumed)" : "NOT_READY");
     EXIT_FN();
-    return TRUE;
+#endif
+    return adaptExt->dpc_ready;
 }
 
 static BOOLEAN InitializeVirtualQueues(PADAPTER_EXTENSION adaptExt, ULONG numQueues)
@@ -609,7 +678,9 @@ static BOOLEAN InitializeVirtualQueues(PADAPTER_EXTENSION adaptExt, ULONG numQue
     status = virtio_find_queues(&adaptExt->vdev, numQueues, adaptExt->vq);
     if (!NT_SUCCESS(status))
     {
+#if !defined(RUN_UNCHECKED)
         RhelDbgPrint(TRACE_LEVEL_FATAL, " FAILED with status 0x%x\n", status);
+#endif
         return FALSE;
     }
 
@@ -629,13 +700,19 @@ VioScsiPoolAlloc(IN PVOID DeviceExtension, IN SIZE_T size)
         RtlZeroMemory(ptr, size);
         return ptr;
     }
+#if !defined(RUN_UNCHECKED)
     RhelDbgPrint(TRACE_LEVEL_FATAL, " Out of memory %Id \n", size);
+#endif
     return NULL;
 }
 
 BOOLEAN
 VioScsiHwInitialize(IN PVOID DeviceExtension)
 {
+#if !defined(RUN_UNCHECKED)
+    ENTER_FN();
+#endif
+
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     ULONG i;
     ULONG index;
@@ -644,65 +721,235 @@ VioScsiHwInitialize(IN PVOID DeviceExtension)
     ULONG status = STOR_STATUS_SUCCESS;
     MESSAGE_INTERRUPT_INFORMATION msi_info = {0};
     PREQUEST_LIST element;
-    ENTER_FN();
 
     adaptExt->msix_vectors = 0;
     adaptExt->pageOffset = 0;
     adaptExt->poolOffset = 0;
 
+    if ((!adaptExt->dump_mode) && (adaptExt->num_queues > 1) && (adaptExt->perfFlags == 0))
+    {
+        perfData.Version = STOR_PERF_VERSION;
+        perfData.Size = sizeof(PERF_CONFIGURATION_DATA);
+
+        status = StorPortInitializePerfOpts(DeviceExtension, TRUE, &perfData);
+
+        if (status == STOR_STATUS_SUCCESS)
+        {
+#if !defined(RUN_UNCHECKED)
+            RhelDbgPrint(TRACE_LEVEL_FATAL,
+                         " PERF: GET PerfOpts : Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, "
+                         "FirstRedirectionMessageNumber = %d, LastRedirectionMessageNumber = %d, DeviceNode = %d\n",
+                         perfData.Version,
+                         perfData.Flags,
+                         perfData.ConcurrentChannels,
+                         perfData.FirstRedirectionMessageNumber,
+                         perfData.LastRedirectionMessageNumber,
+                         perfData.DeviceNode);
+#endif
+        }
+        else
+        {
+            // FIXME...
+            // should we not return here with ERROR, or continue with WARNING
+#if !defined(RUN_UNCHECKED)
+            RhelDbgPrint(TRACE_LEVEL_WARNING,
+                         " PERF: StorPortInitializePerfOpts GET failed with status = 0x%x\n",
+                         status);
+            // EXIT_FN();
+#endif
+            // return FALSE;
+        }
+
+        if ((status == STOR_STATUS_SUCCESS) && (CHECKFLAG(perfData.Flags, STOR_PERF_DPC_REDIRECTION)))
+        {
+            adaptExt->perfFlags = STOR_PERF_DPC_REDIRECTION;
+            if (CHECKFLAG(perfData.Flags, STOR_PERF_CONCURRENT_CHANNELS))
+            {
+                adaptExt->perfFlags |= STOR_PERF_CONCURRENT_CHANNELS;
+                perfData.ConcurrentChannels = adaptExt->num_queues;
+            }
+            if (CHECKFLAG(perfData.Flags, STOR_PERF_INTERRUPT_MESSAGE_RANGES))
+            {
+                adaptExt->perfFlags |= STOR_PERF_INTERRUPT_MESSAGE_RANGES;
+                perfData.FirstRedirectionMessageNumber = VIRTIO_SCSI_REQUEST_QUEUE_0 + VIRTIO_SCSI_MSI_CONTROL_Q_OFFSET;
+                perfData.LastRedirectionMessageNumber = perfData.FirstRedirectionMessageNumber +
+                                                        perfData.ConcurrentChannels - 1;
+            }
+
+            ASSERT(perfData.LastRedirectionMessageNumber < adaptExt->num_affinity);
+            if ((adaptExt->pmsg_affinity != NULL) && CHECKFLAG(perfData.Flags, STOR_PERF_ADV_CONFIG_LOCALITY))
+            {
+                RtlZeroMemory((PCHAR)adaptExt->pmsg_affinity,
+                              sizeof(GROUP_AFFINITY) * ((ULONGLONG)adaptExt->num_affinity));
+                adaptExt->perfFlags |= STOR_PERF_ADV_CONFIG_LOCALITY;
+                perfData.MessageTargets = adaptExt->pmsg_affinity;
+            }
+            if (CHECKFLAG(perfData.Flags, STOR_PERF_DPC_REDIRECTION_CURRENT_CPU))
+            {
+                // adaptExt->perfFlags |= STOR_PERF_DPC_REDIRECTION_CURRENT_CPU;
+            }
+            if (CHECKFLAG(perfData.Flags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO))
+            {
+                // adaptExt->perfFlags |= STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO;
+            }
+            perfData.Flags = adaptExt->perfFlags;
+#if !defined(RUN_UNCHECKED)
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                         " PERF: SET PerfOpts : Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, "
+                         "FirstRedirectionMessageNumber = %d, LastRedirectionMessageNumber = %d, DeviceNode = %d\n",
+                         perfData.Version,
+                         perfData.Flags,
+                         perfData.ConcurrentChannels,
+                         perfData.FirstRedirectionMessageNumber,
+                         perfData.LastRedirectionMessageNumber,
+                         perfData.DeviceNode);
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                         " PERF: STOR_PERF_DPC_REDIRECTION flag is : %s \n",
+                         (CHECKFLAG(perfData.Flags, STOR_PERF_DPC_REDIRECTION)) ? "ON" : "OFF");
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                         " PERF: STOR_PERF_CONCURRENT_CHANNELS flag is: %s \n",
+                         (CHECKFLAG(perfData.Flags, STOR_PERF_CONCURRENT_CHANNELS)) ? "ON" : "OFF");
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                         " PERF: STOR_PERF_INTERRUPT_MESSAGE_RANGES flag is : %s \n",
+                         (CHECKFLAG(perfData.Flags, STOR_PERF_INTERRUPT_MESSAGE_RANGES)) ? "ON" : "OFF");
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                         " PERF: STOR_PERF_ADV_CONFIG_LOCALITY flag is: %s \n",
+                         (CHECKFLAG(perfData.Flags, STOR_PERF_ADV_CONFIG_LOCALITY)) ? "ON" : "OFF");
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                         " PERF: STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO flag is: %s \n",
+                         (CHECKFLAG(perfData.Flags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) ? "ON" : "OFF");
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                         " PERF: STOR_PERF_DPC_REDIRECTION_CURRENT_CPU flag is : %s \n",
+                         (CHECKFLAG(perfData.Flags, STOR_PERF_DPC_REDIRECTION_CURRENT_CPU)) ? "ON" : "OFF");
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                         " PERF: STOR_PERF_NO_SGL flag is : %s \n",
+                         (CHECKFLAG(perfData.Flags, STOR_PERF_NO_SGL)) ? "ON" : "OFF");
+#endif
+
+            status = StorPortInitializePerfOpts(DeviceExtension, FALSE, &perfData);
+
+            if (status != STOR_STATUS_SUCCESS)
+            {
+                adaptExt->perfFlags = 0;
+#if !defined(RUN_UNCHECKED)
+                RhelDbgPrint(TRACE_LEVEL_ERROR,
+                             " PERF: StorPortInitializePerfOpts SET failed with status = 0x%x\n",
+                             status);
+#endif
+            }
+            for (index = 0; index < adaptExt->num_affinity; ++index)
+            {
+                GROUP_AFFINITY vector_affinity = adaptExt->pmsg_affinity[index];
+#if !defined(RUN_UNCHECKED)
+                RhelDbgPrint(TRACE_MSIX_CPU_AFFINITY,
+                             " PERF: MSI-X Vector %lu CPU Affinity : KAFFINITY Mask = %I64d, CPU Group = %lu \n",
+                             index,
+                             vector_affinity.Mask,
+                             vector_affinity.Group);
+#endif
+            }
+        }
+    }
+
     while (StorPortGetMSIInfo(DeviceExtension, adaptExt->msix_vectors, &msi_info) == STOR_STATUS_SUCCESS)
     {
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " MessageId = %x\n", msi_info.MessageId);
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " MessageData = %x\n", msi_info.MessageData);
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " InterruptVector = %x\n", msi_info.InterruptVector);
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " InterruptLevel = %x\n", msi_info.InterruptLevel);
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION,
-                     " InterruptMode = %s\n",
-                     msi_info.InterruptMode == LevelSensitive ? "LevelSensitive" : "Latched");
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " MessageAddress = %I64x\n\n", msi_info.MessageAddress.QuadPart);
+#if !defined(RUN_UNCHECKED)
+        if (adaptExt->num_queues > 1)
+        {
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                         " MSI-X Vector [MessageId] = %lu, MessageAddress = 0x%I64x, MessageData = %lu, "
+                         "InterruptVector = %lu, InterruptLevel = %lu, InterruptMode = %s, CPU Affinity : Mask = "
+                         "%I64d, Group = %lu \n",
+                         msi_info.MessageId,
+                         msi_info.MessageAddress.QuadPart,
+                         msi_info.MessageData,
+                         msi_info.InterruptVector,
+                         msi_info.InterruptLevel,
+                         msi_info.InterruptMode == LevelSensitive ? "LevelSensitive" : "Latched",
+                         adaptExt->pmsg_affinity[msi_info.MessageId].Mask,
+                         adaptExt->pmsg_affinity[msi_info.MessageId].Group);
+        }
+        else
+        {
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                         " MSI-X Vector [MessageId] = %lu, MessageAddress = 0x%I64x, MessageData = %lu, "
+                         "InterruptVector = %lu, InterruptLevel = %lu, InterruptMode = %s \n",
+                         msi_info.MessageId,
+                         msi_info.MessageAddress.QuadPart,
+                         msi_info.MessageData,
+                         msi_info.InterruptVector,
+                         msi_info.InterruptLevel,
+                         msi_info.InterruptMode == LevelSensitive ? "LevelSensitive" : "Latched");
+        }
+#endif
         ++adaptExt->msix_vectors;
     }
 
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Queues %d msix_vectors %d\n", adaptExt->num_queues, adaptExt->msix_vectors);
-    if (adaptExt->num_queues > 1 && ((adaptExt->num_queues + 3) > adaptExt->msix_vectors))
+    if (adaptExt->num_queues > 1 && ((adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0 +
+                                      VIRTIO_SCSI_MSI_CONTROL_Q_OFFSET) > adaptExt->msix_vectors))
     {
         adaptExt->num_queues = (USHORT)adaptExt->msix_vectors;
     }
 
     if (!adaptExt->dump_mode && adaptExt->msix_vectors > 0)
     {
-        if (adaptExt->msix_vectors >= adaptExt->num_queues + 3)
+        if (adaptExt->msix_vectors >=
+            adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0 + VIRTIO_SCSI_MSI_CONTROL_Q_OFFSET)
         {
             /* initialize queues with a MSI vector per queue */
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Using a unique MSI vector per queue\n");
             adaptExt->msix_one_vector = FALSE;
         }
         else
         {
             /* if we don't have enough vectors, use one for all queues */
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Using one MSI vector for all queues\n");
             adaptExt->msix_one_vector = TRUE;
-        }
-        if (!InitializeVirtualQueues(adaptExt, adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0))
-        {
-            return FALSE;
         }
     }
     else
     {
         /* initialize queues with no MSI interrupts */
         adaptExt->msix_enabled = FALSE;
-        if (!InitializeVirtualQueues(adaptExt, adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0))
-        {
-            return FALSE;
-        }
     }
 
+    if (!InitializeVirtualQueues(adaptExt, adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0))
+    {
+#if !defined(RUN_UNCHECKED)
+        RhelDbgPrint(TRACE_LEVEL_FATAL, " !!! - Failed to initialize the Virtual Queues - !!!\n");
+        EXIT_FN();
+#endif
+        return FALSE;
+    }
+
+#if !defined(RUN_UNCHECKED)
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                 " VirtIO Request Queues : %d, MSI-X Enabled : %s, MSI-X Use ONE Vector : %s, MSI-X Vectors "
+                 "[msix_vectors] : %d \n",
+                 adaptExt->num_queues,
+                 (adaptExt->msix_enabled) ? "YES" : "NO",
+                 (adaptExt->msix_one_vector) ? "YES" : "NO",
+                 adaptExt->msix_vectors);
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                 " MSI-X Vector %lu | StorPort exclusive control \n",
+                 (VIRTIO_SCSI_MSI_CONTROL_Q_OFFSET - 1));
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                 " MSI-X Vector %lu | VIRTIO Control Queue \n",
+                 (VIRTIO_SCSI_CONTROL_QUEUE + VIRTIO_SCSI_MSI_CONTROL_Q_OFFSET));
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                 " MSI-X Vector %lu | VIRTIO Events Queue \n",
+                 (VIRTIO_SCSI_EVENTS_QUEUE + VIRTIO_SCSI_MSI_CONTROL_Q_OFFSET));
+#endif
     for (index = 0; index < adaptExt->num_queues; ++index)
     {
         element = &adaptExt->processing_srbs[index];
         InitializeListHead(&element->srb_list);
         element->srb_cnt = 0;
+#if !defined(RUN_UNCHECKED)
+        RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                     " MSI-X Vector %lu | VIRTIO Request Queue %lu (index %lu) \n",
+                     (index + VIRTIO_SCSI_REQUEST_QUEUE_0 + VIRTIO_SCSI_MSI_CONTROL_Q_OFFSET),
+                     (index + 1),
+                     index);
+#endif
     }
 
     if (!adaptExt->dump_mode)
@@ -716,101 +963,43 @@ VioScsiHwInitialize(IN PVOID DeviceExtension)
             adaptExt->events = (PVirtIOSCSIEventNode)VioScsiPoolAlloc(DeviceExtension, sizeof(VirtIOSCSIEventNode) * 8);
             adaptExt->dpc = (PSTOR_DPC)VioScsiPoolAlloc(DeviceExtension, sizeof(STOR_DPC) * adaptExt->num_queues);
         }
-    }
 
-    if (!adaptExt->dump_mode && CHECKBIT(adaptExt->features, VIRTIO_SCSI_F_HOTPLUG))
-    {
-        PVirtIOSCSIEventNode events = adaptExt->events;
-        for (i = 0; i < 8; i++)
+        if (CHECKBIT(adaptExt->features, VIRTIO_SCSI_F_HOTPLUG))
         {
-            if (!KickEvent(DeviceExtension, (PVOID)(&events[i])))
+            PVirtIOSCSIEventNode events = adaptExt->events;
+            for (i = 0; i < 8; i++)
             {
-                RhelDbgPrint(TRACE_LEVEL_FATAL, " Cannot add event %d\n", i);
+                if (!KickEvent(DeviceExtension, (PVOID)(&events[i])))
+                {
+#if !defined(RUN_UNCHECKED)
+                    RhelDbgPrint(TRACE_LEVEL_FATAL, " KickEvent() FAILED - Cannot add event : %d\n", i);
+#endif
+                }
+            }
+        }
+
+        if (adaptExt->dpc_ready)
+        {
+#if !defined(RUN_UNCHECKED)
+            RhelDbgPrint(TRACE_LEVEL_WARNING, "DPC already initialized.\n");
+#endif
+        }
+        else
+        {
+            if (!StorPortEnablePassiveInitialization(DeviceExtension, VioScsiPassiveInitializeDpcRoutine))
+            {
+#if !defined(RUN_UNCHECKED)
+                RhelDbgPrint(TRACE_LEVEL_FATAL, " StorPortEnablePassiveInitialization FAILED\n");
+                EXIT_FN();
+#endif
+                return FALSE;
             }
         }
     }
-    if (!adaptExt->dump_mode)
-    {
-        if ((adaptExt->num_queues > 1) && (adaptExt->perfFlags == 0))
-        {
-            perfData.Version = STOR_PERF_VERSION;
-            perfData.Size = sizeof(PERF_CONFIGURATION_DATA);
 
-            status = StorPortInitializePerfOpts(DeviceExtension, TRUE, &perfData);
-
-            RhelDbgPrint(TRACE_LEVEL_FATAL,
-                         " Current PerfOpts Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, "
-                         "FirstRedirectionMessageNumber = %d,LastRedirectionMessageNumber = %d\n",
-                         perfData.Version,
-                         perfData.Flags,
-                         perfData.ConcurrentChannels,
-                         perfData.FirstRedirectionMessageNumber,
-                         perfData.LastRedirectionMessageNumber);
-            if ((status == STOR_STATUS_SUCCESS) && (CHECKFLAG(perfData.Flags, STOR_PERF_DPC_REDIRECTION)))
-            {
-                adaptExt->perfFlags = STOR_PERF_DPC_REDIRECTION;
-                if (CHECKFLAG(perfData.Flags, STOR_PERF_INTERRUPT_MESSAGE_RANGES))
-                {
-                    adaptExt->perfFlags |= STOR_PERF_INTERRUPT_MESSAGE_RANGES;
-                    perfData.FirstRedirectionMessageNumber = 3;
-                    perfData.LastRedirectionMessageNumber = perfData.FirstRedirectionMessageNumber +
-                                                            adaptExt->num_queues - 1;
-                    ASSERT(perfData.LastRedirectionMessageNumber < adaptExt->num_affinity);
-                    if ((adaptExt->pmsg_affinity != NULL) && CHECKFLAG(perfData.Flags, STOR_PERF_ADV_CONFIG_LOCALITY))
-                    {
-                        RtlZeroMemory((PCHAR)adaptExt->pmsg_affinity,
-                                      sizeof(GROUP_AFFINITY) * ((ULONGLONG)adaptExt->num_queues + 3));
-                        adaptExt->perfFlags |= STOR_PERF_ADV_CONFIG_LOCALITY;
-                        perfData.MessageTargets = adaptExt->pmsg_affinity;
-                        if (CHECKFLAG(perfData.Flags, STOR_PERF_CONCURRENT_CHANNELS))
-                        {
-                            adaptExt->perfFlags |= STOR_PERF_CONCURRENT_CHANNELS;
-                            perfData.ConcurrentChannels = adaptExt->num_queues;
-                        }
-                    }
-                }
-                if (CHECKFLAG(perfData.Flags, STOR_PERF_DPC_REDIRECTION_CURRENT_CPU))
-                {
-                    //                    adaptExt->perfFlags |= STOR_PERF_DPC_REDIRECTION_CURRENT_CPU;
-                }
-                if (CHECKFLAG(perfData.Flags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO))
-                {
-                    //                    adaptExt->perfFlags |= STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO;
-                }
-                perfData.Flags = adaptExt->perfFlags;
-                RhelDbgPrint(TRACE_LEVEL_INFORMATION,
-                             "Applied PerfOpts Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, "
-                             "FirstRedirectionMessageNumber = %d,LastRedirectionMessageNumber = %d\n",
-                             perfData.Version,
-                             perfData.Flags,
-                             perfData.ConcurrentChannels,
-                             perfData.FirstRedirectionMessageNumber,
-                             perfData.LastRedirectionMessageNumber);
-                status = StorPortInitializePerfOpts(DeviceExtension, FALSE, &perfData);
-                if (status != STOR_STATUS_SUCCESS)
-                {
-                    adaptExt->perfFlags = 0;
-                    RhelDbgPrint(TRACE_LEVEL_ERROR,
-                                 " StorPortInitializePerfOpts set failed with status = 0x%x\n",
-                                 status);
-                }
-            }
-            else
-            {
-                RhelDbgPrint(TRACE_LEVEL_INFORMATION,
-                             " StorPortInitializePerfOpts get failed with status = 0x%x\n",
-                             status);
-            }
-        }
-        if (!adaptExt->dpc_ok && !StorPortEnablePassiveInitialization(DeviceExtension, VioScsiPassiveInitializeRoutine))
-        {
-            RhelDbgPrint(TRACE_LEVEL_FATAL, " StorPortEnablePassiveInitialization FAILED\n");
-            return FALSE;
-        }
-    }
-
-    virtio_device_ready(&adaptExt->vdev);
+#if !defined(RUN_UNCHECKED)
     EXIT_FN();
+#endif
     return TRUE;
 }
 
@@ -832,8 +1021,10 @@ VioScsiHwReinitialize(IN PVOID DeviceExtension)
 BOOLEAN
 VioScsiStartIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
 {
-    ENTER_FN_SRB();
-    if (PreProcessRequest(DeviceExtension, (PSRB_TYPE)Srb))
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    ENTER_FN_SRB_HP();
+#endif
+    if (PreProcessRequest(DeviceExtension, (PSRB_TYPE)Srb, idx_VioScsiStartIo, idx_PreProcessRequest))
     {
         CompleteRequest(DeviceExtension, (PSRB_TYPE)Srb);
     }
@@ -849,16 +1040,29 @@ VioScsiStartIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
         {
             adaptExt->last_srb_id++;
         }
-
         SendSRB(DeviceExtension, (PSRB_TYPE)Srb);
     }
-    EXIT_FN_SRB();
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    EXIT_FN_SRB_HP();
+#endif
     return TRUE;
 }
 
-VOID HandleResponse(IN PVOID DeviceExtension, IN PVirtIOSCSICmd cmd)
+VOID FORCEINLINE HandleResponse(IN PVOID DeviceExtension,
+                                IN PVirtIOSCSICmd cmd,
+                                IN INL_FUNC_IDX idx_ICN,
+                                IN INL_FUNC_IDX idx_IFN)
 {
     PSRB_TYPE Srb = (PSRB_TYPE)(cmd->srb);
+
+#if !defined(RUN_UNCHECKED)
+    PVOID ICN = inline_func_string_map[idx_ICN];
+    PVOID IFN = inline_func_string_map[idx_IFN];
+#if !defined(RUN_COLD_PATH_ONLY)
+    ENTER_INL_FN_SRB_HP();
+#endif
+#endif
+
     PSRB_EXTENSION srbExt = SRB_EXTENSION(Srb);
     VirtIOSCSICmdResp *resp = &cmd->resp.cmd;
     UCHAR senseInfoBufferLength = 0;
@@ -866,55 +1070,87 @@ VOID HandleResponse(IN PVOID DeviceExtension, IN PVirtIOSCSICmd cmd)
     UCHAR srbStatus = SRB_STATUS_SUCCESS;
     ULONG srbDataTransferLen = SRB_DATA_TRANSFER_LENGTH(Srb);
 
-    ENTER_FN();
-
-    LOG_SRB_INFO();
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    LOG_SRB_INFO_FROM_INLFN_HP();
+#endif
 
     switch (resp->response)
     {
         case VIRTIO_SCSI_S_OK:
             SRB_SET_SCSI_STATUS(Srb, resp->status);
             srbStatus = (resp->status == SCSISTAT_GOOD) ? SRB_STATUS_SUCCESS : SRB_STATUS_ERROR;
+#if !defined(RUN_UNCHECKED)
+            if (srbStatus == SRB_STATUS_SUCCESS)
+            {
+#if !defined(RUN_COLD_PATH_ONLY)
+                RhelDbgPrintInlineHotPath(TRACE_LEVEL_INFORMATION, " VIRTIO_SCSI_S_OK : SRB_STATUS_SUCCESS\n");
+#endif
+            }
+            else
+            {
+                RhelDbgPrintInline(TRACE_LEVEL_INFORMATION, " VIRTIO_SCSI_S_OK : SRB_STATUS_ERROR\n");
+            }
+#endif
             break;
         case VIRTIO_SCSI_S_UNDERRUN:
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " VIRTIO_SCSI_S_UNDERRUN\n");
+#if !defined(RUN_UNCHECKED)
+            RhelDbgPrintInline(TRACE_LEVEL_INFORMATION, " VIRTIO_SCSI_S_UNDERRUN\n");
+#endif
             srbStatus = SRB_STATUS_DATA_OVERRUN;
             break;
         case VIRTIO_SCSI_S_ABORTED:
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " VIRTIO_SCSI_S_ABORTED\n");
+#if !defined(RUN_UNCHECKED)
+            RhelDbgPrintInline(TRACE_LEVEL_INFORMATION, " VIRTIO_SCSI_S_ABORTED\n");
+#endif
             srbStatus = SRB_STATUS_ABORTED;
             break;
         case VIRTIO_SCSI_S_BAD_TARGET:
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " VIRTIO_SCSI_S_BAD_TARGET\n");
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+            RhelDbgPrintInlineHotPath(TRACE_LEVEL_INFORMATION, " VIRTIO_SCSI_S_BAD_TARGET\n");
+#endif
             srbStatus = SRB_STATUS_INVALID_TARGET_ID;
             break;
         case VIRTIO_SCSI_S_RESET:
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " VIRTIO_SCSI_S_RESET\n");
+#if !defined(RUN_UNCHECKED)
+            RhelDbgPrintInline(TRACE_LEVEL_INFORMATION, " VIRTIO_SCSI_S_RESET\n");
+#endif
             srbStatus = SRB_STATUS_BUS_RESET;
             break;
         case VIRTIO_SCSI_S_BUSY:
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " VIRTIO_SCSI_S_BUSY\n");
+#if !defined(RUN_UNCHECKED)
+            RhelDbgPrintInline(TRACE_LEVEL_INFORMATION, " VIRTIO_SCSI_S_BUSY\n");
+#endif
             srbStatus = SRB_STATUS_BUSY;
             break;
         case VIRTIO_SCSI_S_TRANSPORT_FAILURE:
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " VIRTIO_SCSI_S_TRANSPORT_FAILURE\n");
+#if !defined(RUN_UNCHECKED)
+            RhelDbgPrintInline(TRACE_LEVEL_INFORMATION, " VIRTIO_SCSI_S_TRANSPORT_FAILURE\n");
+#endif
             srbStatus = SRB_STATUS_ERROR;
             break;
         case VIRTIO_SCSI_S_TARGET_FAILURE:
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " VIRTIO_SCSI_S_TARGET_FAILURE\n");
+#if !defined(RUN_UNCHECKED)
+            RhelDbgPrintInline(TRACE_LEVEL_INFORMATION, " VIRTIO_SCSI_S_TARGET_FAILURE\n");
+#endif
             srbStatus = SRB_STATUS_ERROR;
             break;
         case VIRTIO_SCSI_S_NEXUS_FAILURE:
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " VIRTIO_SCSI_S_NEXUS_FAILURE\n");
+#if !defined(RUN_UNCHECKED)
+            RhelDbgPrintInline(TRACE_LEVEL_INFORMATION, " VIRTIO_SCSI_S_NEXUS_FAILURE\n");
+#endif
             srbStatus = SRB_STATUS_ERROR;
             break;
         case VIRTIO_SCSI_S_FAILURE:
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " VIRTIO_SCSI_S_FAILURE\n");
+#if !defined(RUN_UNCHECKED)
+            RhelDbgPrintInline(TRACE_LEVEL_INFORMATION, " VIRTIO_SCSI_S_FAILURE\n");
+#endif
             srbStatus = SRB_STATUS_ERROR;
             break;
         default:
             srbStatus = SRB_STATUS_ERROR;
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Unknown response %d\n", resp->response);
+#if !defined(RUN_UNCHECKED)
+            RhelDbgPrintInline(TRACE_LEVEL_INFORMATION, " Unknown response %d\n", resp->response);
+#endif
             break;
     }
     if (srbStatus == SRB_STATUS_SUCCESS && resp->resid && srbDataTransferLen > resp->resid)
@@ -943,12 +1179,17 @@ VOID HandleResponse(IN PVOID DeviceExtension, IN PVirtIOSCSICmd cmd)
     SRB_SET_SRB_STATUS(Srb, srbStatus);
     CompleteRequest(DeviceExtension, Srb);
 
-    EXIT_FN();
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    EXIT_INL_FN_SRB_HP();
+#endif
 }
 
 BOOLEAN
 VioScsiInterrupt(IN PVOID DeviceExtension)
 {
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    ENTER_FN_HP();
+#endif
     PVirtIOSCSICmd cmd = NULL;
     PVirtIOSCSIEventNode evtNode = NULL;
     unsigned int len = 0;
@@ -961,11 +1202,18 @@ VioScsiInterrupt(IN PVOID DeviceExtension)
 
     if (adaptExt->bRemoved)
     {
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+        RhelDbgPrintHotPath(TRACE_LEVEL_INFORMATION,
+                            " Adapter has been removed. Returning without servicing interrupt.\n");
+        EXIT_FN_HP();
+#endif
         return FALSE;
     }
 
+#if !defined(RUN_UNCHECKED)
     // NOTE : SDV banned function
     // RhelDbgPrint(TRACE_LEVEL_VERBOSE, " IRQL (%d)\n", KeGetCurrentIrql());
+#endif
 
     intReason = virtio_read_isr_status(&adaptExt->vdev);
 
@@ -987,7 +1235,9 @@ VioScsiInterrupt(IN PVOID DeviceExtension)
                     case VIRTIO_SCSI_S_FUNCTION_SUCCEEDED:
                         break;
                     default:
+#if !defined(RUN_UNCHECKED)
                         RhelDbgPrint(TRACE_LEVEL_ERROR, " unknown response %d\n", resp->response);
+#endif
                         ASSERT(0);
                         break;
                 }
@@ -1010,13 +1260,15 @@ VioScsiInterrupt(IN PVOID DeviceExtension)
                     ParamChange(DeviceExtension, evt);
                     break;
                 default:
+#if !defined(RUN_UNCHECKED)
                     RhelDbgPrint(TRACE_LEVEL_ERROR, " Unsupport virtio scsi event %x\n", evt->event);
+#endif
                     break;
             }
             SynchronizedKickEventRoutine(DeviceExtension, evtNode);
         }
 
-        if (!adaptExt->dump_mode && adaptExt->dpc_ok)
+        if (!adaptExt->dump_mode && adaptExt->dpc_ready)
         {
             StorPortIssueDpc(DeviceExtension,
                              &adaptExt->dpc[0],
@@ -1025,16 +1277,24 @@ VioScsiInterrupt(IN PVOID DeviceExtension)
         }
         else
         {
-            ProcessBuffer(DeviceExtension, QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0), InterruptLock);
+            ProcessBuffer(DeviceExtension, QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0), PROCESS_BUFFER_NO_SPINLOCKS);
         }
     }
 
-    RhelDbgPrint(TRACE_LEVEL_VERBOSE, " isInterruptServiced = %d\n", isInterruptServiced);
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    RhelDbgPrintHotPath(TRACE_LEVEL_INFORMATION,
+                        " Interrupt has been serviced : %s \n",
+                        (isInterruptServiced) ? "YES" : "NO");
+    EXIT_FN_HP();
+#endif
     return isInterruptServiced;
 }
 
 static BOOLEAN VioScsiMSInterruptWorker(IN PVOID DeviceExtension, IN ULONG MessageID)
 {
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    EXIT_FN_HP();
+#endif
     PVirtIOSCSICmd cmd;
     PVirtIOSCSIEventNode evtNode;
     unsigned int len;
@@ -1044,19 +1304,35 @@ static BOOLEAN VioScsiMSInterruptWorker(IN PVOID DeviceExtension, IN ULONG Messa
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
-    RhelDbgPrint(TRACE_LEVEL_VERBOSE, " MessageID 0x%x\n", MessageID);
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    RhelDbgPrintHotPath(TRACE_LEVEL_VERBOSE, " MessageID 0x%x\n", MessageID);
+#endif
 
     if (MessageID >= QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0))
     {
-        DispatchQueue(DeviceExtension, MessageID);
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+        RhelDbgPrintHotPath(TRACE_LEVEL_VERBOSE, " Dispatching to Request Queue...\n");
+#endif
+        DispatchQueue(DeviceExtension, MessageID, idx_ProcessQueue, idx_DispatchQueue);
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+        EXIT_FN_HP();
+#endif
         return TRUE;
     }
     if (MessageID == 0)
     {
+#if !defined(RUN_UNCHECKED)
+        RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                     " MSI-X Vector 0 [MessageId = 0] is unused by HBA. Returning without further processing.\n");
+        EXIT_FN();
+#endif
         return TRUE;
     }
     if (MessageID == QUEUE_TO_MESSAGE(VIRTIO_SCSI_CONTROL_QUEUE))
     {
+#if !defined(RUN_UNCHECKED)
+        RhelDbgPrint(TRACE_LEVEL_VERBOSE, " Processing Control Queue...\n");
+#endif
         if (adaptExt->tmf_infly)
         {
             while ((cmd = (PVirtIOSCSICmd)virtqueue_get_buf(adaptExt->vq[VIRTIO_SCSI_CONTROL_QUEUE], &len)) != NULL)
@@ -1071,7 +1347,9 @@ static BOOLEAN VioScsiMSInterruptWorker(IN PVOID DeviceExtension, IN ULONG Messa
                     case VIRTIO_SCSI_S_FUNCTION_SUCCEEDED:
                         break;
                     default:
+#if !defined(RUN_UNCHECKED)
                         RhelDbgPrint(TRACE_LEVEL_ERROR, " Unknown response %d\n", resp->response);
+#endif
                         ASSERT(0);
                         break;
                 }
@@ -1083,6 +1361,9 @@ static BOOLEAN VioScsiMSInterruptWorker(IN PVOID DeviceExtension, IN ULONG Messa
     }
     if (MessageID == QUEUE_TO_MESSAGE(VIRTIO_SCSI_EVENTS_QUEUE))
     {
+#if !defined(RUN_UNCHECKED)
+        RhelDbgPrint(TRACE_LEVEL_VERBOSE, " Processing Events Queue...\n");
+#endif
         while ((evtNode = (PVirtIOSCSIEventNode)virtqueue_get_buf(adaptExt->vq[VIRTIO_SCSI_EVENTS_QUEUE], &len)) !=
                NULL)
         {
@@ -1098,25 +1379,41 @@ static BOOLEAN VioScsiMSInterruptWorker(IN PVOID DeviceExtension, IN ULONG Messa
                     ParamChange(DeviceExtension, evt);
                     break;
                 default:
+#if !defined(RUN_UNCHECKED)
                     RhelDbgPrint(TRACE_LEVEL_ERROR, " Unsupport virtio scsi event %x\n", evt->event);
+#endif
                     break;
             }
             SynchronizedKickEventRoutine(DeviceExtension, evtNode);
         }
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+        EXIT_FN_HP();
+#endif
         return TRUE;
     }
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    EXIT_FN_HP();
+#endif
     return FALSE;
 }
 
 BOOLEAN
 VioScsiMSInterrupt(IN PVOID DeviceExtension, IN ULONG MessageID)
 {
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    ENTER_FN_HP();
+#endif
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     BOOLEAN isInterruptServiced = FALSE;
     ULONG i;
 
     if (adaptExt->bRemoved)
     {
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+        RhelDbgPrintHotPath(TRACE_LEVEL_INFORMATION,
+                            " Adapter has been removed. Returning without servicing interrupt.\n");
+        EXIT_FN_HP();
+#endif
         return FALSE;
     }
 
@@ -1134,6 +1431,12 @@ VioScsiMSInterrupt(IN PVOID DeviceExtension, IN ULONG MessageID)
             isInterruptServiced |= VioScsiMSInterruptWorker(DeviceExtension, i + 1);
         }
     }
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    RhelDbgPrintHotPath(TRACE_LEVEL_INFORMATION,
+                        " Interrupt has been serviced : %s \n",
+                        (isInterruptServiced) ? "YES" : "NO");
+    EXIT_FN_HP();
+#endif
     return isInterruptServiced;
 }
 
@@ -1148,6 +1451,10 @@ VioScsiResetBus(IN PVOID DeviceExtension, IN ULONG PathId)
 SCSI_ADAPTER_CONTROL_STATUS
 VioScsiAdapterControl(IN PVOID DeviceExtension, IN SCSI_ADAPTER_CONTROL_TYPE ControlType, IN PVOID Parameters)
 {
+#if !defined(RUN_UNCHECKED)
+    ENTER_FN();
+#endif
+
     PSCSI_SUPPORTED_CONTROL_TYPE_LIST ControlTypeList;
     ULONG AdjustedMaxControlType;
     ULONG Index;
@@ -1155,7 +1462,6 @@ VioScsiAdapterControl(IN PVOID DeviceExtension, IN SCSI_ADAPTER_CONTROL_TYPE Con
     SCSI_ADAPTER_CONTROL_STATUS status = ScsiAdapterControlUnsuccessful;
     BOOLEAN SupportedControlTypes[ScsiAdapterControlMax] = {FALSE};
 
-    ENTER_FN();
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     SupportedControlTypes[ScsiQuerySupportedControlTypes] = TRUE;
     SupportedControlTypes[ScsiStopAdapter] = TRUE;
@@ -1164,10 +1470,11 @@ VioScsiAdapterControl(IN PVOID DeviceExtension, IN SCSI_ADAPTER_CONTROL_TYPE Con
 
     switch (ControlType)
     {
-
         case ScsiQuerySupportedControlTypes:
             {
+#if !defined(RUN_UNCHECKED)
                 RhelDbgPrint(TRACE_LEVEL_VERBOSE, " ScsiQuerySupportedControlTypes\n");
+#endif
                 ControlTypeList = (PSCSI_SUPPORTED_CONTROL_TYPE_LIST)Parameters;
                 AdjustedMaxControlType = (ControlTypeList->MaxControlType < ScsiAdapterControlMax) ? ControlTypeList->MaxControlType
                                                                                                    : ScsiAdapterControlMax;
@@ -1180,7 +1487,9 @@ VioScsiAdapterControl(IN PVOID DeviceExtension, IN SCSI_ADAPTER_CONTROL_TYPE Con
             }
         case ScsiStopAdapter:
             {
+#if !defined(RUN_UNCHECKED)
                 RhelDbgPrint(TRACE_LEVEL_VERBOSE, " ScsiStopAdapter\n");
+#endif
                 ShutDown(DeviceExtension);
                 if (adaptExt->pmsg_affinity != NULL)
                 {
@@ -1193,11 +1502,15 @@ VioScsiAdapterControl(IN PVOID DeviceExtension, IN SCSI_ADAPTER_CONTROL_TYPE Con
             }
         case ScsiRestartAdapter:
             {
+#if !defined(RUN_UNCHECKED)
                 RhelDbgPrint(TRACE_LEVEL_FATAL, " ScsiRestartAdapter\n");
+#endif
                 ShutDown(DeviceExtension);
                 if (!VioScsiHwReinitialize(DeviceExtension))
                 {
+#if !defined(RUN_UNCHECKED)
                     RhelDbgPrint(TRACE_LEVEL_FATAL, " Cannot reinitialize HW\n");
+#endif
                     break;
                 }
                 status = ScsiAdapterControlSuccess;
@@ -1205,23 +1518,33 @@ VioScsiAdapterControl(IN PVOID DeviceExtension, IN SCSI_ADAPTER_CONTROL_TYPE Con
             }
         case ScsiAdapterSurpriseRemoval:
             {
+#if !defined(RUN_UNCHECKED)
                 RhelDbgPrint(TRACE_LEVEL_FATAL, " ScsiAdapterSurpriseRemoval\n");
+#endif
                 adaptExt->bRemoved = TRUE;
                 status = ScsiAdapterControlSuccess;
                 break;
             }
         default:
+#if !defined(RUN_UNCHECKED)
             RhelDbgPrint(TRACE_LEVEL_ERROR, " Unsupported ControlType %d\n", ControlType);
+#endif
             break;
     }
 
+#if !defined(RUN_UNCHECKED)
     EXIT_FN();
+#endif
     return status;
 }
 
 SCSI_UNIT_CONTROL_STATUS
 VioScsiUnitControl(IN PVOID DeviceExtension, IN SCSI_UNIT_CONTROL_TYPE ControlType, IN PVOID Parameters)
 {
+#if !defined(RUN_UNCHECKED)
+    ENTER_FN();
+#endif
+
     PSCSI_SUPPORTED_CONTROL_TYPE_LIST ControlTypeList;
     ULONG AdjustedMaxControlType;
     ULONG index;
@@ -1229,14 +1552,15 @@ VioScsiUnitControl(IN PVOID DeviceExtension, IN SCSI_UNIT_CONTROL_TYPE ControlTy
     SCSI_UNIT_CONTROL_STATUS Status = ScsiUnitControlUnsuccessful;
     BOOLEAN SupportedControlTypes[ScsiUnitControlMax] = {FALSE};
 
-    ENTER_FN();
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     SupportedControlTypes[ScsiQuerySupportedControlTypes] = TRUE;
     SupportedControlTypes[ScsiUnitStart] = TRUE;
     SupportedControlTypes[ScsiUnitRemove] = TRUE;
     SupportedControlTypes[ScsiUnitSurpriseRemoval] = TRUE;
 
+#if !defined(RUN_UNCHECKED)
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Unit Control Type %d\n", ControlType);
+#endif
     switch (ControlType)
     {
         case ScsiQuerySupportedUnitControlTypes:
@@ -1257,14 +1581,12 @@ VioScsiUnitControl(IN PVOID DeviceExtension, IN SCSI_UNIT_CONTROL_TYPE ControlTy
             ULONG vq_req_idx;
             PREQUEST_LIST element;
             STOR_LOCK_HANDLE LockHandle = {0};
-            PVOID LockContext = NULL; // sanity check for LockMode = InterruptLock or StartIoLock
             PSTOR_ADDR_BTL8 stor_addr = (PSTOR_ADDR_BTL8)Parameters;
 
             for (vq_req_idx = 0; vq_req_idx < adaptExt->num_queues; vq_req_idx++)
             {
                 element = &adaptExt->processing_srbs[vq_req_idx];
-                LockContext = &adaptExt->dpc[vq_req_idx];
-                StorPortAcquireSpinLock(DeviceExtension, DpcLock, LockContext, &LockHandle);
+                StorPortAcquireSpinLock(DeviceExtension, DpcLock, &adaptExt->dpc[vq_req_idx], &LockHandle);
                 if (!IsListEmpty(&element->srb_list))
                 {
                     PLIST_ENTRY entry = element->srb_list.Flink;
@@ -1277,11 +1599,13 @@ VioScsiUnitControl(IN PVOID DeviceExtension, IN SCSI_UNIT_CONTROL_TYPE ControlTy
                         {
                             SRB_SET_SRB_STATUS(currSrb, SRB_STATUS_NO_DEVICE);
                             CompleteRequest(DeviceExtension, (PSRB_TYPE)currSrb);
+#if !defined(RUN_UNCHECKED)
                             RhelDbgPrint(TRACE_LEVEL_INFORMATION,
                                          " Complete pending I/Os on Path %d Target %d Lun %d \n",
                                          SRB_PATH_ID(currSrb),
                                          SRB_TARGET_ID(currSrb),
                                          SRB_LUN(currSrb));
+#endif
                             element->srb_cnt--;
                         }
                         entry = entry->Flink;
@@ -1292,17 +1616,25 @@ VioScsiUnitControl(IN PVOID DeviceExtension, IN SCSI_UNIT_CONTROL_TYPE ControlTy
             Status = ScsiUnitControlSuccess;
             break;
         default:
+#if !defined(RUN_UNCHECKED)
             RhelDbgPrint(TRACE_LEVEL_ERROR, " Unsupported Unit ControlType %d\n", ControlType);
+#endif
             break;
     }
 
+#if !defined(RUN_UNCHECKED)
     EXIT_FN();
+#endif
     return Status;
 }
 
 BOOLEAN
 VioScsiBuildIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
 {
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    ENTER_FN_SRB_HP();
+#endif
+
     PCDB cdb;
     ULONG i;
     ULONG fragLen;
@@ -1315,7 +1647,6 @@ VioScsiBuildIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
     UCHAR TargetId;
     UCHAR Lun;
 
-    ENTER_FN_SRB();
     cdb = SRB_CDB(Srb);
     srbExt = SRB_EXTENSION(Srb);
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
@@ -1327,10 +1658,15 @@ VioScsiBuildIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
     {
         SRB_SET_SRB_STATUS(Srb, SRB_STATUS_NO_DEVICE);
         StorPortNotification(RequestComplete, DeviceExtension, Srb);
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+        EXIT_FN_SRB_HP();
+#endif
         return FALSE;
     }
 
-    LOG_SRB_INFO();
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    LOG_SRB_INFO_HP();
+#endif
 
     RtlZeroMemory(srbExt, sizeof(*srbExt));
     srbExt->Srb = Srb;
@@ -1404,40 +1740,80 @@ VioScsiBuildIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
         }
         else
         {
+#if !defined(RUN_UNCHECKED)
             RhelDbgPrint(TRACE_LEVEL_ERROR,
                          "SRB 0x%p StorPortQueryPerformanceCounter failed with status  0x%lx\n",
                          Srb,
                          status);
+#endif
         }
     }
 
-    EXIT_FN_SRB();
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    EXIT_FN_SRB_HP();
+#endif
     return TRUE;
 }
 
-VOID FORCEINLINE DispatchQueue(IN PVOID DeviceExtension, IN ULONG MessageId)
+VOID FORCEINLINE DispatchQueue(IN PVOID DeviceExtension,
+                               IN ULONG MessageId,
+                               IN INL_FUNC_IDX idx_ICN,
+                               IN INL_FUNC_IDX idx_IFN)
 {
+#if !defined(RUN_UNCHECKED)
+    PVOID ICN = inline_func_string_map[idx_ICN];
+    PVOID IFN = inline_func_string_map[idx_IFN];
+#if !defined(RUN_COLD_PATH_ONLY)
+    ENTER_INL_FN_HP();
+#endif
+#endif
+
     PADAPTER_EXTENSION adaptExt;
-    ENTER_FN();
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
-    if (!adaptExt->dump_mode && adaptExt->dpc_ok)
+    if (!adaptExt->dump_mode && adaptExt->dpc_ready)
     {
         NT_ASSERT(MessageId >= QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0));
-        StorPortIssueDpc(DeviceExtension,
-                         &adaptExt->dpc[MessageId - QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0)],
-                         ULongToPtr(MessageId),
-                         ULongToPtr(MessageId));
-        EXIT_FN();
-        return;
+        if (StorPortIssueDpc(DeviceExtension,
+                             &adaptExt->dpc[MessageId - QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0)],
+                             ULongToPtr(MessageId),
+                             ULongToPtr(MessageId)))
+        {
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+            RhelDbgPrintInlineHotPath(TRACE_DPC, " The request to queue a DPC was successful.\n");
+#endif
+        }
+        else
+        {
+#if !defined(RUN_UNCHECKED)
+            RhelDbgPrintInline(TRACE_DPC,
+                               " The request to queue a DPC was NOT successful. It may already be queued elsewhere.\n");
+#endif
+        }
     }
-    ProcessBuffer(DeviceExtension, MessageId, InterruptLock);
-    EXIT_FN();
+    else
+    {
+#if !defined(RUN_UNCHECKED)
+        RhelDbgPrintInline(TRACE_LEVEL_VERBOSE,
+                           " We are in Crash Dump Mode or DPC is unavailable. Calling ProcessBuffer() without"
+                           " spinlocks...\n");
+#endif
+        ProcessBuffer(DeviceExtension, MessageId, PROCESS_BUFFER_NO_SPINLOCKS);
+    }
+
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    EXIT_INL_FN_HP();
+#endif
+    return;
 }
 
-VOID ProcessBuffer(IN PVOID DeviceExtension, IN ULONG MessageId, IN STOR_SPINLOCK LockMode)
+VOID ProcessBuffer(IN PVOID DeviceExtension, IN ULONG MessageId, IN PROCESS_BUFFER_LOCKING_MODE LockMode)
 {
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    ENTER_FN_HP();
+#endif
+
     ULONG_PTR srbId;
     unsigned int len;
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
@@ -1447,14 +1823,13 @@ VOID ProcessBuffer(IN PVOID DeviceExtension, IN ULONG MessageId, IN STOR_SPINLOC
     PSRB_EXTENSION srbExt = NULL;
     PREQUEST_LIST element;
     ULONG vq_req_idx;
-    PVOID LockContext = NULL; // sanity check for LockMode = InterruptLock or StartIoLock
-
-    ENTER_FN();
 
     if (QueueNumber >= (adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0))
     {
-        RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+#if !defined(RUN_UNCHECKED)
+        RhelDbgPrint(TRACE_VQ,
                      " Modulo assignment required for QueueNumber as it exceeds the number of virtqueues available.\n");
+#endif
         QueueNumber %= adaptExt->num_queues;
     }
     vq_req_idx = QueueNumber - VIRTIO_SCSI_REQUEST_QUEUE_0;
@@ -1462,12 +1837,10 @@ VOID ProcessBuffer(IN PVOID DeviceExtension, IN ULONG MessageId, IN STOR_SPINLOC
 
     vq = adaptExt->vq[QueueNumber];
 
-    if (LockMode == DpcLock)
+    if (LockMode != PROCESS_BUFFER_NO_SPINLOCKS)
     {
-        LockContext = &adaptExt->dpc[vq_req_idx];
+        StorPortAcquireSpinLock(DeviceExtension, DpcLock, &adaptExt->dpc[vq_req_idx], &LockHandle);
     }
-    StorPortAcquireSpinLock(DeviceExtension, LockMode, LockContext, &LockHandle);
-
     do
     {
         virtqueue_disable_cb(vq);
@@ -1479,40 +1852,58 @@ VOID ProcessBuffer(IN PVOID DeviceExtension, IN ULONG MessageId, IN STOR_SPINLOC
             for (le = element->srb_list.Flink; le != &element->srb_list && !bFound; le = le->Flink)
             {
                 srbExt = CONTAINING_RECORD(le, SRB_EXTENSION, list_entry);
-                if (srbExt->id == srbId)
-                {
-                    RemoveEntryList(le);
-                    bFound = TRUE;
-                    element->srb_cnt--;
-                    break;
-                }
-            }
+                Srb = (PSRB_TYPE)srbExt->Srb;
 
-            if (!bFound)
-            {
-                RhelDbgPrint(TRACE_LEVEL_WARNING, " No SRB found for ID 0x%p\n", (void *)srbId);
+                if (srbExt)
+                {
+                    if (srbExt->id == srbId)
+                    {
+                        RemoveEntryList(le);
+                        bFound = TRUE;
+                        element->srb_cnt--;
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+                        RhelDbgPrintHotPath(TRACE_VQ,
+                                            " VQ Buffer Length : %lu | SRB DataTransferLength : %lu \n",
+                                            len,
+                                            Srb->DataTransferLength);
+#endif
+                        break;
+                    }
+                }
             }
 
             if (bFound)
             {
-                HandleResponse(DeviceExtension, &srbExt->cmd);
+                HandleResponse(DeviceExtension, &srbExt->cmd, idx_ProcessBuffer, idx_HandleResponse);
+            }
+            else
+            {
+#if !defined(RUN_UNCHECKED)
+                RhelDbgPrint(TRACE_LEVEL_WARNING, " No SRB found for ID 0x%p\n", (void *)srbId);
+#endif
             }
         }
     } while (!virtqueue_enable_cb(vq));
+    if (LockMode != PROCESS_BUFFER_NO_SPINLOCKS)
+    {
+        StorPortReleaseSpinLock(DeviceExtension, &LockHandle);
+    }
 
-    StorPortReleaseSpinLock(DeviceExtension, &LockHandle);
-
-    EXIT_FN();
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    EXIT_FN_HP();
+#endif
 }
 
 VOID VioScsiCompleteDpcRoutine(IN PSTOR_DPC Dpc, IN PVOID Context, IN PVOID SystemArgument1, IN PVOID SystemArgument2)
 {
-    ULONG MessageId;
-
-    ENTER_FN();
-    MessageId = PtrToUlong(SystemArgument1);
-    ProcessBuffer(Context, MessageId, DpcLock);
-    EXIT_FN();
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    ENTER_FN_HP();
+#endif
+    ULONG MessageId = PtrToUlong(SystemArgument1);
+    ProcessBuffer(Context, MessageId, PROCESS_BUFFER_DPC_SPINLOCKS);
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    EXIT_FN_HP();
+#endif
 }
 
 VOID CompletePendingRequestsOnReset(IN PVOID DeviceExtension)
@@ -1522,7 +1913,6 @@ VOID CompletePendingRequestsOnReset(IN PVOID DeviceExtension)
     ULONG vq_req_idx;
     PREQUEST_LIST element;
     STOR_LOCK_HANDLE LockHandle = {0};
-    PVOID LockContext = NULL; // sanity check for LockMode = InterruptLock or StartIoLock
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
@@ -1535,9 +1925,10 @@ VOID CompletePendingRequestsOnReset(IN PVOID DeviceExtension)
         for (vq_req_idx = 0; vq_req_idx < adaptExt->num_queues; vq_req_idx++)
         {
             element = &adaptExt->processing_srbs[vq_req_idx];
+#if !defined(RUN_UNCHECKED)
             RhelDbgPrint(TRACE_LEVEL_FATAL, " queue %d cnt %d\n", vq_req_idx, element->srb_cnt);
-            LockContext = &adaptExt->dpc[vq_req_idx];
-            StorPortAcquireSpinLock(DeviceExtension, DpcLock, LockContext, &LockHandle);
+#endif
+            StorPortAcquireSpinLock(DeviceExtension, DpcLock, &adaptExt->dpc[vq_req_idx], &LockHandle);
             while (!IsListEmpty(&element->srb_list))
             {
                 PLIST_ENTRY entry = RemoveHeadList(&element->srb_list);
@@ -1563,7 +1954,9 @@ VOID CompletePendingRequestsOnReset(IN PVOID DeviceExtension)
     }
     else
     {
+#if !defined(RUN_UNCHECKED)
         RhelDbgPrint(TRACE_LEVEL_FATAL, " Reset is already in progress, doing nothing.\n");
+#endif
     }
     adaptExt->reset_in_progress = FALSE;
 }
@@ -1571,13 +1964,16 @@ VOID CompletePendingRequestsOnReset(IN PVOID DeviceExtension)
 UCHAR
 VioScsiProcessPnP(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
 {
+#if !defined(RUN_UNCHECKED)
+    ENTER_FN();
+#endif
+
     PADAPTER_EXTENSION adaptExt;
     PSCSI_PNP_REQUEST_BLOCK pnpBlock;
     ULONG SrbPnPFlags;
     ULONG PnPAction;
     UCHAR SrbStatus;
 
-    ENTER_FN();
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     pnpBlock = (PSCSI_PNP_REQUEST_BLOCK)Srb;
     SrbStatus = SRB_STATUS_SUCCESS;
@@ -1585,11 +1981,13 @@ VioScsiProcessPnP(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     switch (PnPAction)
     {
         case StorQueryCapabilities:
+#if !defined(RUN_UNCHECKED)
             RhelDbgPrint(TRACE_LEVEL_INFORMATION,
                          " StorQueryCapabilities on %d::%d::%d\n",
                          SRB_PATH_ID(Srb),
                          SRB_TARGET_ID(Srb),
                          SRB_LUN(Srb));
+#endif
             if (((SrbPnPFlags & SRB_PNP_FLAGS_ADAPTER_REQUEST) == 0) ||
                 (SRB_DATA_TRANSFER_LENGTH(Srb) >= sizeof(STOR_DEVICE_CAPABILITIES)))
             {
@@ -1601,93 +1999,171 @@ VioScsiProcessPnP(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
             break;
         case StorRemoveDevice:
         case StorSurpriseRemoval:
+#if !defined(RUN_UNCHECKED)
             RhelDbgPrint(TRACE_LEVEL_FATAL,
                          " Adapter Removal happens on %d::%d::%d\n",
                          SRB_PATH_ID(Srb),
                          SRB_TARGET_ID(Srb),
                          SRB_LUN(Srb));
+#endif
             adaptExt->bRemoved = TRUE;
             break;
         default:
+#if !defined(RUN_UNCHECKED)
             RhelDbgPrint(TRACE_LEVEL_FATAL,
                          " Unsupported PnPAction SrbPnPFlags = %d, PnPAction = %d\n",
                          SrbPnPFlags,
                          PnPAction);
+#endif
             SrbStatus = SRB_STATUS_INVALID_REQUEST;
             break;
     }
+#if !defined(RUN_UNCHECKED)
     EXIT_FN();
+#endif
     return SrbStatus;
 }
 
 BOOLEAN
 FORCEINLINE
-PreProcessRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
+PreProcessRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb, IN INL_FUNC_IDX idx_ICN, IN INL_FUNC_IDX idx_IFN)
 {
+#if !defined(RUN_UNCHECKED)
+    PVOID ICN = inline_func_string_map[idx_ICN];
+    PVOID IFN = inline_func_string_map[idx_IFN];
+#if !defined(RUN_COLD_PATH_ONLY)
+    ENTER_INL_FN_SRB_HP();
+#endif
+#endif
+
     PADAPTER_EXTENSION adaptExt;
 
-    ENTER_FN_SRB();
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     switch (SRB_FUNCTION(Srb))
     {
         case SRB_FUNCTION_PNP:
+#if !defined(RUN_UNCHECKED)
+            RhelDbgPrintInline(TRACE_LEVEL_VERBOSE,
+                               " Pre-Processor detected SRB_FUNCTION_PNP. Executing VioScsiProcessPnP()...\n");
+#endif
             SRB_SET_SRB_STATUS(Srb, VioScsiProcessPnP(DeviceExtension, Srb));
+#if !defined(RUN_UNCHECKED)
+            EXIT_INL_FN_SRB();
+#endif
             return TRUE;
 
         case SRB_FUNCTION_POWER:
+#if !defined(RUN_UNCHECKED)
+            RhelDbgPrintInline(TRACE_LEVEL_VERBOSE,
+                               " Pre-Processor detected SRB_FUNCTION_POWER. Setting SRB_STATUS_SUCCESS.\n");
+#endif
             SRB_SET_SRB_STATUS(Srb, SRB_STATUS_SUCCESS);
+#if !defined(RUN_UNCHECKED)
+            EXIT_INL_FN_SRB();
+#endif
             return TRUE;
 
         case SRB_FUNCTION_RESET_BUS:
         case SRB_FUNCTION_RESET_DEVICE:
         case SRB_FUNCTION_RESET_LOGICAL_UNIT:
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION,
-                         " <--> SRB_FUNCTION_RESET_LOGICAL_UNIT Target (%d::%d::%d), SRB 0x%p\n",
-                         SRB_PATH_ID(Srb),
-                         SRB_TARGET_ID(Srb),
-                         SRB_LUN(Srb),
-                         Srb);
+#if !defined(RUN_UNCHECKED)
+            RhelDbgPrintInline(TRACE_LEVEL_INFORMATION,
+                               " <--> SRB_FUNCTION_RESET_LOGICAL_UNIT Target (%d::%d::%d), SRB 0x%p\n",
+                               SRB_PATH_ID(Srb),
+                               SRB_TARGET_ID(Srb),
+                               SRB_LUN(Srb),
+                               Srb);
+#endif
             switch (adaptExt->action_on_reset)
             {
                 case VioscsiResetCompleteRequests:
-                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Completing all pending SRBs\n");
+#if !defined(RUN_UNCHECKED)
+                    RhelDbgPrintInline(TRACE_LEVEL_INFORMATION, " Completing all pending SRBs\n");
+#endif
                     CompletePendingRequestsOnReset(DeviceExtension);
                     SRB_SET_SRB_STATUS(Srb, SRB_STATUS_SUCCESS);
+#if !defined(RUN_UNCHECKED)
+                    EXIT_INL_FN_SRB();
+#endif
                     return TRUE;
                 case VioscsiResetDoNothing:
-                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Doing nothing with all pending SRBs\n");
                     SRB_SET_SRB_STATUS(Srb, SRB_STATUS_SUCCESS);
+#if !defined(RUN_UNCHECKED)
+                    RhelDbgPrintInline(TRACE_LEVEL_INFORMATION, " Doing nothing with all pending SRBs\n");
+                    EXIT_INL_FN_SRB();
+#endif
                     return TRUE;
                 case VioscsiResetBugCheck:
-                    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Let's bugcheck due to this reset event\n");
                     KeBugCheckEx(0xDEADDEAD, (ULONG_PTR)Srb, SRB_PATH_ID(Srb), SRB_TARGET_ID(Srb), SRB_LUN(Srb));
+#if !defined(RUN_UNCHECKED)
+                    RhelDbgPrintInline(TRACE_LEVEL_INFORMATION, " Let's bugcheck due to this reset event\n");
+                    EXIT_INL_FN_SRB();
+#endif
                     return TRUE;
             }
         case SRB_FUNCTION_WMI:
+#if !defined(RUN_UNCHECKED)
+            RhelDbgPrintInline(TRACE_LEVEL_VERBOSE,
+                               " Pre-Processor detected SRB_FUNCTION_WMI. Executing VioScsiWmiSrb()...\n");
+#endif
             VioScsiWmiSrb(DeviceExtension, Srb);
+#if !defined(RUN_UNCHECKED)
+            EXIT_INL_FN_SRB();
+#endif
             return TRUE;
         case SRB_FUNCTION_IO_CONTROL:
+#if !defined(RUN_UNCHECKED)
+            RhelDbgPrintInline(TRACE_LEVEL_VERBOSE,
+                               " Pre-Processor detected SRB_FUNCTION_IO_CONTROL. Executing VioScsiIoControl()...\n");
+#endif
             VioScsiIoControl(DeviceExtension, Srb);
+#if !defined(RUN_UNCHECKED)
+            EXIT_INL_FN_SRB();
+#endif
             return TRUE;
     }
-    EXIT_FN_SRB();
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    RhelDbgPrintInlineHotPath(TRACE_LEVEL_VERBOSE, " Pre-Processor did not detect any SRB_FUNCTION calls.\n");
+    EXIT_INL_FN_SRB_HP();
+#endif
     return FALSE;
 }
 
-VOID PostProcessRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
+VOID FORCEINLINE PostProcessRequest(IN PVOID DeviceExtension,
+                                    IN PSRB_TYPE Srb,
+                                    IN INL_FUNC_IDX idx_ICN,
+                                    IN INL_FUNC_IDX idx_IFN)
 {
+#if !defined(RUN_UNCHECKED)
+    PVOID ICN = inline_func_string_map[idx_ICN];
+    PVOID IFN = inline_func_string_map[idx_IFN];
+#if !defined(RUN_COLD_PATH_ONLY)
+    ENTER_INL_FN_SRB_HP();
+#endif
+#endif
+
     PCDB cdb = NULL;
     PADAPTER_EXTENSION adaptExt = NULL;
     PSRB_EXTENSION srbExt = NULL;
-    ENTER_FN_SRB();
+
     if (SRB_FUNCTION(Srb) != SRB_FUNCTION_EXECUTE_SCSI)
     {
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+        RhelDbgPrintInlineHotPath(TRACE_LEVEL_VERBOSE,
+                                  " Post-Processor detected this is NOT a SRB_FUNCTION_EXECUTE_SCSI.\n");
+        EXIT_INL_FN_SRB_HP();
+#endif
         return;
     }
     cdb = SRB_CDB(Srb);
     if (!cdb)
     {
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+        RhelDbgPrintInlineHotPath(TRACE_LEVEL_VERBOSE,
+                                  " Post-Processor detected this is NOT a Command Descriptor Block (CDB).\n");
+        EXIT_INL_FN_SRB_HP();
+#endif
         return;
     }
 
@@ -1699,6 +2175,10 @@ VOID PostProcessRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
         case SCSIOP_READ_CAPACITY16:
             break;
         case SCSIOP_INQUIRY:
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+            RhelDbgPrintInlineHotPath(TRACE_LEVEL_VERBOSE,
+                                      " Post-Processor detected SCSIOP_INQUIRY. Saving and Patching Inquiry Data...\n");
+#endif
             VioScsiSaveInquiryData(DeviceExtension, Srb);
             VioScsiPatchInquiryData(DeviceExtension, Srb);
             if (!StorPortSetDeviceQueueDepth(DeviceExtension,
@@ -1707,27 +2187,40 @@ VOID PostProcessRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
                                              SRB_LUN(Srb),
                                              adaptExt->queue_depth))
             {
-                RhelDbgPrint(TRACE_LEVEL_ERROR,
-                             " StorPortSetDeviceQueueDepth(%p, %x) failed.\n",
-                             DeviceExtension,
-                             adaptExt->queue_depth);
+#if !defined(RUN_UNCHECKED)
+                RhelDbgPrintInline(TRACE_LEVEL_ERROR,
+                                   " StorPortSetDeviceQueueDepth(%p, %x) failed.\n",
+                                   DeviceExtension,
+                                   adaptExt->queue_depth);
+#endif
             }
             break;
         default:
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+            RhelDbgPrintInlineHotPath(TRACE_LEVEL_VERBOSE,
+                                      " Post-Processor did NOT detect any CDB6GENERIC Operation Codes in the Command "
+                                      "Descriptor Block (CDB).\n");
+#endif
             break;
     }
-    EXIT_FN_SRB();
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    EXIT_INL_FN_SRB_HP();
+#endif
 }
 
 VOID CompleteRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
 {
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    ENTER_FN_SRB_HP();
+#endif
+
     PADAPTER_EXTENSION adaptExt = NULL;
     PSRB_EXTENSION srbExt = NULL;
 
-    ENTER_FN_SRB();
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    PostProcessRequest(DeviceExtension, Srb);
+    PostProcessRequest(DeviceExtension, Srb, idx_CompleteRequest, idx_PostProcessRequest);
 
+#if !defined(RUN_UNCHECKED)
     if (adaptExt->resp_time)
     {
         srbExt = SRB_EXTENSION(Srb);
@@ -1779,8 +2272,13 @@ VOID CompleteRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
             }
         }
     }
+#endif
     StorPortNotification(RequestComplete, DeviceExtension, Srb);
-    EXIT_FN_SRB();
+
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    RhelDbgPrintHotPath(TRACE_LEVEL_VERBOSE, " StorPort was notified the request is complete.\n");
+    EXIT_FN_SRB_HP();
+#endif
 }
 
 VOID LogError(IN PVOID DeviceExtension, IN ULONG ErrorCode, IN ULONG UniqueId)
@@ -1800,9 +2298,12 @@ VOID LogError(IN PVOID DeviceExtension, IN ULONG ErrorCode, IN ULONG UniqueId)
 
 VOID TransportReset(IN PVOID DeviceExtension, IN PVirtIOSCSIEvent evt)
 {
+#if !defined(RUN_UNCHECKED)
+    ENTER_FN();
+#endif
+
     UCHAR TargetId = evt->lun[1];
     UCHAR Lun = (evt->lun[2] << 8) | evt->lun[3];
-    ENTER_FN();
 
     switch (evt->reason)
     {
@@ -1813,18 +2314,26 @@ VOID TransportReset(IN PVOID DeviceExtension, IN PVirtIOSCSIEvent evt)
             StorPortNotification(BusChangeDetected, DeviceExtension, 0);
             break;
         default:
+#if !defined(RUN_UNCHECKED)
             RhelDbgPrint(TRACE_LEVEL_VERBOSE, " <--> Unsupport virtio scsi event reason 0x%x\n", evt->reason);
+#endif
+            break;
     }
+#if !defined(RUN_UNCHECKED)
     EXIT_FN();
+#endif
 }
 
 VOID ParamChange(IN PVOID DeviceExtension, IN PVirtIOSCSIEvent evt)
 {
+#if !defined(RUN_UNCHECKED)
+    ENTER_FN();
+#endif
+
     UCHAR TargetId = evt->lun[1];
     UCHAR Lun = (evt->lun[2] << 8) | evt->lun[3];
     UCHAR AdditionalSenseCode = (UCHAR)(evt->reason & 255);
     UCHAR AdditionalSenseCodeQualifier = (UCHAR)(evt->reason >> 8);
-    ENTER_FN();
 
     if (AdditionalSenseCode == SCSI_ADSENSE_PARAMETERS_CHANGED &&
         (AdditionalSenseCodeQualifier == SPC3_SCSI_SENSEQ_PARAMETERS_CHANGED ||
@@ -1833,14 +2342,19 @@ VOID ParamChange(IN PVOID DeviceExtension, IN PVirtIOSCSIEvent evt)
     {
         StorPortNotification(BusChangeDetected, DeviceExtension, 0);
     }
+#if !defined(RUN_UNCHECKED)
     EXIT_FN();
+#endif
 }
 
 VOID VioScsiWmiInitialize(IN PVOID DeviceExtension)
 {
+#if !defined(RUN_UNCHECKED)
+    ENTER_FN();
+#endif
+
     PADAPTER_EXTENSION adaptExt;
     PSCSI_WMILIB_CONTEXT WmiLibContext;
-    ENTER_FN();
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     WmiLibContext = (PSCSI_WMILIB_CONTEXT)(&(adaptExt->WmiLibContext));
@@ -1853,18 +2367,24 @@ VOID VioScsiWmiInitialize(IN PVOID DeviceExtension)
     WmiLibContext->SetWmiDataBlock = NULL;
     WmiLibContext->ExecuteWmiMethod = VioScsiExecuteWmiMethod;
     WmiLibContext->WmiFunctionControl = NULL;
+
+#if !defined(RUN_UNCHECKED)
     EXIT_FN();
+#endif
 }
 
 VOID VioScsiWmiSrb(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
 {
+#if !defined(RUN_UNCHECKED)
+    ENTER_FN_SRB();
+#endif
+
     UCHAR status;
     SCSIWMI_REQUEST_CONTEXT requestContext = {0};
     ULONG retSize;
     PADAPTER_EXTENSION adaptExt;
     PSRB_WMI_DATA pSrbWmi = SRB_WMI_DATA(Srb);
 
-    ENTER_FN_SRB();
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     ASSERT(SRB_FUNCTION(Srb) == SRB_FUNCTION_WMI);
@@ -1874,6 +2394,9 @@ VOID VioScsiWmiSrb(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
 
     if (!pSrbWmi)
     {
+#if !defined(RUN_UNCHECKED)
+        EXIT_FN_SRB();
+#endif
         return;
     }
     if (!(pSrbWmi->WMIFlags & SRB_WMI_FLAGS_ADAPTER_REQUEST))
@@ -1898,17 +2421,20 @@ VOID VioScsiWmiSrb(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
         SRB_SET_DATA_TRANSFER_LENGTH(Srb, retSize);
         SRB_SET_SRB_STATUS(Srb, status);
     }
-
+#if !defined(RUN_UNCHECKED)
     EXIT_FN_SRB();
+#endif
 }
 
 VOID VioScsiIoControl(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
 {
+#if !defined(RUN_UNCHECKED)
+    ENTER_FN_SRB();
+#endif
+
     PSRB_IO_CONTROL srbControl;
     PVOID srbDataBuffer = SRB_DATA_BUFFER(Srb);
     PADAPTER_EXTENSION adaptExt;
-
-    ENTER_FN_SRB();
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     srbControl = (PSRB_IO_CONTROL)srbDataBuffer;
@@ -1917,6 +2443,7 @@ VOID VioScsiIoControl(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
     {
         case IOCTL_SCSI_MINIPORT_NOT_QUORUM_CAPABLE:
             SRB_SET_SRB_STATUS(Srb, SRB_STATUS_ERROR);
+#if !defined(RUN_UNCHECKED)
             RhelDbgPrint(TRACE_LEVEL_INFORMATION,
                          " <--> Signature = %02x %02x %02x %02x %02x %02x %02x %02x\n",
                          srbControl->Signature[0],
@@ -1928,17 +2455,24 @@ VOID VioScsiIoControl(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
                          srbControl->Signature[6],
                          srbControl->Signature[7]);
             RhelDbgPrint(TRACE_LEVEL_INFORMATION, " <--> IOCTL_SCSI_MINIPORT_NOT_QUORUM_CAPABLE\n");
+#endif
             break;
         case IOCTL_SCSI_MINIPORT_FIRMWARE:
             FirmwareRequest(DeviceExtension, Srb);
+#if !defined(RUN_UNCHECKED)
             RhelDbgPrint(TRACE_LEVEL_INFORMATION, " <--> IOCTL_SCSI_MINIPORT_FIRMWARE\n");
+#endif
             break;
         default:
             SRB_SET_SRB_STATUS(Srb, SRB_STATUS_INVALID_REQUEST);
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " <--> Unsupport control code 0x%x\n", srbControl->ControlCode);
+#if !defined(RUN_UNCHECKED)
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " <--> Unsupported control code 0x%x\n", srbControl->ControlCode);
+#endif
             break;
     }
+#if !defined(RUN_UNCHECKED)
     EXIT_FN_SRB();
+#endif
 }
 
 UCHAR
@@ -1946,11 +2480,14 @@ ParseIdentificationDescr(IN PVOID DeviceExtension,
                          IN PVPD_IDENTIFICATION_DESCRIPTOR IdentificationDescr,
                          IN UCHAR PageLength)
 {
+#if !defined(RUN_UNCHECKED)
+    ENTER_FN();
+#endif
+
     PADAPTER_EXTENSION adaptExt;
     UCHAR CodeSet = 0;
     UCHAR IdentifierType = 0;
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    ENTER_FN();
     if (IdentificationDescr)
     {
         CodeSet = IdentificationDescr->CodeSet;               //(UCHAR)(((PCHAR)IdentificationDescr)[0]);
@@ -1972,7 +2509,9 @@ ParseIdentificationDescr(IN PVOID DeviceExtension,
                             {
                                 StorPortMoveMemory(adaptExt->ser_num, IdentificationDescr->Identifier, ln);
                                 adaptExt->ser_num[ln] = '\0';
+#if !defined(RUN_UNCHECKED)
                                 RhelDbgPrint(TRACE_LEVEL_INFORMATION, " serial number %s\n", adaptExt->ser_num);
+#endif
                             }
                         }
                     }
@@ -1984,7 +2523,9 @@ ParseIdentificationDescr(IN PVOID DeviceExtension,
                         (IdentificationDescr->IdentifierLength == sizeof(ULONGLONG)))
                     {
                         REVERSE_BYTES_QUAD(&adaptExt->wwn, IdentificationDescr->Identifier);
+#if !defined(RUN_UNCHECKED)
                         RhelDbgPrint(TRACE_LEVEL_INFORMATION, " wwn %llu\n", (ULONGLONG)adaptExt->wwn);
+#endif
                     }
                 }
                 break;
@@ -1994,7 +2535,9 @@ ParseIdentificationDescr(IN PVOID DeviceExtension,
                         (IdentificationDescr->IdentifierLength == sizeof(ULONGLONG)))
                     {
                         REVERSE_BYTES_QUAD(&adaptExt->port_wwn, IdentificationDescr->Identifier);
+#if !defined(RUN_UNCHECKED)
                         RhelDbgPrint(TRACE_LEVEL_INFORMATION, " port wwn %llu\n", (ULONGLONG)adaptExt->port_wwn);
+#endif
                     }
                 }
                 break;
@@ -2004,31 +2547,46 @@ ParseIdentificationDescr(IN PVOID DeviceExtension,
                         (IdentificationDescr->IdentifierLength == sizeof(ULONG)))
                     {
                         REVERSE_BYTES(&adaptExt->port_idx, IdentificationDescr->Identifier);
+#if !defined(RUN_UNCHECKED)
                         RhelDbgPrint(TRACE_LEVEL_INFORMATION, " port index %lu\n", (ULONG)adaptExt->port_idx);
+#endif
                     }
                 }
                 break;
             default:
+#if !defined(RUN_UNCHECKED)
                 RhelDbgPrint(TRACE_LEVEL_ERROR, " Unsupported IdentifierType = %x!\n", IdentifierType);
+#endif
                 break;
         }
+#if !defined(RUN_UNCHECKED)
+        EXIT_FN();
+#endif
         return IdentificationDescr->IdentifierLength;
     }
+#if !defined(RUN_UNCHECKED)
     EXIT_FN();
+#endif
     return 0;
 }
 
 VOID VioScsiSaveInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
 {
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    ENTER_FN_SRB_HP();
+#endif
+
     PVOID dataBuffer;
     PADAPTER_EXTENSION adaptExt;
     PCDB cdb;
     ULONG dataLen;
     UCHAR SrbStatus = SRB_STATUS_SUCCESS;
-    ENTER_FN_SRB();
 
     if (!Srb)
     {
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+        EXIT_FN_SRB_HP();
+#endif
         return;
     }
 
@@ -2036,12 +2594,18 @@ VOID VioScsiSaveInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
 
     if (!cdb)
     {
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+        EXIT_FN_SRB_HP();
+#endif
         return;
     }
 
     SRB_GET_SCSI_STATUS(Srb, SrbStatus);
     if (SrbStatus == SRB_STATUS_ERROR)
     {
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+        EXIT_FN_SRB_HP();
+#endif
         return;
     }
 
@@ -2057,9 +2621,11 @@ VOID VioScsiSaveInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
                 {
                     PVPD_SERIAL_NUMBER_PAGE SerialPage;
                     SerialPage = (PVPD_SERIAL_NUMBER_PAGE)dataBuffer;
+#if !defined(RUN_UNCHECKED)
                     RhelDbgPrint(TRACE_LEVEL_INFORMATION,
                                  " VPD_SERIAL_NUMBER PageLength = %d\n",
                                  SerialPage->PageLength);
+#endif
                     if (SerialPage->PageLength > 0 && adaptExt->ser_num == NULL)
                     {
                         int ln = min(64, SerialPage->PageLength);
@@ -2071,7 +2637,9 @@ VOID VioScsiSaveInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
                         {
                             StorPortMoveMemory(adaptExt->ser_num, SerialPage->SerialNumber, ln);
                             adaptExt->ser_num[ln] = '\0';
-                            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " serial number %s\n", adaptExt->ser_num);
+#if !defined(RUN_UNCHECKED)
+                            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Serial Number : %s\n", adaptExt->ser_num);
+#endif
                         }
                     }
                 }
@@ -2116,20 +2684,28 @@ VOID VioScsiSaveInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
                                    sizeof(InquiryData->ProductRevisionLevel));
         }
     }
-    EXIT_FN_SRB();
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    EXIT_FN_SRB_HP();
+#endif
 }
 
 VOID VioScsiPatchInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
 {
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    ENTER_FN_SRB_HP();
+#endif
+
     PVOID dataBuffer;
     PADAPTER_EXTENSION adaptExt;
     PCDB cdb;
     ULONG dataLen;
     UCHAR SrbStatus = SRB_STATUS_SUCCESS;
-    ENTER_FN_SRB();
 
     if (!Srb)
     {
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+        EXIT_FN_SRB_HP();
+#endif
         return;
     }
 
@@ -2137,12 +2713,18 @@ VOID VioScsiPatchInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
 
     if (!cdb)
     {
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+        EXIT_FN_SRB_HP();
+#endif
         return;
     }
 
     SRB_GET_SCSI_STATUS(Srb, SrbStatus);
     if (SrbStatus == SRB_STATUS_ERROR)
     {
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+        EXIT_FN_SRB_HP();
+#endif
         return;
     }
 
@@ -2190,7 +2772,9 @@ VOID VioScsiPatchInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
                 break;
         }
     }
-    EXIT_FN_SRB();
+#if !defined(RUN_UNCHECKED) || !defined(RUN_COLD_PATH_ONLY)
+    EXIT_FN_SRB_HP();
+#endif
 }
 
 BOOLEAN
@@ -2203,11 +2787,14 @@ VioScsiQueryWmiDataBlock(IN PVOID Context,
                          IN ULONG OutBufferSize,
                          OUT PUCHAR Buffer)
 {
+#if !defined(RUN_UNCHECKED)
+    ENTER_FN();
+#endif
+
     ULONG size = 0;
     UCHAR status = SRB_STATUS_SUCCESS;
     PADAPTER_EXTENSION adaptExt;
 
-    ENTER_FN();
     adaptExt = (PADAPTER_EXTENSION)Context;
 
     UNREFERENCED_PARAMETER(InstanceIndex);
@@ -2231,7 +2818,9 @@ VioScsiQueryWmiDataBlock(IN PVOID Context,
         case VIOSCSI_MS_ADAPTER_INFORM_GUID_INDEX:
             {
                 PMS_SM_AdapterInformationQuery pOutBfr = (PMS_SM_AdapterInformationQuery)Buffer;
-                RhelDbgPrint(TRACE_LEVEL_FATAL, " --> VIOSCSI_MS_ADAPTER_INFORM_GUID_INDEX\n");
+#if !defined(RUN_UNCHECKED)
+                RhelDbgPrint(TRACE_LEVEL_WARNING, " --> VIOSCSI_MS_ADAPTER_INFORM_GUID_INDEX\n");
+#endif
                 size = sizeof(MS_SM_AdapterInformationQuery);
                 if (OutBufferSize < size)
                 {
@@ -2279,10 +2868,12 @@ VioScsiQueryWmiDataBlock(IN PVOID Context,
                 if (OutBufferSize < size)
                 {
                     status = SRB_STATUS_DATA_OVERRUN;
+#if !defined(RUN_UNCHECKED)
                     RhelDbgPrint(TRACE_LEVEL_WARNING,
                                  " --> VIOSCSI_MS_PORT_INFORM_GUID_INDEX out buffer too small %d %d\n",
                                  OutBufferSize,
                                  size);
+#endif
                     break;
                 }
                 *InstanceLengthArray = size;
@@ -2297,7 +2888,9 @@ VioScsiQueryWmiDataBlock(IN PVOID Context,
 
     ScsiPortWmiPostProcess(RequestContext, status, size);
 
+#if !defined(RUN_UNCHECKED)
     EXIT_FN();
+#endif
     return TRUE;
 }
 
@@ -2311,24 +2904,31 @@ VioScsiExecuteWmiMethod(IN PVOID Context,
                         IN ULONG OutBufferSize,
                         IN OUT PUCHAR Buffer)
 {
+#if !defined(RUN_UNCHECKED)
+    ENTER_FN();
+#endif
+
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)Context;
     ULONG size = 0;
     UCHAR status = SRB_STATUS_SUCCESS;
     UNREFERENCED_PARAMETER(InstanceIndex);
 
-    ENTER_FN();
     switch (GuidIndex)
     {
         case VIOSCSI_SETUP_GUID_INDEX:
             {
+#if !defined(RUN_UNCHECKED)
                 RhelDbgPrint(TRACE_LEVEL_INFORMATION, " --> VIOSCSI_SETUP_GUID_INDEX ERROR\n");
+#endif
             }
             break;
         case VIOSCSI_MS_ADAPTER_INFORM_GUID_INDEX:
             {
                 PMS_SM_AdapterInformationQuery pOutBfr = (PMS_SM_AdapterInformationQuery)Buffer;
                 pOutBfr;
+#if !defined(RUN_UNCHECKED)
                 RhelDbgPrint(TRACE_LEVEL_INFORMATION, " --> VIOSCSI_MS_ADAPTER_INFORM_GUID_INDEX ERROR\n");
+#endif
             }
             break;
         case VIOSCSI_MS_PORT_INFORM_GUID_INDEX:
@@ -2339,7 +2939,9 @@ VioScsiExecuteWmiMethod(IN PVOID Context,
                         {
                             PSM_GetPortType_IN pInBfr = (PSM_GetPortType_IN)Buffer;
                             PSM_GetPortType_OUT pOutBfr = (PSM_GetPortType_OUT)Buffer;
+#if !defined(RUN_UNCHECKED)
                             RhelDbgPrint(TRACE_LEVEL_INFORMATION, " --> SM_GetPortType\n");
+#endif
                             size = SM_GetPortType_OUT_SIZE;
                             if (OutBufferSize < size)
                             {
@@ -2360,7 +2962,9 @@ VioScsiExecuteWmiMethod(IN PVOID Context,
                             PSM_GetAdapterPortAttributes_IN pInBfr = (PSM_GetAdapterPortAttributes_IN)Buffer;
                             PSM_GetAdapterPortAttributes_OUT pOutBfr = (PSM_GetAdapterPortAttributes_OUT)Buffer;
                             PMS_SMHBA_FC_Port pPortSpecificAttributes = NULL;
+#if !defined(RUN_UNCHECKED)
                             RhelDbgPrint(TRACE_LEVEL_INFORMATION, " --> SM_GetAdapterPortAttributes\n");
+#endif
                             size = FIELD_OFFSET(SM_GetAdapterPortAttributes_OUT, PortAttributes) +
                                    FIELD_OFFSET(MS_SMHBA_PORTATTRIBUTES, PortSpecificAttributes) +
                                    sizeof(MS_SMHBA_FC_Port);
@@ -2403,7 +3007,9 @@ VioScsiExecuteWmiMethod(IN PVOID Context,
                         {
                             PSM_GetDiscoveredPortAttributes_IN pInBfr = (PSM_GetDiscoveredPortAttributes_IN)Buffer;
                             PSM_GetDiscoveredPortAttributes_OUT pOutBfr = (PSM_GetDiscoveredPortAttributes_OUT)Buffer;
+#if !defined(RUN_UNCHECKED)
                             RhelDbgPrint(TRACE_LEVEL_INFORMATION, " --> SM_GetDiscoveredPortAttributes\n");
+#endif
                             size = SM_GetDiscoveredPortAttributes_OUT_SIZE;
                             if (OutBufferSize < size)
                             {
@@ -2427,7 +3033,9 @@ VioScsiExecuteWmiMethod(IN PVOID Context,
                         {
                             PSM_GetPortAttributesByWWN_IN pInBfr = (PSM_GetPortAttributesByWWN_IN)Buffer;
                             PSM_GetPortAttributesByWWN_OUT pOutBfr = (PSM_GetPortAttributesByWWN_OUT)Buffer;
+#if !defined(RUN_UNCHECKED)
                             RhelDbgPrint(TRACE_LEVEL_INFORMATION, " --> SM_GetPortAttributesByWWN\n");
+#endif
                             size = SM_GetPortAttributesByWWN_OUT_SIZE;
                             if (OutBufferSize < size)
                             {
@@ -2445,15 +3053,19 @@ VioScsiExecuteWmiMethod(IN PVOID Context,
                                               sizeof(pOutBfr->PortAttributes.OSDeviceName));
                             pOutBfr->PortAttributes.PortState = HBA_PORTSTATE_ONLINE;
                             pOutBfr->PortAttributes.PortType = HBA_PORTTYPE_SASDEVICE;
+#if !defined(RUN_UNCHECKED)
                             RhelDbgPrint(TRACE_LEVEL_INFORMATION,
                                          " --> SM_GetPortAttributesByWWN Not Implemented Yet\n");
+#endif
                         }
                         break;
                     case SM_GetProtocolStatistics:
                         {
                             PSM_GetProtocolStatistics_IN pInBfr = (PSM_GetProtocolStatistics_IN)Buffer;
                             PSM_GetProtocolStatistics_OUT pOutBfr = (PSM_GetProtocolStatistics_OUT)Buffer;
+#if !defined(RUN_UNCHECKED)
                             RhelDbgPrint(TRACE_LEVEL_INFORMATION, " --> SM_GetProtocolStatistics\n");
+#endif
                             size = SM_GetProtocolStatistics_OUT_SIZE;
                             if (OutBufferSize < size)
                             {
@@ -2471,7 +3083,9 @@ VioScsiExecuteWmiMethod(IN PVOID Context,
                         {
                             PSM_GetPhyStatistics_IN pInBfr = (PSM_GetPhyStatistics_IN)Buffer;
                             PSM_GetPhyStatistics_OUT pOutBfr = (PSM_GetPhyStatistics_OUT)Buffer;
+#if !defined(RUN_UNCHECKED)
                             RhelDbgPrint(TRACE_LEVEL_INFORMATION, " --> SM_GetPhyStatistics\n");
+#endif
                             size = FIELD_OFFSET(SM_GetPhyStatistics_OUT, PhyCounter) + sizeof(LONGLONG);
                             if (OutBufferSize < size)
                             {
@@ -2490,7 +3104,9 @@ VioScsiExecuteWmiMethod(IN PVOID Context,
                             PSM_GetFCPhyAttributes_IN pInBfr = (PSM_GetFCPhyAttributes_IN)Buffer;
                             PSM_GetFCPhyAttributes_OUT pOutBfr = (PSM_GetFCPhyAttributes_OUT)Buffer;
 
+#if !defined(RUN_UNCHECKED)
                             RhelDbgPrint(TRACE_LEVEL_INFORMATION, " --> SM_GetFCPhyAttributes\n");
+#endif
                             size = SM_GetFCPhyAttributes_OUT_SIZE;
 
                             if (OutBufferSize < size)
@@ -2510,7 +3126,9 @@ VioScsiExecuteWmiMethod(IN PVOID Context,
                         {
                             PSM_GetSASPhyAttributes_IN pInBfr = (PSM_GetSASPhyAttributes_IN)Buffer;
                             PSM_GetSASPhyAttributes_OUT pOutBfr = (PSM_GetSASPhyAttributes_OUT)Buffer;
+#if !defined(RUN_UNCHECKED)
                             RhelDbgPrint(TRACE_LEVEL_INFORMATION, " --> SM_GetSASPhyAttributes\n");
+#endif
                             size = SM_GetSASPhyAttributes_OUT_SIZE;
                             if (OutBufferSize < size)
                             {
@@ -2530,40 +3148,55 @@ VioScsiExecuteWmiMethod(IN PVOID Context,
                         break;
                     default:
                         status = SRB_STATUS_INVALID_REQUEST;
+#if !defined(RUN_UNCHECKED)
                         RhelDbgPrint(TRACE_LEVEL_ERROR, " --> ERROR Unknown MethodId = %lu\n", MethodId);
+#endif
                         break;
                 }
             }
             break;
         default:
             status = SRB_STATUS_INVALID_REQUEST;
+#if !defined(RUN_UNCHECKED)
             RhelDbgPrint(TRACE_LEVEL_ERROR, " --> VioScsiExecuteWmiMethod Unsupported GuidIndex = %lu\n", GuidIndex);
+#endif
             break;
     }
     ScsiPortWmiPostProcess(RequestContext, status, size);
 
+#if !defined(RUN_UNCHECKED)
     EXIT_FN();
+#endif
     return SRB_STATUS_SUCCESS;
 }
 
 UCHAR
 VioScsiQueryWmiRegInfo(IN PVOID Context, IN PSCSIWMI_REQUEST_CONTEXT RequestContext, OUT PWCHAR *MofResourceName)
 {
+#if !defined(RUN_UNCHECKED)
     ENTER_FN();
+#endif
+
     UNREFERENCED_PARAMETER(Context);
     UNREFERENCED_PARAMETER(RequestContext);
 
     *MofResourceName = VioScsiWmi_MofResourceName;
+
+#if !defined(RUN_UNCHECKED)
+    EXIT_FN();
+#endif
     return SRB_STATUS_SUCCESS;
 }
 
 VOID VioScsiReadExtendedData(IN PVOID Context, OUT PUCHAR Buffer)
 {
+#if !defined(RUN_UNCHECKED)
+    ENTER_FN();
+#endif
+
     UCHAR numberOfBytes = sizeof(VioScsiExtendedInfo) - 1;
     PADAPTER_EXTENSION adaptExt;
     PVioScsiExtendedInfo extInfo;
-
-    ENTER_FN();
 
     adaptExt = (PADAPTER_EXTENSION)Context;
     extInfo = (PVioScsiExtendedInfo)Buffer;
@@ -2581,5 +3214,8 @@ VOID VioScsiReadExtendedData(IN PVOID Context, OUT PUCHAR Buffer)
     extInfo->CompletionDuringStartIo = CHECKFLAG(adaptExt->perfFlags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO);
     extInfo->PhysicalBreaks = adaptExt->max_physical_breaks;
     extInfo->ResponseTime = adaptExt->resp_time;
+
+#if !defined(RUN_UNCHECKED)
     EXIT_FN();
+#endif
 }
