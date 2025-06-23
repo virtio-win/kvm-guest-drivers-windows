@@ -104,6 +104,7 @@ viosock:
     - viosock/viosock-test/
     - viosock/viosocklib-test/
     - viosock/wsk/
+    - viosock/tcp-bridge/
     - viosock/LICENSE
 viostor:
   include:

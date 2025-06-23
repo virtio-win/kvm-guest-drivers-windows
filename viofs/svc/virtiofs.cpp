@@ -46,6 +46,7 @@
 #include <sys/stat.h>
 #include <wtsapi32.h>
 #include <cfgmgr32.h>
+#include <shellapi.h>
 
 #include <map>
 #include <string>
@@ -2759,11 +2760,29 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     VIRTFS *VirtFs;
     NTSTATUS Status{STATUS_SUCCESS};
     DWORD Error;
+    PWSTR *finalArgv = argv;
+    int finalArgc = argc;
+    bool shouldFreeFinalArgv = false;
 
-    if (argc > 1)
+    if (argc <= 1)
     {
-        Status = ParseArgs(argc,
-                           argv,
+        LPWSTR fullCommandLine = GetCommandLineW();
+        finalArgv = CommandLineToArgvW(fullCommandLine, &finalArgc);
+        if (finalArgv)
+        {
+            shouldFreeFinalArgv = true;
+        }
+        else
+        {
+            finalArgv = argv;
+            finalArgc = argc;
+        }
+    }
+
+    if (finalArgc > 1)
+    {
+        Status = ParseArgs(finalArgc,
+                           finalArgv,
                            DebugFlags,
                            DebugLogFile,
                            CaseInsensitive,
@@ -2771,6 +2790,11 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
                            MountPoint,
                            Tag,
                            Owner);
+
+        if (shouldFreeFinalArgv)
+        {
+            LocalFree(finalArgv);
+        }
     }
     else
     {
