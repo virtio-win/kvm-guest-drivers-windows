@@ -5,7 +5,7 @@
 #include "Buffer.tmh"
 #endif
 
-// Number of descriptors that queue contains.
+// Number of descriptors that  queue contains.
 #define QUEUE_DESCRIPTORS 128
 
 static BOOLEAN DmaWriteCallback(PVIRTIO_DMA_TRANSACTION_PARAMS params);
