@@ -74,7 +74,7 @@ else VirtioDebugPrintProc(message, __VA_ARGS__)
 //
 #define WPP_CONTROL_GUIDS \
     WPP_DEFINE_CONTROL_GUID(VioSockTcpBridgeTraceGuid,                   \
-                            (FA4E6ED1, CF45, 46DD, 98E8, 85F1FBF166526), \
+                            (FA4E6ED1, CF45, 46DD, 98E8, 5F1FBF166526), \
         WPP_DEFINE_BIT(DBG_INIT)               /* bit  0 = 0x00000001 */ \
         WPP_DEFINE_BIT(DBG_PNP)                /* bit  1 = 0x00000002 */ \
         WPP_DEFINE_BIT(DBG_THREAD_VT)          /* bit  2 = 0x00000004 */ \
