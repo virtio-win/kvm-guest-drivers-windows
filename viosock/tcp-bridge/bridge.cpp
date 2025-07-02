@@ -99,6 +99,14 @@ DWORD WINAPI CBridge::ThreadV2T(LPVOID lpParam)
     while ((recvLen = recv(pBridge->m_VsockClientSocket->GetSocket(), Buffer, BufferLen, 0)) != SOCKET_ERROR)
     {
         TraceEvents(TRACE_LEVEL_VERBOSE, DBG_THREAD_VT_TRANSFER, "V -> T: recv %d bytes\n", recvLen);
+        if (recvLen == 0)
+        {
+            TraceEvents(TRACE_LEVEL_INFORMATION,
+                        DBG_THREAD_VT,
+                        "Thread V -> T: V socket has been gracefully closed, exiting\n");
+            break;
+        }
+
         sendLen = send(pBridge->m_TcpSocket->GetSocket(), Buffer, recvLen, 0);
         if (sendLen == SOCKET_ERROR)
         {
@@ -123,6 +131,14 @@ DWORD WINAPI CBridge::ThreadT2V(LPVOID lpParam)
 
     while ((recvLen = recv(pBridge->m_TcpSocket->GetSocket(), Buffer, BufferLen, 0)) != SOCKET_ERROR)
     {
+        if (recvLen == 0)
+        {
+            TraceEvents(TRACE_LEVEL_INFORMATION,
+                        DBG_THREAD_VT,
+                        "Thread T -> V: T socket has been gracefully closed, exiting\n");
+            break;
+        }
+
         TraceEvents(TRACE_LEVEL_VERBOSE, DBG_THREAD_VT_TRANSFER, "T -> V: recv %d bytes\n", recvLen);
         sendLen = send(pBridge->m_VsockClientSocket->GetSocket(), Buffer, recvLen, 0);
         if (sendLen == SOCKET_ERROR)
