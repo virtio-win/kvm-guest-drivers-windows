@@ -120,8 +120,9 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define VIRTIO_SCSI_QUEUE_LAST               VIRTIO_SCSI_REQUEST_QUEUE_0 + MAX_CPU
 
 /* MSI messages and virtqueue indices are offset by 1, MSI 0 is not used */
-#define QUEUE_TO_MESSAGE(QueueId)            ((QueueId) + 1)
-#define MESSAGE_TO_QUEUE(MessageId)          ((MessageId)-1)
+#define VIRTIO_SCSI_MSI_CONTROL_Q_OFFSET     1
+#define QUEUE_TO_MESSAGE(QueueId)            ((QueueId) + VIRTIO_SCSI_MSI_CONTROL_Q_OFFSET)
+#define MESSAGE_TO_QUEUE(MessageId)          ((MessageId)-VIRTIO_SCSI_MSI_CONTROL_Q_OFFSET)
 
 /* SCSI command request, followed by data-out */
 #pragma pack(1)
@@ -283,7 +284,7 @@ typedef struct virtio_bar
     PHYSICAL_ADDRESS BasePA;
     ULONG uLength;
     PVOID pBase;
-    BOOLEAN bPortSpace;
+    BOOLEAN bMemorySpace;
 } VIRTIO_BAR, *PVIRTIO_BAR;
 
 typedef enum ACTION_ON_RESET
@@ -336,7 +337,7 @@ typedef struct _ADAPTER_EXTENSION
     ULONG perfFlags;
     PGROUP_AFFINITY pmsg_affinity;
     ULONG num_affinity;
-    BOOLEAN dpc_ok;
+    BOOLEAN dpc_ready;
     PSTOR_DPC dpc;
     ULONG max_physical_breaks;
     SCSI_WMILIB_CONTEXT WmiLibContext;
@@ -384,6 +385,63 @@ typedef struct
     PCIX_TABLE_POINTER MessageTable;
     PCIX_TABLE_POINTER PBATable;
 } PCI_MSIX_CAPABILITY, *PPCI_MSIX_CAPABILITY;
+#endif
+
+struct virtio_pci_cfg_cap
+{
+    struct virtio_pci_cap cap;
+    u8 pci_cfg_data[4]; /* Data for BAR access. */
+};
+
+struct virtio_pci_isr_cap
+{
+    struct virtio_pci_cap cap;
+    u8 isr;
+};
+
+struct virtio_pci_device_cap
+{
+    struct virtio_pci_cap cap;
+    // Be careful not to touch anything hot here...
+};
+
+struct virtio_pci_common_cfg_cap
+{
+    struct virtio_pci_cap cap;
+    struct virtio_pci_common_cfg;
+};
+
+typedef struct virtio_pci_notify_cap VIRTIO_PCI_NOTIFY_CAP;
+typedef VIRTIO_PCI_NOTIFY_CAP *PVIRTIO_PCI_NOTIFY_CAP;
+typedef struct virtio_pci_cfg_cap VIRTIO_PCI_CFG_CAP;
+typedef VIRTIO_PCI_CFG_CAP *PVIRTIO_PCI_CFG_CAP;
+typedef struct virtio_pci_isr_cap VIRTIO_PCI_ISR_CAP;
+typedef VIRTIO_PCI_ISR_CAP *PVIRTIO_PCI_ISR_CAP;
+typedef struct virtio_pci_device_cap VIRTIO_PCI_DEVICE_CAP;
+typedef VIRTIO_PCI_DEVICE_CAP *PVIRTIO_PCI_DEVICE_CAP;
+typedef struct virtio_pci_common_cfg_cap VIRTIO_PCI_COMMON_CFG_CAP;
+typedef VIRTIO_PCI_COMMON_CFG_CAP *PVIRTIO_PCI_COMMON_CFG_CAP;
+
+#define PCI_CAP_REDHAT_TYPE_OFFSET       3
+// #define REDHAT_CAP_RESOURCE_RESERVE 1 // <-- This clashes with VIRTIO_PCI_CAP_COMMON_CFG=1 per virtio_pci.h
+#define REDHAT_CAP_RESOURCE_RESERVE      6
+#define REDHAT_CAP_RESOURCE_RESERVE_SIZE 32
+
+#ifndef PCI_RHEL_QEMU_CAPABILITY
+typedef struct
+{
+    PCI_CAPABILITIES_HEADER Header;
+    struct
+    {
+        u8 len;
+        u8 type;
+        u32 bus_res;
+        u64 io;
+        u32 mem;
+        u32 prefetchable_32;
+        u64 prefetchable_64;
+    } Reservation;
+} PCI_RHEL_QEMU_CAPABILITY, *PPCI_RHEL_QEMU_CAPABILITY;
 #endif
 
 #define SPC3_SCSI_SENSEQ_PARAMETERS_CHANGED        0x0
