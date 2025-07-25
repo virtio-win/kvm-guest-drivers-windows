@@ -1,5 +1,13 @@
 #include "device.h"
 #include "assert.h"
+#pragma warning(disable : 4201)
+#include <setupapi.h>
+#include <winioctl.h>
+#pragma warning(default : 4201)
+#include <string>
+#include <regex>
+
+const DWORD LOOKUP_PORT_MAX = 32;
 
 CDevice::CDevice()
 {
@@ -15,10 +23,11 @@ CDevice::~CDevice()
     }
 }
 
-BOOL CDevice::Init(BOOL ovrl, UINT index)
+BOOL CDevice::Init(BOOL ovrl, UINT portId)
 {
-    PWCHAR DevicePath = NULL;
-    if ((DevicePath = GetDevicePath(index, (LPGUID)&GUID_VIOSERIAL_PORT)) != NULL)
+    PWCHAR DevicePath;
+    std::vector<uint8_t> devpathBuf;
+    if ((DevicePath = GetDevicePath(portId, (LPGUID)&GUID_VIOSERIAL_PORT, devpathBuf)) != NULL)
     {
         m_hDevice = CreateFile(DevicePath,
                                GENERIC_WRITE | GENERIC_READ,
@@ -35,7 +44,7 @@ BOOL CDevice::Init(BOOL ovrl, UINT index)
         }
     }
     DWORD err = GetLastError();
-    printf("Cannot find vioserial device. %S , error = %d\n", DevicePath, err);
+    printf("Cannot find vioserial device PortId:%u, error: %u\n", portId, err);
     return FALSE;
 }
 
@@ -230,7 +239,7 @@ BOOL CDevice::GetInfo(PVOID buf, size_t *size)
     return res;
 }
 
-PTCHAR CDevice::GetDevicePath(UINT index, IN LPGUID InterfaceGuid)
+PTCHAR CDevice::GetDevicePath(UINT portId, IN LPGUID InterfaceGuid, std::vector<uint8_t> &devpathBuf)
 {
     HDEVINFO HardwareDeviceInfo;
     SP_DEVICE_INTERFACE_DATA DeviceInterfaceData;
@@ -248,44 +257,90 @@ PTCHAR CDevice::GetDevicePath(UINT index, IN LPGUID InterfaceGuid)
 
     DeviceInterfaceData.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
 
-    bResult = SetupDiEnumDeviceInterfaces(HardwareDeviceInfo, 0, InterfaceGuid, index, &DeviceInterfaceData);
-
-    if (bResult == FALSE)
+    for (DWORD index = 0; index < LOOKUP_PORT_MAX; index++)
     {
-        printf("Cannot get enumerate device interfaces.\n");
-        SetupDiDestroyDeviceInfoList(HardwareDeviceInfo);
-        return NULL;
+        bResult = SetupDiEnumDeviceInterfaces(HardwareDeviceInfo, 0, InterfaceGuid, index, &DeviceInterfaceData);
+        if (!bResult)
+        {
+            DWORD dwErr = GetLastError();
+            if (dwErr == ERROR_NO_MORE_ITEMS)
+            {
+                printf("EnumDeviceInterfaces stopped at idx %u\n", index);
+                break;
+            }
+            printf("EnumDeviceInterfaces[%u] error: %u\n", index, dwErr);
+            continue;
+        }
+
+        bResult = SetupDiGetDeviceInterfaceDetail(HardwareDeviceInfo,
+                                                  &DeviceInterfaceData,
+                                                  NULL,
+                                                  0,
+                                                  &RequiredLength,
+                                                  NULL);
+        if (!bResult)
+        {
+            DWORD dwErr = GetLastError();
+            if (dwErr != ERROR_INSUFFICIENT_BUFFER)
+            {
+                printf("SetupDiGetDeviceInterfaceDetail[%u] failed with %u\n", index, dwErr);
+                continue;
+            }
+        }
+
+        if (devpathBuf.size() < RequiredLength)
+        {
+            devpathBuf.resize(RequiredLength);
+        }
+        DeviceInterfaceDetailData = (PSP_DEVICE_INTERFACE_DETAIL_DATA)devpathBuf.data();
+        DeviceInterfaceDetailData->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA);
+
+        Length = RequiredLength;
+
+        bResult = SetupDiGetDeviceInterfaceDetail(HardwareDeviceInfo,
+                                                  &DeviceInterfaceData,
+                                                  DeviceInterfaceDetailData,
+                                                  Length,
+                                                  &RequiredLength,
+                                                  NULL);
+        if (!bResult)
+        {
+            printf("Cannot get device interface details.\n");
+            SetupDiDestroyDeviceInfoList(HardwareDeviceInfo);
+            return NULL;
+        }
+
+        std::wstring path(DeviceInterfaceDetailData->DevicePath);
+        std::wregex regex(L"&\\d+#");
+        std::wsmatch wsm;
+        if (!std::regex_search(path, wsm, regex))
+        {
+            wprintf(L"Failed to parse path: %ls\n", DeviceInterfaceDetailData->DevicePath);
+            break;
+        }
+        // intializing a string without '&' and '#' symbols (ex. "&06#")
+        // portIdStr will be "06"
+        std::wstring portIdStr(wsm.str(), 1, wsm.str().length() - 1);
+        ULONG portIdFromPath;
+        try
+        {
+            portIdFromPath = std::stoi(portIdStr);
+        }
+        catch (const std::exception &)
+        {
+            wprintf(L"Could not parse port ID from '%ls'. Skipping.\n", portIdStr.c_str());
+            continue;
+        }
+
+        if (portIdFromPath == portId)
+        {
+            printf("Found vio-serial %u\n", portId);
+            SetupDiDestroyDeviceInfoList(HardwareDeviceInfo);
+            return DeviceInterfaceDetailData->DevicePath;
+        }
     }
 
-    SetupDiGetDeviceInterfaceDetail(HardwareDeviceInfo, &DeviceInterfaceData, NULL, 0, &RequiredLength, NULL);
-
-    DeviceInterfaceDetailData = (PSP_DEVICE_INTERFACE_DETAIL_DATA)LocalAlloc(LMEM_FIXED, RequiredLength);
-
-    if (DeviceInterfaceDetailData == NULL)
-    {
-        printf("Cannot allocate memory.\n");
-        SetupDiDestroyDeviceInfoList(HardwareDeviceInfo);
-        return NULL;
-    }
-
-    DeviceInterfaceDetailData->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA);
-
-    Length = RequiredLength;
-
-    bResult = SetupDiGetDeviceInterfaceDetail(HardwareDeviceInfo,
-                                              &DeviceInterfaceData,
-                                              DeviceInterfaceDetailData,
-                                              Length,
-                                              &RequiredLength,
-                                              NULL);
-
-    if (bResult == FALSE)
-    {
-        printf("Cannot get device interface details.\n");
-        SetupDiDestroyDeviceInfoList(HardwareDeviceInfo);
-        LocalFree(DeviceInterfaceDetailData);
-        return NULL;
-    }
-
-    return DeviceInterfaceDetailData->DevicePath;
+    printf("Cannot find a port with ID:%u\n", portId);
+    SetupDiDestroyDeviceInfoList(HardwareDeviceInfo);
+    return NULL;
 }
