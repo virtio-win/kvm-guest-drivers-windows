@@ -1,6 +1,7 @@
 /*
  * This file contains implementation of NDIS6 driver envelope.
  *
+ 
  * Copyright (c) 2008-2017 Red Hat, Inc.
  *
  * Redistribution and use in source and binary forms, with or without
