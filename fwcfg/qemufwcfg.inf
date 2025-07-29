@@ -19,8 +19,9 @@ Signature="$Windows NT$"
 Class=System
 ClassGUID={4d36e97d-e325-11ce-bfc1-08002be10318}
 Provider=%QEMU%
-DriverVer=10/21/2016,1.0.0
+DriverVer=05/21/2022,100.90.104.22100
 CatalogFile=qemufwcfg.cat
+PnpLockdown=1
 
 [Manufacturer]
 %QEMU%=QEMU,NTx86,NTAMD64
