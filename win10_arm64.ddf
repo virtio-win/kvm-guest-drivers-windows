@@ -1,0 +1,110 @@
+;*** win10_arm64.ddf
+;
+.OPTION EXPLICIT     ; Generate errors
+.Set CabinetFileCountThreshold=0
+.Set FolderFileCountThreshold=0
+.Set FolderSizeThreshold=0
+.Set MaxCabinetSize=0
+.Set MaxDiskFileCount=0
+.Set MaxDiskSize=0
+.Set CompressionType=MSZIP
+.Set Cabinet=on
+.Set Compress=on
+;Specify file name for new cab file
+.Set CabinetNameTemplate=win10arm64.cab
+.Set DiskDirectoryTemplate=
+;Specify files to be included in cab file
+; Balloon Driver
+.Set DestinationDir=Balloon
+.\Balloon\Install\Win10\ARM64\balloon.cat
+.\Balloon\Install\Win10\ARM64\balloon.inf
+.\Balloon\Install\Win10\ARM64\balloon.pdb
+.\Balloon\Install\Win10\ARM64\balloon.sys
+; NetKvm driver
+.Set DestinationDir=NetKvm
+.\NetKvm\Install\Win10\ARM64\netkvm.cat
+.\NetKvm\Install\Win10\ARM64\netkvm.inf
+.\NetKvm\Install\Win10\ARM64\netkvm.pdb
+.\NetKvm\Install\Win10\ARM64\netkvm.sys
+.\NetKvm\Install\Win10\ARM64\netkvmp.exe
+.\NetKvm\Install\Win10\ARM64\netkvmp.pdb
+;pvpanic driver
+.Set DestinationDir=pvpanic
+.\pvpanic\Install\Win10\ARM64\pvpanic.cat
+.\pvpanic\Install\Win10\ARM64\pvpanic.inf
+.\pvpanic\Install\Win10\ARM64\pvpanic.pdb
+.\pvpanic\Install\Win10\ARM64\pvpanic.sys
+.\pvpanic\Install\Win10\ARM64\pvpanic-pci.cat
+.\pvpanic\Install\Win10\ARM64\pvpanic-pci.inf
+; vioinput driver
+.Set DestinationDir=vioinput
+.\vioinput\Install\Win10\ARM64\viohidkmdf.pdb
+.\vioinput\Install\Win10\ARM64\viohidkmdf.sys
+.\vioinput\Install\Win10\ARM64\vioinput.cat
+.\vioinput\Install\Win10\ARM64\vioinput.inf
+.\vioinput\Install\Win10\ARM64\vioinput.pdb
+.\vioinput\Install\Win10\ARM64\vioinput.sys
+; viorng driver
+.Set DestinationDir=viorng
+.\viorng\Install\Win10\ARM64\viorng.cat
+.\viorng\Install\Win10\ARM64\viorng.inf
+.\viorng\Install\Win10\ARM64\viorng.pdb
+.\viorng\Install\Win10\ARM64\viorng.sys
+.\viorng\Install\Win10\ARM64\viorngum.dll
+.\viorng\Install\Win10\ARM64\viorngum.pdb
+; vioscsi driver
+.Set DestinationDir=vioscsi
+.\vioscsi\Install\Win10\ARM64\vioscsi.cat
+.\vioscsi\Install\Win10\ARM64\vioscsi.inf
+.\vioscsi\Install\Win10\ARM64\vioscsi.pdb
+.\vioscsi\Install\Win10\ARM64\vioscsi.sys
+; vioserial driver
+.Set DestinationDir=vioserial
+.\vioserial\Install\Win10\ARM64\vioser.cat
+.\vioserial\Install\Win10\ARM64\vioser.inf
+.\vioserial\Install\Win10\ARM64\vioser.pdb
+.\vioserial\Install\Win10\ARM64\vioser.sys
+; viostor driver
+.Set DestinationDir=viostor
+.\viostor\Install\Win10\ARM64\viostor.cat
+.\viostor\Install\Win10\ARM64\viostor.inf
+.\viostor\Install\Win10\ARM64\viostor.pdb
+.\viostor\Install\Win10\ARM64\viostor.sys
+; viogpudo driver
+.Set DestinationDir=viogpudo
+.\viogpu\Install\Win10\ARM64\viogpudo.cat
+.\viogpu\Install\Win10\ARM64\viogpudo.inf
+.\viogpu\Install\Win10\ARM64\viogpudo.pdb
+.\viogpu\Install\Win10\ARM64\viogpudo.sys
+.\viogpu\Install\Win10\ARM64\vgpusrv.pdb
+.\viogpu\Install\Win10\ARM64\vgpusrv.exe
+.\viogpu\Install\Win10\ARM64\viogpuap.pdb
+.\viogpu\Install\Win10\ARM64\viogpuap.exe
+; fwcfg driver
+;.Set DestinationDir=fwcfg
+;.\fwcfg64\Install\Win10\ARM64\fwcfg.cat
+;.\fwcfg64\Install\Win10\ARM64\fwcfg.inf
+;.\fwcfg64\Install\Win10\ARM64\fwcfg.pdb
+;.\fwcfg64\Install\Win10\ARM64\fwcfg.sys
+; viomem driver
+.Set DestinationDir=viomem
+.\viomem\Install\Win10\ARM64\viomem.cat
+.\viomem\Install\Win10\ARM64\viomem.inf
+.\viomem\Install\Win10\ARM64\viomem.pdb
+.\viomem\Install\Win10\ARM64\viomem.sys
+; viosock driver
+.Set DestinationDir=viosock
+.\viosock\Install\Win10\ARM64\viosock-test.exe
+.\viosock\Install\Win10\ARM64\viosock-test.pdb
+.\viosock\Install\Win10\ARM64\viosock.cat
+.\viosock\Install\Win10\ARM64\viosock.inf
+.\viosock\Install\Win10\ARM64\viosock.pdb
+.\viosock\Install\Win10\ARM64\viosock.sys
+.\viosock\Install\Win10\ARM64\viosocklib-test.exe
+.\viosock\Install\Win10\ARM64\viosocklib-test.pdb
+.\viosock\Install\Win10\ARM64\viosocklib.dll
+.\viosock\Install\Win10\ARM64\viosocklib.pdb
+.\viosock\Install\Win10\ARM64\viosockwspsvc.exe
+.\viosock\Install\Win10\ARM64\viosockwspsvc.pdb
+.\viosock\Install\Win10\ARM64\vstbridge.exe
+.\viosock\Install\Win10\ARM64\vstbridge.pdb

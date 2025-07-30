@@ -47,6 +47,9 @@ for %%D in (pciserial fwcfg Q35) do @(
  call :bld_inf_drvr %%D
 )
 echo.
+call build_cab.bat
+if errorlevel 1 goto :fail
+echo.
 echo Processing DVL files to create Windows 10 COMPAT ^(WIN10_RS1 ^/ 1607^) version...
 for /R %%f in (*.dvl.xml) do @(
   call :process_xml %%f
