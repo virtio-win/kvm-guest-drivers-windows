@@ -24,7 +24,8 @@ Class=Ports
 ClassGuid={4D36E978-E325-11CE-BFC1-08002BE10318}
 CatalogFile=qemupciserial.cat
 Provider=%QEMU%
-DriverVer=05/09/2017,1.4.0
+DriverVer=05/21/2022,100.90.104.22100
+PnpLockdown=1
 
 [SourceDisksNames]
 3426=windows cd
