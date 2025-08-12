@@ -107,6 +107,7 @@ RhelDoFlush(PVOID DeviceExtension, PSRB_TYPE Srb, BOOLEAN resend, BOOLEAN bIsr)
 
     if (adaptExt->reset_in_progress)
     {
+        SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
         CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_BUS_RESET);
         return TRUE;
     }
@@ -208,6 +209,7 @@ RhelDoReadWrite(PVOID DeviceExtension, PSRB_TYPE Srb)
 
     if (adaptExt->reset_in_progress)
     {
+        SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
         CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_BUS_RESET);
         return TRUE;
     }
@@ -358,6 +360,7 @@ RhelDoUnMap(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
 
     if (adaptExt->reset_in_progress)
     {
+        SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
         CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_BUS_RESET);
         return TRUE;
     }
@@ -440,6 +443,7 @@ RhelGetSerialNumber(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     }
     if (adaptExt->reset_in_progress)
     {
+        SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
         CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_BUS_RESET);
         return TRUE;
     }
