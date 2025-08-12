@@ -69,6 +69,16 @@ VOID SendSRB(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     if (adaptExt->bRemoved)
     {
         SRB_SET_SRB_STATUS(Srb, SRB_STATUS_NO_DEVICE);
+        SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
+        CompleteRequest(DeviceExtension, Srb);
+        return;
+    }
+
+    if (adaptExt->reset_in_progress)
+    {
+        RhelDbgPrint(TRACE_LEVEL_FATAL, " Reset is in progress, completing SRB 0x%p with SRB_STATUS_BUS_RESET.\n", Srb);
+        SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
+        SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BUS_RESET);
         CompleteRequest(DeviceExtension, Srb);
         return;
     }
@@ -108,14 +118,6 @@ VOID SendSRB(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
 
     MessageId = QUEUE_TO_MESSAGE(QueueNumber);
     vq_req_idx = QueueNumber - VIRTIO_SCSI_REQUEST_QUEUE_0;
-
-    if (adaptExt->reset_in_progress)
-    {
-        RhelDbgPrint(TRACE_LEVEL_FATAL, " Reset is in progress, completing SRB 0x%p with SRB_STATUS_BUS_RESET.\n", Srb);
-        SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BUS_RESET);
-        CompleteRequest(DeviceExtension, Srb);
-        return;
-    }
 
     VioScsiVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
     SET_VA_PA();
@@ -701,6 +703,7 @@ FirmwareRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
             break;
         default:
             RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Unsupported Function %ul\n", firmwareRequest->Function);
+            SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
             SRB_SET_SRB_STATUS(Srb, SRB_STATUS_INVALID_REQUEST);
             break;
     }

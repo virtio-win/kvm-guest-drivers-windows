@@ -1276,6 +1276,7 @@ VioScsiUnitControl(IN PVOID DeviceExtension, IN SCSI_UNIT_CONTROL_TYPE ControlTy
                             SRB_LUN(currSrb) == stor_addr->Lun)
                         {
                             SRB_SET_SRB_STATUS(currSrb, SRB_STATUS_NO_DEVICE);
+                            SRB_SET_DATA_TRANSFER_LENGTH(currSrb, 0);
                             CompleteRequest(DeviceExtension, (PSRB_TYPE)currSrb);
                             RhelDbgPrint(TRACE_LEVEL_INFORMATION,
                                          " Complete pending I/Os on Path %d Target %d Lun %d \n",
@@ -1326,6 +1327,7 @@ VioScsiBuildIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
         (Lun >= adaptExt->scsi_config.max_lun) || adaptExt->bRemoved)
     {
         SRB_SET_SRB_STATUS(Srb, SRB_STATUS_NO_DEVICE);
+        SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
         StorPortNotification(RequestComplete, DeviceExtension, Srb);
         return FALSE;
     }
@@ -1539,6 +1541,7 @@ CompletePendingRequestsOnReset(IN PVOID DeviceExtension)
                     if (currSrb)
                     {
                         SRB_SET_SRB_STATUS(currSrb, SRB_STATUS_BUS_RESET);
+                        SRB_SET_DATA_TRANSFER_LENGTH(currSrb, 0);
                         CompleteRequest(DeviceExtension, (PSRB_TYPE)currSrb);
                         element->srb_cnt--;
                     }
@@ -1926,6 +1929,7 @@ VOID VioScsiIoControl(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
             break;
         default:
             SRB_SET_SRB_STATUS(Srb, SRB_STATUS_INVALID_REQUEST);
+            SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
             RhelDbgPrint(TRACE_LEVEL_INFORMATION, " <--> Unsupport control code 0x%x\n", srbControl->ControlCode);
             break;
     }
