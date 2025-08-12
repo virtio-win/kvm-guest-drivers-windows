@@ -129,14 +129,10 @@
       <PreprocessorDefinitions>TRACE_PROJECT_NAME=VioWsk;WINAPI_FAMILY=WINAPI_FAMILY_DESKTOP_APP;WINAPI_PARTITION_DESKTOP=1;WINAPI_PARTITION_SYSTEM=1;WINAPI_PARTITION_APP=1;WINAPI_PARTITION_PC_APP=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win10 Release|ARM64'">true</WppEnabled>
       <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">true</WppEnabled>
-      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">true</WppEnabled>
       <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">true</WppEnabled>
-      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">true</WppEnabled>
       <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win10 Release|ARM64'">wpp-trace.h</WppScanConfigurationData>
       <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">wpp-trace.h</WppScanConfigurationData>
-      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win8 Release|Win32'">trace.h</WppScanConfigurationData>
       <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">wpp-trace.h</WppScanConfigurationData>
-      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win8 Release|x64'">trace.h</WppScanConfigurationData>
       <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win11 Release|ARM64'">true</WppEnabled>
       <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win11 Release|Win32'">true</WppEnabled>
       <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win11 Release|x64'">true</WppEnabled>

@@ -143,11 +143,7 @@ _Must_inspect_result_ static NTSTATUS _VioSockDriverConnect(_Inout_ PVIOWSK_REG_
     }
 
     Status = KeWaitForSingleObject(&WaitContext.Event, Executive, KernelMode, FALSE, pTimeout);
-#if (NTDDI_VERSION >= NTDDI_WIN7)
     IoUnregisterPlugPlayNotificationEx(NotifyHandle);
-#else  // if (NTDDI_VERSION >= NTDDI_WIN7)
-    IoUnregisterPlugPlayNotification(NotifyHandle);
-#endif // if (NTDDI_VERSION < NTDDI_WIN7)
     switch (Status)
     {
         case STATUS_WAIT_0:
