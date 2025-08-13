@@ -138,3 +138,10 @@ viomem:
     - README.md
     - contributing.md
     - status.txt
+    - win10_arm64.ddf
+    - win10_x64.ddf
+    - win10_x86.ddf
+    - win11_arm64.ddf
+    - win11_x64.ddf
+
+
