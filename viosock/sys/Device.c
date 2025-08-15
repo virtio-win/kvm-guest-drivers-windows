@@ -1029,21 +1029,32 @@ static NTSTATUS VIOSockSelect(IN WDFREQUEST Request, IN OUT size_t *pLength)
 
         if (status == STATUS_PENDING)
         {
-            status = WdfRequestMarkCancelableEx(Request, VIOSockSelectCancel);
-
-            ASSERT(NT_SUCCESS(status) || status == STATUS_CANCELLED);
-
-            if (NT_SUCCESS(status))
+            if (pSelect->Timeout)
             {
-                status = STATUS_PENDING;
+                status = WdfRequestMarkCancelableEx(Request, VIOSockSelectCancel);
 
-                InsertTailList(&pContext->SelectList, &pPkt->ListEntry);
-                pPkt->Timeout = pSelect->Timeout;
+                ASSERT(NT_SUCCESS(status) || status == STATUS_CANCELLED);
 
-                if (pPkt->Timeout)
+                if (NT_SUCCESS(status))
                 {
-                    VIOSockTimerStart(&pContext->SelectTimer, pPkt->Timeout);
+                    status = STATUS_PENDING;
+
+                    InsertTailList(&pContext->SelectList, &pPkt->ListEntry);
+                    pPkt->Timeout = pSelect->Timeout;
+
+                    if (pPkt->Timeout == (LONGLONG)-1)
+                    {
+                        pPkt->Timeout = 0;
+                    }
+                    else
+                    {
+                        VIOSockTimerStart(&pContext->SelectTimer, pPkt->Timeout);
+                    }
                 }
+            }
+            else
+            {
+                status = STATUS_TIMEOUT;
             }
         }
         else

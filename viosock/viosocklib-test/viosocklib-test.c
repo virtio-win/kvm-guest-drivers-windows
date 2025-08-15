@@ -158,6 +158,7 @@ VOID Usage()
 {
     _tprintf(_T("Usage:\tviosocklib-test.exe /[i|d|e]\n\
 \tviosocklib-test.exe /[c|l] [cid:]port filepath\n\
+\tviosocklib-test.exe /s [cid:]port /[n|z|d]\n\
 \n\
 \t/i - install viosocklib.dll as Virtio Socket Provider (administrative rights required)\n\
 \t/d - deinstall Virtio Socket Provider (administrative rights required)\n\
@@ -165,6 +166,7 @@ VOID Usage()
 \n\
 \t/c - perform connect-send-recv cycle\n\
 \t/l - perform listen-accept-recv-send cycle\n\
+\t/s - perform select-listen test (timeout variants: /n - NULL, /z - zero, /d - 10 sec)\n\
 \t\tport - port number\n\
 \t\tfilepath - full path to file to stor recieved or send stored data\n\
 "));
@@ -468,6 +470,133 @@ int SocketListenTest(PSOCKADDR_VM addr, PTCHAR sFileName)
     return 0;
 }
 
+int SocketSelectTest(PSOCKADDR_VM addr, PTCHAR option)
+{
+    SOCKET sock = INVALID_SOCKET;
+
+    WSADATA wsaData = {0};
+    ADDRESS_FAMILY AF = 0;
+    int retVal = 0;
+
+    int iRes = WSAStartup(MAKEWORD(2, 2), &wsaData);
+
+    if (iRes != ERROR_SUCCESS)
+    {
+        _tprintf(_T("WSAStartup failed: %d\n"), iRes);
+        return 1;
+    }
+
+    if (addr->svm_port == VMADDR_PORT_ANY)
+    {
+        _tprintf(_T("Invalid port for listen\n"));
+        WSACleanup();
+        return 2;
+    }
+
+    AF = ViosockGetAF();
+    if (AF == AF_UNSPEC)
+    {
+        _tprintf(_T("ViosockGetAF failed: %d\n"), WSAGetLastError());
+        WSACleanup();
+        return 3;
+    }
+
+    _tprintf(_T("socket(AF_VSOCK, SOCK_STREAM, 0)\n"));
+    sock = socket(AF, SOCK_STREAM, 0);
+
+    if (sock == INVALID_SOCKET)
+    {
+        _tprintf(_T("socket(), error: %d\n"), WSAGetLastError());
+        WSACleanup();
+        return -1;
+    }
+
+    addr->svm_family = AF;
+
+    retVal = bind(sock, (struct sockaddr *)addr, sizeof(*addr));
+    if (retVal)
+    {
+        _tprintf(_T("bind(), error: %d\n"), WSAGetLastError());
+        WSACleanup();
+        return -1;
+    }
+
+    retVal = listen(sock, 10);
+    if (retVal)
+    {
+        _tprintf(_T("listen(), error: %d\n"), WSAGetLastError());
+        WSACleanup();
+        return -1;
+    }
+
+    SOCKADDR_VM rAddr = {0};
+    int rAddrLen = sizeof(rAddr);
+
+    _tprintf(_T("listen success\n"));
+
+    fd_set read_fd_set;
+    int counter = 0, retValSelect = 0;
+
+    struct timeval time = {10, 0};
+    struct timeval *ptime = &time;
+    switch (option[1])
+    {
+        case _T('z'):
+            time.tv_sec = 0;
+            _tprintf(_T("timeout set to 0 sec\n"));
+            break;
+
+        case _T('n'):
+            ptime = NULL;
+            _tprintf(_T("waiting infinitely (ptime == NULL)\n"));
+            break;
+
+        default:
+            _tprintf(_T("timeout set to 10 sec\n"));
+            break;
+    }
+
+    while (1)
+    {
+        FD_ZERO(&read_fd_set);
+        FD_SET(sock, &read_fd_set);
+
+        _tprintf(_T("waiting for connection\n"));
+        retValSelect = select(FD_SETSIZE, &read_fd_set, NULL, NULL, ptime);
+        counter++;
+
+        if (retValSelect >= 0)
+        {
+            _tprintf(_T("Select returned with %d, counter: %d\n"), retValSelect, counter);
+
+            if (FD_ISSET(sock, &read_fd_set))
+            {
+                SOCKET new_sock = accept(sock, (struct sockaddr *)&rAddr, &rAddrLen);
+                if (new_sock == INVALID_SOCKET)
+                {
+                    _tprintf(_T("accept(), error: %d\n"), WSAGetLastError());
+                    closesocket(sock);
+                    WSACleanup();
+                    return -1;
+                }
+
+                _tprintf(_T("Accepted a new connection with fd: %p\n"), (void *)new_sock);
+                closesocket(new_sock);
+                break;
+            }
+        }
+        else
+        {
+            _tprintf(_T("Select returned with %d, err:%d\n"), retValSelect, WSAGetLastError());
+        }
+    }
+
+    closesocket(sock);
+
+    WSACleanup();
+    return 0;
+}
+
 BOOL ParseAddr(PTCHAR AddrString, PSOCKADDR_VM addr)
 {
     addr->svm_cid = VMADDR_CID_ANY;
@@ -592,6 +721,7 @@ int __cdecl _tmain(int argc, _TCHAR *argv[])
                 Usage();
             }
             break;
+
         case _T('l'):
             if (argc >= 4)
             {
@@ -602,6 +732,24 @@ int __cdecl _tmain(int argc, _TCHAR *argv[])
                 else
                 {
                     iRes = 5;
+                }
+            }
+            else
+            {
+                Usage();
+            }
+            break;
+
+        case _T('s'):
+            if (argc >= 4)
+            {
+                if (ParseAddr(argv[2], &addr))
+                {
+                    iRes = SocketSelectTest(&addr, argv[3]);
+                }
+                else
+                {
+                    iRes = 6;
                 }
             }
             else

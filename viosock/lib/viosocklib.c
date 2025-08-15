@@ -854,6 +854,10 @@ int WSPAPI VIOSockSelect(_In_ int nfds,
         // timeout in 100-ns intervals
         Select.Timeout = (SEC_TO_NANO((LONGLONG)timeout->tv_sec) + USEC_TO_NANO(timeout->tv_usec));
     }
+    else
+    {
+        Select.Timeout = (LONGLONG)-1;
+    }
 
     hFile = VIOSockCreateFile(NULL, lpErrno);
     if (hFile != INVALID_HANDLE_VALUE)
