@@ -367,19 +367,25 @@ BalloonEvtDeviceD0Entry(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE PreviousS
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "BalloonInit failed with status 0x%08x\n", status);
-        BalloonTerm(Device);
-        return status;
+        goto Terminate;
     }
 
     status = BalloonCreateWorkerThread(Device);
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "BalloonCreateWorkerThread failed with status 0x%08x\n", status);
+        goto Terminate;
     }
 
 #ifndef BALLOON_INFLATE_IGNORE_LOWMEM
     devCtx->evLowMem = IoCreateNotificationEvent((PUNICODE_STRING)&evLowMemString, &devCtx->hLowMem);
 #endif // !BALLOON_INFLATE_IGNORE_LOWMEM
+
+Terminate:
+    if (!NT_SUCCESS(status))
+    {
+        BalloonTerm(Device);
+    }
 
     return status;
 }
