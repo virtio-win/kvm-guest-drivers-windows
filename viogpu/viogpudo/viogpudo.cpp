@@ -3145,7 +3145,7 @@ int VioGpuAdapter::AddEdidModes(void)
             if (detailed_desc->PixelClock == 0)
             {
                 PEDID_DISPLAY_DESCRIPTOR disp = (PEDID_DISPLAY_DESCRIPTOR)detailed_desc;
-                if (disp->Tag == 0xF7 && disp->Reserved1 == 0)
+                if (disp->Tag[3] == 0xF7 && disp->Revision == 0xA)
                 {
                     PESTABLISHED_TIMINGS_3 est_timing_3 = (PESTABLISHED_TIMINGS_3)disp->Data;
                     if (est_timing_3->Timing_640x350_85)

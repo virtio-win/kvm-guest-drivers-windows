@@ -147,11 +147,9 @@ typedef struct _EDID_DETAILED_DESCRIPTOR
 
 typedef struct _EDID_DISPLAY_DESCRIPTOR
 {
-    USHORT Indicator;
-    UCHAR Reserved0;
-    UCHAR Tag;
-    UCHAR Reserved1;
-    UCHAR Data[13];
+    UCHAR Tag[5];
+    UCHAR Revision;
+    UCHAR Data[12];
 } EDID_DISPLAY_DESCRIPTOR, *PEDID_DISPLAY_DESCRIPTOR;
 
 typedef struct _EDID_DATA_V1
