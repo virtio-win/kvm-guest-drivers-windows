@@ -3128,7 +3128,7 @@ int VioGpuAdapter::AddEdidModes(void)
         est_timing_1_2.Timing_1024x768_60 ||
         est_timing_1_2.Timing_1024x768_87)
     {
-        UpdateModes(1280, 768, modecount);
+        UpdateModes(1024, 768, modecount);
     }
 
     if (est_timing_1_2.Timing_1280x1024_75)
