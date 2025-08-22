@@ -301,28 +301,52 @@ BalloonCreateWorkerThread(IN WDFDEVICE Device)
     OBJECT_ATTRIBUTES oa;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
-    devCtx->bShutDown = FALSE;
 
-    if (NULL == devCtx->Thread)
+    if (devCtx->Thread != NULL)
     {
-        InitializeObjectAttributes(&oa, NULL, OBJ_KERNEL_HANDLE, NULL, NULL);
-
-        status = PsCreateSystemThread(&hThread, THREAD_ALL_ACCESS, &oa, NULL, NULL, BalloonRoutine, Device);
-
-        if (!NT_SUCCESS(status))
-        {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "failed to create worker thread status 0x%08x\n", status);
-            return status;
-        }
-
-        ObReferenceObjectByHandle(hThread, THREAD_ALL_ACCESS, NULL, KernelMode, (PVOID *)&devCtx->Thread, NULL);
-        KeSetPriorityThread(devCtx->Thread, LOW_REALTIME_PRIORITY);
-
-        ZwClose(hThread);
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_PNP, "Balloon thread already exists (0x%p)\n", devCtx->Thread);
+        goto Exit;
     }
 
+    devCtx->bShutDown = FALSE;
+
+    InitializeObjectAttributes(&oa, NULL, OBJ_KERNEL_HANDLE, NULL, NULL);
+
+    status = PsCreateSystemThread(&hThread, THREAD_ALL_ACCESS, &oa, NULL, NULL, BalloonRoutine, Device);
+
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "failed to create worker thread status 0x%08x\n", status);
+        goto Exit;
+    }
+
+    status = ObReferenceObjectByHandle(hThread, THREAD_ALL_ACCESS, NULL, KernelMode, (PVOID *)&devCtx->Thread, NULL);
+    if (!NT_SUCCESS(status))
+    {
+        NTSTATUS waitStatus = STATUS_UNSUCCESSFUL;
+
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "failed to reference thread: status 0x%08x\n", status);
+        devCtx->bShutDown = TRUE;
+        KeSetEvent(&devCtx->WakeUpThread, EVENT_INCREMENT, FALSE);
+        waitStatus = ZwWaitForSingleObject(hThread, FALSE, NULL);
+        if (!NT_SUCCESS(waitStatus))
+        {
+            TraceEvents(TRACE_LEVEL_WARNING,
+                        DBG_PNP,
+                        "Unable to wait for the thread handle 0x%p: 0x%x\n",
+                        hThread,
+                        waitStatus);
+        }
+
+        goto CloseThread;
+    }
+
+    KeSetPriorityThread(devCtx->Thread, LOW_REALTIME_PRIORITY);
     KeSetEvent(&devCtx->WakeUpThread, EVENT_INCREMENT, FALSE);
 
+CloseThread:
+    ZwClose(hThread);
+Exit:
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
     return status;
 }
