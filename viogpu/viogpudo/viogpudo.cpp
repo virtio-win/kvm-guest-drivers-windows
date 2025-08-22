@@ -3067,6 +3067,7 @@ BOOLEAN VioGpuAdapter::UpdateModes(USHORT xres, USHORT yres, int &cnt)
 {
     int idx = 0;
 
+    DbgPrint(TRACE_LEVEL_INFORMATION, (" x_res: %d, y_res: %d\n", xres, yres));
     if ((xres < MIN_WIDTH_SIZE) || (yres < MIN_HEIGHT_SIZE))
     {
         return FALSE;
@@ -3093,9 +3094,11 @@ int VioGpuAdapter::AddEdidModes(void)
     MANUFACTURER_TIMINGS manufact_timing = edid_data->ManufacturerTimings;
     int modecount = 0;
 
+    DbgPrint(TRACE_LEVEL_INFORMATION, (" Default resolutions\n"));
     UpdateModes(MIN_WIDTH_SIZE, MIN_HEIGHT_SIZE, modecount);
     UpdateModes(NOM_WIDTH_SIZE, NOM_HEIGHT_SIZE, modecount);
 
+    DbgPrint(TRACE_LEVEL_INFORMATION, (" Processing EDID's Established timings I and II\n"));
     if (est_timing_1_2.Timing_800x600_60 || est_timing_1_2.Timing_800x600_56 || est_timing_1_2.Timing_800x600_75 ||
         est_timing_1_2.Timing_800x600_72)
     {
@@ -3123,6 +3126,7 @@ int VioGpuAdapter::AddEdidModes(void)
     }
 
     PSTANDARD_TIMING_DESCRIPTOR standard_timing = edid_data->StandardTimings;
+    DbgPrint(TRACE_LEVEL_INFORMATION, (" Processing EDID's Standard timings\n"));
     for (int i = 0; i < 8; i++, standard_timing++)
     {
         VIOGPU_DISP_MODE mode{0};
@@ -3132,6 +3136,7 @@ int VioGpuAdapter::AddEdidModes(void)
         }
     }
 
+    DbgPrint(TRACE_LEVEL_INFORMATION, (" Processing EDID's detailed timings (4 18-byte blocks)\n"));
     if (edid_data->Revision[0] == 4)
     {
         PEDID_DETAILED_DESCRIPTOR detailed_desc = edid_data->EDIDDetailedTimings;
@@ -3254,6 +3259,7 @@ int VioGpuAdapter::AddEdidModes(void)
         }
     }
 
+    DbgPrint(TRACE_LEVEL_INFORMATION, (" Processing CTA861 data\n"));
     PEDID_CTA_861 cta_data = (PEDID_CTA_861)GetCTA861Data();
     if (cta_data && cta_data->DTDBegin[0] > 4)
     {
