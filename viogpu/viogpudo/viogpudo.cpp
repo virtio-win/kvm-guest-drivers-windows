@@ -3099,9 +3099,7 @@ int VioGpuAdapter::AddEdidModes(void)
     UpdateModes(NOM_WIDTH_SIZE, NOM_HEIGHT_SIZE, modecount);
 
     DbgPrint(TRACE_LEVEL_INFORMATION, (" Processing EDID's Established timings I and II\n"));
-    if (est_timing_1_2.Timing_640x480_75 ||
-        est_timing_1_2.Timing_640x480_72 ||
-        est_timing_1_2.Timing_640x480_67 ||
+    if (est_timing_1_2.Timing_640x480_75 || est_timing_1_2.Timing_640x480_72 || est_timing_1_2.Timing_640x480_67 ||
         est_timing_1_2.Timing_640x480_60)
     {
         UpdateModes(640, 480, modecount);
@@ -3123,9 +3121,7 @@ int VioGpuAdapter::AddEdidModes(void)
         UpdateModes(832, 624, modecount);
     }
 
-    if (est_timing_1_2.Timing_1024x768_75 ||
-        est_timing_1_2.Timing_1024x768_70 ||
-        est_timing_1_2.Timing_1024x768_60 ||
+    if (est_timing_1_2.Timing_1024x768_75 || est_timing_1_2.Timing_1024x768_70 || est_timing_1_2.Timing_1024x768_60 ||
         est_timing_1_2.Timing_1024x768_87)
     {
         UpdateModes(1024, 768, modecount);
