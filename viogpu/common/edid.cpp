@@ -191,7 +191,7 @@ bool GetStandardTimingResolution(PSTANDARD_TIMING_DESCRIPTOR desc, PVIOGPU_DISP_
     if (desc && mode && (desc->HorizontalActivePixels > 0))
     {
         mode->XResolution = (desc->HorizontalActivePixels + 31) * 8;
-        switch (desc->RefreshRate)
+        switch (desc->ImageAspectRatio)
         {
             case AR_16_10:
                 mode->YResolution = ((mode->XResolution) / 16 * 10);
