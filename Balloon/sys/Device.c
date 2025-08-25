@@ -433,6 +433,8 @@ BalloonEvtDeviceD0Exit(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE TargetStat
     }
 #endif // !BALLOON_INFLATE_IGNORE_LOWMEM
 
+    BalloonCloseWorkerThread(Device);
+
 #ifndef USE_BALLOON_SERVICE
     /*
      * interrupts were already disabled (between BalloonEvtDeviceD0ExitPreInterruptsDisabled and this call)
