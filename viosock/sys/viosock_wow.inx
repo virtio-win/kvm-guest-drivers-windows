@@ -51,7 +51,7 @@ viosockwspsvc.exe = 1
 ; Hw Ids are PCI\VEN_1AF4&DEV_1012&SUBSYS_0013_INX_SUBSYS_VENDOR_ID&REV_00
 ;
 %VirtioSocket.DeviceDesc%=VirtioSocket_Device, PCI\VEN_1AF4&DEV_1012&SUBSYS_0013_INX_SUBSYS_VENDOR_ID&REV_00, PCI\VEN_1AF4&DEV_1012
-%VirtioSocket.DeviceDesc%=VirtioSocket_Device, PCI\VEN_14F4&DEV_1053&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01, PCI\VEN_1AF4&DEV_1053
+%VirtioSocket.DeviceDesc%=VirtioSocket_Device, PCI\VEN_1AF4&DEV_1053&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01, PCI\VEN_1AF4&DEV_1053
 
 [VirtioSocket_Device.NT]
 CopyFiles=Drivers_Dir,VirtioSocket_Lib_CopyFiles,VirtioSocket_Lib_CopyFiles.WOW64
