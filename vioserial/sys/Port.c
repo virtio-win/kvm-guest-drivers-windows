@@ -1163,6 +1163,33 @@ VOID VIOSerialPortReadIoStop(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN ULONG 
     WdfSpinLockRelease(pport->InBufLock);
 }
 
+static BOOLEAN VIOSerialDetachRequest(IN WDFQUEUE Queue, IN WDFREQUEST Request)
+{
+    PSINGLE_LIST_ENTRY iter = NULL;
+    PRAWPDO_VIOSERIAL_PORT pdoData = RawPdoSerialPortGetData(WdfIoQueueGetDevice(Queue));
+    PVIOSERIAL_PORT pport = pdoData->port;
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE, "--> %s\n", __FUNCTION__);
+
+    WdfSpinLockAcquire(pport->OutVqLock);
+    iter = &pport->WriteBuffersList;
+    while ((iter = iter->Next) != NULL)
+    {
+        PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter, WRITE_BUFFER_ENTRY, ListEntry);
+        if (entry->Request == Request)
+        {
+            entry->Request = NULL;
+            break;
+        }
+    }
+
+    WdfSpinLockRelease(pport->OutVqLock);
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE, "<-- %s\n", __FUNCTION__);
+
+    return (iter != NULL);
+}
+
 VOID VIOSerialPortWriteIoStop(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN ULONG ActionFlags)
 {
     PRAWPDO_VIOSERIAL_PORT pdoData = RawPdoSerialPortGetData(WdfIoQueueGetDevice(Queue));
@@ -1183,7 +1210,31 @@ VOID VIOSerialPortWriteIoStop(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN ULONG
 
     if (ActionFlags & WdfRequestStopActionSuspend)
     {
-        WdfRequestStopAcknowledge(Request, TRUE);
+        PSINGLE_LIST_ENTRY iter;
+
+        // If the request cannot be found in the WriteBuffersList list,
+        // it was removed from it during DPC processing and gets completed
+        // in a moment, thus, there is no need to acknowledge it here (the framework
+        // will wait for the completion).
+        //
+        // If the request is still in the list, §et us requeue it for next
+        // power up.
+        if (VIOSerialDetachRequest(Queue, Request))
+        {
+            TraceEvents(TRACE_LEVEL_WARNING,
+                        DBG_WRITE,
+                        "Request 0x%p found in the WriteBuffersList list, requeuing\n",
+                        Request);
+            WdfRequestStopAcknowledge(Request, TRUE);
+        }
+        else
+        {
+            TraceEvents(TRACE_LEVEL_WARNING,
+                        DBG_WRITE,
+                        "Request 0x%p not found in the WriteBuffersList list, let the framework wait for its "
+                        "completion\n",
+                        Request);
+        }
     }
     else if (ActionFlags & WdfRequestStopActionPurge)
     {
