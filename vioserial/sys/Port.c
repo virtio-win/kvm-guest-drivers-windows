@@ -1163,6 +1163,33 @@ VOID VIOSerialPortReadIoStop(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN ULONG 
     WdfSpinLockRelease(pport->InBufLock);
 }
 
+static BOOLEAN VIOSerialDetachRequest(IN WDFQUEUE Queue, IN WDFREQUEST Request)
+{
+    PSINGLE_LIST_ENTRY iter = NULL;
+    PRAWPDO_VIOSERIAL_PORT pdoData = RawPdoSerialPortGetData(WdfIoQueueGetDevice(Queue));
+    PVIOSERIAL_PORT pport = pdoData->port;
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE, "--> %s\n", __FUNCTION__);
+
+    WdfSpinLockAcquire(pport->OutVqLock);
+    iter = &pport->WriteBuffersList;
+    while ((iter = iter->Next) != NULL)
+    {
+        PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter, WRITE_BUFFER_ENTRY, ListEntry);
+        if (entry->Request == Request)
+        {
+            entry->Request = NULL;
+            break;
+        }
+    }
+
+    WdfSpinLockRelease(pport->OutVqLock);
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE, "<-- %s\n", __FUNCTION__);
+
+    return (iter != NULL);
+}
+
 VOID VIOSerialPortWriteIoStop(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN ULONG ActionFlags)
 {
     PRAWPDO_VIOSERIAL_PORT pdoData = RawPdoSerialPortGetData(WdfIoQueueGetDevice(Queue));
@@ -1192,25 +1219,12 @@ VOID VIOSerialPortWriteIoStop(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN ULONG
         //
         // If the request is still in the list, §et us requeue it for next
         // power up.
-        WdfSpinLockAcquire(pport->OutVqLock);
-        iter = &pport->WriteBuffersList;
-        while ((iter = iter->Next) != NULL)
+        if (VIOSerialDetachRequest(Queue, Request))
         {
-            PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter, WRITE_BUFFER_ENTRY, ListEntry);
-            if (entry->Request == Request)
-            {
-                TraceEvents(TRACE_LEVEL_WARNING,
-                            DBG_WRITE,
-                            "Request 0x%p found in the WriteBuffersList list, requeuing\n",
-                            Request);
-                entry->Request = NULL;
-                break;
-            }
-        }
-
-        WdfSpinLockRelease(pport->OutVqLock);
-        if (iter != NULL)
-        {
+            TraceEvents(TRACE_LEVEL_WARNING,
+                        DBG_WRITE,
+                        "Request 0x%p found in the WriteBuffersList list, requeuing\n",
+                        Request);
             WdfRequestStopAcknowledge(Request, TRUE);
         }
         else
