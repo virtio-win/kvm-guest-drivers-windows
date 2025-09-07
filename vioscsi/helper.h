@@ -35,6 +35,7 @@
 #include <ntddk.h>
 #include <storport.h>
 #include <ntddscsi.h>
+#include <stddef.h>
 
 #include "osdep.h"
 #include "virtio_pci.h"
@@ -49,6 +50,26 @@
 #define ROUND_TO_CACHE_LINES(Size) (((ULONG_PTR)(Size) + CACHE_LINE_SIZE - 1) & ~(CACHE_LINE_SIZE - 1))
 
 #include <srbhelper.h>
+
+typedef enum _PROCESS_BUFFER_LOCKING_MODE
+{
+    PROCESS_BUFFER_NO_SPINLOCKS = 0,
+    PROCESS_BUFFER_DPC_SPINLOCKS
+} PROCESS_BUFFER_LOCKING_MODE;
+
+typedef enum _INL_FUNC_IDX
+{
+    idx_VioScsiStartIo = 0x0,
+    idx_VioScsiInterrupt,
+    idx_VioScsiMSInterrupt,
+    idx_ProcessQueue,
+    idx_DispatchQueue,
+    idx_ProcessBuffer,
+    idx_HandleResponse,
+    idx_CompleteRequest,
+    idx_PreProcessRequest,
+    idx_PostProcessRequest
+} INL_FUNC_IDX;
 
 // Note: SrbGetCdbLength is defined in srbhelper.h
 FORCEINLINE ULONG SrbGetCdbLength32(_In_ PVOID Srb)
@@ -130,11 +151,12 @@ SynchronizedKickEventRoutine(IN PVOID DeviceExtension, IN PVOID Context);
 
 VOID VioScsiCompleteDpcRoutine(IN PSTOR_DPC Dpc, IN PVOID Context, IN PVOID SystemArgument1, IN PVOID SystemArgument2);
 
-VOID ProcessBuffer(IN PVOID DeviceExtension, IN ULONG MessageId, IN STOR_SPINLOCK LockMode);
+VOID ProcessBuffer(IN PVOID DeviceExtension, IN ULONG MessageId, IN PROCESS_BUFFER_LOCKING_MODE LockMode);
 
-VOID
-// FORCEINLINE
-HandleResponse(IN PVOID DeviceExtension, IN PVirtIOSCSICmd cmd);
+VOID FORCEINLINE HandleResponse(IN PVOID DeviceExtension,
+                                IN PVirtIOSCSICmd cmd,
+                                IN INL_FUNC_IDX IDN,
+                                IN INL_FUNC_IDX IFN);
 
 PVOID
 VioScsiPoolAlloc(IN PVOID DeviceExtension, IN SIZE_T size);
