@@ -54,6 +54,12 @@
     <DriverSign>
       <FileDigestAlgorithm Condition="'$(Configuration)|$(Platform)'=='Win11 Release|x64'">sha256</FileDigestAlgorithm>
     </DriverSign>
+    <PostBuildEvent>
+      <Command>
+        xcopy /y /q $(PlatformTarget)\$(ConfigurationName)\$(ProjectName)\vioprot.inf ..\Install\$(TargetOS)\$(TargetArch)\
+        xcopy /y /q $(PlatformTarget)\$(ConfigurationName)\$(ProjectName)\vioprot.cat ..\Install\$(TargetOS)\$(TargetArch)\
+      </Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'" Label="Configuration">
     <TargetVersion>Windows10</TargetVersion>
