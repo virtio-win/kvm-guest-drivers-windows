@@ -152,6 +152,7 @@
     </Link>
     <PostBuildEvent Condition="'$(UseLegacyDDK)'!='true'">
       <Command>
+        dir $(ProjectDir)NotifyObject\$(ConfigurationName)\$(PlatformTarget)\
         xcopy /y /q $(OutDir)netkvm.inf $(InstallRoot)\$(TargetOS)\$(TargetArch)\
         xcopy /y /q $(OutDir)netkvm.pdb $(InstallRoot)\$(TargetOS)\$(TargetArch)\
         xcopy /y /q $(OutDir)$(ProjectName)\netkvm.cat $(InstallRoot)\$(TargetOS)\$(TargetArch)\
