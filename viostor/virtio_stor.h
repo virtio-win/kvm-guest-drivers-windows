@@ -206,10 +206,18 @@ typedef struct _REQUEST_LIST
     ULONG srb_cnt;
 } REQUEST_LIST, *PREQUEST_LIST;
 
+#define REGISTRY_ACTION_ON_RESET "VirtioActionOnReset"
+
+typedef enum ACTION_ON_RESET
+{
+    VirtioResetCompleteRequests,
+    VirtioResetDoNothing,
+    VirtioResetBugCheck = 0xDEADDEAD,
+} ACTION_ON_RESET;
+
 typedef struct _ADAPTER_EXTENSION
 {
     VirtIODevice vdev;
-
     PVOID pageAllocationVa;
     ULONG pageAllocationSize;
     ULONG pageOffset;
@@ -256,6 +264,7 @@ typedef struct _ADAPTER_EXTENSION
     REQUEST_LIST processing_srbs[MAX_CPU];
     BOOLEAN reset_in_progress;
     ULONGLONG fw_ver;
+    ACTION_ON_RESET action_on_reset;
     ULONG_PTR last_srb_id;
 #ifdef DBG
     LONG srb_cnt;
