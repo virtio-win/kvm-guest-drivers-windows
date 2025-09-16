@@ -264,7 +264,11 @@ ViomemCreateWorkerThread(IN WDFDEVICE Device)
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "%s Entry\n", __FUNCTION__);
     devCtx->finishProcessing = FALSE;
 
-    if (devCtx->Thread == NULL)
+    if (devCtx->Thread != NULL)
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_PNP, "viomem thread already exists (0x%p)\n", devCtx->Thread);
+    }
+    else
     {
         InitializeObjectAttributes(&oa, NULL, OBJ_KERNEL_HANDLE, NULL, NULL);
 
@@ -276,7 +280,35 @@ ViomemCreateWorkerThread(IN WDFDEVICE Device)
             return status;
         }
 
-        ObReferenceObjectByHandle(hThread, THREAD_ALL_ACCESS, NULL, KernelMode, (PVOID *)&devCtx->Thread, NULL);
+        status = ObReferenceObjectByHandle(hThread,
+                                           THREAD_ALL_ACCESS,
+                                           NULL,
+                                           KernelMode,
+                                           (PVOID *)&devCtx->Thread,
+                                           NULL);
+
+        if (!NT_SUCCESS(status))
+        {
+            NTSTATUS waitStatus;
+
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "failed to reference thread: status 0x%08x\n", status);
+            devCtx->finishProcessing = TRUE;
+            KeSetEvent(&devCtx->WakeUpThread, EVENT_INCREMENT, FALSE);
+            waitStatus = ZwWaitForSingleObject(hThread, FALSE, NULL);
+
+            if (!NT_SUCCESS(waitStatus))
+            {
+                TraceEvents(TRACE_LEVEL_WARNING,
+                            DBG_PNP,
+                            "Unable to wait for the thread handle 0x%p: 0x%x\n",
+                            hThread,
+                            waitStatus);
+            }
+
+            ZwClose(hThread);
+            return status;
+        }
+
         KeSetPriorityThread(devCtx->Thread, LOW_REALTIME_PRIORITY);
 
         ZwClose(hThread);
@@ -336,6 +368,8 @@ ViomemEvtDeviceD0Entry(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE PreviousSt
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "ViomemCreateWorkerThread failed with status 0x%08x\n", status);
+        ViomemTerminate(Device);
+        return status;
     }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "%s Return \n", __FUNCTION__);
@@ -354,6 +388,7 @@ ViomemEvtDeviceD0Exit(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE TargetState
 
     PAGED_CODE();
 
+    ViomemCloseWorkerThread(Device);
     ViomemTerminate(Device);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "%s Return\n", __FUNCTION__);
