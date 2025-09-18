@@ -869,6 +869,7 @@ VOID CompletePendingRequests(IN PVOID DeviceExtension)
                     PSRB_EXTENSION currSrbExt = SRB_EXTENSION(currSrb);
                     if (currSrb)
                     {
+                        SRB_SET_DATA_TRANSFER_LENGTH(currSrb, 0);
                         CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)currSrb, SRB_STATUS_BUS_RESET);
                         element->srb_cnt--;
                     }
@@ -1012,6 +1013,7 @@ VirtIoStartIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
 
         default:
             {
+                SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
                 CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_INVALID_REQUEST);
                 return TRUE;
             }
@@ -1149,7 +1151,7 @@ VirtIoStartIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
                  Srb,
                  SRB_FUNCTION(Srb),
                  cdb->CDB6GENERIC.OperationCode);
-
+    SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
     CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_INVALID_REQUEST);
     return TRUE;
 }
@@ -1335,6 +1337,7 @@ VirtIoBuildIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
 #endif
     if (SRB_PATH_ID(Srb) || SRB_TARGET_ID(Srb) || SRB_LUN(Srb) || ((adaptExt->removed == TRUE)))
     {
+        SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
         CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_NO_DEVICE);
         return FALSE;
     }

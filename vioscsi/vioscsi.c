@@ -1025,7 +1025,7 @@ VioScsiInterrupt(IN PVOID DeviceExtension)
         }
         else
         {
-            ProcessBuffer(DeviceExtension, QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0), InterruptLock);
+            ProcessQueue(DeviceExtension, QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0), TRUE);
         }
     }
 
@@ -1254,17 +1254,17 @@ VioScsiUnitControl(IN PVOID DeviceExtension, IN SCSI_UNIT_CONTROL_TYPE ControlTy
             break;
         case ScsiUnitRemove:
         case ScsiUnitSurpriseRemoval:
-            ULONG vq_req_idx;
-            PREQUEST_LIST element;
-            STOR_LOCK_HANDLE LockHandle = {0};
-            PVOID LockContext = NULL; // sanity check for LockMode = InterruptLock or StartIoLock
-            PSTOR_ADDR_BTL8 stor_addr = (PSTOR_ADDR_BTL8)Parameters;
+            ULONG QueuNum;
+            ULONG MsgId;
+            STOR_LOCK_HANDLE LockHandle = { 0 };
+            PSTOR_ADDR_BTL8  stor_addr = (PSTOR_ADDR_BTL8)Parameters;
 
-            for (vq_req_idx = 0; vq_req_idx < adaptExt->num_queues; vq_req_idx++)
+            for (index = 0; index < adaptExt->num_queues; index++)
             {
-                element = &adaptExt->processing_srbs[vq_req_idx];
-                LockContext = &adaptExt->dpc[vq_req_idx];
-                StorPortAcquireSpinLock(DeviceExtension, DpcLock, LockContext, &LockHandle);
+                PREQUEST_LIST element = &adaptExt->processing_srbs[index];
+                QueuNum = index + VIRTIO_SCSI_REQUEST_QUEUE_0;
+                MsgId = QUEUE_TO_MESSAGE(QueuNum);
+                VioScsiVQLock(DeviceExtension, MsgId, &LockHandle, FALSE);
                 if (!IsListEmpty(&element->srb_list))
                 {
                     PLIST_ENTRY entry = element->srb_list.Flink;
@@ -1276,6 +1276,7 @@ VioScsiUnitControl(IN PVOID DeviceExtension, IN SCSI_UNIT_CONTROL_TYPE ControlTy
                             SRB_LUN(currSrb) == stor_addr->Lun)
                         {
                             SRB_SET_SRB_STATUS(currSrb, SRB_STATUS_NO_DEVICE);
+                            SRB_SET_DATA_TRANSFER_LENGTH(currSrb, 0);
                             CompleteRequest(DeviceExtension, (PSRB_TYPE)currSrb);
                             RhelDbgPrint(TRACE_LEVEL_INFORMATION,
                                          " Complete pending I/Os on Path %d Target %d Lun %d \n",
@@ -1287,7 +1288,7 @@ VioScsiUnitControl(IN PVOID DeviceExtension, IN SCSI_UNIT_CONTROL_TYPE ControlTy
                         entry = entry->Flink;
                     }
                 }
-                StorPortReleaseSpinLock(DeviceExtension, &LockHandle);
+                VioScsiVQUnlock(DeviceExtension, MsgId, &LockHandle, FALSE);
             }
             Status = ScsiUnitControlSuccess;
             break;
@@ -1326,6 +1327,7 @@ VioScsiBuildIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
         (Lun >= adaptExt->scsi_config.max_lun) || adaptExt->bRemoved)
     {
         SRB_SET_SRB_STATUS(Srb, SRB_STATUS_NO_DEVICE);
+        SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
         StorPortNotification(RequestComplete, DeviceExtension, Srb);
         return FALSE;
     }
@@ -1426,47 +1428,38 @@ VOID FORCEINLINE DispatchQueue(IN PVOID DeviceExtension, IN ULONG MessageId)
     {
         NT_ASSERT(MessageId >= QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0));
         StorPortIssueDpc(DeviceExtension,
-                         &adaptExt->dpc[MessageId - QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0)],
-                         ULongToPtr(MessageId),
-                         ULongToPtr(MessageId));
+            &adaptExt->dpc[MessageId - QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0)],
+            ULongToPtr(MessageId),
+            ULongToPtr(MessageId));
         EXIT_FN();
         return;
     }
-    ProcessBuffer(DeviceExtension, MessageId, InterruptLock);
+    ProcessQueue(DeviceExtension, MessageId, TRUE);
     EXIT_FN();
 }
 
-VOID ProcessBuffer(IN PVOID DeviceExtension, IN ULONG MessageId, IN STOR_SPINLOCK LockMode)
+VOID
+ProcessQueue(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOOLEAN isr)
 {
     ULONG_PTR srbId;
     unsigned int len;
-    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    ULONG QueueNumber = MESSAGE_TO_QUEUE(MessageId);
-    STOR_LOCK_HANDLE LockHandle = {0};
+    PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    ULONG index = MESSAGE_TO_QUEUE(MessageID);
+    STOR_LOCK_HANDLE queueLock = { 0 };
     struct virtqueue *vq;
     PSRB_EXTENSION srbExt = NULL;
-    PREQUEST_LIST element;
-    ULONG vq_req_idx;
-    PVOID LockContext = NULL; // sanity check for LockMode = InterruptLock or StartIoLock
 
     ENTER_FN();
 
-    if (QueueNumber >= (adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0))
+    if (index >= (adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0))
     {
-        RhelDbgPrint(TRACE_LEVEL_VERBOSE,
-                     " Modulo assignment required for QueueNumber as it exceeds the number of virtqueues available.\n");
-        QueueNumber %= adaptExt->num_queues;
+        index %= adaptExt->num_queues;
     }
-    vq_req_idx = QueueNumber - VIRTIO_SCSI_REQUEST_QUEUE_0;
-    element = &adaptExt->processing_srbs[vq_req_idx];
 
-    vq = adaptExt->vq[QueueNumber];
+    PREQUEST_LIST element = &adaptExt->processing_srbs[index - VIRTIO_SCSI_REQUEST_QUEUE_0];
+    vq = adaptExt->vq[index];
 
-    if (LockMode == DpcLock)
-    {
-        LockContext = &adaptExt->dpc[vq_req_idx];
-    }
-    StorPortAcquireSpinLock(DeviceExtension, LockMode, LockContext, &LockHandle);
+    VioScsiVQLock(DeviceExtension, MessageID, &queueLock, isr);
 
     do
     {
@@ -1500,7 +1493,7 @@ VOID ProcessBuffer(IN PVOID DeviceExtension, IN ULONG MessageId, IN STOR_SPINLOC
         }
     } while (!virtqueue_enable_cb(vq));
 
-    StorPortReleaseSpinLock(DeviceExtension, &LockHandle);
+    VioScsiVQUnlock(DeviceExtension, MessageID, &queueLock, isr);
 
     EXIT_FN();
 }
@@ -1511,18 +1504,16 @@ VOID VioScsiCompleteDpcRoutine(IN PSTOR_DPC Dpc, IN PVOID Context, IN PVOID Syst
 
     ENTER_FN();
     MessageId = PtrToUlong(SystemArgument1);
-    ProcessBuffer(Context, MessageId, DpcLock);
+    ProcessQueue(Context, MessageId, FALSE);
     EXIT_FN();
 }
 
-VOID CompletePendingRequestsOnReset(IN PVOID DeviceExtension)
+VOID
+CompletePendingRequestsOnReset(IN PVOID DeviceExtension)
 {
     PADAPTER_EXTENSION adaptExt;
-    ULONG QueueNumber;
-    ULONG vq_req_idx;
-    PREQUEST_LIST element;
-    STOR_LOCK_HANDLE LockHandle = {0};
-    PVOID LockContext = NULL; // sanity check for LockMode = InterruptLock or StartIoLock
+    ULONG QueueNum;
+    ULONG MsgId;
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
@@ -1532,12 +1523,14 @@ VOID CompletePendingRequestsOnReset(IN PVOID DeviceExtension)
         StorPortPause(DeviceExtension, 10);
         DeviceReset(DeviceExtension);
 
-        for (vq_req_idx = 0; vq_req_idx < adaptExt->num_queues; vq_req_idx++)
+        for (ULONG index = 0; index < adaptExt->num_queues; index++)
         {
-            element = &adaptExt->processing_srbs[vq_req_idx];
-            RhelDbgPrint(TRACE_LEVEL_FATAL, " queue %d cnt %d\n", vq_req_idx, element->srb_cnt);
-            LockContext = &adaptExt->dpc[vq_req_idx];
-            StorPortAcquireSpinLock(DeviceExtension, DpcLock, LockContext, &LockHandle);
+            PREQUEST_LIST element = &adaptExt->processing_srbs[index];
+            STOR_LOCK_HANDLE    LockHandle = { 0 };
+            RhelDbgPrint(TRACE_LEVEL_FATAL, " queue %d cnt %d\n", index, element->srb_cnt);
+            QueueNum = index + VIRTIO_SCSI_REQUEST_QUEUE_0;
+            MsgId = QUEUE_TO_MESSAGE(QueueNum);
+            VioScsiVQLock(DeviceExtension, MsgId, &LockHandle, FALSE);
             while (!IsListEmpty(&element->srb_list))
             {
                 PLIST_ENTRY entry = RemoveHeadList(&element->srb_list);
@@ -1548,6 +1541,7 @@ VOID CompletePendingRequestsOnReset(IN PVOID DeviceExtension)
                     if (currSrb)
                     {
                         SRB_SET_SRB_STATUS(currSrb, SRB_STATUS_BUS_RESET);
+                        SRB_SET_DATA_TRANSFER_LENGTH(currSrb, 0);
                         CompleteRequest(DeviceExtension, (PSRB_TYPE)currSrb);
                         element->srb_cnt--;
                     }
@@ -1557,7 +1551,7 @@ VOID CompletePendingRequestsOnReset(IN PVOID DeviceExtension)
             {
                 element->srb_cnt = 0;
             }
-            StorPortReleaseSpinLock(DeviceExtension, &LockHandle);
+            VioScsiVQUnlock(DeviceExtension, MsgId, &LockHandle, FALSE);
         }
         StorPortResume(DeviceExtension);
     }
@@ -1935,6 +1929,7 @@ VOID VioScsiIoControl(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
             break;
         default:
             SRB_SET_SRB_STATUS(Srb, SRB_STATUS_INVALID_REQUEST);
+            SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
             RhelDbgPrint(TRACE_LEVEL_INFORMATION, " <--> Unsupport control code 0x%x\n", srbControl->ControlCode);
             break;
     }

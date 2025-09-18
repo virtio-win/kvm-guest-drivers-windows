@@ -52,9 +52,9 @@ VOID SendSRB(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     ULONG QueueNumber = VIRTIO_SCSI_REQUEST_QUEUE_0;
     BOOLEAN notify = FALSE;
     STOR_LOCK_HANDLE LockHandle = {0};
-    PVOID LockContext;
     ULONG status = STOR_STATUS_SUCCESS;
     UCHAR ScsiStatus = SCSISTAT_GOOD;
+    ULONG MessageId;
     INT add_buffer_req_status = VQ_ADD_BUFFER_SUCCESS;
     PREQUEST_LIST element;
     ULONG vq_req_idx;
@@ -69,6 +69,16 @@ VOID SendSRB(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     if (adaptExt->bRemoved)
     {
         SRB_SET_SRB_STATUS(Srb, SRB_STATUS_NO_DEVICE);
+        SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
+        CompleteRequest(DeviceExtension, Srb);
+        return;
+    }
+
+    if (adaptExt->reset_in_progress)
+    {
+        RhelDbgPrint(TRACE_LEVEL_FATAL, " Reset is in progress, completing SRB 0x%p with SRB_STATUS_BUS_RESET.\n", Srb);
+        SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
+        SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BUS_RESET);
         CompleteRequest(DeviceExtension, Srb);
         return;
     }
@@ -106,18 +116,10 @@ VOID SendSRB(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
         return;
     }
 
+    MessageId = QUEUE_TO_MESSAGE(QueueNumber);
     vq_req_idx = QueueNumber - VIRTIO_SCSI_REQUEST_QUEUE_0;
-    LockContext = &adaptExt->dpc[vq_req_idx];
 
-    if (adaptExt->reset_in_progress)
-    {
-        RhelDbgPrint(TRACE_LEVEL_FATAL, " Reset is in progress, completing SRB 0x%p with SRB_STATUS_BUS_RESET.\n", Srb);
-        SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BUS_RESET);
-        CompleteRequest(DeviceExtension, Srb);
-        return;
-    }
-
-    StorPortAcquireSpinLock(DeviceExtension, DpcLock, LockContext, &LockHandle);
+    VioScsiVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
     SET_VA_PA();
     add_buffer_req_status = virtqueue_add_buf(adaptExt->vq[QueueNumber],
                                               srbExt->psgl,
@@ -152,7 +154,7 @@ VOID SendSRB(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
                      Srb->TimeOutValue);
         CompleteRequest(DeviceExtension, Srb);
     }
-    StorPortReleaseSpinLock(DeviceExtension, &LockHandle);
+    VioScsiVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
     if (notify)
     {
         virtqueue_notify(adaptExt->vq[QueueNumber]);
@@ -538,7 +540,46 @@ KickEvent(IN PVOID DeviceExtension, IN PVirtIOSCSIEventNode EventNode)
     EXIT_FN();
 }
 
-VOID FirmwareRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
+VOID
+VioScsiVQLock(IN PVOID DeviceExtension, IN ULONG MessageID, IN OUT PSTOR_LOCK_HANDLE LockHandle, IN BOOLEAN isr)
+{
+    PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    ULONG               QueueNumber = MESSAGE_TO_QUEUE(MessageID);
+    ENTER_FN();
+
+    if (!isr)
+    {
+        if (adaptExt->msix_enabled)
+        {
+            // Queue numbers start at 0, message ids at 1.
+            NT_ASSERT(MessageID > VIRTIO_SCSI_REQUEST_QUEUE_0);
+            if (QueueNumber >= (adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0))
+            {
+                QueueNumber %= adaptExt->num_queues;
+            }
+            StorPortAcquireSpinLock(DeviceExtension, DpcLock, &adaptExt->dpc[QueueNumber - VIRTIO_SCSI_REQUEST_QUEUE_0], LockHandle);
+        }
+        else
+        {
+            StorPortAcquireSpinLock(DeviceExtension, InterruptLock, NULL, LockHandle);
+        }
+    }
+    EXIT_FN();
+}
+
+VOID
+VioScsiVQUnlock(IN PVOID DeviceExtension, IN ULONG MessageID, IN PSTOR_LOCK_HANDLE LockHandle, IN BOOLEAN isr)
+{
+    ENTER_FN();
+    if (!isr)
+    {
+        StorPortReleaseSpinLock(DeviceExtension, LockHandle);
+    }
+    EXIT_FN();
+}
+
+VOID
+FirmwareRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
 {
     PADAPTER_EXTENSION adaptExt;
     PSRB_EXTENSION srbExt = NULL;
@@ -662,6 +703,7 @@ VOID FirmwareRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
             break;
         default:
             RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Unsupported Function %ul\n", firmwareRequest->Function);
+            SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
             SRB_SET_SRB_STATUS(Srb, SRB_STATUS_INVALID_REQUEST);
             break;
     }
