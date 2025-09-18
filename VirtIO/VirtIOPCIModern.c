@@ -291,6 +291,7 @@ static NTSTATUS vio_modern_setup_vq(struct virtqueue **queue, VirtIODevice *vdev
     u16 off;
     unsigned long ring_size, heap_size;
     NTSTATUS status;
+    bool alloc = 1;
 
     /* select the queue and query allocation parameters */
     status = vio_modern_query_vq_alloc(vdev, index, &info->num, &ring_size, &heap_size);
@@ -298,23 +299,28 @@ static NTSTATUS vio_modern_setup_vq(struct virtqueue **queue, VirtIODevice *vdev
         return status;
     }
 
-    /* get offset of notification word for this vq */
-    off = ioread16(vdev, &cfg->queue_notify_off);
+    if (!(info->vq)) {
+        /* try to allocate contiguous pages, scale down on failure */
+        while (!(info->queue = mem_alloc_contiguous_pages(
+                 vdev, vring_pci_size(info->num, vdev->packed_ring)))) {
+            if (info->num > 0) {
+                info->num /= 2;
+            } else {
+                return STATUS_INSUFFICIENT_RESOURCES;
+            }
+        }
 
-    /* try to allocate contiguous pages, scale down on failure */
-    while (!(info->queue =
-                 mem_alloc_contiguous_pages(vdev, vring_pci_size(info->num, vdev->packed_ring)))) {
-        if (info->num > 0) {
-            info->num /= 2;
-        } else {
+        vq_addr = mem_alloc_nonpaged_block(vdev, heap_size);
+        if (vq_addr == NULL) {
             return STATUS_INSUFFICIENT_RESOURCES;
         }
+    } else {
+        alloc = 0;
+        vq_addr = info->vq;
     }
 
-    vq_addr = mem_alloc_nonpaged_block(vdev, heap_size);
-    if (vq_addr == NULL) {
-        return STATUS_INSUFFICIENT_RESOURCES;
-    }
+    /* get offset of notification word for this vq */
+    off = ioread16(vdev, &cfg->queue_notify_off);
 
     /* create the vring */
     if (vdev->packed_ring) {
@@ -378,8 +384,10 @@ err_assign_vector:
 err_map_notify:
     virtqueue_shutdown(vq);
 err_new_queue:
-    mem_free_nonpaged_block(vdev, vq_addr);
-    mem_free_contiguous_pages(vdev, info->queue);
+    if (alloc) {
+        mem_free_nonpaged_block(vdev, vq_addr);
+        mem_free_contiguous_pages(vdev, info->queue);
+    }
     return status;
 }
 

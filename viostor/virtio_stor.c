@@ -564,6 +564,30 @@ static BOOLEAN InitializeVirtualQueues(PADAPTER_EXTENSION adaptExt)
     return TRUE;
 }
 
+static BOOLEAN ResetVirtualQueues(PVOID DeviceExtension)
+{
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+
+    virtio_reset_queues(&adaptExt->vdev);
+
+    virtio_device_reset(&adaptExt->vdev);
+    virtio_add_status(&adaptExt->vdev, VIRTIO_CONFIG_S_ACKNOWLEDGE);
+    virtio_add_status(&adaptExt->vdev, VIRTIO_CONFIG_S_DRIVER);
+
+    RhelGetDiskGeometry(DeviceExtension);
+    RhelSetGuestFeatures(DeviceExtension);
+    if (InitializeVirtualQueues(adaptExt))
+    {
+        virtio_device_ready(&adaptExt->vdev);
+        return TRUE;
+    }
+    else
+    {
+        virtio_add_status(&adaptExt->vdev, VIRTIO_CONFIG_S_FAILED);
+        return FALSE;
+    }
+}
+
 VOID RhelSetGuestFeatures(IN PVOID DeviceExtension)
 {
     ULONGLONG guestFeatures = 0;
@@ -980,8 +1004,16 @@ VirtIoStartIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
         case SRB_FUNCTION_RESET_DEVICE:
         case SRB_FUNCTION_RESET_LOGICAL_UNIT:
             {
-                CompletePendingRequests(DeviceExtension);
-                CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_SUCCESS);
+                if (ResetVirtualQueues(DeviceExtension))
+                {
+                    CompletePendingRequests(DeviceExtension);
+                    CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_SUCCESS);
+                }
+                else
+                {
+                    CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_ERROR);
+                    return FALSE;
+                }
 #ifdef DBG
                 RhelDbgPrint(TRACE_LEVEL_INFORMATION,
                              " RESET (%p) Function %x Cnt %d InQueue %d\n",
@@ -1199,11 +1231,14 @@ BOOLEAN
 VirtIoResetBus(IN PVOID DeviceExtension, IN ULONG PathId)
 {
     UNREFERENCED_PARAMETER(PathId);
-    PADAPTER_EXTENSION adaptExt;
-    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
-    CompletePendingRequests(DeviceExtension);
-    return TRUE;
+    if (ResetVirtualQueues(DeviceExtension))
+    {
+        CompletePendingRequests(DeviceExtension);
+        return TRUE;
+    }
+    return FALSE;
 }
 
 SCSI_ADAPTER_CONTROL_STATUS
