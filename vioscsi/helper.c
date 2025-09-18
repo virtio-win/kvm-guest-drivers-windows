@@ -52,7 +52,6 @@ VOID SendSRB(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     ULONG QueueNumber = VIRTIO_SCSI_REQUEST_QUEUE_0;
     BOOLEAN notify = FALSE;
     STOR_LOCK_HANDLE LockHandle = {0};
-    PVOID LockContext;
     ULONG status = STOR_STATUS_SUCCESS;
     UCHAR ScsiStatus = SCSISTAT_GOOD;
     INT add_buffer_req_status = VQ_ADD_BUFFER_SUCCESS;
@@ -107,7 +106,6 @@ VOID SendSRB(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     }
 
     vq_req_idx = QueueNumber - VIRTIO_SCSI_REQUEST_QUEUE_0;
-    LockContext = &adaptExt->dpc[vq_req_idx];
 
     if (adaptExt->reset_in_progress)
     {
@@ -117,7 +115,7 @@ VOID SendSRB(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
         return;
     }
 
-    StorPortAcquireSpinLock(DeviceExtension, DpcLock, LockContext, &LockHandle);
+    StorPortAcquireSpinLock(DeviceExtension, DpcLock, &adaptExt->dpc[vq_req_idx], &LockHandle);
     SET_VA_PA();
     add_buffer_req_status = virtqueue_add_buf(adaptExt->vq[QueueNumber],
                                               srbExt->psgl,

@@ -598,6 +598,7 @@ VioScsiPassiveInitializeRoutine(IN PVOID DeviceExtension)
         StorPortInitializeDpc(DeviceExtension, &adaptExt->dpc[index], VioScsiCompleteDpcRoutine);
     }
     adaptExt->dpc_ok = TRUE;
+
     EXIT_FN();
     return TRUE;
 }
@@ -1025,7 +1026,7 @@ VioScsiInterrupt(IN PVOID DeviceExtension)
         }
         else
         {
-            ProcessBuffer(DeviceExtension, QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0), InterruptLock);
+            ProcessBuffer(DeviceExtension, QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0), PROCESS_BUFFER_NO_SPINLOCKS);
         }
     }
 
@@ -1257,14 +1258,12 @@ VioScsiUnitControl(IN PVOID DeviceExtension, IN SCSI_UNIT_CONTROL_TYPE ControlTy
             ULONG vq_req_idx;
             PREQUEST_LIST element;
             STOR_LOCK_HANDLE LockHandle = {0};
-            PVOID LockContext = NULL; // sanity check for LockMode = InterruptLock or StartIoLock
             PSTOR_ADDR_BTL8 stor_addr = (PSTOR_ADDR_BTL8)Parameters;
 
             for (vq_req_idx = 0; vq_req_idx < adaptExt->num_queues; vq_req_idx++)
             {
                 element = &adaptExt->processing_srbs[vq_req_idx];
-                LockContext = &adaptExt->dpc[vq_req_idx];
-                StorPortAcquireSpinLock(DeviceExtension, DpcLock, LockContext, &LockHandle);
+                StorPortAcquireSpinLock(DeviceExtension, DpcLock, &adaptExt->dpc[vq_req_idx], &LockHandle);
                 if (!IsListEmpty(&element->srb_list))
                 {
                     PLIST_ENTRY entry = element->srb_list.Flink;
@@ -1429,14 +1428,15 @@ VOID FORCEINLINE DispatchQueue(IN PVOID DeviceExtension, IN ULONG MessageId)
                          &adaptExt->dpc[MessageId - QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0)],
                          ULongToPtr(MessageId),
                          ULongToPtr(MessageId));
-        EXIT_FN();
-        return;
     }
-    ProcessBuffer(DeviceExtension, MessageId, InterruptLock);
+    else
+    {
+        ProcessBuffer(DeviceExtension, MessageId, PROCESS_BUFFER_NO_SPINLOCKS);
+    }
     EXIT_FN();
 }
 
-VOID ProcessBuffer(IN PVOID DeviceExtension, IN ULONG MessageId, IN STOR_SPINLOCK LockMode)
+VOID ProcessBuffer(IN PVOID DeviceExtension, IN ULONG MessageId, IN PROCESS_BUFFER_LOCKING_MODE LockMode)
 {
     ULONG_PTR srbId;
     unsigned int len;
@@ -1447,7 +1447,6 @@ VOID ProcessBuffer(IN PVOID DeviceExtension, IN ULONG MessageId, IN STOR_SPINLOC
     PSRB_EXTENSION srbExt = NULL;
     PREQUEST_LIST element;
     ULONG vq_req_idx;
-    PVOID LockContext = NULL; // sanity check for LockMode = InterruptLock or StartIoLock
 
     ENTER_FN();
 
@@ -1462,12 +1461,10 @@ VOID ProcessBuffer(IN PVOID DeviceExtension, IN ULONG MessageId, IN STOR_SPINLOC
 
     vq = adaptExt->vq[QueueNumber];
 
-    if (LockMode == DpcLock)
+    if (LockMode != PROCESS_BUFFER_NO_SPINLOCKS)
     {
-        LockContext = &adaptExt->dpc[vq_req_idx];
+        StorPortAcquireSpinLock(DeviceExtension, DpcLock, &adaptExt->dpc[vq_req_idx], &LockHandle);
     }
-    StorPortAcquireSpinLock(DeviceExtension, LockMode, LockContext, &LockHandle);
-
     do
     {
         virtqueue_disable_cb(vq);
@@ -1500,7 +1497,10 @@ VOID ProcessBuffer(IN PVOID DeviceExtension, IN ULONG MessageId, IN STOR_SPINLOC
         }
     } while (!virtqueue_enable_cb(vq));
 
-    StorPortReleaseSpinLock(DeviceExtension, &LockHandle);
+    if (LockMode != PROCESS_BUFFER_NO_SPINLOCKS)
+    {
+        StorPortReleaseSpinLock(DeviceExtension, &LockHandle);
+    }
 
     EXIT_FN();
 }
@@ -1511,7 +1511,7 @@ VOID VioScsiCompleteDpcRoutine(IN PSTOR_DPC Dpc, IN PVOID Context, IN PVOID Syst
 
     ENTER_FN();
     MessageId = PtrToUlong(SystemArgument1);
-    ProcessBuffer(Context, MessageId, DpcLock);
+    ProcessBuffer(Context, MessageId, PROCESS_BUFFER_DPC_SPINLOCKS);
     EXIT_FN();
 }
 
@@ -1522,7 +1522,6 @@ VOID CompletePendingRequestsOnReset(IN PVOID DeviceExtension)
     ULONG vq_req_idx;
     PREQUEST_LIST element;
     STOR_LOCK_HANDLE LockHandle = {0};
-    PVOID LockContext = NULL; // sanity check for LockMode = InterruptLock or StartIoLock
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
@@ -1536,8 +1535,8 @@ VOID CompletePendingRequestsOnReset(IN PVOID DeviceExtension)
         {
             element = &adaptExt->processing_srbs[vq_req_idx];
             RhelDbgPrint(TRACE_LEVEL_FATAL, " queue %d cnt %d\n", vq_req_idx, element->srb_cnt);
-            LockContext = &adaptExt->dpc[vq_req_idx];
-            StorPortAcquireSpinLock(DeviceExtension, DpcLock, LockContext, &LockHandle);
+
+            StorPortAcquireSpinLock(DeviceExtension, DpcLock, &adaptExt->dpc[vq_req_idx], &LockHandle);
             while (!IsListEmpty(&element->srb_list))
             {
                 PLIST_ENTRY entry = RemoveHeadList(&element->srb_list);
