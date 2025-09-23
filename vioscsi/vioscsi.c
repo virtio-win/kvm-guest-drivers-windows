@@ -1256,8 +1256,8 @@ VioScsiUnitControl(IN PVOID DeviceExtension, IN SCSI_UNIT_CONTROL_TYPE ControlTy
         case ScsiUnitSurpriseRemoval:
             ULONG QueuNum;
             ULONG MsgId;
-            STOR_LOCK_HANDLE LockHandle = { 0 };
-            PSTOR_ADDR_BTL8  stor_addr = (PSTOR_ADDR_BTL8)Parameters;
+            STOR_LOCK_HANDLE LockHandle = {0};
+            PSTOR_ADDR_BTL8 stor_addr = (PSTOR_ADDR_BTL8)Parameters;
 
             for (index = 0; index < adaptExt->num_queues; index++)
             {
@@ -1428,9 +1428,9 @@ VOID FORCEINLINE DispatchQueue(IN PVOID DeviceExtension, IN ULONG MessageId)
     {
         NT_ASSERT(MessageId >= QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0));
         StorPortIssueDpc(DeviceExtension,
-            &adaptExt->dpc[MessageId - QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0)],
-            ULongToPtr(MessageId),
-            ULongToPtr(MessageId));
+                         &adaptExt->dpc[MessageId - QUEUE_TO_MESSAGE(VIRTIO_SCSI_REQUEST_QUEUE_0)],
+                         ULongToPtr(MessageId),
+                         ULongToPtr(MessageId));
         EXIT_FN();
         return;
     }
@@ -1438,14 +1438,13 @@ VOID FORCEINLINE DispatchQueue(IN PVOID DeviceExtension, IN ULONG MessageId)
     EXIT_FN();
 }
 
-VOID
-ProcessQueue(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOOLEAN isr)
+VOID ProcessQueue(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOOLEAN isr)
 {
     ULONG_PTR srbId;
     unsigned int len;
-    PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     ULONG index = MESSAGE_TO_QUEUE(MessageID);
-    STOR_LOCK_HANDLE queueLock = { 0 };
+    STOR_LOCK_HANDLE queueLock = {0};
     struct virtqueue *vq;
     PSRB_EXTENSION srbExt = NULL;
 
@@ -1508,8 +1507,7 @@ VOID VioScsiCompleteDpcRoutine(IN PSTOR_DPC Dpc, IN PVOID Context, IN PVOID Syst
     EXIT_FN();
 }
 
-VOID
-CompletePendingRequestsOnReset(IN PVOID DeviceExtension)
+VOID CompletePendingRequestsOnReset(IN PVOID DeviceExtension)
 {
     PADAPTER_EXTENSION adaptExt;
     ULONG QueueNum;
@@ -1526,7 +1524,7 @@ CompletePendingRequestsOnReset(IN PVOID DeviceExtension)
         for (ULONG index = 0; index < adaptExt->num_queues; index++)
         {
             PREQUEST_LIST element = &adaptExt->processing_srbs[index];
-            STOR_LOCK_HANDLE    LockHandle = { 0 };
+            STOR_LOCK_HANDLE LockHandle = {0};
             RhelDbgPrint(TRACE_LEVEL_FATAL, " queue %d cnt %d\n", index, element->srb_cnt);
             QueueNum = index + VIRTIO_SCSI_REQUEST_QUEUE_0;
             MsgId = QUEUE_TO_MESSAGE(QueueNum);
