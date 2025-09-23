@@ -540,11 +540,10 @@ KickEvent(IN PVOID DeviceExtension, IN PVirtIOSCSIEventNode EventNode)
     EXIT_FN();
 }
 
-VOID
-VioScsiVQLock(IN PVOID DeviceExtension, IN ULONG MessageID, IN OUT PSTOR_LOCK_HANDLE LockHandle, IN BOOLEAN isr)
+VOID VioScsiVQLock(IN PVOID DeviceExtension, IN ULONG MessageID, IN OUT PSTOR_LOCK_HANDLE LockHandle, IN BOOLEAN isr)
 {
-    PADAPTER_EXTENSION  adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    ULONG               QueueNumber = MESSAGE_TO_QUEUE(MessageID);
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    ULONG QueueNumber = MESSAGE_TO_QUEUE(MessageID);
     ENTER_FN();
 
     if (!isr)
@@ -557,7 +556,10 @@ VioScsiVQLock(IN PVOID DeviceExtension, IN ULONG MessageID, IN OUT PSTOR_LOCK_HA
             {
                 QueueNumber %= adaptExt->num_queues;
             }
-            StorPortAcquireSpinLock(DeviceExtension, DpcLock, &adaptExt->dpc[QueueNumber - VIRTIO_SCSI_REQUEST_QUEUE_0], LockHandle);
+            StorPortAcquireSpinLock(DeviceExtension,
+                                    DpcLock,
+                                    &adaptExt->dpc[QueueNumber - VIRTIO_SCSI_REQUEST_QUEUE_0],
+                                    LockHandle);
         }
         else
         {
@@ -567,8 +569,7 @@ VioScsiVQLock(IN PVOID DeviceExtension, IN ULONG MessageID, IN OUT PSTOR_LOCK_HA
     EXIT_FN();
 }
 
-VOID
-VioScsiVQUnlock(IN PVOID DeviceExtension, IN ULONG MessageID, IN PSTOR_LOCK_HANDLE LockHandle, IN BOOLEAN isr)
+VOID VioScsiVQUnlock(IN PVOID DeviceExtension, IN ULONG MessageID, IN PSTOR_LOCK_HANDLE LockHandle, IN BOOLEAN isr)
 {
     ENTER_FN();
     if (!isr)
@@ -578,8 +579,7 @@ VioScsiVQUnlock(IN PVOID DeviceExtension, IN ULONG MessageID, IN PSTOR_LOCK_HAND
     EXIT_FN();
 }
 
-VOID
-FirmwareRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
+VOID FirmwareRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
 {
     PADAPTER_EXTENSION adaptExt;
     PSRB_EXTENSION srbExt = NULL;

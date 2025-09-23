@@ -132,20 +132,13 @@ VOID VioScsiCompleteDpcRoutine(IN PSTOR_DPC Dpc, IN PVOID Context, IN PVOID Syst
 
 VOID ProcessBuffer(IN PVOID DeviceExtension, IN ULONG MessageId, IN STOR_SPINLOCK LockMode);
 
-VOID
-VioScsiCompleteDpcRoutine(IN PSTOR_DPC Dpc, IN PVOID Context, IN PVOID SystemArgument1, IN PVOID SystemArgument2);
+VOID ProcessQueue(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOOLEAN isr);
 
-VOID
-ProcessQueue(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOOLEAN isr);
+VOID VioScsiVQLock(IN PVOID DeviceExtension, IN ULONG MessageID, IN OUT PSTOR_LOCK_HANDLE LockHandle, IN BOOLEAN isr);
 
-VOID
-VioScsiVQLock(IN PVOID DeviceExtension, IN ULONG MessageID, IN OUT PSTOR_LOCK_HANDLE LockHandle, IN BOOLEAN isr);
+VOID VioScsiVQUnlock(IN PVOID DeviceExtension, IN ULONG MessageID, IN PSTOR_LOCK_HANDLE LockHandle, IN BOOLEAN isr);
 
-VOID
-VioScsiVQUnlock(IN PVOID DeviceExtension, IN ULONG MessageID, IN PSTOR_LOCK_HANDLE LockHandle, IN BOOLEAN isr);
-
-VOID
-HandleResponse(IN PVOID DeviceExtension, IN PVirtIOSCSICmd cmd);
+VOID HandleResponse(IN PVOID DeviceExtension, IN PVirtIOSCSICmd cmd);
 
 PVOID
 VioScsiPoolAlloc(IN PVOID DeviceExtension, IN SIZE_T size);
