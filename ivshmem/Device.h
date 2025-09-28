@@ -30,6 +30,8 @@ typedef struct _DEVICE_CONTEXT
 
     MM_PHYSICAL_ADDRESS_LIST shmemAddr; // physical address of the shared memory (BAR2)
     PMDL shmemMDL;                      // memory discriptor list of the shared memory
+    PVOID shmemMap;                     // memory mapping of the shared memory
+    WDFFILEOBJECT owner;                // the file object that currently owns the mapping
     UINT16 interruptCount;              // the number of interrupt entries allocated
     UINT16 interruptsUsed;              // the number of interrupt entries used
     WDFINTERRUPT *interrupts;           // interrupts for this device
@@ -42,13 +44,6 @@ typedef struct _DEVICE_CONTEXT
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, DeviceGetContext)
-
-typedef struct _FILE_CONTEXT
-{
-    PVOID shmemMap; // memory mapping of the shared memory
-} FILE_CONTEXT, *PFILE_CONTEXT;
-
-WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(FILE_CONTEXT, FileGetContext)
 
 NTSTATUS IVSHMEMCreateDevice(_Inout_ PWDFDEVICE_INIT DeviceInit);
 
