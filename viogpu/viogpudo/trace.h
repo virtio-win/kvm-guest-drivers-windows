@@ -16,24 +16,11 @@
 #define TRACE_LEVEL_RESERVED9   9
 #endif // TRACE_LEVEL_INFORMATION
 
-#if DBG
-#define PRINT_DEBUG 1
-//#define COM_DEBUG 1
+#if !DBG
+#define EVENT_TRACING 1
+#endif
 
-    extern int nDebugLevel;
-    extern int bBreakAlways;
-
-    void DebugPrintFuncSerial(const char *format, ...);
-    void DebugPrintFuncKdPrint(const char *format, ...);
-#define DbgExpandArguments(...) __VA_ARGS__
-#define DbgPrint(Level, MSG) \
-    if (Level <= nDebugLevel) VirtioDebugPrintProc(DbgExpandArguments MSG);
-#define VioGpuDbgBreak()\
-    if (KD_DEBUGGER_ENABLED && !KD_DEBUGGER_NOT_PRESENT && bBreakAlways) DbgBreakPoint();
-
-#define WPP_INIT_TRACING(driver, regpath)  InitializeDebugPrints(driver, regpath);
-#define WPP_CLEANUP(driver)
-#else
+#if EVENT_TRACING
 //#define DbgPrint(level, line) {};
 
 #define WPP_CHECK_FOR_NULL_STRING  // to prevent exceptions due to NULL strings.
@@ -65,4 +52,21 @@
 // end_wpp
 //
 
+#else
+#define PRINT_DEBUG 1
+//#define COM_DEBUG 1
+
+    extern int nDebugLevel;
+    extern int bBreakAlways;
+
+    void DebugPrintFuncSerial(const char *format, ...);
+    void DebugPrintFuncKdPrint(const char *format, ...);
+#define DbgExpandArguments(...) __VA_ARGS__
+#define DbgPrint(Level, MSG) \
+    if (Level <= nDebugLevel) VirtioDebugPrintProc(DbgExpandArguments MSG);
+#define VioGpuDbgBreak()\
+    if (KD_DEBUGGER_ENABLED && !KD_DEBUGGER_NOT_PRESENT && bBreakAlways) DbgBreakPoint();
+
+#define WPP_INIT_TRACING(driver, regpath)  InitializeDebugPrints(driver, regpath);
+#define WPP_CLEANUP(driver)
 #endif
