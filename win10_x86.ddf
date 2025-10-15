@@ -20,6 +20,8 @@
 .\Balloon\Install\Win10\x86\balloon.inf
 .\Balloon\Install\Win10\x86\balloon.pdb
 .\Balloon\Install\Win10\x86\balloon.sys
+.\Balloon\Install\Win10\x86\blnsvr.exe
+.\Balloon\Install\Win10\x86\blnsvr.pdb
 ; NetKvm driver
 .Set DestinationDir=NetKvm
 .\NetKvm\Install\Win10\x86\netkvm.cat
