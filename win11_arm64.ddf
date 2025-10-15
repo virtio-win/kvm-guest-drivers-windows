@@ -20,6 +20,8 @@
 .\Balloon\Install\Win11\ARM64\balloon.inf
 .\Balloon\Install\Win11\ARM64\balloon.pdb
 .\Balloon\Install\Win11\ARM64\balloon.sys
+.\Balloon\Install\Win11\ARM64\blnsvr.exe
+.\Balloon\Install\Win11\ARM64\blnsvr.pdb
 ; NetKvm driver
 .Set DestinationDir=NetKvm
 .\NetKvm\Install\Win11\ARM64\netkvm.cat
