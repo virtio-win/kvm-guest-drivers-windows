@@ -3,7 +3,7 @@ repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drive
 tag     mm311
 
 Fixed issues:
-Nostly sync between downstream and upstream plus some upstream PRs related to viosock with no open Jira issues
+Mostly sync between downstream and upstream plus some upstream PRs related to viosock with no open Jira issues
 
 Date    02 Sep 2025
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
@@ -14,7 +14,7 @@ Fixed issues:
 RHEL-104114: [null driver] Update INF files
 RHEL-104113: viogpu: Update INF file
 RHEL-108856: viomem: Remove code related to
-RHEL-109592: viosock: ix Vendor ID in viosock
+RHEL-109592: viosock: Fix Vendor ID in viosock
 RHEL-108792: viosock: Remove code related to
 RHEL-108838: ivshmem: Remove code related to
 RHEL-20221: NetKVM: remove unneeded parts of the NetKVM INF
@@ -29,7 +29,7 @@ Fixed issues:
 RHEL-106205: Update copyright for all drivers
 RHEL-107465: [pciserial driver] Update INF files
 RHEL-104114: [null driver] Update INF files
-RHEL-107617: [viostor vioscsi] set data transfer length to 0 in case if no data transfered
+RHEL-107617: [viostor vioscsi] set data transfer length to 0 in case if no data transferred
 
 Date    07 Jul 2025
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
@@ -52,7 +52,7 @@ Fixed issues:
 
 RHEL-84655: virtiolib-wdf: add check for active IOMMU
 RHEL-50142: debug tools: Add IO limits to the Windows Guest
-RHEL-95788: viofs: Fix - support CLI argument for VirtioFsSvc
+RHEL-95788: viofs: Fix support CLI argument for VirtioFsSvc
 
 Date    09 Jun 2025
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
@@ -97,7 +97,7 @@ Fixed issues:
 
 RHEL-82494: netkvm: ensure poll handler scheduling on RSS
 RHEL-83609: netkvm: always report registration offload
-RHEL-22354: netkvm: use interlocked read for
+RHEL-22354: netkvm: use interlocked read for synchronization
 
 
 Date    17 Mar 2025
@@ -108,7 +108,7 @@ Fixed issues:
 
 RHEL-73634: Balloon: Add Winmgmt service as a dependency
 RHEL-78518: netkvm: disable DMA remapping for Win10 build
-RHEL-78518: netkvm disable DMA remapping for Win10
+RHEL-78518: netkvm: disable DMA remapping for Win10
 
 Date    4 Mar 2025
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
@@ -144,9 +144,9 @@ RHEL-69076: CI: Enable viomem code style checking
 RHEL-69074: CI: Enable viogpu code style checking
 RHEL-69077: CI: Enable viorng code style checking
 RHEL-69079: CI: Enable vioserial code style checking
-RHEL-40693 : NETKVM: Delay in starting NetKVM Ethernet Adapter with high queues of Qemu netdev
+RHEL-40693: NETKVM: Delay in starting NetKVM Ethernet Adapter with high queues of Qemu netdev
 RHEL-74233: clang-format for viocrypt driver
-RHELMISC-8923: Update the contribution instructions for
+RHELMISC-8923: Update the contribution instructions for developers
 RHELMISC-8982: Fix missing echo in build.bat run_dvl
 RHEL-69071: clang-format for Common folder in NetKVM
 
@@ -174,7 +174,7 @@ Fixed issues:
 RHEL-69597: [CollectSystemInfo] Gather SetupAPI logs
 RHEL-67132: trace: fix readme file
 RHEL-69072: clang-format for pvpanic folder
-RHEL-72207: Apply clang-formatt to ivshmem folder
+RHEL-72207: Apply clang-format to ivshmem folder
 
 Date    16 Dec 2024
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
@@ -182,9 +182,9 @@ tag     mm289
 
 Fixed issues:
 
-RHEL-70458: Balloon: Finish WMI requiest properly
+RHEL-70458: Balloon: Finish WMI request properly
 https://issues.redhat.com/browse/RHEL-68725
-RHEL-69597: [CollectSystemInfo] Gathe
+RHEL-69597: [CollectSystemInfo] Gather system information
 
 Date    09 Dec 2024
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
@@ -192,10 +192,10 @@ tag     mm288
 
 Fixed issues:
 
-RHEL-65784: Fix files ending https://issues.redhat.com/browse/RHEL-65784
+RHEL-65784: Fix files ending with incorrect line endings
 https://issues.redhat.com/browse/RHEL-1215
 https://issues.redhat.com/browse/RHEL-19814
-RHEL-69069: Apply clang-format CI for Balloon driver https://issues.redhat.com/browse/RHEL-69069
+RHEL-69069: Apply clang-format CI for Balloon driver
 
 Date    25 Nov 2024
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
@@ -296,7 +296,7 @@ tag     mm276
 
 Fixed issues:
 
-https://issues.redhat.com/browse/RHEL-24992 netkvm: fix memory leak in TX overfragmenting flow
+https://issues.redhat.com/browse/RHEL-24992: netkvm: fix memory leak in TX overfragmenting flow
 
 Date    09 Apr 2024
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
@@ -330,7 +330,7 @@ repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drive
 tag     mm271
 
 Fixed issues:
-https://issues.redhat.com/browse/RHEL-1302 [RFE] Add Windows virtio-mem driver
+https://issues.redhat.com/browse/RHEL-1302: [RFE] Add Windows virtio-mem driver
 
 Date    27 Mar 2024
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
@@ -338,12 +338,12 @@ tag     mm270
 
 Fixed issues:
 
-https://issues.redhat.com/browse/RHEL-1214 Set TargetOSVersion in INF for Windows 11
-https://issues.redhat.com/browse/RHEL-26207 NetKVM Enforce driver isolation in INF files
-https://issues.redhat.com/browse/RHEL-28542 netkvmco fix command handler prototype
-https://issues.redhat.com/browse/RHEL-30199 viogpudo fix BSOD screen does not show up
-https://issues.redhat.com/browse/RHEL-24805 vioscsi clean up and simplify WPP tracing
-https://issues.redhat.com/browse/RHEL-19188 fix add support for tracing SRB response timing
+https://issues.redhat.com/browse/RHEL-1214: Set TargetOSVersion in INF for Windows 11
+https://issues.redhat.com/browse/RHEL-26207: NetKVM Enforce driver isolation in INF files
+https://issues.redhat.com/browse/RHEL-28542: netkvmco fix command handler prototype
+https://issues.redhat.com/browse/RHEL-30199: viogpudo fix BSOD screen does not show up
+https://issues.redhat.com/browse/RHEL-24805: vioscsi clean up and simplify WPP tracing
+https://issues.redhat.com/browse/RHEL-19188: fix add support for tracing SRB response timing
 
 Date    13 Mar 2024
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
@@ -424,7 +424,7 @@ Date    30 Jul 2023
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm261
 
-Experemental build to check the new 22H2 WDK build system
+Experimental build to check the new 22H2 WDK build system
 
 Date    18 Jul 2023
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
@@ -440,14 +440,14 @@ repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drive
 tag     mm259
 
 Fixed bugs:
-RHELPLAN-135210 [netkvm]: Can not support command "netsh netkvm setparam 0 param=vlanid value=1"
+RHELPLAN-135210: [netkvm]: Cannot support command "netsh netkvm setparam 0 param=vlanid value=1"
 
 Date    18 Jun 2023
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm258
 
 Fixed bugs:
-BZ#2133261 [virtio-blk] The format can not complete successfully when 'Perform a quick format' uncheck with win11(22h2)
+BZ#2133261: [virtio-blk] The format cannot complete successfully when 'Perform a quick format' is unchecked with win11(22h2)
 
 Date    22 May 2023
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
@@ -632,7 +632,7 @@ RHBZ#2062572: [VirtIOFS] use 'hiprio' VQ for FORGET/BATCH_FORGET/INTERRUPT only
 New Features:
 Revert "netkvm: do not complete packets in sending path"
 vioscsi: fix MaximumTransferLength off-by-one and max_sectors handling
-vistor: adjust the maximum transfer lenght if VIRTIO_BLK_F_SEG_MAX flag is on
+viostor: adjust the maximum transfer length if VIRTIO_BLK_F_SEG_MAX flag is on
 
 Date    21 Feb 2022
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
@@ -692,7 +692,7 @@ Date    13 Sep 2021
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm230
 
-New Featers:
+New Features:
 fully switched to ewdk11
 
 
@@ -722,7 +722,7 @@ BZ#1979023: [NetKVM]  set NumRssQueues default value to 16
 BZ#1979469: [vio-svc] update device hardware to rev 01
 BZ#1979024: [NetKVM]  change VlanID parameter type to long
 
-New Featers:
+New Features:
 vioscsi: Increasing max phys breaks to 512
 
 Date    13 Jul 2021
@@ -731,7 +731,7 @@ tag     mm224
 
 Fixed bugs:
 
-BZ#1979205: [viostor]  windows guest can not boot with indirect_desc=off
+BZ#1979205: [viostor] windows guest cannot boot with indirect_desc=off
 BZ#1978122: [viofs-svc] fix rename when shared folder is a nfs mount
 
 Date    29 Jun 2021
@@ -739,7 +739,7 @@ repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drive
 tag     mm223
 
 Fixed bugs:
-BZ#1925144: [vio-svc] resolve symbolic links on path walkthough
+BZ#1925144: [vio-svc] resolve symbolic links on path walkthrough
 
 
 Date    15 Jun 2021
@@ -747,7 +747,7 @@ repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drive
 tag     mm222
 
 Fixed bugs:
-BZ#1925144: [vio-svc] resolve symbolic links on path walkthough
+BZ#1925144: [vio-svc] resolve symbolic links on path walkthrough
 
 Date    07 Jun 2021
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
@@ -794,7 +794,7 @@ tag     mm216
 
 New Features:
 viogpudo: Fix HyperVisor Code Integrity Readiness Test problem
-vioinput: Nassive update
+vioinput: Massive update
 
 Date    09 Feb 2021
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
@@ -815,7 +815,7 @@ repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drive
 tag     mm214
 
 Fixed bugs:
-BZ#1919947 [viogpudo] The cursor is not prominent and position deviation (
+BZ#1919947 [viogpudo] The cursor is not prominent and position deviation
 BZ#1918113 [viogpudo] Windows guest bsod with win8(q35) after install viogpudo driver
 
 New Features:
@@ -926,14 +926,14 @@ BZ#1821560: [viostor] driver does not return correct serial number length.
 
 New Features:
 
-[vioscsi] introduce the registry key to make munber of physical breakes adjustable
+[vioscsi] introduce the registry key to make number of physical breaks adjustable
 
 Date    19 Feb 2020
 tag     mm200
 
 Fixed bugs:
 
-BZ#1802452: [vioscsi] WMI facility check virito-scsi num_queues failed
+BZ#1802452: [vioscsi] WMI facility check virtio-scsi num_queues failed
 
 Date    12 Feb 2020
 tag     mm199
@@ -943,7 +943,7 @@ Fixed bugs:
 BZ#1794609: [vioserial] Fix error flow on Write request
 BZ#1553633: [balloon] process the ISR status at startup
 
-Date    22 jan 2020
+Date    22 Jan 2020
 tag     mm198
 
 Fixed bugs:
@@ -982,7 +982,7 @@ BZ 1783953: [virtio-wdf]
     Wrong KMDF version during library compilation causes
     failure in initialization of DMA enabler.
 
-BZ 1783880: [vioserial}]
+BZ 1783880: [vioserial]
     Wrong command length causes loss of functionality of x86 driver.
 
 
@@ -1073,7 +1073,7 @@ Date    02 Aug 2018
 
 Bugs:
 
-BZ 1609228: [vioscsi] Fix for  guest can not generate dump file regression
+BZ 1609228: [vioscsi] Fix for guest cannot generate dump file regression
 
 
 Date    29 Jul 2018
@@ -1094,7 +1094,7 @@ Date    11 Jul 2018
 
 New Features:
 
-viostor always report SCSI_ADSENSE_NO_SENSE as ascq on write-protected media'
+viostor always report SCSI_ADSENSE_NO_SENSE as ascq on write-protected media
 
 Date    04 Jul 2018
 
@@ -1132,14 +1132,14 @@ viostor: move sgl to SRB extension
 viostor: redesign vq lock/unlock routines
 NetKVM: Log interrupt vector to CPU mapping
 NetKVM: Set AffinityPolicy to IrqPolicySpecifiedProcessors
-NetKVM: Correctly assign vecotrs to CPUs
+NetKVM: Correctly assign vectors to CPUs
 
 
 Date    26 Apr 2018
 
 
 BZ 1568739: [vioscsi] Fix for Bug 1568739 - Win7/win2008 guest BSOD after the first
-    reboot when installing os with virtio_scsi
+    reboot when installing OS with virtio_scsi
 
 Date    17 Apr 2018
 
@@ -1147,7 +1147,7 @@ Bugs:
 BZ 1539256: [vioscsi] to support ACK of VIRTIO_F_IOMMU_PLATFORM
 BZ 1530210: [viostor] to support ACK of VIRTIO_F_IOMMU_PLATFORM
 BZ 1549587: [NetKVM] to support ACK of VIRTIO_F_IOMMU_PLATFORM
-BZ 1549577: [virtiovib] Add VIRTIO_F_IOMMU_PLATFORM feature bit definition
+BZ 1549577: [virtiolib] Add VIRTIO_F_IOMMU_PLATFORM feature bit definition
 
 
 New Features:
@@ -1184,7 +1184,7 @@ VirtioRing: Don't enable event suppression by default
 Date    03 Dec 2017
 
 Fixed bugs:
-BZ 1168064: [viostor]Resuming guest from S4 with 'readonly = on' within CLI will induce improper results.
+BZ 1168064: [viostor] Resuming guest from S4 with 'readonly = on' within CLI will induce improper results.
 BZ 1518095: [viostor] Online enlarging data image size does not work properly
 
 New Features:
@@ -1194,7 +1194,7 @@ vioserial: Send VIRTIO_CONSOLE_PORT_OPEN (0) on port D0 exit
 NetKVM: Fix TX OID_GEN_TRANSMIT_QUEUE_LENGTH stats reported to Windows
 Virtio: Use Publish indices according to spec
 VirtioRing: Don't enable event suppression by default
-NetKVM: Use NdisGetSharedDataAlignment to align miniport's adapter con
+NetKVM: Use NdisGetSharedDataAlignment to align miniport's adapter context
 
 Date    14 Nov 2017
 
@@ -1247,7 +1247,7 @@ Date    01 Jun 2017
 Fixed bugs:
 
 BZ 1456403: [NetKVM] Implement MTU report feature of the virtio-net device
-BZ 1455488: [vioser][ovmf] Guest occured BSOD when hotunplug virtio-serial-pci.
+BZ 1455488: [vioser][ovmf] Guest occurred BSOD when hotunplug virtio-serial-pci.
 
 
 Date    22 May 2017
@@ -1268,7 +1268,7 @@ Date    30 Apr 2017
 Fixed bugs:
 
 BZ 1369353: [balloon] backport available memory stat support. Trying to mimic what si_mem_available
-            does in Linux. AvailPhys is the sum of memory in free, zero and standby list.CacheBytes
+            does in Linux. AvailPhys is the sum of memory in free, zero and standby list. CacheBytes
             is the current size of the system file cache.
 BZ 1442322: [viostor] Cannot enlarge/shrink disk with virtio-blk-pci device.
 BZ 1438410: [NetKVM] Add VlanId property to Inf file
@@ -1283,7 +1283,7 @@ Date    14 Mar 2017
 
 Fixed bugs:
 
-BZ 1429807: [netkvm] guests bsod(d1) when running job "NDISTest 6.0 - [1 Machine] - 1c_FaultHandling"
+BZ 1429807: [netkvm] guests BSOD(d1) when running job "NDISTest 6.0 - [1 Machine] - 1c_FaultHandling"
 
 
 Date    26 Feb 2017
@@ -2238,7 +2238,7 @@ tag     mm60
 
 Fixed bugs:
 [NetKVM] BZ #859882 - Fixing performance with current checksum offload settings. If Windows send
-	an IP packet with 0 pachet lenth in offload scenarios - the driver will populate the
+	an IP packet with 0 packet length in offload scenarios - the driver will populate the
 	length field with packet field.
 
 
@@ -2281,9 +2281,9 @@ BZ #843325 - [virtio-win][balloon]Guest memory can not continue evicting after e
 BZ #837324 - viostor reports support for FUA, but does not implement it.
 
 BZ #806223 - [virtio-win][serial] guest BSOD when doing s3 while virtio-serial in use.
-BZ #714908 - [virtio-win][serial] virtio-serial is disfunctiona after S3
+BZ #714908 - [virtio-win][serial] virtio-serial is dysfunctional after S3
 BZ #814896 - [virtio-win][serial] virtio-serial does not work after s4 in win7-32/64 bit guests
-BZ #823818 - [virtio-win][compatibilty]Guest freeze After terminating the virtserialport receiving
+BZ #823818 - [virtio-win][compatibility]Guest freeze After terminating the virtserialport receiving
              side in the host
 BZ #819412 - [virtio-win][serial]qemu complains "Unexpected port id 1 for device virtio-serial0.0"
              when hotunplug serial while RHEV-Agent service running in the guest
