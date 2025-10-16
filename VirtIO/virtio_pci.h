@@ -342,6 +342,7 @@ NTSTATUS virtio_find_queues(VirtIODevice *vdev, unsigned nvqs, struct virtqueue 
  */
 void virtio_delete_queue(struct virtqueue *vq);
 void virtio_delete_queues(VirtIODevice *vdev);
+void virtio_reset_queues(VirtIODevice *vdev);
 
 /* Driver API: virtqueue query and manipulation
  * virtio_get_queue_descriptor_size

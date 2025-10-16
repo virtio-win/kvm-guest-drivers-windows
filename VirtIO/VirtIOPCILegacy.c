@@ -176,6 +176,7 @@ static NTSTATUS vio_legacy_setup_vq(struct virtqueue **queue, VirtIODevice *vdev
     struct virtqueue *vq;
     unsigned long ring_size, heap_size;
     NTSTATUS status;
+    bool alloc = 1;
 
     /* Select the queue and query allocation parameters */
     status = vio_legacy_query_vq_alloc(vdev, index, &info->num, &ring_size, &heap_size);
@@ -183,7 +184,11 @@ static NTSTATUS vio_legacy_setup_vq(struct virtqueue **queue, VirtIODevice *vdev
         return status;
     }
 
-    info->queue = mem_alloc_contiguous_pages(vdev, ring_size);
+    if (!(info->vq)) {
+        info->queue = mem_alloc_contiguous_pages(vdev, ring_size);
+    } else {
+        alloc = 0;
+    }
     if (info->queue == NULL) {
         return STATUS_INSUFFICIENT_RESOURCES;
     }
@@ -218,7 +223,9 @@ static NTSTATUS vio_legacy_setup_vq(struct virtqueue **queue, VirtIODevice *vdev
 err_assign:
 err_activate_queue:
     iowrite32(vdev, 0, vdev->addr + VIRTIO_PCI_QUEUE_PFN);
-    mem_free_contiguous_pages(vdev, info->queue);
+    if (alloc) {
+        mem_free_contiguous_pages(vdev, info->queue);
+    }
     return status;
 }
 
