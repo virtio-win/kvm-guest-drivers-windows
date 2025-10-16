@@ -41,6 +41,7 @@ pvpanic.sys = 1,,
 
 [PVPanic.NT$ARCH$]
 %PVPanic.DeviceDesc% = PVPanic_Device, ACPI\QEMU0001
+%PVPanic.DeviceDesc% = PVPanic_Device, PCI\VEN_1B36&DEV_0011&SUBSYS_11001AF4&REV_01
 
 [PVPanic_Device.NT]
 CopyFiles = PVPanic_CopyFiles
@@ -72,5 +73,5 @@ KmdfLibraryVersion = $KMDFVERSION$
 [Strings]
 VENDOR = "INX_COMPANY"
 DiskName            = "INX_PREFIX_QEMUQEMU PVPanic Installation Disk"
-PVPanic.DeviceDesc  = "INX_PREFIX_QEMUQEMU PVPanic Device"
+PVPanic.DeviceDesc  = "INX_PREFIX_QEMUQEMU PVPanic Device (ACPI/PCI)"
 PVPanic.Service     = "INX_PREFIX_QEMUQEMU PVPanic Service"
