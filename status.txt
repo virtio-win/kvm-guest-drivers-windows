@@ -1,3 +1,16 @@
+Date    17 Oct 2025
+repo    https://github.com/virtio-win/kvm-guest-drivers-windows.git
+tag     mm312
+
+Fixed issues:
+RHEL-104118: Sync status file from downstream
+RHEL-121461: Balloon: Add blnsrv to all CAB files for attestation sign
+RHEL-120923: Enable virtiofs ARM64 build
+RHEL-111353: [virtio-mem] port Balloon PR1415 fixes
+RHEL-104117: Add infrastructure for cab file creation
+RHEL-104112: [NetKVM/NotifyObject] copy NotifyObject to install
+Revert "IVSHMEM: Allow multiple processes to map the same shared memory"
+
 Date    28 Sep 2025
 repo    git://git.engineering.redhat.com/users/vrozenfe/internal-kvm-guest-drivers-windows/.git
 tag     mm311
