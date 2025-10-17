@@ -47,7 +47,7 @@ for %%D in (pciserial fwcfg Q35) do @(
  call :bld_inf_drvr %%D
 )
 echo.
-call build_cab.bat
+if "%VIRTIO_WIN_NO_CAB_CREATION%"=="" call build_cab.bat
 if errorlevel 1 goto :fail
 echo.
 echo Processing DVL files to create Windows 10 COMPAT ^(WIN10_RS1 ^/ 1607^) version...
