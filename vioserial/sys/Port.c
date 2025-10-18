@@ -13,12 +13,14 @@ EVT_WDF_WORKITEM VIOSerialInitPortConsoleWork;
 EVT_WDF_REQUEST_CANCEL VIOSerialPortReadRequestCancel;
 EVT_WDF_DEVICE_D0_ENTRY VIOSerialPortEvtDeviceD0Entry;
 EVT_WDF_DEVICE_D0_EXIT VIOSerialPortEvtDeviceD0Exit;
+EVT_WDF_DEVICE_QUERY_REMOVE VIOSerialPortEvtDeviceQueryRemove;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, VIOSerialDeviceListCreatePdo)
 #pragma alloc_text(PAGE, VIOSerialPortWrite)
 #pragma alloc_text(PAGE, VIOSerialPortDeviceControl)
 #pragma alloc_text(PAGE, VIOSerialPortEvtDeviceD0Entry)
+#pragma alloc_text(PAGE, VIOSerialPortEvtDeviceQueryRemove)
 #endif
 
 PVIOSERIAL_PORT
@@ -361,6 +363,7 @@ VIOSerialDeviceListCreatePdo(IN WDFCHILDLIST DeviceList,
         WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&PnpPowerCallbacks);
         PnpPowerCallbacks.EvtDeviceD0Entry = VIOSerialPortEvtDeviceD0Entry;
         PnpPowerCallbacks.EvtDeviceD0Exit = VIOSerialPortEvtDeviceD0Exit;
+        PnpPowerCallbacks.EvtDeviceQueryRemove = VIOSerialPortEvtDeviceQueryRemove;
         WdfDeviceInitSetPnpPowerEventCallbacks(ChildInit, &PnpPowerCallbacks);
 
         WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, RAWPDO_VIOSERIAL_PORT);
@@ -1261,6 +1264,32 @@ VOID VIOSerialPortWriteIoStop(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN ULONG
 
 end_io_stop:
     TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "<-- %s\n", __FUNCTION__);
+}
+
+NTSTATUS VIOSerialPortEvtDeviceQueryRemove(WDFDEVICE Device)
+{
+    WDFREQUEST readRequest = NULL;
+    PRAWPDO_VIOSERIAL_PORT pdoData = RawPdoSerialPortGetData(Device);
+    PVIOSERIAL_PORT port = pdoData->port;
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
+
+    WdfSpinLockAcquire(port->InBufLock);
+    readRequest = port->PendingReadRequest;
+    port->PendingReadRequest = NULL;
+    if (readRequest != NULL)
+    {
+        if (WdfRequestUnmarkCancelable(readRequest) != STATUS_CANCELLED)
+        {
+            WdfRequestCompleteWithInformation(readRequest, STATUS_END_OF_FILE, 0L);
+        }
+    }
+
+    WdfSpinLockRelease(port->InBufLock);
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
+
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS VIOSerialPortEvtDeviceD0Entry(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE PreviousState)
