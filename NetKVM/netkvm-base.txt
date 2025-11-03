@@ -265,7 +265,7 @@ StartType       = 3 ;%SERVICE_DEMAND_START%
 ErrorControl    = 1 ;%SERVICE_ERROR_NORMAL%
 ServiceBinary   = %INX_PLATFORM_DRIVERS_DIR%\netkvm.sys
 LoadOrderGroup  = NDIS
-AddReg          = TextModeFlags.Reg
+AddReg          = NicService.AddReg
 
 [kvmnet6.EventLog]
 AddReg = kvmnet6.AddEventLog.Reg
@@ -274,8 +274,7 @@ AddReg = kvmnet6.AddEventLog.Reg
 HKR, , EventMessageFile, 0x00020000, "%%SystemRoot%%\System32\netevent.dll"
 HKR, , TypesSupported,   0x00010001, 7
 
-[TextModeFlags.Reg]
-HKR,,TextModeFlags,0x00010001, 0x0001
+[NicService.AddReg]
 HKR,Parameters,DisableMSI,,"0"
 HKR,Parameters,EarlyDebug,,"3"
 HKR,Parameters,DmaRemappingCompatible,0x00010001,INX_NETKVM_DMAREMAP
