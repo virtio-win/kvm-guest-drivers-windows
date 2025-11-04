@@ -334,6 +334,21 @@ function Export-SetupAPILogs {
     }
 }
 
+function Export-GuestfsFirstbootLog {
+    try {
+        $logPath = Join-Path $env:ProgramFiles 'Guestfs\Firstboot\log.txt'
+        if (Test-Path $logPath) {
+            $destPath = Join-Path $logfolderPath 'MTV_Firstboot_log.txt'
+            Copy-Item -Path $logPath -Destination $destPath -ErrorAction Stop
+            Write-Host "MTV firstboot log captured from $logPath as $destPath."
+        } else {
+            Write-Host 'MTV firstboot log not present.'
+        }
+    } catch {
+        Write-Warning "Failed to collect MTV firstboot log from $logPath: $_"
+    }
+}
+
 function Write-InformationToArchive {
     param (
         [string]$FolderPath,
@@ -407,6 +422,7 @@ try {
     Export-InstalledKBs
     Export-NetworkConfiguration
     Export-SetupAPILogs 
+    Export-GuestfsFirstbootLog
 
     if ($IncludeSensitiveData) {
         Write-Output "Dump folder path: $dumpfolderPath"
