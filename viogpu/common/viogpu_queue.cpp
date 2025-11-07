@@ -100,7 +100,10 @@ _IRQL_requires_max_(DISPATCH_LEVEL) _IRQL_saves_global_(OldIrql, Irql) _IRQL_rai
     }
     else
     {
-        VioGpuDbgBreak();
+        // This is possible situation in case of bugcheck.
+        // DxgkDdiSystemDisplayEnable can be called at any IRQL.
+        // We need to allocate buffer for several command during this proccess.
+        // VioGpuDbgBreak();
     }
     *Irql = SavedIrql;
 
@@ -115,9 +118,16 @@ _IRQL_requires_(DISPATCH_LEVEL) _IRQL_restores_global_(OldIrql, Irql) void VioGp
     {
         KeReleaseSpinLock(&m_SpinLock, Irql);
     }
-    else
+    else if (Irql == DISPATCH_LEVEL)
     {
         KeReleaseSpinLockFromDpcLevel(&m_SpinLock);
+    }
+    else
+    {
+        // This is possible situation in case of bugcheck.
+        // DxgkDdiSystemDisplayEnable can be called at any IRQL.
+        // We need to allocate buffer for several command during this proccess.
+        // VioGpuDbgBreak();
     }
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
@@ -689,7 +699,10 @@ PGPU_VBUFFER VioGpuBuf::GetBuf(_In_ int size, _In_ int resp_size, _In_opt_ void 
     }
     else
     {
-        VioGpuDbgBreak();
+        // This is possible situation in case of bugcheck.
+        // DxgkDdiSystemDisplayEnable can be called at any IRQL.
+        // We need to allocate buffer for several command during this proccess.
+        // VioGpuDbgBreak();
     }
 
     if (IsListEmpty(&m_FreeBufs))
@@ -733,7 +746,10 @@ PGPU_VBUFFER VioGpuBuf::GetBuf(_In_ int size, _In_ int resp_size, _In_opt_ void 
     }
     else
     {
-        VioGpuDbgBreak();
+        // This is possible situation in case of bugcheck.
+        // DxgkDdiSystemDisplayEnable can be called at any IRQL.
+        // We need to allocate buffer for several command during this proccess.
+        // VioGpuDbgBreak();
     }
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s buf = %p\n", __FUNCTION__, pbuf));
@@ -1000,9 +1016,9 @@ VioGpuObj::VioGpuObj(void)
 VioGpuObj::~VioGpuObj(void)
 {
     // Driver can destroy object in case of a bugcheck.
-    // DxgkDdiSystemDisplayEnable can be called at any IRQL, so it must 
+    // DxgkDdiSystemDisplayEnable can be called at any IRQL, so it must
     // be in nonpageable memory. DxgkDdiSystemDisplayEnable must not
-    // call any code that is in pageable memory and must not manipulate 
+    // call any code that is in pageable memory and must not manipulate
     // any data that is in pageable memory.
     // PAGED_CODE();
 
