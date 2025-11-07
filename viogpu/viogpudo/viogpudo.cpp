@@ -165,6 +165,12 @@ NTSTATUS VioGpuDod::StartDevice(_In_ DXGK_START_INFO *pDxgkStartInfo,
         return Status;
     }
 
+    m_CurrentMode.RamFrameBuffer = m_pHWDevice->GetPciResources()[0].GetMappedAddress(0, 0);
+    if (!m_CurrentMode.RamFrameBuffer)
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("Failed to map RamFrameBuffer for VGA mode"));
+    }
+
     Status = SetRegisterInfo(m_pHWDevice->GetInstanceId(), 0);
     if (!NT_SUCCESS(Status))
     {
@@ -1878,13 +1884,13 @@ NTSTATUS VioGpuDod::SystemDisplayEnable(_In_ D3DDDI_VIDEO_PRESENT_TARGET_ID Targ
 
     m_CurrentMode.Flags.FrameBufferIsActive = FALSE;
     m_pHWDevice->ResetToVgaMode();
-    m_CurrentMode.FrameBuffer = m_pHWDevice->GetPciResources()[0].GetMappedAddress(0, 0);
 
-    if (m_CurrentMode.FrameBuffer == nullptr)
+    if (m_CurrentMode.RamFrameBuffer == nullptr)
     {
         return STATUS_UNSUCCESSFUL;
     }
 
+    m_CurrentMode.FrameBuffer = m_CurrentMode.RamFrameBuffer;
     m_CurrentMode.Flags.FrameBufferIsActive = TRUE;
     m_CurrentMode.Rotation = D3DKMDT_VPPR_IDENTITY;
     *pWidth = m_CurrentMode.DispInfo.Width = m_SystemDisplayInfo.Width;

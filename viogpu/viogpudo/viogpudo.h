@@ -67,6 +67,7 @@ typedef struct _CURRENT_MODE
     } Flags;
 
     PVOID FrameBuffer;
+    PVOID RamFrameBuffer;
 } CURRENT_MODE;
 
 class VioGpuDod;
