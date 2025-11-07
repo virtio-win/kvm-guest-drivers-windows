@@ -705,7 +705,7 @@ PGPU_VBUFFER VioGpuBuf::GetBuf(_In_ int size, _In_ int resp_size, _In_opt_ void 
 
     ASSERT(pbuf);
     memset(pbuf, 0, VBUFFER_SIZE);
-    ASSERT(size > MAX_INLINE_CMD_SIZE);
+    ASSERT(size <= MAX_INLINE_CMD_SIZE);
 
     pbuf->buf = (char *)((ULONG_PTR)pbuf + sizeof(*pbuf));
     pbuf->size = size;
