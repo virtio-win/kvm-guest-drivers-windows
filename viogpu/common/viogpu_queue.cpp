@@ -999,7 +999,12 @@ VioGpuObj::VioGpuObj(void)
 
 VioGpuObj::~VioGpuObj(void)
 {
-    PAGED_CODE();
+    // Driver can destroy object in case of a bugcheck.
+    // DxgkDdiSystemDisplayEnable can be called at any IRQL, so it must 
+    // be in nonpageable memory. DxgkDdiSystemDisplayEnable must not
+    // call any code that is in pageable memory and must not manipulate 
+    // any data that is in pageable memory.
+    // PAGED_CODE();
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
