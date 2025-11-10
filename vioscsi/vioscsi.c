@@ -421,6 +421,8 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
         {
             adaptExt->max_physical_breaks = adaptExt->scsi_config.max_sectors * SECTOR_SIZE / PAGE_SIZE;
         }
+
+        adaptExt->max_physical_breaks = min(adaptExt->scsi_config.seg_max, adaptExt->max_physical_breaks);
     }
     ConfigInfo->NumberOfPhysicalBreaks = adaptExt->max_physical_breaks + 1;
     ConfigInfo->MaximumTransferLength = adaptExt->max_physical_breaks * PAGE_SIZE;
