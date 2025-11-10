@@ -2203,7 +2203,7 @@ VioGpuAdapter::~VioGpuAdapter(void)
     DbgPrint(TRACE_LEVEL_FATAL, ("---> %s 0x%p\n", __FUNCTION__, this));
     CloseResolutionEvent();
     DestroyCursor();
-    DestroyFrameBufferObj(TRUE);
+    DestroyFrameBufferObj(TRUE, FALSE);
     VioGpuAdapterClose();
     HWClose();
     delete[] m_ModeInfo;
@@ -2224,7 +2224,7 @@ NTSTATUS VioGpuAdapter::SetCurrentMode(ULONG Mode, CURRENT_MODE *pCurrentMode)
         {
             if (pCurrentMode->Flags.FrameBufferIsActive)
             {
-                DestroyFrameBufferObj(FALSE);
+                DestroyFrameBufferObj(FALSE, FALSE);
                 pCurrentMode->Flags.FrameBufferIsActive = FALSE;
             }
             if (CreateFrameBufferObj(&m_ModeInfo[idx], pCurrentMode))
@@ -2347,7 +2347,7 @@ NTSTATUS VioGpuAdapter::SetPowerState(DXGK_DEVICE_INFO *pDeviceInfo,
         case PowerDeviceD2:
         case PowerDeviceD3:
             {
-                DestroyFrameBufferObj(TRUE);
+                DestroyFrameBufferObj(TRUE, FALSE);
                 VioGpuAdapterClose();
                 pCurrentMode->Flags.FrameBufferIsActive = FALSE;
                 pCurrentMode->FrameBuffer = NULL;
@@ -3429,12 +3429,12 @@ PAGED_CODE_SEG_END
 
 BOOLEAN VioGpuAdapter::ResetToVgaMode(void)
 {
-    DestroyFrameBufferObj(TRUE);
+    DestroyFrameBufferObj(TRUE, TRUE);
     VioGpuAdapterClose();
     return TRUE;
 }
 
-void VioGpuAdapter::DestroyFrameBufferObj(BOOLEAN bReset)
+void VioGpuAdapter::DestroyFrameBufferObj(BOOLEAN bReset, BOOLEAN bKeepBuffer)
 {
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
     UINT resid = 0;
@@ -3448,7 +3448,16 @@ void VioGpuAdapter::DestroyFrameBufferObj(BOOLEAN bReset)
         {
             m_CtrlQueue.SetScanout(0, 0, 0, 0, 0, 0);
         }
-        delete m_pFrameBuf;
+
+        if (bKeepBuffer)
+        {
+            DbgPrint(TRACE_LEVEL_FATAL,
+                     ("%s: Keeping frame buffer object. Don't use except in bugcheck flow!\n", __FUNCTION__));
+        }
+        else
+        {
+            delete m_pFrameBuf;
+        }
         m_pFrameBuf = NULL;
         m_Idr.PutId(resid);
     }
