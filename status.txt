@@ -1,3 +1,15 @@
+Date    10 Nov 2025
+repo    https://github.com/virtio-win/kvm-guest-drivers-windows.git
+tag     mm313
+
+Fixed issues:
+Add ENV to skip CAB creation in buildAll
+RHEL-102720: [virtio-win] Add WinPE/WinRE support for CollectSystemInfo.ps1
+RHEL-120741: netkvm: remove TextModeFlags from INF
+RHEL-124148: [CollectSystemInfo] Capture MTV firstboot log when present
+RHEL-126436: Split build_all to 3 batch (driver, sdv, cab)
+RHEL-113406: [viogpu] Fix BSOD does not occur with viogpu-vga device
+
 Date    17 Oct 2025
 repo    https://github.com/virtio-win/kvm-guest-drivers-windows.git
 tag     mm312
