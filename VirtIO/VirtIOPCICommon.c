@@ -254,9 +254,11 @@ NTSTATUS virtio_find_queues(VirtIODevice *vdev, unsigned nvqs, struct virtqueue 
     NTSTATUS status;
     u16 msix_vec;
 
-    status = virtio_reserve_queue_memory(vdev, nvqs);
-    if (!NT_SUCCESS(status)) {
-        return status;
+    if (!vqs[0]) {
+        status = virtio_reserve_queue_memory(vdev, nvqs);
+        if (!NT_SUCCESS(status)) {
+            return status;
+        }
     }
 
     /* set up the device config interrupt */
@@ -309,6 +311,24 @@ void virtio_delete_queues(VirtIODevice *vdev)
         if (vq != NULL) {
             vdev->device->delete_queue(&vdev->info[i]);
             vdev->info[i].vq = NULL;
+        }
+    }
+}
+
+void virtio_reset_queues(VirtIODevice *vdev)
+{
+    struct virtqueue *vq;
+    unsigned i;
+
+    if (vdev->info == NULL) {
+        return;
+    }
+
+    virtio_device_reset(vdev);
+    for (i = 0; i < vdev->maxQueues; i++) {
+        vq = vdev->info[i].vq;
+        if (vq != NULL) {
+            vdev->device->delete_queue(&vdev->info[i]);
         }
     }
 }
