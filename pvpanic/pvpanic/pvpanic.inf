@@ -41,6 +41,7 @@ pvpanic.sys = 1,,
 
 [PVPanic.NT$ARCH$]
 %PVPanic.DeviceDesc% = PVPanic_Device, ACPI\QEMU0001
+%PVPanic.DeviceDesc% = PVPanic_Device, PCI\VEN_1B36&DEV_0011&SUBSYS_11001AF4&REV_01
 
 [PVPanic_Device.NT]
 CopyFiles = PVPanic_CopyFiles

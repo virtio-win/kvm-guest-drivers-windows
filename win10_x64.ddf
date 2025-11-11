@@ -40,8 +40,6 @@
 .\pvpanic\Install\Win10\amd64\pvpanic.inf
 .\pvpanic\Install\Win10\amd64\pvpanic.pdb
 .\pvpanic\Install\Win10\amd64\pvpanic.sys
-.\pvpanic\Install\Win10\amd64\pvpanic-pci.cat
-.\pvpanic\Install\Win10\amd64\pvpanic-pci.inf
 ; viofs driver
 .Set DestinationDir=viofs
 .\viofs\Install\Win10\amd64\viofs.cat
