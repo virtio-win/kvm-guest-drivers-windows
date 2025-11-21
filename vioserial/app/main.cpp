@@ -7,6 +7,7 @@
 
 #pragma warning(default : 4201)
 
+static const DWORD LOOKUP_PORT_MAX_ID = 32;
 static ULONG write_buffer_size = 4096;
 static BOOL write_send_auto = FALSE;
 
@@ -264,7 +265,7 @@ _cdecl wmain(__in ULONG argc, __in_ecount(argc) PWCHAR argv[])
     while (!m_pDev->Init(ovrl, ifIndex))
     {
         ifIndex++;
-        if (ifIndex >= 4)
+        if (ifIndex >= LOOKUP_PORT_MAX_ID)
         {
             delete m_pDev;
             return 2;
