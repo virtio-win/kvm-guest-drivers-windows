@@ -106,7 +106,7 @@ tDebugPrintFunc VirtioDebugPrintProc;
 #else
 #include "virtio_stor_trace.h"
 bDebugPrint = 1;
-virtioDebugLevel = 0xFF;
+virtioDebugLevel = 0;
 nViostorDebugLevel = 0xFF;
 tDebugPrintFunc VirtioDebugPrintProc = DbgPrint;
 #endif
