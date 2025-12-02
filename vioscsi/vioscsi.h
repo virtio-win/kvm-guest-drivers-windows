@@ -276,6 +276,7 @@ typedef struct _REQUEST_LIST
 {
     LIST_ENTRY srb_list;
     ULONG srb_cnt;
+    ULONG_PTR next_id;
 } REQUEST_LIST, *PREQUEST_LIST;
 
 typedef struct virtio_bar
@@ -353,7 +354,6 @@ typedef struct _ADAPTER_EXTENSION
     ULONGLONG fw_ver;
     ULONG resp_time;
     BOOLEAN bRemoved;
-    ULONG_PTR last_srb_id;
 } ADAPTER_EXTENSION, *PADAPTER_EXTENSION;
 
 #ifndef PCIX_TABLE_POINTER

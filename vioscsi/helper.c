@@ -120,6 +120,19 @@ VOID SendSRB(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     vq_req_idx = QueueNumber - VIRTIO_SCSI_REQUEST_QUEUE_0;
 
     VioScsiVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
+
+    element = &adaptExt->processing_srbs[vq_req_idx];
+
+    ULONG_PTR id = element->next_id;
+
+    while ((adaptExt->tmf_cmd.SrbExtension && id == (ULONG_PTR)&adaptExt->tmf_cmd.SrbExtension->cmd) || (id == 0))
+    {
+        id++;
+    }
+
+    srbExt->id = id;
+    element->next_id = ++id;
+
     SET_VA_PA();
     add_buffer_req_status = virtqueue_add_buf(adaptExt->vq[QueueNumber],
                                               srbExt->psgl,

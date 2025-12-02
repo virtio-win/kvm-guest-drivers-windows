@@ -360,7 +360,6 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
     RtlZeroMemory(adaptExt, sizeof(ADAPTER_EXTENSION));
 
     adaptExt->dump_mode = IsCrashDumpMode;
-    adaptExt->last_srb_id = 1;
     adaptExt->hba_id = HBA_ID;
     ConfigInfo->Master = TRUE;
     ConfigInfo->ScatterGather = TRUE;
@@ -839,17 +838,6 @@ VioScsiStartIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
     }
     else
     {
-        PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-        PSRB_EXTENSION srbExt = SRB_EXTENSION(Srb);
-
-        srbExt->id = adaptExt->last_srb_id;
-        adaptExt->last_srb_id++;
-        if (adaptExt->last_srb_id == 0 || (adaptExt->tmf_cmd.SrbExtension &&
-                                           adaptExt->last_srb_id == (ULONG_PTR)&adaptExt->tmf_cmd.SrbExtension->cmd))
-        {
-            adaptExt->last_srb_id++;
-        }
-
         SendSRB(DeviceExtension, (PSRB_TYPE)Srb);
     }
     EXIT_FN_SRB();
