@@ -429,20 +429,60 @@ int SocketListenTest(PSOCKADDR_VM addr, PTCHAR sFileName)
                 }
                 else
                 {
-                    BYTE Buffer[0x1000];
-                    DWORD BufferLen = sizeof(Buffer);
+                    BYTE Buffer[65536]; // Increase buffer size to 64KB
+                    DWORD totalBytes = 0;
+                    int bytesReceived;
 
-                    _tprintf(_T("accepted from: %d:%d\n"), rAddr.svm_cid, rAddr.svm_port);
+                    _tprintf(_T("accepted from: %d:%d, receiving file...\n"), rAddr.svm_cid, rAddr.svm_port);
 
-                    if (Recv(aSock, Buffer, &BufferLen) && BufferLen)
+                    // Create or overwrite target file
+                    HANDLE hFile = CreateFile(sFileName,
+                                              GENERIC_WRITE,
+                                              0,
+                                              NULL,
+                                              CREATE_ALWAYS, // Overwrite existing file
+                                              FILE_ATTRIBUTE_NORMAL,
+                                              NULL);
+
+                    if (hFile != INVALID_HANDLE_VALUE)
                     {
-                        if (!AddBufferToFile(sFileName, Buffer, BufferLen))
+                        // Loop to receive data until connection closes
+                        while ((bytesReceived = recv(aSock, Buffer, sizeof(Buffer), 0)) > 0)
                         {
-                            _tprintf(_T("AddBufferToFile failed: %d\n"), WSAGetLastError());
+                            DWORD bytesWritten;
+                            if (WriteFile(hFile, Buffer, bytesReceived, &bytesWritten, NULL))
+                            {
+                                totalBytes += bytesWritten;
+                                _tprintf(_T("Received %d bytes, total: %d bytes\r"), bytesWritten, totalBytes);
+
+                                if (bytesWritten < (DWORD)bytesReceived)
+                                {
+                                    _tprintf(_T("\nError: partial write to file. Disk may be full.\n"));
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                _tprintf(_T("\nWriteFile failed: %d\n"), GetLastError());
+                                break;
+                            }
                         }
 
-                        BufferLen = sizeof("OK") - 1;
-                        Send(aSock, "OK", &BufferLen);
+                        CloseHandle(hFile);
+
+                        if (bytesReceived == 0)
+                        {
+                            _tprintf(_T("\nFile transfer completed successfully!\n"));
+                            _tprintf(_T("Total bytes received: %d\n"), totalBytes);
+                        }
+                        else
+                        {
+                            _tprintf(_T("\nConnection error: %d\n"), WSAGetLastError());
+                        }
+                    }
+                    else
+                    {
+                        _tprintf(_T("CreateFile failed: %d\n"), GetLastError());
                     }
 
                     shutdown(aSock, SD_BOTH);
