@@ -1,3 +1,14 @@
+Date    8 Dec 2025
+repo    https://github.com/virtio-win/kvm-guest-drivers-windows.git
+tag     mm314
+
+Fixed issues:
+RHEL-115784: [pvpanic] Combine ACPI and PCI device support into single INF
+RHEL-114565: [viostor] Fix debug message flooding in WinDbg
+netkvm: Immediately kick device when buffer shortage detected
+vioscsi: delete element from pending queue
+viosock: Enhance file transfer support in viosocklib-test
+
 Date    10 Nov 2025
 repo    https://github.com/virtio-win/kvm-guest-drivers-windows.git
 tag     mm313
