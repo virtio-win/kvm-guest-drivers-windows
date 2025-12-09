@@ -127,11 +127,27 @@ RhelDoFlush(PVOID DeviceExtension, PSRB_TYPE Srb, BOOLEAN resend, BOOLEAN bIsr)
     srbExt->sg[1].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
     srbExt->sg[1].length = sizeof(srbExt->vbr.status);
 
-    element = &adaptExt->processing_srbs[QueueNumber];
     if (!resend)
     {
         VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
+
+        element = &adaptExt->processing_srbs[QueueNumber];
+
+        ULONG_PTR id = element->next_id;
+
+        if (id == 0)
+        {
+            id++;
+        }
+
+        srbExt->id = id;
+        element->next_id = ++id;
     }
+    else
+    {
+        element = &adaptExt->processing_srbs[QueueNumber];
+    }
+
     if (virtqueue_add_buf(vq, &srbExt->sg[0], srbExt->out, srbExt->in, (void *)srbExt->id, va, pa) ==
         VQ_ADD_BUFFER_SUCCESS)
     {
@@ -216,8 +232,20 @@ RhelDoReadWrite(PVOID DeviceExtension, PSRB_TYPE Srb)
     vq = adaptExt->vq[QueueNumber];
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " QueueNumber 0x%x vq = %p\n", QueueNumber, vq);
 
-    element = &adaptExt->processing_srbs[QueueNumber];
     VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
+
+    element = &adaptExt->processing_srbs[QueueNumber];
+
+    ULONG_PTR id = element->next_id;
+
+    if (id == 0)
+    {
+        id++;
+    }
+
+    srbExt->id = id;
+    element->next_id = ++id;
+
     if (virtqueue_add_buf(vq, &srbExt->sg[0], srbExt->out, srbExt->in, (void *)srbExt->id, va, pa) ==
         VQ_ADD_BUFFER_SUCCESS)
     {
@@ -369,8 +397,20 @@ RhelDoUnMap(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
                  vq,
                  srbExt->vbr.out_hdr.type);
 
-    element = &adaptExt->processing_srbs[QueueNumber];
     VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
+
+    element = &adaptExt->processing_srbs[QueueNumber];
+
+    ULONG_PTR id = element->next_id;
+
+    if (id == 0)
+    {
+        id++;
+    }
+
+    srbExt->id = id;
+    element->next_id = ++id;
+
     if (virtqueue_add_buf(vq, &srbExt->sg[0], srbExt->out, srbExt->in, (void *)srbExt->id, va, pa) ==
         VQ_ADD_BUFFER_SUCCESS)
     {
@@ -463,8 +503,20 @@ RhelGetSerialNumber(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     srbExt->sg[2].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
     srbExt->sg[2].length = sizeof(srbExt->vbr.status);
 
-    element = &adaptExt->processing_srbs[QueueNumber];
     VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
+
+    element = &adaptExt->processing_srbs[QueueNumber];
+
+    ULONG_PTR id = element->next_id;
+
+    if (id == 0)
+    {
+        id++;
+    }
+
+    srbExt->id = id;
+    element->next_id = ++id;
+
     if (virtqueue_add_buf(vq, &srbExt->sg[0], srbExt->out, srbExt->in, (void *)srbExt->id, va, pa) ==
         VQ_ADD_BUFFER_SUCCESS)
     {
