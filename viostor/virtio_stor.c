@@ -259,7 +259,6 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
-    adaptExt->last_srb_id = 1;
     adaptExt->system_io_bus_number = ConfigInfo->SystemIoBusNumber;
     adaptExt->slot_number = ConfigInfo->SlotNumber;
     adaptExt->dump_mode = IsCrashDumpMode;
@@ -895,17 +894,9 @@ VirtIoStartIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
 {
     PCDB cdb = SRB_CDB(Srb);
     PADAPTER_EXTENSION adaptExt;
-    PSRB_EXTENSION srbExt;
     UCHAR ScsiStatus = SCSISTAT_GOOD;
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    srbExt = SRB_EXTENSION(Srb);
-    srbExt->id = adaptExt->last_srb_id;
-    adaptExt->last_srb_id++;
-    if (adaptExt->last_srb_id == 0)
-    {
-        adaptExt->last_srb_id++;
-    }
 
     SRB_SET_SCSI_STATUS(((PSRB_TYPE)Srb), ScsiStatus);
 
@@ -2136,6 +2127,7 @@ VOID VioStorCompleteRequest(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOO
 
                 Srb = (PSRB_TYPE)req->req;
                 srbExt = SRB_EXTENSION(Srb);
+
                 // Only SRBs with existing (i.e. non-NULL) extension
                 // are inserted into our queues, thus, we may help
                 // the Code Analysis and provide it with this information
@@ -2144,8 +2136,8 @@ VOID VioStorCompleteRequest(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOO
                 if (srbExt->id == srbId)
                 {
                     RemoveEntryList(le);
-                    element->srb_cnt--;
                     bFound = TRUE;
+                    element->srb_cnt--;
                     break;
                 }
             }
