@@ -95,11 +95,13 @@ FORCEINLINE VOID SrbGetPnpInfo(_In_ PVOID Srb, ULONG *PnPFlags, ULONG *PnPAction
 #define SRB_SET_SRB_STATUS(Srb, status)            SrbSetSrbStatus(Srb, status)
 #define SRB_SET_DATA_TRANSFER_LENGTH(Srb, Len)     SrbSetDataTransferLength(Srb, Len)
 
+FORCEINLINE BOOLEAN ProcessQueue(IN PVOID DeviceExtension, IN PSRB_TYPE Srb, IN BOOLEAN resend, IN BOOLEAN bComplete);
+
 BOOLEAN
 RhelDoReadWrite(IN PVOID DeviceExtension, IN PSRB_TYPE Srb);
 
 BOOLEAN
-RhelDoFlush(IN PVOID DeviceExtension, IN PSRB_TYPE Srb, IN BOOLEAN resend, BOOLEAN bIsr);
+RhelDoFlush(IN PVOID DeviceExtension, IN PSRB_TYPE Srb, IN BOOLEAN resend);
 
 BOOLEAN
 RhelDoUnMap(IN PVOID DeviceExtension, IN PSRB_TYPE Srb);

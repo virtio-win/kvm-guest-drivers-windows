@@ -204,6 +204,7 @@ typedef struct _REQUEST_LIST
 {
     LIST_ENTRY srb_list;
     ULONG srb_cnt;
+    ULONG_PTR next_id;
 } REQUEST_LIST, *PREQUEST_LIST;
 
 typedef struct _ADAPTER_EXTENSION
@@ -256,7 +257,6 @@ typedef struct _ADAPTER_EXTENSION
     REQUEST_LIST processing_srbs[MAX_CPU];
     BOOLEAN reset_in_progress;
     ULONGLONG fw_ver;
-    ULONG_PTR last_srb_id;
 #ifdef DBG
     LONG srb_cnt;
     LONG inqueue_cnt;
