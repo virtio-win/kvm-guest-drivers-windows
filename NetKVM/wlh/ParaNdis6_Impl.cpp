@@ -1047,7 +1047,7 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(PARANDIS_ADAPTER *pContext,
             {
                 csRes = ParaNdis_CheckRxChecksum(pContext,
                                                  pHeader->hdr.flags,
-                                                 &pBuffersDesc->PhysicalPages[PARANDIS_FIRST_RX_DATA_PAGE],
+                                                 &pBuffersDesc->PhysicalPages[pBuffersDesc->FirstRxDataPage],
                                                  pPacketInfo,
                                                  nBytesStripped + pBuffersDesc->DataStartOffset,
                                                  TRUE);
