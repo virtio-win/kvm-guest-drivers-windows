@@ -444,20 +444,46 @@ struct _tagRxNetDescriptor
     USHORT BufferSGLength;
     // number of configured pages
     USHORT NumPages;
+    // Pages allocated and owned by this descriptor
+    USHORT NumOwnedPages;
     // might be 0 or 1 (if combined)
     USHORT HeaderPage;
-    // data is always pages[1] but might
-    // be after the virtio header
+    // Index of the first page containing payload data
+    // Non-mergeable: 1 (separate header page)
+    // Mergeable: 0 (header and data share same page)
+    USHORT FirstRxDataPage;
+    // data might be after the virtio header
     USHORT DataStartOffset;
 #define PARANDIS_FIRST_RX_DATA_PAGE (1)
     struct VirtIOBufferDescriptor *BufferSGArray;
     tCompletePhysicalAddress *PhysicalPages;
+    // Saved pointer for restoration after merge
+    tCompletePhysicalAddress *OriginalPhysicalPages;
     tCompletePhysicalAddress IndirectArea;
     tPacketHolderType Holder;
 
     NET_PACKET_INFO PacketInfo;
 
     CParaNdisRX *Queue;
+
+    // Pre-allocated MDL for mergeable buffers: covers the entire data page.
+    // Avoids hot-path MDL allocate/free by preallocating MDL describing entire page.
+    // When packet is returned, just set MDL->Next to NULL.
+    // The usable area is limited by NET_BUFFER length, not MDL size.
+    PMDL FullPageMDL;
+
+    // Mergeable buffer support - inline storage for merged buffers (eliminates dynamic allocation)
+    // Maximum mergeable packet size per VirtIO spec: 65562 bytes (including 12-byte header)
+    // Required buffers: ceil(65562 / 4096) = 17 PAGE-sized buffers maximum
+    //
+    // Field semantics:
+    //   MergedBufferCount: Number of ADDITIONAL buffers (NOT including this descriptor)
+    //                      Range: 0 (single buffer) to 16 (max merged packet)
+    //   MergedBuffersInline: Array storing pointers to the 16 additional buffers
+    //                        (this descriptor itself is not stored in the array)
+#define MAX_MERGED_BUFFERS 16
+    USHORT MergedBufferCount;
+    pRxNetDescriptor MergedBuffers[MAX_MERGED_BUFFERS];
 };
 
 struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
@@ -497,6 +523,7 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
     BOOLEAN bGuestChecksumSupported = false;
     BOOLEAN bControlQueueSupported = false;
     BOOLEAN bUseMergedBuffers = false;
+    BOOLEAN bMergeableBuffersConfigured = true;
     BOOLEAN bFastInit = false;
     BOOLEAN bSurprizeRemoved = false;
     BOOLEAN bUsingMSIX = false;
