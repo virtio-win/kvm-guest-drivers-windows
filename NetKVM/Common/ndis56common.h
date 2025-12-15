@@ -454,7 +454,6 @@ struct _tagRxNetDescriptor
     USHORT FirstRxDataPage;
     // data might be after the virtio header
     USHORT DataStartOffset;
-#define PARANDIS_FIRST_RX_DATA_PAGE (1)
     struct VirtIOBufferDescriptor *BufferSGArray;
     tCompletePhysicalAddress *PhysicalPages;
     // Saved pointer for restoration after merge
