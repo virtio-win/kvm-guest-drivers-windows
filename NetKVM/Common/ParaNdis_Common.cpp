@@ -110,6 +110,7 @@ typedef struct _tagConfigurationEntries
 #endif
     tConfigurationEntry MinRxBufferPercent;
     tConfigurationEntry PollMode;
+    tConfigurationEntry MergeableBuffers;
 } tConfigurationEntries;
 
 // clang-format off
@@ -152,6 +153,7 @@ static const tConfigurationEntries defaultConfiguration =
 #endif
     { "MinRxBufferPercent", PARANDIS_MIN_RX_BUFFER_PERCENT_DEFAULT, 0, 100},
     { "*NdisPoll", 0, 0, 1},
+    { "MergeableBuffers", 0, 0, 1},
 };
 
 static void ParaNdis_ResetVirtIONetDevice(PARANDIS_ADAPTER *pContext)
@@ -288,6 +290,7 @@ static bool ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
 #endif
             GetConfigurationEntry(cfg, &pConfiguration->MinRxBufferPercent);
             GetConfigurationEntry(cfg, &pConfiguration->PollMode);
+            GetConfigurationEntry(cfg, &pConfiguration->MergeableBuffers);
 
             bDebugPrint = pConfiguration->isLogEnabled.ulValue;
             virtioDebugLevel = pConfiguration->debugLevel.ulValue;
@@ -399,6 +402,10 @@ static bool ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
             pContext->bPollModeTry = pConfiguration->PollMode.ulValue &&
                                      CheckOSNdisVersion(6, bPollModeTestOnWin11 ? 85 : 89);
 #endif
+            // Allow fallback to non-mergeable buffers via registry.
+            // Setting MergeableBuffers=0 disables the feature even if device supports it.
+            pContext->bMergeableBuffersConfigured = pConfiguration->MergeableBuffers.ulValue != 0;
+
             if (!pContext->bDoSupportPriority)
             {
                 pContext->ulPriorityVlanSetting = 0;
@@ -890,7 +897,14 @@ NDIS_STATUS ParaNdis_InitializeContext(PARANDIS_ADAPTER *pContext, PNDIS_RESOURC
         InitializeMAC(pContext, CurrentMAC);
         InitializeMaxMTUConfig(pContext);
 
+        // Always ACK VIRTIO_NET_F_MRG_RXBUF if suggested by the device for compatibility.
+        // Registry setting bMergeableBuffersConfigured controls whether we use small 4KB buffers
+        // or traditional large buffers.
         pContext->bUseMergedBuffers = AckFeature(pContext, VIRTIO_NET_F_MRG_RXBUF);
+        if (!pContext->bMergeableBuffersConfigured && pContext->bUseMergedBuffers)
+        {
+            DPrintf(0, "Mergeable buffers feature ACKed, but disabled by configuration (using traditional large buffers)");
+        }
         pContext->nVirtioHeaderSize = (pContext->bUseMergedBuffers) ? sizeof(virtio_net_hdr_mrg_rxbuf)
                                                                     : sizeof(virtio_net_hdr);
         AckFeature(pContext, VIRTIO_RING_F_EVENT_IDX);

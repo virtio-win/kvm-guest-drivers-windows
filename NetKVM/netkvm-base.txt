@@ -224,6 +224,12 @@ HKR, Ndi\params\MinRxBufferPercent,         min,        0,          "0"
 HKR, Ndi\params\MinRxBufferPercent,         max,        0,          "100"
 HKR, Ndi\params\MinRxBufferPercent,         step,       0,          "1"
 
+HKR, Ndi\Params\MergeableBuffers,           ParamDesc,  0,          %MergeableBuffers%
+HKR, Ndi\Params\MergeableBuffers,           Default,    0,          "0"
+HKR, Ndi\Params\MergeableBuffers,           type,       0,          "enum"
+HKR, Ndi\Params\MergeableBuffers\enum,      "1",        0,          %Enable%
+HKR, Ndi\Params\MergeableBuffers\enum,      "0",        0,          %Disable%
+
 HKR, Ndi\params\*RSS,             ParamDesc,           0, "Receive Side Scaling"
 HKR, Ndi\params\*RSS,             Type,                0, "enum"
 HKR, Ndi\params\*RSS,             Default,             0, "1"
@@ -346,6 +352,7 @@ All = "All"
 IPv4 = "IPv4"
 Maximal = "Maximal"
 MinRxBufferPercent = "MinRxBufferPercent"
+MergeableBuffers = "Mergeable Rx Buffers"
 
 [kvmnet6.Reg] 
 HKR,    ,                         BusNumber,           0, "0"
