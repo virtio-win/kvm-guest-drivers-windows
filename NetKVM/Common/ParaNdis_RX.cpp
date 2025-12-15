@@ -76,6 +76,14 @@ static void ParaNdis_FreeRxBufferDescriptor(PARANDIS_ADAPTER *pContext, pRxNetDe
     ULONG i;
 
     ParaNdis_UnbindRxBufferFromPacket(p);
+
+    // Free pre-allocated full page MDL (for mergeable buffers)
+    if (p->FullPageMDL)
+    {
+        NdisFreeMdl(p->FullPageMDL);
+        p->FullPageMDL = NULL;
+    }
+
     for (i = 0; i < p->NumOwnedPages; i++)
     {
         if (!p->PhysicalPages[i].Virtual)
@@ -203,8 +211,91 @@ int CParaNdisRX::PrepareReceiveBuffers()
     return nRet;
 }
 
+// Simplified buffer creation for mergeable buffers - just 1 page per buffer
+pRxNetDescriptor CParaNdisRX::CreateMergeableRxDescriptorOnInit()
+{
+    pRxNetDescriptor p = (pRxNetDescriptor)ParaNdis_AllocateMemory(m_Context, sizeof(*p));
+    if (p == NULL)
+    {
+        DPrintf(0, "ERROR: Failed to allocate memory for RX descriptor");
+        return NULL;
+    }
+
+    NdisZeroMemory(p, sizeof(*p));
+
+    p->BufferSGArray = (struct VirtIOBufferDescriptor *)ParaNdis_AllocateMemory(m_Context,
+                                                                                sizeof(VirtIOBufferDescriptor));
+    if (p->BufferSGArray == NULL)
+    {
+        DPrintf(0, "ERROR: Failed to allocate SG array");
+        goto error_exit;
+    }
+
+    p->PhysicalPages = (tCompletePhysicalAddress *)ParaNdis_AllocateMemory(m_Context, sizeof(tCompletePhysicalAddress));
+    if (p->PhysicalPages == NULL)
+    {
+        DPrintf(0, "ERROR: Failed to allocate PhysicalPages array");
+        goto error_exit;
+    }
+
+    NdisZeroMemory(p->PhysicalPages, sizeof(tCompletePhysicalAddress));
+
+    p->OriginalPhysicalPages = p->PhysicalPages;
+
+    if (!ParaNdis_InitialAllocatePhysicalMemory(m_Context, PAGE_SIZE, &p->PhysicalPages[0]))
+    {
+        DPrintf(0, "ERROR: Failed to allocate physical memory (1 page = %u bytes)", PAGE_SIZE);
+        goto error_exit;
+    }
+
+    // Setup for mergeable buffer with ANY_LAYOUT
+    // Physical allocation: Single buffer containing virtio header + payload
+    // Logical layout: NumPages=1, single page for header+data
+    p->NumPages = 1;
+    p->NumOwnedPages = 1;
+    p->HeaderPage = 0;
+    p->FirstRxDataPage = 0;
+    p->DataStartOffset = (USHORT)m_Context->nVirtioHeaderSize;
+
+    // Combined header and data in single SG entry (ANY_LAYOUT)
+    p->BufferSGLength = 1;
+    p->BufferSGArray[0].physAddr = p->PhysicalPages[0].Physical;
+    p->BufferSGArray[0].length = PAGE_SIZE;
+
+    // Pre-allocate MDL covering entire page to avoid MDL allocation/free
+    // in hot path during packet assembly/disassembly.
+    // The usable area is limited by NET_BUFFER length, not MDL size.
+    // For merged packets, we just chain pre-allocated MDLs together.
+    p->FullPageMDL = NdisAllocateMdl(m_Context->MiniportHandle, p->PhysicalPages[0].Virtual, p->PhysicalPages[0].size);
+    if (p->FullPageMDL == NULL)
+    {
+        DPrintf(0, "ERROR: Failed to pre-allocate full page MDL");
+        goto error_exit;
+    }
+    NDIS_MDL_LINKAGE(p->FullPageMDL) = NULL;
+
+    if (!ParaNdis_BindRxBufferToPacket(m_Context, p))
+    {
+        DPrintf(0, "ERROR: Failed to bind RX buffer to packet");
+        goto error_exit;
+    }
+
+    return p;
+
+error_exit:
+    ParaNdis_FreeRxBufferDescriptor(m_Context, p);
+    return NULL;
+}
+
 pRxNetDescriptor CParaNdisRX::CreateRxDescriptorOnInit()
 {
+    if (m_Context->bUseMergedBuffers && m_Context->bMergeableBuffersConfigured && m_Context->bAnyLayout &&
+        m_Context->RxLayout.TotalAllocationsPerBuffer > 1)
+    {
+        DPrintf(5, "Using mergeable buffer allocation");
+        return CreateMergeableRxDescriptorOnInit();
+    }
+
     // For RX packets we allocate following pages
     //   X pages needed to fit most of data payload (or all the payload)
     //   1 page or less for virtio header, indirect buffers array and the data tail if any
