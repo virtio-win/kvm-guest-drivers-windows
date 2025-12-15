@@ -904,7 +904,8 @@ NDIS_STATUS ParaNdis_InitializeContext(PARANDIS_ADAPTER *pContext, PNDIS_RESOURC
         pContext->bUseMergedBuffers = AckFeature(pContext, VIRTIO_NET_F_MRG_RXBUF);
         if (!pContext->bMergeableBuffersConfigured && pContext->bUseMergedBuffers)
         {
-            DPrintf(0, "Mergeable buffers feature ACKed, but disabled by configuration (using traditional large buffers)");
+            DPrintf(0,
+                    "Mergeable buffers feature ACKed, but disabled by configuration (using traditional large buffers)");
         }
         pContext->nVirtioHeaderSize = (pContext->bUseMergedBuffers) ? sizeof(virtio_net_hdr_mrg_rxbuf)
                                                                     : sizeof(virtio_net_hdr);
