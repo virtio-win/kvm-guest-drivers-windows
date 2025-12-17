@@ -345,7 +345,7 @@ function Export-GuestfsFirstbootLog {
             Write-Host 'MTV firstboot log not present.'
         }
     } catch {
-        Write-Warning "Failed to collect MTV firstboot log from $logPath: $_"
+        Write-Warning "Failed to collect MTV firstboot log from ${logPath}: $_"
     }
 }
 
