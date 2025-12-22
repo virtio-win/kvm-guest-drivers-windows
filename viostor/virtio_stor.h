@@ -271,17 +271,27 @@ typedef struct _VRING_DESC_ALIAS
     } u;
 } VRING_DESC_ALIAS;
 
+#pragma pack(1)
+typedef struct _SRB_EXTENSION_FLAGS
+{
+    BOOLEAN fua;
+    BOOLEAN unused1[3];
+} SRB_EXTENSION_FLAGS, *PSRB_EXTENSION_FLAGS;
+#pragma pack()
+
+#pragma pack(1)
 typedef struct _SRB_EXTENSION
 {
     blk_req vbr;
+    ULONG_PTR id;
     ULONG out;
     ULONG in;
     ULONG MessageID;
-    BOOLEAN fua;
-    ULONG_PTR id;
+    SRB_EXTENSION_FLAGS flags;
     VIO_SG sg[VIRTIO_MAX_SG];
     VRING_DESC_ALIAS desc[VIRTIO_MAX_SG];
 } SRB_EXTENSION, *PSRB_EXTENSION;
+#pragma pack()
 
 BOOLEAN
 VirtIoInterrupt(IN PVOID DeviceExtension);
