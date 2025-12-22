@@ -1467,7 +1467,7 @@ VirtIoBuildIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
     srbExt->vbr.out_hdr.sector = lba;
     srbExt->vbr.out_hdr.ioprio = 0;
     srbExt->vbr.req = (PVOID)Srb;
-    srbExt->fua = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_FLUSH) ? (cdb->CDB10.ForceUnitAccess == 1) : FALSE;
+    srbExt->flags.fua = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_FLUSH) ? (cdb->CDB10.ForceUnitAccess == 1) : FALSE;
 
     if (SRB_FLAGS(Srb) & SRB_FLAGS_DATA_OUT)
     {
@@ -2205,14 +2205,14 @@ VOID VioStorCompleteRequest(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOO
                              Srb,
                              QueueNumber,
                              MessageID);
-                if (srbExt && srbExt->fua == TRUE)
+                if (srbExt && srbExt->flags.fua == TRUE)
                 {
                     SRB_SET_SRB_STATUS(Srb, SRB_STATUS_PENDING);
                     if (!RhelDoFlush(DeviceExtension, Srb, TRUE, bIsr))
                     {
                         CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_ERROR);
                     }
-                    srbExt->fua = FALSE;
+                    srbExt->flags.fua = FALSE;
                 }
                 else
                 {
