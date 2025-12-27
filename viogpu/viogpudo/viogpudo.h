@@ -119,6 +119,10 @@ class VioGpuAdapter : IVioGpuPCI
     {
         return m_PciResources.GetPciBar(0)->GetPA();
     }
+    SIZE_T GetFrameSegmentSize(void)
+    {
+        return m_FrameSegment.GetSize();
+    }
     PDXGKRNL_INTERFACE GetDxgkInterface(void);
 
     PVIDEO_MODE_INFORMATION GetModeInfo(UINT idx)
