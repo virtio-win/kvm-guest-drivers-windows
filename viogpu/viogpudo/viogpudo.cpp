@@ -3716,6 +3716,7 @@ BOOLEAN VioGpuAdapter::CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPoin
 {
     UINT resid, format, size;
     VioGpuObj *obj;
+    BOOLEAN status = TRUE;
     PAGED_CODE();
     DbgPrint(TRACE_LEVEL_INFORMATION,
              ("---> %s - %d: (%d x %d - %d) (%d + %d)\n",
@@ -3736,20 +3737,26 @@ BOOLEAN VioGpuAdapter::CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPoin
     obj = new (NonPagedPoolNx) VioGpuObj();
     if (!obj->Init(size, &m_CursorSegment))
     {
-        VioGpuDbgBreak();
         DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s Failed to init obj size = %d\n", __FUNCTION__, size));
-        delete obj;
-        return FALSE;
+        status = FALSE;
     }
-    if (!GpuObjectAttach(resid, obj))
+    else if (!GpuObjectAttach(resid, obj))
+    {
+        DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s Failed to attach gpu object\n", __FUNCTION__));
+        status = FALSE;
+    }
+    if (status)
+    {
+        m_pCursorBuf = obj;
+    }
+    else
     {
         VioGpuDbgBreak();
-        DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s Failed to attach gpu object\n", __FUNCTION__));
+        m_CtrlQueue.DestroyResource(resid);
+        m_Idr.PutId(resid);
         delete obj;
-        return FALSE;
     }
-    m_pCursorBuf = obj;
-    return TRUE;
+    return status;
 }
 
 BOOLEAN VioGpuAdapter::UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape,
