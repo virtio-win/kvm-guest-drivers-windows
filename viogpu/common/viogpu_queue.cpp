@@ -505,6 +505,17 @@ UINT CtrlQueue::QueueBuffer(PGPU_VBUFFER buf)
 {
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
+    // Allocate indirect descriptors only for large data transfers
+    UINT dataPages = (UINT)((buf->data_size + PAGE_SIZE - 1) / PAGE_SIZE);
+    if (dataPages > SGLIST_SIZE - 2)
+    {
+        if (!m_pBuf->AllocateIndirectDescriptors(buf, buf->data_size))
+        {
+            DbgPrint(TRACE_LEVEL_ERROR, ("<--> %s failed to allocate indirect descriptors\n", __FUNCTION__));
+            return 0;
+        }
+    }
+
     VirtIOBufferDescriptor sg[SGLIST_SIZE];
     UINT sgleft = SGLIST_SIZE;
     UINT outcnt = 0, incnt = 0;
@@ -562,7 +573,7 @@ UINT CtrlQueue::QueueBuffer(PGPU_VBUFFER buf)
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--> %s sgleft %d\n", __FUNCTION__, sgleft));
 
     Lock(&SavedIrql);
-    ret = AddBuf(&sg[0], outcnt, incnt, buf, NULL, 0);
+    ret = AddBuf(&sg[0], outcnt, incnt, buf, buf->desc, buf->desc_pa.QuadPart);
     Kick();
     Unlock(SavedIrql);
 
@@ -596,6 +607,39 @@ void VioGpuQueue::ReleaseBuffer(PGPU_VBUFFER buf)
     m_pBuf->FreeBuf(buf);
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+}
+
+BOOLEAN VioGpuBuf::AllocateIndirectDescriptors(_In_ PGPU_VBUFFER pbuf, _In_ SIZE_T dataSize)
+{
+    // Calculate descriptor table size: data pages + 2 (cmd + resp)
+    UINT numPages = (UINT)((dataSize + PAGE_SIZE - 1) / PAGE_SIZE);
+    UINT numDescriptors = numPages + 2;
+    SIZE_T descTableSize = numDescriptors * SIZE_OF_SINGLE_INDIRECT_DESC;
+    descTableSize = (descTableSize + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+
+    PHYSICAL_ADDRESS low, high, skip;
+    low.QuadPart = 0;
+    high.QuadPart = (ULONGLONG)-1;
+    skip.QuadPart = 0;
+    pbuf->desc = MmAllocateContiguousMemorySpecifyCache(descTableSize, low, high, skip, MmNonCached);
+    if (!pbuf->desc)
+    {
+        pbuf->desc_pa.QuadPart = 0;
+        return FALSE;
+    }
+    RtlZeroMemory(pbuf->desc, descTableSize);
+    pbuf->desc_pa = MmGetPhysicalAddress(pbuf->desc);
+    return TRUE;
+}
+
+void VioGpuBuf::DeleteBuffer(_In_ PGPU_VBUFFER pbuf)
+{
+    if (pbuf->desc)
+    {
+        MmFreeContiguousMemory(pbuf->desc);
+        pbuf->desc = NULL;
+    }
+    delete[] reinterpret_cast<PBYTE>(pbuf);
 }
 
 BOOLEAN VioGpuBuf::Init(_In_ UINT cnt)
@@ -642,7 +686,7 @@ void VioGpuBuf::Close(void)
             ASSERT(pvbuf);
             ASSERT(pvbuf->resp_size <= MAX_INLINE_RESP_SIZE);
 
-            delete[] reinterpret_cast<PBYTE>(pvbuf);
+            DeleteBuffer(pvbuf);
             --m_uCount;
         }
     }
@@ -669,7 +713,7 @@ void VioGpuBuf::Close(void)
                 pbuf->data_size = 0;
             }
 
-            delete[] reinterpret_cast<PBYTE>(pbuf);
+            DeleteBuffer(pbuf);
             --m_uCount;
         }
     }
@@ -798,9 +842,16 @@ void VioGpuBuf::FreeBuf(_In_ PGPU_VBUFFER pbuf)
         pbuf->data_size = 0;
     }
 
+    if (pbuf->desc)
+    {
+        MmFreeContiguousMemory(pbuf->desc);
+        pbuf->desc = NULL;
+        pbuf->desc_pa.QuadPart = 0;
+    }
+
     if (m_uCount > m_uCountMin)
     {
-        delete[] reinterpret_cast<PBYTE>(pbuf);
+        DeleteBuffer(pbuf);
         --m_uCount;
     }
     else

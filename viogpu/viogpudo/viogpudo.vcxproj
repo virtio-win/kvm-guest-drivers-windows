@@ -251,6 +251,7 @@
     <ClInclude Include="..\common\bitops.h" />
     <ClInclude Include="..\common\edid.h" />
     <ClInclude Include="..\common\helper.h" />
+    <ClInclude Include="..\common\viogpu_queue.h" />
     <ClInclude Include="driver.h" />
     <ClInclude Include="trace.h" />
     <ClInclude Include="viogpudo.h" />

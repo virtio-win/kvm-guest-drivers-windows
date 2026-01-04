@@ -2279,6 +2279,9 @@ NTSTATUS VioGpuAdapter::VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION *pDispInfo)
 
         AckFeature(VIRTIO_F_ACCESS_PLATFORM);
 
+        // Enable indirect descriptors for large transfers
+        AckFeature(VIRTIO_RING_F_INDIRECT_DESC);
+
         status = virtio_set_features(&m_VioDev, m_u64GuestFeatures);
         if (!NT_SUCCESS(status))
         {
