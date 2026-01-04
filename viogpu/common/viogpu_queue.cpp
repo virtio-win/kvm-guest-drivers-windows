@@ -444,6 +444,60 @@ void CtrlQueue::DetachBacking(UINT res_id)
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
+void CtrlQueue::DestroyResourceSync(UINT res_id)
+{
+    PAGED_CODE();
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s res_id=%u\n", __FUNCTION__, res_id));
+
+    PGPU_RES_UNREF cmd;
+    PGPU_VBUFFER vbuf;
+    KEVENT event;
+
+    cmd = (PGPU_RES_UNREF)AllocCmd(&vbuf, sizeof(*cmd));
+    RtlZeroMemory(cmd, sizeof(*cmd));
+
+    cmd->hdr.type = VIRTIO_GPU_CMD_RESOURCE_UNREF;
+    cmd->resource_id = res_id;
+
+    KeInitializeEvent(&event, NotificationEvent, FALSE);
+    vbuf->complete_cb = NotifyEventCompleteCB;
+    vbuf->complete_ctx = &event;
+    vbuf->auto_release = false;
+
+    QueueBuffer(vbuf);
+    KeWaitForSingleObject(&event, Executive, KernelMode, FALSE, NULL);
+
+    ReleaseBuffer(vbuf);
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s res_id=%u\n", __FUNCTION__, res_id));
+}
+
+void CtrlQueue::DetachBackingSync(UINT res_id)
+{
+    PAGED_CODE();
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s res_id=%u\n", __FUNCTION__, res_id));
+
+    PGPU_RES_DETACH_BACKING cmd;
+    PGPU_VBUFFER vbuf;
+    KEVENT event;
+
+
+    cmd = (PGPU_RES_DETACH_BACKING)AllocCmd(&vbuf, sizeof(*cmd));
+    RtlZeroMemory(cmd, sizeof(*cmd));
+
+    cmd->hdr.type = VIRTIO_GPU_CMD_RESOURCE_DETACH_BACKING;
+    cmd->resource_id = res_id;
+
+    KeInitializeEvent(&event, NotificationEvent, FALSE);
+    vbuf->complete_cb = NotifyEventCompleteCB;
+    vbuf->complete_ctx = &event;
+    vbuf->auto_release = false;
+
+    QueueBuffer(vbuf);
+    KeWaitForSingleObject(&event, Executive, KernelMode, FALSE, NULL);
+
+    ReleaseBuffer(vbuf);
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s res_id=%u\n", __FUNCTION__, res_id));
+}
 
 PVOID CtrlQueue::AllocCmdResp(PGPU_VBUFFER *buf, int cmd_sz, PVOID resp_buf, int resp_sz)
 {
@@ -912,7 +966,8 @@ BOOLEAN VioGpuMemSegment::Init(_In_ UINT size, _In_opt_ PPHYSICAL_ADDRESS pPAddr
         {
             MmProbeAndLockPages(m_pMdl, KernelMode, IoWriteAccess);
         }
-#pragma prefast(suppress : __WARNING_EXCEPTIONEXECUTEHANDLER, "try/except is only able to protect against user-mode errors and these are the only errors we try to catch here");
+#pragma prefast(suppress : __WARNING_EXCEPTIONEXECUTEHANDLER,                                                          \
+                "try/except is only able to protect against user-mode errors and these are the only errors we try to catch here");
         __except (EXCEPTION_EXECUTE_HANDLER)
         {
             DbgPrint(TRACE_LEVEL_FATAL, ("%s Failed to lock pages with error %x\n", __FUNCTION__, GetExceptionCode()));
@@ -996,6 +1051,34 @@ void VioGpuMemSegment::Close(void)
 
     delete[] reinterpret_cast<PBYTE>(m_pSGList);
     m_pSGList = NULL;
+
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+}
+
+void VioGpuMemSegment::TakeFrom(VioGpuMemSegment &other)
+{
+    PAGED_CODE();
+
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
+
+    // Close our own resources first
+    Close();
+
+    // Take ownership of other's resources
+    m_bSystemMemory = other.m_bSystemMemory;
+    m_bMapped = other.m_bMapped;
+    m_pSGList = other.m_pSGList;
+    m_pVAddr = other.m_pVAddr;
+    m_pMdl = other.m_pMdl;
+    m_Size = other.m_Size;
+
+    // Clear other to prevent double-free on destruction
+    other.m_pSGList = NULL;
+    other.m_pVAddr = NULL;
+    other.m_pMdl = NULL;
+    other.m_Size = 0;
+    other.m_bSystemMemory = FALSE;
+    other.m_bMapped = FALSE;
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }

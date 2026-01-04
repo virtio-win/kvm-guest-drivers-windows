@@ -108,6 +108,7 @@ class VioGpuMemSegment
         return m_bSystemMemory;
     }
     void Close(void);
+    void TakeFrom(VioGpuMemSegment& other);
 
   private:
     BOOLEAN m_bSystemMemory;
@@ -237,12 +238,14 @@ class CtrlQueue : public VioGpuQueue
     PGPU_VBUFFER DequeueBuffer(_Out_ UINT *len);
 
     void CreateResource(UINT res_id, UINT format, UINT width, UINT height);
-    void DestroyResource(UINT id);
+    void DestroyResource(UINT res_id);
+    void DestroyResourceSync(UINT res_id);
     void SetScanout(UINT scan_id, UINT res_id, UINT width, UINT height, UINT x, UINT y);
     void ResFlush(UINT res_id, UINT width, UINT height, UINT x, UINT y);
     void TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT height, UINT x, UINT y);
     void AttachBacking(UINT res_id, PGPU_MEM_ENTRY ents, UINT nents);
-    void DetachBacking(UINT id);
+    void DetachBacking(UINT res_id);
+    void DetachBackingSync(UINT res_id);
 
     BOOLEAN GetDisplayInfo(PGPU_VBUFFER buf, UINT id, PULONG xres, PULONG yres);
     BOOLEAN AskDisplayInfo(PGPU_VBUFFER *buf);

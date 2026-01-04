@@ -2225,11 +2225,51 @@ NTSTATUS VioGpuAdapter::SetCurrentMode(ULONG Mode, CURRENT_MODE *pCurrentMode)
     {
         if (Mode == m_ModeInfo[idx].ModeIndex /*m_ModeNumbers[idx]*/)
         {
+            // Calculate required segment size
+            UINT size = m_ModeInfo[idx].ScreenStride * m_ModeInfo[idx].VisScreenHeight;
+            UINT pages = BYTES_TO_PAGES(size);
+            UINT alignedSize = pages * PAGE_SIZE;
+            BOOLEAN needResize = (alignedSize > m_FrameSegment.GetSize());
+
+            // Destroy old framebuffer (sync to ensure QEMU finished before reusing segment)
             if (pCurrentMode->Flags.FrameBufferIsActive)
             {
-                DestroyFrameBufferObj(FALSE, FALSE);
+                if (needResize)
+                {
+                    DestroyFrameBufferObjSync(FALSE, FALSE);
+                }
+                else
+                {
+                    DestroyFrameBufferObj(FALSE, FALSE);
+                }
                 pCurrentMode->Flags.FrameBufferIsActive = FALSE;
             }
+
+            // If resize needed, allocate new segment first then release old
+            if (needResize)
+            {
+                DbgPrint(TRACE_LEVEL_WARNING,
+                         ("%s: Resizing m_FrameSegment from %Iu to %u bytes\n",
+                          __FUNCTION__,
+                          m_FrameSegment.GetSize(),
+                          alignedSize));
+
+                VioGpuMemSegment newSegment;
+                if (!AllocateFrameSegment(alignedSize, &newSegment))
+                {
+                    DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s: Failed to allocate larger segment\n", __FUNCTION__));
+                    return STATUS_INSUFFICIENT_RESOURCES;
+                }
+
+                m_FrameSegment.TakeFrom(newSegment);
+
+                DbgPrint(TRACE_LEVEL_INFORMATION,
+                         ("%s: Successfully resized m_FrameSegment to %Iu bytes\n",
+                          __FUNCTION__,
+                          m_FrameSegment.GetSize()));
+            }
+
+            // Create new framebuffer
             if (CreateFrameBufferObj(&m_ModeInfo[idx], pCurrentMode))
             {
                 DbgPrint(TRACE_LEVEL_ERROR,
@@ -2241,9 +2281,12 @@ NTSTATUS VioGpuAdapter::SetCurrentMode(ULONG Mode, CURRENT_MODE *pCurrentMode)
                           m_ModeInfo[idx].VisScreenHeight));
                 return STATUS_SUCCESS;
             }
+
+            DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s failed: CreateFrameBufferObj failed\n", __FUNCTION__));
+            return STATUS_INSUFFICIENT_RESOURCES;
         }
     }
-    DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s failed\n", __FUNCTION__));
+    DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s failed: mode %d not found\n", __FUNCTION__, Mode));
     return STATUS_UNSUCCESSFUL;
 }
 
@@ -2470,6 +2513,46 @@ VOID VioGpuAdapter::CloseResolutionEvent(VOID)
     }
 }
 
+BOOLEAN VioGpuAdapter::AllocateFrameSegment(_In_ UINT requiredSize, _Out_ VioGpuMemSegment *pSegment)
+{
+    PAGED_CODE();
+    DbgPrint(TRACE_LEVEL_INFORMATION, ("---> %s: required size = %u\n", __FUNCTION__, requiredSize));
+
+    PHYSICAL_ADDRESS fb_pa = m_PciResources.GetPciBar(0)->GetPA();
+    UINT fb_size = (UINT)m_PciResources.GetPciBar(0)->GetSize();
+
+    // Align required size to page boundary
+    UINT pages = BYTES_TO_PAGES(requiredSize);
+    UINT alignedSize = pages * PAGE_SIZE;
+
+    // Check if BAR memory can be used
+    if (m_pVioGpuDod->IsUsePhysicalMemory() && fb_pa.QuadPart != 0 && fb_size >= alignedSize)
+    {
+        // Use BAR memory
+        if (pSegment->Init(alignedSize, &fb_pa))
+        {
+            DbgPrint(TRACE_LEVEL_INFORMATION,
+                     ("<--- %s: allocated %u bytes using BAR memory\n", __FUNCTION__, alignedSize));
+            return TRUE;
+        }
+    }
+
+    // Fall back to system memory
+    m_pVioGpuDod->SetUsePhysicalMemory(FALSE);
+    PHYSICAL_ADDRESS nullPa = {0};
+    nullPa.QuadPart = 0LL;
+
+    if (pSegment->Init(max(alignedSize, fb_size), &nullPa))
+    {
+        DbgPrint(TRACE_LEVEL_INFORMATION,
+                 ("<--- %s: allocated %u bytes using system memory\n", __FUNCTION__, max(alignedSize, fb_size)));
+        return TRUE;
+    }
+
+    DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s: failed to allocate %u bytes\n", __FUNCTION__, alignedSize));
+    return FALSE;
+}
+
 NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMATION *pDispInfo)
 {
     PAGED_CODE();
@@ -2575,13 +2658,7 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
         m_pVioGpuDod->SetUsePhysicalMemory(FALSE);
     }
 
-    if (!m_pVioGpuDod->IsUsePhysicalMemory() || fb_pa.QuadPart == 0 || fb_size < req_size)
-    {
-        fb_pa.QuadPart = 0LL;
-        fb_size = max(req_size, fb_size);
-    }
-
-    if (!m_FrameSegment.Init(fb_size, &fb_pa))
+    if (!AllocateFrameSegment(req_size, &m_FrameSegment))
     {
         DbgPrint(TRACE_LEVEL_FATAL, ("%s failed to allocate FB memory segment\n", __FUNCTION__));
         status = STATUS_INSUFFICIENT_RESOURCES;
@@ -3450,6 +3527,36 @@ void VioGpuAdapter::DestroyFrameBufferObj(BOOLEAN bReset, BOOLEAN bKeepBuffer)
         resid = (UINT)m_pFrameBuf->GetId();
         m_CtrlQueue.DetachBacking(resid);
         m_CtrlQueue.DestroyResource(resid);
+        if (bReset == TRUE)
+        {
+            m_CtrlQueue.SetScanout(0, 0, 0, 0, 0, 0);
+        }
+
+        if (bKeepBuffer)
+        {
+            DbgPrint(TRACE_LEVEL_FATAL,
+                     ("%s: Keeping frame buffer object. Don't use except in bugcheck flow!\n", __FUNCTION__));
+        }
+        else
+        {
+            delete m_pFrameBuf;
+        }
+        m_pFrameBuf = NULL;
+        m_Idr.PutId(resid);
+    }
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+}
+
+void VioGpuAdapter::DestroyFrameBufferObjSync(BOOLEAN bReset, BOOLEAN bKeepBuffer)
+{
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
+    UINT resid = 0;
+
+    if (m_pFrameBuf != NULL)
+    {
+        resid = (UINT)m_pFrameBuf->GetId();
+        m_CtrlQueue.DetachBackingSync(resid);
+        m_CtrlQueue.DestroyResourceSync(resid);
         if (bReset == TRUE)
         {
             m_CtrlQueue.SetScanout(0, 0, 0, 0, 0, 0);
