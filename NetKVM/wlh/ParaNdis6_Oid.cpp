@@ -1537,6 +1537,7 @@ NDIS_STATUS OnSetOffloadEncapsulation(PARANDIS_ADAPTER *pContext, tOidDesc *pOid
                 status = NDIS_STATUS_SUCCESS;
             }
         }
+        ParaNdis_ResetOffloadSettings(pContext, NULL, NULL);
     }
     return status;
 }

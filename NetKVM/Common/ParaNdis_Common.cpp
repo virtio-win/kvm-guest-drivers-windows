@@ -436,6 +436,9 @@ static bool ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
 
 void ParaNdis_ResetOffloadSettings(PARANDIS_ADAPTER *pContext, tOffloadSettingsFlags *pDest, PULONG from)
 {
+    BOOLEAN bOffloadv4Enabled = pContext->bOffloadv4Enabled;
+    BOOLEAN bOffloadv6Enabled = pContext->bOffloadv6Enabled;
+
     if (!pDest)
     {
         pDest = &pContext->Offload.flags;
@@ -445,11 +448,11 @@ void ParaNdis_ResetOffloadSettings(PARANDIS_ADAPTER *pContext, tOffloadSettingsF
         from = &pContext->Offload.flagsValue;
     }
 
-    pDest->fTxIPChecksum = !!(*from & osbT4IpChecksum);
-    pDest->fTxTCPChecksum = !!(*from & osbT4TcpChecksum);
-    pDest->fTxUDPChecksum = !!(*from & osbT4UdpChecksum);
-    pDest->fTxTCPOptions = !!(*from & osbT4TcpOptionsChecksum);
-    pDest->fTxIPOptions = !!(*from & osbT4IpOptionsChecksum);
+    pDest->fTxIPChecksum = !!(*from & osbT4IpChecksum) && bOffloadv4Enabled;
+    pDest->fTxTCPChecksum = !!(*from & osbT4TcpChecksum) && bOffloadv4Enabled;
+    pDest->fTxUDPChecksum = !!(*from & osbT4UdpChecksum) && bOffloadv4Enabled;
+    pDest->fTxTCPOptions = !!(*from & osbT4TcpOptionsChecksum) && bOffloadv4Enabled;
+    pDest->fTxIPOptions = !!(*from & osbT4IpOptionsChecksum) && bOffloadv4Enabled;
 
     pDest->fTxLso = !!(*from & osbT4Lso);
     pDest->fTxLsoIP = !!(*from & osbT4LsoIp);
@@ -461,10 +464,10 @@ void ParaNdis_ResetOffloadSettings(PARANDIS_ADAPTER *pContext, tOffloadSettingsF
     pDest->fRxTCPOptions = !!(*from & osbT4RxTCPOptionsChecksum);
     pDest->fRxUDPChecksum = !!(*from & osbT4RxUDPChecksum);
 
-    pDest->fTxTCPv6Checksum = !!(*from & osbT6TcpChecksum);
-    pDest->fTxTCPv6Options = !!(*from & osbT6TcpOptionsChecksum);
-    pDest->fTxUDPv6Checksum = !!(*from & osbT6UdpChecksum);
-    pDest->fTxIPv6Ext = !!(*from & osbT6IpExtChecksum);
+    pDest->fTxTCPv6Checksum = !!(*from & osbT6TcpChecksum) && bOffloadv6Enabled;
+    pDest->fTxTCPv6Options = !!(*from & osbT6TcpOptionsChecksum) && bOffloadv6Enabled;
+    pDest->fTxUDPv6Checksum = !!(*from & osbT6UdpChecksum) && bOffloadv6Enabled;
+    pDest->fTxIPv6Ext = !!(*from & osbT6IpExtChecksum) && bOffloadv6Enabled;
 
     pDest->fTxLsov6 = !!(*from & osbT6Lso);
     pDest->fTxLsov6IP = !!(*from & osbT6LsoIpExt);
