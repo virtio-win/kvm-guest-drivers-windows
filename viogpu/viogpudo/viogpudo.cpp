@@ -2227,9 +2227,7 @@ NTSTATUS VioGpuAdapter::SetCurrentMode(ULONG Mode, CURRENT_MODE *pCurrentMode)
         {
             // Calculate required segment size
             UINT size = m_ModeInfo[idx].ScreenStride * m_ModeInfo[idx].VisScreenHeight;
-            UINT pages = BYTES_TO_PAGES(size);
-            UINT alignedSize = pages * PAGE_SIZE;
-            BOOLEAN needResize = (alignedSize > m_FrameSegment.GetSize());
+            BOOLEAN needResize = (size > m_FrameSegment.GetSize());
 
             // Destroy old framebuffer (sync to ensure QEMU finished before reusing segment)
             if (pCurrentMode->Flags.FrameBufferIsActive)
@@ -2243,6 +2241,7 @@ NTSTATUS VioGpuAdapter::SetCurrentMode(ULONG Mode, CURRENT_MODE *pCurrentMode)
                     DestroyFrameBufferObj(FALSE, FALSE);
                 }
                 pCurrentMode->Flags.FrameBufferIsActive = FALSE;
+                pCurrentMode->FrameBuffer = NULL;
             }
 
             // If resize needed, allocate new segment first then release old
@@ -2252,16 +2251,13 @@ NTSTATUS VioGpuAdapter::SetCurrentMode(ULONG Mode, CURRENT_MODE *pCurrentMode)
                          ("%s: Resizing m_FrameSegment from %Iu to %u bytes\n",
                           __FUNCTION__,
                           m_FrameSegment.GetSize(),
-                          alignedSize));
+                          size));
 
-                VioGpuMemSegment newSegment;
-                if (!AllocateFrameSegment(alignedSize, &newSegment))
+                if (!AllocateFrameSegment(size))
                 {
                     DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s: Failed to allocate larger segment\n", __FUNCTION__));
                     return STATUS_INSUFFICIENT_RESOURCES;
                 }
-
-                m_FrameSegment.TakeFrom(newSegment);
 
                 DbgPrint(TRACE_LEVEL_INFORMATION,
                          ("%s: Successfully resized m_FrameSegment to %Iu bytes\n",
@@ -2518,43 +2514,57 @@ VOID VioGpuAdapter::CloseResolutionEvent(VOID)
     }
 }
 
-BOOLEAN VioGpuAdapter::AllocateFrameSegment(_In_ UINT requiredSize, _Out_ VioGpuMemSegment *pSegment)
+BOOLEAN VioGpuAdapter::AllocateFrameSegment(_In_ UINT req_size)
 {
     PAGED_CODE();
-    DbgPrint(TRACE_LEVEL_INFORMATION, ("---> %s: required size = %u\n", __FUNCTION__, requiredSize));
+    DbgPrint(TRACE_LEVEL_INFORMATION, ("---> %s: required size = %u\n", __FUNCTION__, req_size));
 
-    PHYSICAL_ADDRESS fb_pa = m_PciResources.GetPciBar(0)->GetPA();
+    // Save state for rollback on failure
+    BOOLEAN savedUsePhysicalMemory = m_pVioGpuDod->IsUsePhysicalMemory();
+
+    PHYSICAL_ADDRESS fb_pa = GetFrameBufferPA();
     UINT fb_size = (UINT)m_PciResources.GetPciBar(0)->GetSize();
 
-    // Align required size to page boundary
-    UINT pages = BYTES_TO_PAGES(requiredSize);
-    UINT alignedSize = pages * PAGE_SIZE;
-
-    // Check if BAR memory can be used
-    if (m_pVioGpuDod->IsUsePhysicalMemory() && fb_pa.QuadPart != 0 && fb_size >= alignedSize)
+    if (fb_size < req_size)
     {
-        // Use BAR memory
-        if (pSegment->Init(alignedSize, &fb_pa))
-        {
-            DbgPrint(TRACE_LEVEL_INFORMATION,
-                     ("<--- %s: allocated %u bytes using BAR memory\n", __FUNCTION__, alignedSize));
-            return TRUE;
-        }
+        m_pVioGpuDod->SetUsePhysicalMemory(FALSE);
+    }
+    // Check if use system memory
+    if (!m_pVioGpuDod->IsUsePhysicalMemory() || fb_pa.QuadPart == 0 || fb_size < req_size)
+    {
+        fb_pa.QuadPart = 0LL;
+        fb_size = max(req_size, fb_size);
     }
 
-    // Fall back to system memory
-    m_pVioGpuDod->SetUsePhysicalMemory(FALSE);
-    PHYSICAL_ADDRESS nullPa = {0};
-    nullPa.QuadPart = 0LL;
-
-    if (pSegment->Init(max(alignedSize, fb_size), &nullPa))
+    // Try to allocate framebuffer segment using BAR memory
+    if (fb_pa.QuadPart != 0LL)
     {
-        DbgPrint(TRACE_LEVEL_INFORMATION,
-                 ("<--- %s: allocated %u bytes using system memory\n", __FUNCTION__, max(alignedSize, fb_size)));
+        VioGpuMemSegment barSegment;
+        if (barSegment.Init(fb_size, &fb_pa))
+        {
+            m_FrameSegment.TakeFrom(barSegment);
+            DbgPrint(TRACE_LEVEL_INFORMATION, ("<--- %s: allocated %u bytes using BAR memory\n", __FUNCTION__, fb_size));
+            return TRUE;
+        }
+        DbgPrint(TRACE_LEVEL_WARNING, ("%s: BAR memory init failed, falling back to system memory\n", __FUNCTION__));
+    }
+
+    // Try to allocate framebuffer segment using system memory
+    m_pVioGpuDod->SetUsePhysicalMemory(FALSE);
+    fb_pa.QuadPart = 0LL;
+    VioGpuMemSegment sysSegment;
+
+    if (sysSegment.Init(fb_size, &fb_pa))
+    {
+        m_FrameSegment.TakeFrom(sysSegment);
+        DbgPrint(TRACE_LEVEL_INFORMATION, ("<--- %s: allocated %u bytes using system memory\n", __FUNCTION__, fb_size));
         return TRUE;
     }
 
-    DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s: failed to allocate %u bytes\n", __FUNCTION__, alignedSize));
+    // Rollback state on failure
+    m_pVioGpuDod->SetUsePhysicalMemory(savedUsePhysicalMemory);
+
+    DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s: failed to allocate %u bytes using system memory\n", __FUNCTION__, fb_size));
     return FALSE;
 }
 
@@ -2639,8 +2649,12 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
         VioGpuDbgBreak();
     }
 
-    PHYSICAL_ADDRESS fb_pa = m_PciResources.GetPciBar(0)->GetPA();
-    UINT fb_size = (UINT)m_PciResources.GetPciBar(0)->GetSize();
+    PHYSICAL_ADDRESS fb_pa = GetFrameBufferPA();
+    if (fb_pa.QuadPart != 0LL)
+    {
+        pDispInfo->PhysicAddress = fb_pa;
+    }
+
     UINT req_size = pDispInfo->Pitch * pDispInfo->Height;
     req_size = max(req_size, 0x1000000);
 
@@ -2653,17 +2667,7 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
 
     req_size = max(req_size, (max_res_size * 4));
 
-    if (fb_pa.QuadPart != 0LL)
-    {
-        pDispInfo->PhysicAddress = fb_pa;
-    }
-
-    if (fb_size < req_size)
-    {
-        m_pVioGpuDod->SetUsePhysicalMemory(FALSE);
-    }
-
-    if (!AllocateFrameSegment(req_size, &m_FrameSegment))
+    if (!AllocateFrameSegment(req_size))
     {
         DbgPrint(TRACE_LEVEL_FATAL, ("%s failed to allocate FB memory segment\n", __FUNCTION__));
         status = STATUS_INSUFFICIENT_RESOURCES;
