@@ -91,6 +91,11 @@ class VioGpuBuf
     UINT m_uCountMin = 0;
 };
 
+// Block size for contiguous memory allocation (1MB)
+// Each block is allocated separately to avoid large contiguous allocation failures
+#define SG_BLOCK_SIZE (1024 * 1024)
+#define SG_PAGES_PER_BLOCK (SG_BLOCK_SIZE / PAGE_SIZE)
+
 class VioGpuMemSegment
 {
   public:
@@ -121,9 +126,12 @@ class VioGpuMemSegment
     BOOLEAN m_bSystemMemory;
     BOOLEAN m_bMapped;
     PSCATTER_GATHER_LIST m_pSGList;
-    PVOID m_pVAddr;
-    PMDL m_pMdl;
+    PVOID m_pVAddr;           // Unified virtual address for all blocks
+    PMDL m_pMdl;              // MDL for the unified virtual address
     SIZE_T m_Size;
+    // Multi-block allocation support
+    PVOID* m_pBlocks;         // Array of block virtual addresses
+    UINT m_nBlocks;           // Number of allocated blocks
 };
 
 class VioGpuObj
