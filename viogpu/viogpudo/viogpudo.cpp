@@ -2269,8 +2269,10 @@ NTSTATUS VioGpuAdapter::SetCurrentMode(ULONG Mode, CURRENT_MODE *pCurrentMode)
                           m_FrameSegment.GetSize()));
             }
 
-            // Create new framebuffer
-            if (CreateFrameBufferObj(&m_ModeInfo[idx], pCurrentMode))
+            // Create new framebuffer (sync when resizing to ensure proper ordering)
+            BOOLEAN created = needResize ? CreateFrameBufferObjSync(&m_ModeInfo[idx], pCurrentMode)
+                                         : CreateFrameBufferObj(&m_ModeInfo[idx], pCurrentMode);
+            if (created)
             {
                 DbgPrint(TRACE_LEVEL_ERROR,
                          ("%s device %d: setting current mode %d (%d x %d)\n",
@@ -2324,6 +2326,9 @@ NTSTATUS VioGpuAdapter::VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION *pDispInfo)
         }
 
         AckFeature(VIRTIO_F_ACCESS_PLATFORM);
+
+        // Enable indirect descriptors for large transfers
+        AckFeature(VIRTIO_RING_F_INDIRECT_DESC);
 
         status = virtio_set_features(&m_VioDev, m_u64GuestFeatures);
         if (!NT_SUCCESS(status))
@@ -3797,6 +3802,37 @@ BOOLEAN VioGpuAdapter::CreateFrameBufferObj(PVIDEO_MODE_INFORMATION pModeInfo, C
              ("---> %s - (%d -> %d)\n", __FUNCTION__, pCurrentMode->DispInfo.ColorFormat, format));
     resid = m_Idr.GetId();
     m_CtrlQueue.CreateResource(resid, format, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight);
+    obj = new (NonPagedPoolNx) VioGpuObj();
+    if (!obj->Init(size, &m_FrameSegment))
+    {
+        DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s Failed to init obj size = %d\n", __FUNCTION__, size));
+        delete obj;
+        return FALSE;
+    }
+
+    GpuObjectAttach(resid, obj);
+    m_CtrlQueue.SetScanout(0 /*FIXME m_Id*/, resid, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight, 0, 0);
+    m_CtrlQueue.TransferToHost2D(resid, 0, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight, 0, 0);
+    m_CtrlQueue.ResFlush(resid, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight, 0, 0);
+    m_pFrameBuf = obj;
+    pCurrentMode->FrameBuffer = obj->GetVirtualAddress();
+    pCurrentMode->Flags.FrameBufferIsActive = TRUE;
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+    return TRUE;
+}
+
+BOOLEAN VioGpuAdapter::CreateFrameBufferObjSync(PVIDEO_MODE_INFORMATION pModeInfo, CURRENT_MODE *pCurrentMode)
+{
+    UINT resid, format, size;
+    VioGpuObj *obj;
+    PAGED_CODE();
+    DbgPrint(TRACE_LEVEL_INFORMATION,
+             ("---> %s - %d: (%d x %d)\n", __FUNCTION__, m_Id, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight));
+    ASSERT(m_pFrameBuf == NULL);
+    size = pModeInfo->ScreenStride * pModeInfo->VisScreenHeight;
+    format = ColorFormat(pCurrentMode->DispInfo.ColorFormat);
+    resid = m_Idr.GetId();
+    m_CtrlQueue.CreateResourceSync(resid, format, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight);
     obj = new (NonPagedPoolNx) VioGpuObj();
     if (!obj->Init(size, &m_FrameSegment))
     {

@@ -57,6 +57,11 @@ typedef struct virtio_gpu_vbuffer
     void *complete_ctx;
 
     bool auto_release;
+    bool use_indirect;
+
+    // Indirect descriptor table (PVOID since we only need to allocate/free, not access fields)
+    PVOID desc;
+    PHYSICAL_ADDRESS desc_pa;
 } GPU_VBUFFER, *PGPU_VBUFFER;
 // #pragma pack()
 
@@ -72,9 +77,11 @@ class VioGpuBuf
     PGPU_VBUFFER GetBuf(_In_ int size, _In_ int resp_size, _In_opt_ void *resp_buf);
     void FreeBuf(_In_ PGPU_VBUFFER pbuf);
     BOOLEAN Init(_In_ UINT cnt);
+    BOOLEAN AllocateIndirectDescriptors(_In_ PGPU_VBUFFER pbuf, _In_ SIZE_T dataSize);
 
   private:
     void Close(void);
+    void DeleteBuffer(_In_ PGPU_VBUFFER pbuf);
 
   private:
     LIST_ENTRY m_FreeBufs;
@@ -238,6 +245,7 @@ class CtrlQueue : public VioGpuQueue
     PGPU_VBUFFER DequeueBuffer(_Out_ UINT *len);
 
     void CreateResource(UINT res_id, UINT format, UINT width, UINT height);
+    void CreateResourceSync(UINT res_id, UINT format, UINT width, UINT height);
     void DestroyResource(UINT res_id);
     void DestroyResourceSync(UINT res_id);
     void SetScanout(UINT scan_id, UINT res_id, UINT width, UINT height, UINT x, UINT y);

@@ -341,6 +341,36 @@ void CtrlQueue::CreateResource(UINT res_id, UINT format, UINT width, UINT height
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
+void CtrlQueue::CreateResourceSync(UINT res_id, UINT format, UINT width, UINT height)
+{
+    PAGED_CODE();
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s res_id=%u width=%u height=%u\n", __FUNCTION__, res_id, width, height));
+
+    PGPU_RES_CREATE_2D cmd;
+    PGPU_VBUFFER vbuf;
+    KEVENT event;
+
+    cmd = (PGPU_RES_CREATE_2D)AllocCmd(&vbuf, sizeof(*cmd));
+    RtlZeroMemory(cmd, sizeof(*cmd));
+
+    cmd->hdr.type = VIRTIO_GPU_CMD_RESOURCE_CREATE_2D;
+    cmd->resource_id = res_id;
+    cmd->format = format;
+    cmd->width = width;
+    cmd->height = height;
+
+    KeInitializeEvent(&event, NotificationEvent, FALSE);
+    vbuf->complete_cb = NotifyEventCompleteCB;
+    vbuf->complete_ctx = &event;
+    vbuf->auto_release = false;
+
+    QueueBuffer(vbuf);
+    KeWaitForSingleObject(&event, Executive, KernelMode, FALSE, NULL);
+
+    ReleaseBuffer(vbuf);
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s res_id=%u\n", __FUNCTION__, res_id));
+}
+
 void CtrlQueue::ResFlush(UINT res_id, UINT width, UINT height, UINT x, UINT y)
 {
     PAGED_CODE();
@@ -403,6 +433,7 @@ void CtrlQueue::AttachBacking(UINT res_id, PGPU_MEM_ENTRY ents, UINT nents)
 
     vbuf->data_buf = ents;
     vbuf->data_size = sizeof(*ents) * nents;
+    vbuf->use_indirect = true;
 
     QueueBuffer(vbuf);
 
@@ -447,7 +478,7 @@ void CtrlQueue::DetachBacking(UINT res_id)
 void CtrlQueue::DestroyResourceSync(UINT res_id)
 {
     PAGED_CODE();
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s res_id=%u\n", __FUNCTION__, res_id));
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
     PGPU_RES_UNREF cmd;
     PGPU_VBUFFER vbuf;
@@ -468,13 +499,13 @@ void CtrlQueue::DestroyResourceSync(UINT res_id)
     KeWaitForSingleObject(&event, Executive, KernelMode, FALSE, NULL);
 
     ReleaseBuffer(vbuf);
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s res_id=%u\n", __FUNCTION__, res_id));
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 }
 
 void CtrlQueue::DetachBackingSync(UINT res_id)
 {
     PAGED_CODE();
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s res_id=%u\n", __FUNCTION__, res_id));
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
     PGPU_RES_DETACH_BACKING cmd;
     PGPU_VBUFFER vbuf;
@@ -496,7 +527,7 @@ void CtrlQueue::DetachBackingSync(UINT res_id)
     KeWaitForSingleObject(&event, Executive, KernelMode, FALSE, NULL);
 
     ReleaseBuffer(vbuf);
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s res_id=%u\n", __FUNCTION__, res_id));
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 }
 
 PVOID CtrlQueue::AllocCmdResp(PGPU_VBUFFER *buf, int cmd_sz, PVOID resp_buf, int resp_sz)
@@ -559,6 +590,16 @@ UINT CtrlQueue::QueueBuffer(PGPU_VBUFFER buf)
 {
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
+    // Allocate indirect descriptors if requested
+    if (buf->use_indirect)
+    {
+        if (!m_pBuf->AllocateIndirectDescriptors(buf, buf->data_size))
+        {
+            DbgPrint(TRACE_LEVEL_ERROR, ("<--> %s failed to allocate indirect descriptors\n", __FUNCTION__));
+            return 0;
+        }
+    }
+
     VirtIOBufferDescriptor sg[SGLIST_SIZE];
     UINT sgleft = SGLIST_SIZE;
     UINT outcnt = 0, incnt = 0;
@@ -616,7 +657,7 @@ UINT CtrlQueue::QueueBuffer(PGPU_VBUFFER buf)
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--> %s sgleft %d\n", __FUNCTION__, sgleft));
 
     Lock(&SavedIrql);
-    ret = AddBuf(&sg[0], outcnt, incnt, buf, NULL, 0);
+    ret = AddBuf(&sg[0], outcnt, incnt, buf, buf->desc, buf->desc_pa.QuadPart);
     Kick();
     Unlock(SavedIrql);
 
@@ -650,6 +691,39 @@ void VioGpuQueue::ReleaseBuffer(PGPU_VBUFFER buf)
     m_pBuf->FreeBuf(buf);
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+}
+
+BOOLEAN VioGpuBuf::AllocateIndirectDescriptors(_In_ PGPU_VBUFFER pbuf, _In_ SIZE_T dataSize)
+{
+    // Calculate descriptor table size: data pages + 2 (cmd + resp)
+    UINT numPages = (UINT)((dataSize + PAGE_SIZE - 1) / PAGE_SIZE);
+    UINT numDescriptors = numPages + 2;
+    SIZE_T descTableSize = numDescriptors * SIZE_OF_SINGLE_INDIRECT_DESC;
+    descTableSize = (descTableSize + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+
+    PHYSICAL_ADDRESS low, high, skip;
+    low.QuadPart = 0;
+    high.QuadPart = (ULONGLONG)-1;
+    skip.QuadPart = 0;
+    pbuf->desc = MmAllocateContiguousMemorySpecifyCache(descTableSize, low, high, skip, MmNonCached);
+    if (!pbuf->desc)
+    {
+        pbuf->desc_pa.QuadPart = 0;
+        return FALSE;
+    }
+    RtlZeroMemory(pbuf->desc, descTableSize);
+    pbuf->desc_pa = MmGetPhysicalAddress(pbuf->desc);
+    return TRUE;
+}
+
+void VioGpuBuf::DeleteBuffer(_In_ PGPU_VBUFFER pbuf)
+{
+    if (pbuf->desc)
+    {
+        MmFreeContiguousMemory(pbuf->desc);
+        pbuf->desc = NULL;
+    }
+    delete[] reinterpret_cast<PBYTE>(pbuf);
 }
 
 BOOLEAN VioGpuBuf::Init(_In_ UINT cnt)
@@ -696,7 +770,7 @@ void VioGpuBuf::Close(void)
             ASSERT(pvbuf);
             ASSERT(pvbuf->resp_size <= MAX_INLINE_RESP_SIZE);
 
-            delete[] reinterpret_cast<PBYTE>(pvbuf);
+            DeleteBuffer(pvbuf);
             --m_uCount;
         }
     }
@@ -723,7 +797,7 @@ void VioGpuBuf::Close(void)
                 pbuf->data_size = 0;
             }
 
-            delete[] reinterpret_cast<PBYTE>(pbuf);
+            DeleteBuffer(pbuf);
             --m_uCount;
         }
     }
@@ -852,9 +926,16 @@ void VioGpuBuf::FreeBuf(_In_ PGPU_VBUFFER pbuf)
         pbuf->data_size = 0;
     }
 
+    if (pbuf->desc)
+    {
+        MmFreeContiguousMemory(pbuf->desc);
+        pbuf->desc = NULL;
+        pbuf->desc_pa.QuadPart = 0;
+    }
+
     if (m_uCount > m_uCountMin)
     {
-        delete[] reinterpret_cast<PBYTE>(pbuf);
+        DeleteBuffer(pbuf);
         --m_uCount;
     }
     else
