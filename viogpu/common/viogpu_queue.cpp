@@ -499,7 +499,7 @@ void CtrlQueue::DestroyResourceSync(UINT res_id)
     KeWaitForSingleObject(&event, Executive, KernelMode, FALSE, NULL);
 
     ReleaseBuffer(vbuf);
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
 void CtrlQueue::DetachBackingSync(UINT res_id)
@@ -526,7 +526,7 @@ void CtrlQueue::DetachBackingSync(UINT res_id)
     KeWaitForSingleObject(&event, Executive, KernelMode, FALSE, NULL);
 
     ReleaseBuffer(vbuf);
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
 PVOID CtrlQueue::AllocCmdResp(PGPU_VBUFFER *buf, int cmd_sz, PVOID resp_buf, int resp_sz)
@@ -700,11 +700,9 @@ BOOLEAN VioGpuBuf::AllocateIndirectDescriptors(_In_ PGPU_VBUFFER pbuf, _In_ SIZE
     SIZE_T descTableSize = numDescriptors * SIZE_OF_SINGLE_INDIRECT_DESC;
     descTableSize = (descTableSize + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
 
-    PHYSICAL_ADDRESS low, high, skip;
-    low.QuadPart = 0;
-    high.QuadPart = (ULONGLONG)-1;
-    skip.QuadPart = 0;
-    pbuf->desc = MmAllocateContiguousMemorySpecifyCache(descTableSize, low, high, skip, MmNonCached);
+    PHYSICAL_ADDRESS highestAcceptable;
+    highestAcceptable.QuadPart = (ULONGLONG)-1;
+    pbuf->desc = MmAllocateContiguousMemory(descTableSize, highestAcceptable);
     if (!pbuf->desc)
     {
         pbuf->desc_pa.QuadPart = 0;
@@ -986,6 +984,7 @@ VioGpuMemSegment::VioGpuMemSegment(void)
     m_bMapped = FALSE;
     m_Size = 0;
     m_pBlocks = NULL;
+    m_pBlockSizes = NULL;
     m_nBlocks = 0;
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
@@ -1001,6 +1000,31 @@ VioGpuMemSegment::~VioGpuMemSegment(void)
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
+// Helper function to try allocating contiguous memory with fallback sizes
+static PVOID AllocateContiguousWithFallback(SIZE_T requestedSize,
+                                            SIZE_T *actualSize,
+                                            PHYSICAL_ADDRESS highestAcceptable)
+{
+    // Try block sizes in order: 1MB -> 64KB -> 4KB
+    static const SIZE_T blockSizes[] = {SG_BLOCK_SIZE_1MB, SG_BLOCK_SIZE_64KB, SG_BLOCK_SIZE_4KB};
+
+    for (int i = 0; i < ARRAYSIZE(blockSizes); i++)
+    {
+        SIZE_T trySize = min(requestedSize, blockSizes[i]);
+        PVOID ptr = MmAllocateContiguousMemory(trySize, highestAcceptable);
+        if (ptr)
+        {
+            *actualSize = trySize;
+            return ptr;
+        }
+        DbgPrint(TRACE_LEVEL_WARNING,
+                 ("AllocateContiguousWithFallback: failed size=%llu, trying smaller\n", (ULONGLONG)trySize));
+    }
+
+    *actualSize = 0;
+    return NULL;
+}
+
 BOOLEAN VioGpuMemSegment::Init(_In_ UINT size, _In_opt_ PPHYSICAL_ADDRESS pPAddr)
 {
     PAGED_CODE();
@@ -1013,74 +1037,84 @@ BOOLEAN VioGpuMemSegment::Init(_In_ UINT size, _In_opt_ PPHYSICAL_ADDRESS pPAddr
 
     if ((pPAddr == NULL) || pPAddr->QuadPart == 0LL)
     {
-        // Multi-block allocation: allocate multiple 1MB contiguous blocks
-        m_nBlocks = (size + SG_BLOCK_SIZE - 1) / SG_BLOCK_SIZE;
-        UINT sglsize = sizeof(SCATTER_GATHER_LIST) + (sizeof(SCATTER_GATHER_ELEMENT) * m_nBlocks);
+        // Mark as system memory early so Close() can clean up on failure
+        m_bSystemMemory = TRUE;
 
-        // Allocate block pointer array
-        m_pBlocks = reinterpret_cast<PVOID *>(new (NonPagedPoolNx) BYTE[m_nBlocks * sizeof(PVOID)]);
+        // Multi-block allocation with fallback: 1MB -> 64KB -> 4KB
+        // Worst case: all 4KB blocks = pages blocks
+        UINT maxBlocks = pages;
+
+        // Allocate block pointer and size arrays (worst case size)
+        m_pBlocks = reinterpret_cast<PVOID *>(new (NonPagedPoolNx) BYTE[maxBlocks * sizeof(PVOID)]);
         if (!m_pBlocks)
         {
             DbgPrint(TRACE_LEVEL_FATAL, ("%s insufficient resources to allocate block array\n", __FUNCTION__));
+            Close();
             return FALSE;
         }
-        RtlZeroMemory(m_pBlocks, m_nBlocks * sizeof(PVOID));
+        RtlZeroMemory(m_pBlocks, maxBlocks * sizeof(PVOID));
 
-        // Allocate each 1MB block
+        m_pBlockSizes = reinterpret_cast<SIZE_T *>(new (NonPagedPoolNx) BYTE[maxBlocks * sizeof(SIZE_T)]);
+        if (!m_pBlockSizes)
+        {
+            DbgPrint(TRACE_LEVEL_FATAL, ("%s insufficient resources to allocate block size array\n", __FUNCTION__));
+            Close();
+            return FALSE;
+        }
+        RtlZeroMemory(m_pBlockSizes, maxBlocks * sizeof(SIZE_T));
+
+        // Allocate blocks with fallback
         PHYSICAL_ADDRESS highestAcceptable;
         highestAcceptable.QuadPart = 0xFFFFFFFFFF;
         SIZE_T remainingSize = size;
+        m_nBlocks = 0;
 
-        for (UINT i = 0; i < m_nBlocks; i++)
+        while (remainingSize > 0 && m_nBlocks < maxBlocks)
         {
-            SIZE_T blockSize = min(remainingSize, (SIZE_T)SG_BLOCK_SIZE);
-            m_pBlocks[i] = MmAllocateContiguousMemory(blockSize, highestAcceptable);
-            if (!m_pBlocks[i])
+            SIZE_T actualSize = 0;
+            m_pBlocks[m_nBlocks] = AllocateContiguousWithFallback(remainingSize, &actualSize, highestAcceptable);
+
+            if (!m_pBlocks[m_nBlocks])
             {
                 DbgPrint(TRACE_LEVEL_FATAL,
-                         ("%s failed to allocate block %u of %u (size=%llu)\n",
+                         ("%s failed to allocate block %u (remaining=%llu)\n",
                           __FUNCTION__,
-                          i,
                           m_nBlocks,
-                          (ULONGLONG)blockSize));
-                // Cleanup already allocated blocks
-                for (UINT j = 0; j < i; j++)
-                {
-                    MmFreeContiguousMemory(m_pBlocks[j]);
-                }
-                delete[] reinterpret_cast<PBYTE>(m_pBlocks);
-                m_pBlocks = NULL;
-                m_nBlocks = 0;
+                          (ULONGLONG)remainingSize));
+                Close();
                 return FALSE;
             }
-            RtlZeroMemory(m_pBlocks[i], blockSize);
-            remainingSize -= blockSize;
+
+            RtlZeroMemory(m_pBlocks[m_nBlocks], actualSize);
+            m_pBlockSizes[m_nBlocks] = actualSize;
+            remainingSize -= actualSize;
+            m_nBlocks++;
         }
+
+        DbgPrint(TRACE_LEVEL_INFORMATION, ("%s allocated %u blocks for %u bytes\n", __FUNCTION__, m_nBlocks, size));
 
         // Allocate MDL for all pages
         m_pMdl = IoAllocateMdl(NULL, size, FALSE, FALSE, NULL);
         if (!m_pMdl)
         {
             DbgPrint(TRACE_LEVEL_FATAL, ("%s insufficient resources to allocate MDL\n", __FUNCTION__));
-            goto cleanup_blocks;
+            Close();
+            return FALSE;
         }
 
         // Build MDL PFN array from all blocks
         PPFN_NUMBER pfnArray = MmGetMdlPfnArray(m_pMdl);
         UINT pfnIndex = 0;
-        remainingSize = size;
 
-        for (UINT i = 0; i < m_nBlocks && remainingSize > 0; i++)
+        for (UINT i = 0; i < m_nBlocks; i++)
         {
-            SIZE_T blockSize = min(remainingSize, (SIZE_T)SG_BLOCK_SIZE);
-            UINT blockPages = (UINT)(blockSize / PAGE_SIZE);
+            UINT blockPages = (UINT)(m_pBlockSizes[i] / PAGE_SIZE);
             PHYSICAL_ADDRESS blockPA = MmGetPhysicalAddress(m_pBlocks[i]);
 
             for (UINT j = 0; j < blockPages; j++)
             {
                 pfnArray[pfnIndex++] = (PFN_NUMBER)((blockPA.QuadPart / PAGE_SIZE) + j);
             }
-            remainingSize -= blockSize;
         }
 
         // Map all pages to a contiguous virtual address
@@ -1089,35 +1123,27 @@ BOOLEAN VioGpuMemSegment::Init(_In_ UINT size, _In_opt_ PPHYSICAL_ADDRESS pPAddr
         if (!m_pVAddr)
         {
             DbgPrint(TRACE_LEVEL_FATAL, ("%s failed to map pages\n", __FUNCTION__));
-            IoFreeMdl(m_pMdl);
-            m_pMdl = NULL;
-            goto cleanup_blocks;
+            Close();
+            return FALSE;
         }
 
-        m_bSystemMemory = TRUE;
-
         // Allocate and build SG list - one element per block
+        UINT sglsize = sizeof(SCATTER_GATHER_LIST) + (sizeof(SCATTER_GATHER_ELEMENT) * m_nBlocks);
         m_pSGList = reinterpret_cast<PSCATTER_GATHER_LIST>(new (NonPagedPoolNx) BYTE[sglsize]);
         if (!m_pSGList)
         {
             DbgPrint(TRACE_LEVEL_FATAL, ("%s insufficient resources to allocate SG list\n", __FUNCTION__));
-            MmUnmapLockedPages(m_pVAddr, m_pMdl);
-            m_pVAddr = NULL;
-            IoFreeMdl(m_pMdl);
-            m_pMdl = NULL;
-            goto cleanup_blocks;
+            Close();
+            return FALSE;
         }
         RtlZeroMemory(m_pSGList, sglsize);
         m_pSGList->NumberOfElements = 0;
 
-        remainingSize = size;
-        for (UINT i = 0; i < m_nBlocks && remainingSize > 0; i++)
+        for (UINT i = 0; i < m_nBlocks; i++)
         {
-            SIZE_T blockSize = min(remainingSize, (SIZE_T)SG_BLOCK_SIZE);
             m_pSGList->Elements[i].Address = MmGetPhysicalAddress(m_pBlocks[i]);
-            m_pSGList->Elements[i].Length = (ULONG)blockSize;
+            m_pSGList->Elements[i].Length = (ULONG)m_pBlockSizes[i];
             m_pSGList->NumberOfElements++;
-            remainingSize -= blockSize;
         }
     }
     else
@@ -1170,19 +1196,6 @@ BOOLEAN VioGpuMemSegment::Init(_In_ UINT size, _In_opt_ PPHYSICAL_ADDRESS pPAddr
     DbgPrint(TRACE_LEVEL_VERBOSE,
              ("<--- %s nBlocks=%u sgElements=%u\n", __FUNCTION__, m_nBlocks, m_pSGList->NumberOfElements));
     return TRUE;
-
-cleanup_blocks:
-    for (UINT i = 0; i < m_nBlocks; i++)
-    {
-        if (m_pBlocks[i])
-        {
-            MmFreeContiguousMemory(m_pBlocks[i]);
-        }
-    }
-    delete[] reinterpret_cast<PBYTE>(m_pBlocks);
-    m_pBlocks = NULL;
-    m_nBlocks = 0;
-    return FALSE;
 }
 
 PHYSICAL_ADDRESS VioGpuMemSegment::GetPhysicalAddress(void)
@@ -1238,6 +1251,11 @@ void VioGpuMemSegment::Close(void)
             delete[] reinterpret_cast<PBYTE>(m_pBlocks);
             m_pBlocks = NULL;
         }
+        if (m_pBlockSizes)
+        {
+            delete[] reinterpret_cast<PBYTE>(m_pBlockSizes);
+            m_pBlockSizes = NULL;
+        }
         m_nBlocks = 0;
     }
     else if (m_bMapped)
@@ -1269,6 +1287,7 @@ void VioGpuMemSegment::TakeFrom(VioGpuMemSegment &other)
     m_pMdl = other.m_pMdl;
     m_Size = other.m_Size;
     m_pBlocks = other.m_pBlocks;
+    m_pBlockSizes = other.m_pBlockSizes;
     m_nBlocks = other.m_nBlocks;
 
     // Clear other to prevent double-free on destruction
@@ -1279,6 +1298,7 @@ void VioGpuMemSegment::TakeFrom(VioGpuMemSegment &other)
     other.m_bSystemMemory = FALSE;
     other.m_bMapped = FALSE;
     other.m_pBlocks = NULL;
+    other.m_pBlockSizes = NULL;
     other.m_nBlocks = 0;
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));

@@ -2543,7 +2543,8 @@ BOOLEAN VioGpuAdapter::AllocateFrameSegment(_In_ UINT req_size)
         if (barSegment.Init(fb_size, &fb_pa))
         {
             m_FrameSegment.TakeFrom(barSegment);
-            DbgPrint(TRACE_LEVEL_INFORMATION, ("<--- %s: allocated %u bytes using BAR memory\n", __FUNCTION__, fb_size));
+            DbgPrint(TRACE_LEVEL_INFORMATION,
+                     ("<--- %s: allocated %u bytes using BAR memory\n", __FUNCTION__, fb_size));
             return TRUE;
         }
         DbgPrint(TRACE_LEVEL_WARNING, ("%s: BAR memory init failed, falling back to system memory\n", __FUNCTION__));
