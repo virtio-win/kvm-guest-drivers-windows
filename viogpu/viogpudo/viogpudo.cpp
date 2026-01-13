@@ -3812,6 +3812,13 @@ BOOLEAN VioGpuAdapter::CreateFrameBufferObjSync(PVIDEO_MODE_INFORMATION pModeInf
     size = pModeInfo->ScreenStride * pModeInfo->VisScreenHeight;
     format = ColorFormat(pCurrentMode->DispInfo.ColorFormat);
     resid = m_Idr.GetId();
+
+    // NOTE: QEMU virtio-gpu has a host memory limit (max_hostmem, default 256MB)
+    // to prevent guests from consuming unlimited host memory.
+    // CreateResourceSync may fail with VIRTIO_GPU_RESP_ERR_OUT_OF_MEMORY if the
+    // requested resolution exceeds this limit on the host side.
+    // Workaround: -device virtio-gpu-pci,max_hostmem=512M (or larger)
+    // See: https://patchwork.kernel.org/patch/9451903/
     m_CtrlQueue.CreateResourceSync(resid, format, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight);
     obj = new (NonPagedPoolNx) VioGpuObj();
     if (!obj->Init(size, &m_FrameSegment))
