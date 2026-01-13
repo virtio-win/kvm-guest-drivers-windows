@@ -91,10 +91,21 @@ class VioGpuBuf
     UINT m_uCountMin = 0;
 };
 
-// Block size for contiguous memory allocation (1MB)
-// Each block is allocated separately to avoid large contiguous allocation failures
-#define SG_BLOCK_SIZE (1024 * 1024)
-#define SG_PAGES_PER_BLOCK (SG_BLOCK_SIZE / PAGE_SIZE)
+// Block sizes for contiguous memory allocation with fallback
+// Try 1MB first, fallback to 64KB, then to PAGE_SIZE
+//
+// Why these specific sizes:
+// - 1MB: Windows Segment Heap uses 1MB virtual memory segments internally.
+//        Also matches the default heap reserve size for .exe files.
+//        Reference: Black Hat 2016 "Windows 10 Segment Heap Internals"
+// - 64KB: Windows user-mode virtual memory allocation granularity.
+//         VirtualAlloc aligns to 64KB boundaries on all Windows platforms.
+//         Reference: Raymond Chen's blog on allocation granularity
+// - 4KB: Standard page size, the minimum allocation unit.
+//
+constexpr auto SG_BLOCK_SIZE_1MB = (1024 * 1024);
+constexpr auto SG_BLOCK_SIZE_64KB = (64 * 1024);
+#define SG_BLOCK_SIZE_4KB  PAGE_SIZE
 
 class VioGpuMemSegment
 {
@@ -120,18 +131,19 @@ class VioGpuMemSegment
         return m_bSystemMemory;
     }
     void Close(void);
-    void TakeFrom(VioGpuMemSegment& other);
+    void TakeFrom(VioGpuMemSegment &other);
 
   private:
     BOOLEAN m_bSystemMemory;
     BOOLEAN m_bMapped;
     PSCATTER_GATHER_LIST m_pSGList;
-    PVOID m_pVAddr;           // Unified virtual address for all blocks
-    PMDL m_pMdl;              // MDL for the unified virtual address
+    PVOID m_pVAddr;
+    PMDL m_pMdl;
     SIZE_T m_Size;
     // Multi-block allocation support
-    PVOID* m_pBlocks;         // Array of block virtual addresses
-    UINT m_nBlocks;           // Number of allocated blocks
+    PVOID *m_pBlocks;      // Array of block virtual addresses
+    SIZE_T *m_pBlockSizes; // Array of block sizes (may vary due to fallback)
+    UINT m_nBlocks;        // Number of allocated blocks
 };
 
 class VioGpuObj
