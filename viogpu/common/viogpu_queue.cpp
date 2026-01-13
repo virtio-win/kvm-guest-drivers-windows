@@ -416,11 +416,19 @@ void CtrlQueue::TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT hei
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
-void CtrlQueue::AttachBacking(UINT res_id, PGPU_MEM_ENTRY ents, UINT nents)
+BOOLEAN CtrlQueue::AttachBacking(UINT res_id, PGPU_MEM_ENTRY ents, UINT nents)
 {
     PAGED_CODE();
 
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s res_id=%u nents=%u\n", __FUNCTION__, res_id, nents));
+
+    // QEMU virtio_gpu_create_mapping_iov() rejects nr_entries > 16384
+    if (nents > VIRTIO_GPU_MAX_BACKING_ENTRIES)
+    {
+        DbgPrint(TRACE_LEVEL_FATAL,
+                 ("<--- %s QEMU entry limit exceeded: %u > %u\n", __FUNCTION__, nents, VIRTIO_GPU_MAX_BACKING_ENTRIES));
+        return FALSE;
+    }
 
     PGPU_RES_ATTACH_BACKING cmd;
     PGPU_VBUFFER vbuf;
@@ -438,6 +446,7 @@ void CtrlQueue::AttachBacking(UINT res_id, PGPU_MEM_ENTRY ents, UINT nents)
     QueueBuffer(vbuf);
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+    return TRUE;
 }
 
 PAGED_CODE_SEG_END

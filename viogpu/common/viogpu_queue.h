@@ -103,9 +103,13 @@ class VioGpuBuf
 //         Reference: Raymond Chen's blog on allocation granularity
 // - 4KB: Standard page size, the minimum allocation unit.
 //
-constexpr auto SG_BLOCK_SIZE_1MB = (1024 * 1024);
-constexpr auto SG_BLOCK_SIZE_64KB = (64 * 1024);
-#define SG_BLOCK_SIZE_4KB  PAGE_SIZE
+#define SG_BLOCK_SIZE_1MB              (1024 * 1024)
+#define SG_BLOCK_SIZE_64KB             (64 * 1024)
+#define SG_BLOCK_SIZE_4KB              PAGE_SIZE
+
+// QEMU hard limit for nr_entries in virtio_gpu_create_mapping_iov()
+// Reference: https://github.com/qemu/qemu/blob/master/hw/display/virtio-gpu.c
+#define VIRTIO_GPU_MAX_BACKING_ENTRIES 16384
 
 class VioGpuMemSegment
 {
@@ -271,7 +275,7 @@ class CtrlQueue : public VioGpuQueue
     void SetScanout(UINT scan_id, UINT res_id, UINT width, UINT height, UINT x, UINT y);
     void ResFlush(UINT res_id, UINT width, UINT height, UINT x, UINT y);
     void TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT height, UINT x, UINT y);
-    void AttachBacking(UINT res_id, PGPU_MEM_ENTRY ents, UINT nents);
+    BOOLEAN AttachBacking(UINT res_id, PGPU_MEM_ENTRY ents, UINT nents);
     void DetachBacking(UINT res_id);
     void DetachBackingSync(UINT res_id);
 
