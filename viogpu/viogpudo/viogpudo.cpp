@@ -2519,53 +2519,21 @@ BOOLEAN VioGpuAdapter::AllocateFrameSegment(_In_ UINT req_size)
     PAGED_CODE();
     DbgPrint(TRACE_LEVEL_INFORMATION, ("---> %s: required size = %u\n", __FUNCTION__, req_size));
 
-    PHYSICAL_ADDRESS fb_pa = GetFrameBufferPA();
-    UINT bar_size = (UINT)m_PciResources.GetPciBar(0)->GetSize();
-    BOOLEAN barSufficient = fb_pa.QuadPart != 0 && bar_size >= req_size;
+    CPciBar *pBar = m_PciResources.GetPciBar(0);
 
-    // Priority 1: Try BAR memory if sufficient (best performance, single SGL entry)
-    // Only allocate req_size, not the entire BAR (other things may use BAR space)
-    if (barSufficient)
+    // Merge handles both initial allocation and resize, and BAR/system memory decision
+    if (m_FrameSegment.Merge(req_size, pBar))
     {
-        VioGpuMemSegment newSegment;
-        if (newSegment.Init(req_size, &fb_pa))
-        {
-            m_FrameSegment.TakeFrom(newSegment);
-            m_pVioGpuDod->SetUsePhysicalMemory(TRUE);
-            DbgPrint(TRACE_LEVEL_INFORMATION,
-                     ("<--- %s: allocated %u bytes using BAR memory\n", __FUNCTION__, req_size));
-            return TRUE;
-        }
-        DbgPrint(TRACE_LEVEL_WARNING, ("%s: BAR memory init failed, trying system memory\n", __FUNCTION__));
-    }
-
-    // Priority 2: If using system memory, try Merge (preserves allocated blocks)
-    if (m_FrameSegment.GetSize() > 0 && m_FrameSegment.IsSystemMemory())
-    {
-        if (m_FrameSegment.Merge(req_size))
-        {
-            DbgPrint(TRACE_LEVEL_INFORMATION,
-                     ("<--- %s: merged to %Iu bytes\n", __FUNCTION__, m_FrameSegment.GetSize()));
-            return TRUE;
-        }
-        DbgPrint(TRACE_LEVEL_WARNING, ("%s: Merge failed, trying fresh allocation\n", __FUNCTION__));
-    }
-
-    // Priority 3: Allocate fresh system memory (with fallback block sizes)
-    m_pVioGpuDod->SetUsePhysicalMemory(FALSE);
-    fb_pa.QuadPart = 0LL;
-
-    VioGpuMemSegment newSegment;
-    if (newSegment.Init(req_size, &fb_pa))
-    {
-        m_FrameSegment.TakeFrom(newSegment);
+        m_pVioGpuDod->SetUsePhysicalMemory(m_FrameSegment.IsSystemMemory() == FALSE);
         DbgPrint(TRACE_LEVEL_INFORMATION,
-                 ("<--- %s: allocated %u bytes using system memory\n", __FUNCTION__, req_size));
+                 ("<--- %s: %Iu bytes (system=%d)\n",
+                  __FUNCTION__,
+                  m_FrameSegment.GetSize(),
+                  m_FrameSegment.IsSystemMemory()));
         return TRUE;
     }
+    DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s: failed to allocate %u bytes\n", __FUNCTION__, req_size));
 
-    // Allocation failed, old segment is preserved
-    DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s: failed to allocate %u bytes, old segment preserved\n", __FUNCTION__, req_size));
     return FALSE;
 }
 
@@ -2657,7 +2625,7 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
     }
 
     UINT req_size = pDispInfo->Pitch * pDispInfo->Height;
-    req_size = max(req_size, MIN_FRAME_SEGMENT_SIZE);
+    req_size = max(req_size, 0x1000000);
 
     UINT max_res_size = MIN_WIDTH_SIZE * MIN_HEIGHT_SIZE;
     for (UINT idx = 0; idx < m_ModeCount; idx++)

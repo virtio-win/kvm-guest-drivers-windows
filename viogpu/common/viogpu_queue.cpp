@@ -1031,7 +1031,7 @@ static PVOID AllocateContiguousWithFallback(SIZE_T requestedSize,
     return NULL;
 }
 
-BOOLEAN VioGpuMemSegment::Init(_In_ UINT size, _In_opt_ PPHYSICAL_ADDRESS pPAddr)
+BOOLEAN VioGpuMemSegment::Init(_In_ UINT size, _In_opt_ CPciBar *pBar)
 {
     PAGED_CODE();
 
@@ -1041,72 +1041,8 @@ BOOLEAN VioGpuMemSegment::Init(_In_ UINT size, _In_opt_ PPHYSICAL_ADDRESS pPAddr
     UINT pages = BYTES_TO_PAGES(size);
     size = pages * PAGE_SIZE;
 
-    if ((pPAddr == NULL) || pPAddr->QuadPart == 0LL)
-    {
-        // System memory path - reuse Merge helper functions
-        m_bSystemMemory = TRUE;
-
-        if (!MergeExpand(size))
-        {
-            DbgPrint(TRACE_LEVEL_FATAL, ("%s MergeExpand failed\n", __FUNCTION__));
-            Close();
-            return FALSE;
-        }
-
-        if (!RebuildMapping())
-        {
-            DbgPrint(TRACE_LEVEL_FATAL, ("%s RebuildMapping failed\n", __FUNCTION__));
-            Close();
-            return FALSE;
-        }
-
-        if (!RebuildSGList())
-        {
-            DbgPrint(TRACE_LEVEL_FATAL, ("%s RebuildSGList failed\n", __FUNCTION__));
-            Close();
-            return FALSE;
-        }
-
-        DbgPrint(TRACE_LEVEL_INFORMATION, ("%s allocated %u blocks for %u bytes\n", __FUNCTION__, m_nBlocks, size));
-    }
-    else
-    {
-        // BAR memory path - physically contiguous, use single SGL entry
-        NTSTATUS Status = MapFrameBuffer(*pPAddr, size, &m_pVAddr);
-        if (!NT_SUCCESS(Status))
-        {
-            DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s MapFrameBuffer failed with Status: 0x%X\n", __FUNCTION__, Status));
-            return FALSE;
-        }
-        m_bMapped = TRUE;
-
-        m_pMdl = IoAllocateMdl(m_pVAddr, size, FALSE, FALSE, NULL);
-        if (!m_pMdl)
-        {
-            DbgPrint(TRACE_LEVEL_FATAL, ("%s insufficient resources to allocate MDLs\n", __FUNCTION__));
-            return FALSE;
-        }
-
-        // BAR0 is already physically contiguous - only need 1 SGL entry
-        UINT sglsize = sizeof(SCATTER_GATHER_LIST) + sizeof(SCATTER_GATHER_ELEMENT);
-        m_pSGList = reinterpret_cast<PSCATTER_GATHER_LIST>(new (NonPagedPoolNx) BYTE[sglsize]);
-        if (!m_pSGList)
-        {
-            IoFreeMdl(m_pMdl);
-            m_pMdl = NULL;
-            return FALSE;
-        }
-        RtlZeroMemory(m_pSGList, sglsize);
-
-        m_pSGList->NumberOfElements = 1;
-        m_pSGList->Elements[0].Address = *pPAddr;
-        m_pSGList->Elements[0].Length = size;
-    }
-
-    m_Size = size;
-    DbgPrint(TRACE_LEVEL_VERBOSE,
-             ("<--- %s nBlocks=%u sgElements=%u\n", __FUNCTION__, m_nBlocks, m_pSGList->NumberOfElements));
-    return TRUE;
+    // Delegate to Merge which handles BAR vs system memory decision
+    return Merge(size, pBar);
 }
 
 PHYSICAL_ADDRESS VioGpuMemSegment::GetPhysicalAddress(void)
@@ -1179,6 +1115,123 @@ void VioGpuMemSegment::Close(void)
     m_pSGList = NULL;
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+}
+
+void VioGpuMemSegment::CloseBar()
+{
+    PAGED_CODE();
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
+
+    if (m_pMdl)
+    {
+        IoFreeMdl(m_pMdl);
+        m_pMdl = NULL;
+    }
+
+    if (m_bMapped)
+    {
+        UnmapFrameBuffer(m_pVAddr, (ULONG)m_Size);
+        m_bMapped = FALSE;
+    }
+    m_pVAddr = NULL;
+
+    delete[] reinterpret_cast<PBYTE>(m_pSGList);
+    m_pSGList = NULL;
+
+    m_Size = 0;
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+}
+
+void VioGpuMemSegment::CloseSystemMemory()
+{
+    PAGED_CODE();
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
+
+    if (m_pVAddr && m_pMdl)
+    {
+        MmUnmapLockedPages(m_pVAddr, m_pMdl);
+    }
+    m_pVAddr = NULL;
+
+    if (m_pMdl)
+    {
+        IoFreeMdl(m_pMdl);
+        m_pMdl = NULL;
+    }
+
+    if (m_pBlocks)
+    {
+        for (UINT i = 0; i < m_nBlocks; i++)
+        {
+            if (m_pBlocks[i])
+            {
+                MmFreeContiguousMemory(m_pBlocks[i]);
+                m_pBlocks[i] = NULL;
+            }
+        }
+        delete[] reinterpret_cast<PBYTE>(m_pBlocks);
+        m_pBlocks = NULL;
+    }
+
+    if (m_pBlockSizes)
+    {
+        delete[] reinterpret_cast<PBYTE>(m_pBlockSizes);
+        m_pBlockSizes = NULL;
+    }
+
+    delete[] reinterpret_cast<PBYTE>(m_pSGList);
+    m_pSGList = NULL;
+
+    m_nBlocks = 0;
+    m_Size = 0;
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+}
+
+BOOLEAN VioGpuMemSegment::AllocateBar(PHYSICAL_ADDRESS pAddr, SIZE_T size)
+{
+    PAGED_CODE();
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s size=%Iu\n", __FUNCTION__, size));
+
+    NTSTATUS Status = MapFrameBuffer(pAddr, (ULONG)size, &m_pVAddr);
+    if (!NT_SUCCESS(Status))
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("%s MapFrameBuffer failed with Status: 0x%X\n", __FUNCTION__, Status));
+        return FALSE;
+    }
+    m_bMapped = TRUE;
+    m_bSystemMemory = FALSE;
+
+    m_pMdl = IoAllocateMdl(m_pVAddr, (ULONG)size, FALSE, FALSE, NULL);
+    if (!m_pMdl)
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("%s insufficient resources to allocate MDL\n", __FUNCTION__));
+        UnmapFrameBuffer(m_pVAddr, (ULONG)size);
+        m_pVAddr = NULL;
+        m_bMapped = FALSE;
+        return FALSE;
+    }
+
+    UINT sglsize = sizeof(SCATTER_GATHER_LIST) + sizeof(SCATTER_GATHER_ELEMENT);
+    m_pSGList = reinterpret_cast<PSCATTER_GATHER_LIST>(new (NonPagedPoolNx) BYTE[sglsize]);
+    if (!m_pSGList)
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("%s insufficient resources to allocate SGL\n", __FUNCTION__));
+        IoFreeMdl(m_pMdl);
+        m_pMdl = NULL;
+        UnmapFrameBuffer(m_pVAddr, (ULONG)size);
+        m_pVAddr = NULL;
+        m_bMapped = FALSE;
+        return FALSE;
+    }
+    RtlZeroMemory(m_pSGList, sglsize);
+
+    m_pSGList->NumberOfElements = 1;
+    m_pSGList->Elements[0].Address = pAddr;
+    m_pSGList->Elements[0].Length = (ULONG)size;
+    m_Size = size;
+
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s success\n", __FUNCTION__));
+    return TRUE;
 }
 
 BOOLEAN VioGpuMemSegment::MergeExpand(SIZE_T targetSize)
@@ -1367,31 +1420,104 @@ BOOLEAN VioGpuMemSegment::RebuildSGList()
     return TRUE;
 }
 
-BOOLEAN VioGpuMemSegment::Merge(SIZE_T targetSize)
+BOOLEAN VioGpuMemSegment::Merge(SIZE_T targetSize, CPciBar *pBar)
 {
     PAGED_CODE();
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s current=%Iu target=%Iu\n", __FUNCTION__, m_Size, targetSize));
 
-    // Only system memory segments can be merged
-    if (!m_bSystemMemory)
+    // Align to page size
+    SIZE_T pages = BYTES_TO_PAGES(targetSize);
+    targetSize = pages * PAGE_SIZE;
+
+    // Get BAR info from CPciBar pointer
+    PHYSICAL_ADDRESS barAddr = {0};
+    SIZE_T barSize = 0;
+    if (pBar)
     {
-        DbgPrint(TRACE_LEVEL_WARNING, ("%s: Cannot merge non-system memory segment\n", __FUNCTION__));
-        return FALSE;
+        barAddr = pBar->GetPA();
+        barSize = pBar->GetSize();
     }
 
-    // Align to page size and enforce minimum
-    UINT pages = BYTES_TO_PAGES(targetSize);
-    targetSize = pages * PAGE_SIZE;
-    targetSize = max(targetSize, MIN_FRAME_SEGMENT_SIZE);
+    bool barAvailable = (barAddr.QuadPart != 0 && barSize > 0);
+    bool shouldUseBar = barAvailable && (targetSize <= barSize);
 
-    // Same size, nothing to do
-    if (targetSize == m_Size)
+    DbgPrint(TRACE_LEVEL_INFORMATION,
+             ("%s: barAvailable=%d shouldUseBar=%d targetSize=%Iu barSize=%Iu\n",
+              __FUNCTION__, barAvailable, shouldUseBar, targetSize, barSize));
+
+    if (shouldUseBar)
+    {
+        // BAR path: targetSize <= barSize
+        if (!m_bSystemMemory && m_Size > 0)
+        {
+            // Currently using BAR -> release BAR, try new BAR
+            CloseBar();
+            if (AllocateBar(barAddr, targetSize))
+            {
+                DbgPrint(TRACE_LEVEL_INFORMATION, ("<--- %s: BAR->BAR success\n", __FUNCTION__));
+                return TRUE;
+            }
+            // BAR failed -> fallback to system memory
+            DbgPrint(TRACE_LEVEL_WARNING, ("%s: BAR allocation failed, falling back to system memory\n", __FUNCTION__));
+            m_bSystemMemory = TRUE;
+            if (!MergeExpand(targetSize))
+            {
+                DbgPrint(TRACE_LEVEL_ERROR, ("%s: system memory fallback failed\n", __FUNCTION__));
+                return FALSE;
+            }
+            if (!RebuildMapping() || !RebuildSGList())
+            {
+                return FALSE;
+            }
+            DbgPrint(TRACE_LEVEL_INFORMATION, ("<--- %s: BAR->System fallback success\n", __FUNCTION__));
+            return TRUE;
+        }
+        else
+        {
+            // Currently using system memory (or empty) -> try BAR
+            if (AllocateBar(barAddr, targetSize))
+            {
+                // BAR success -> release system memory if any
+                if (m_bSystemMemory && m_nBlocks > 0)
+                {
+                    // Free old system memory blocks (AllocateBar already set up new resources)
+                    for (UINT i = 0; i < m_nBlocks; i++)
+                    {
+                        if (m_pBlocks[i])
+                        {
+                            MmFreeContiguousMemory(m_pBlocks[i]);
+                        }
+                    }
+                    delete[] reinterpret_cast<PBYTE>(m_pBlocks);
+                    delete[] reinterpret_cast<PBYTE>(m_pBlockSizes);
+                    m_pBlocks = NULL;
+                    m_pBlockSizes = NULL;
+                    m_nBlocks = 0;
+                }
+                DbgPrint(TRACE_LEVEL_INFORMATION, ("<--- %s: System->BAR success\n", __FUNCTION__));
+                return TRUE;
+            }
+            // BAR failed -> expand/shrink system memory
+            DbgPrint(TRACE_LEVEL_WARNING, ("%s: BAR allocation failed, using system memory\n", __FUNCTION__));
+        }
+    }
+
+    // System memory path
+    // If currently using BAR, release it first
+    if (!m_bSystemMemory && m_Size > 0)
+    {
+        CloseBar();
+    }
+    m_bSystemMemory = TRUE;
+
+    // Same size in system memory mode, nothing to do
+    if (targetSize == m_Size && m_nBlocks > 0)
     {
         return TRUE;
     }
 
-    // Step 1: Unmap current virtual address
-    if (m_pVAddr && m_pMdl)
+    // Unmap current virtual address for system memory resize
+    if (m_pVAddr && m_pMdl && m_bSystemMemory)
     {
         MmUnmapLockedPages(m_pVAddr, m_pMdl);
         m_pVAddr = NULL;
@@ -1403,32 +1529,30 @@ BOOLEAN VioGpuMemSegment::Merge(SIZE_T targetSize)
     }
 
     BOOLEAN success = FALSE;
-
     if (targetSize > m_Size)
     {
-        // Expand: append new blocks at the end
         success = MergeExpand(targetSize);
+    }
+    else if (targetSize < m_Size)
+    {
+        success = MergeShrink(targetSize);
     }
     else
     {
-        // Shrink: release blocks from the end
-        success = MergeShrink(targetSize);
+        success = TRUE; // Size unchanged, just need to rebuild mapping
     }
 
     if (!success)
     {
-        // Try to restore mapping on failure
         RebuildMapping();
         return FALSE;
     }
 
-    // Step 2: Rebuild MDL and virtual address mapping
     if (!RebuildMapping())
     {
         return FALSE;
     }
 
-    // Step 3: Rebuild scatter-gather list
     if (!RebuildSGList())
     {
         return FALSE;
