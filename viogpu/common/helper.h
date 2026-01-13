@@ -76,6 +76,7 @@ extern "C"
 
 #define MIN_WIDTH_SIZE                     640
 #define MIN_HEIGHT_SIZE                    480
+#define MIN_FRAME_SEGMENT_SIZE             0x1000000
 
 #define NOM_WIDTH_SIZE                     1024
 #define NOM_HEIGHT_SIZE                    768
