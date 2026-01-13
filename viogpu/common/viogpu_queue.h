@@ -91,21 +91,26 @@ class VioGpuBuf
     UINT m_uCountMin = 0;
 };
 
-// Block sizes for contiguous memory allocation with fallback
-// Try 1MB first, fallback to 64KB, then to PAGE_SIZE
+// Contiguous memory allocation fallback chain: 1MB -> 64KB -> 32KB -> 16KB -> 4KB
 //
 // Why these specific sizes:
-// - 1MB: Windows Segment Heap uses 1MB virtual memory segments internally.
-//        Also matches the default heap reserve size for .exe files.
-//        Reference: Black Hat 2016 "Windows 10 Segment Heap Internals"
-// - 64KB: Windows user-mode virtual memory allocation granularity.
-//         VirtualAlloc aligns to 64KB boundaries on all Windows platforms.
-//         Reference: Raymond Chen's blog on allocation granularity
-// - 4KB: Standard page size, the minimum allocation unit.
+// - 1MB:  Segment Heap internal segment size; optimal for large allocations
+// - 64KB: VirtualAlloc allocation granularity on all Windows platforms
+// - 32KB: Intermediate fallback for moderate fragmentation
+// - 16KB: Final fallback with safe SGL margin (8K res: 8192 entries, 50% headroom)
+// - 4KB:  Page size, minimum allocation unit
 //
-#define SG_BLOCK_SIZE_1MB              (1024 * 1024)
-#define SG_BLOCK_SIZE_64KB             (64 * 1024)
-#define SG_BLOCK_SIZE_4KB              PAGE_SIZE
+static const SIZE_T g_ContiguousBlockSizes[] = {
+    1024 * 1024,  // 1MB
+    64 * 1024,    // 64KB
+    32 * 1024,    // 32KB
+    16 * 1024,    // 16KB
+    // 8KB is SKIPPED: Windows Buddy System merges adjacent free blocks, so if 16KB
+    // fails, isolated 8KB fragments are unlikely. Also 8KB leaves only 0.78% SGL
+    // margin (16256/16384 entries) - too risky for production use.
+    PAGE_SIZE     // 4KB
+};
+#define CONTIGUOUS_BLOCK_SIZE_COUNT ARRAYSIZE(g_ContiguousBlockSizes)
 
 // QEMU hard limit for nr_entries in virtio_gpu_create_mapping_iov()
 // Reference: https://github.com/qemu/qemu/blob/master/hw/display/virtio-gpu.c

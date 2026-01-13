@@ -1014,12 +1014,9 @@ static PVOID AllocateContiguousWithFallback(SIZE_T requestedSize,
                                             SIZE_T *actualSize,
                                             PHYSICAL_ADDRESS highestAcceptable)
 {
-    // Try block sizes in order: 1MB -> 64KB -> 4KB
-    static const SIZE_T blockSizes[] = {SG_BLOCK_SIZE_1MB, SG_BLOCK_SIZE_64KB, SG_BLOCK_SIZE_4KB};
-
-    for (int i = 0; i < ARRAYSIZE(blockSizes); i++)
+    for (UINT i = 0; i < CONTIGUOUS_BLOCK_SIZE_COUNT; i++)
     {
-        SIZE_T trySize = min(requestedSize, blockSizes[i]);
+        SIZE_T trySize = min(requestedSize, g_ContiguousBlockSizes[i]);
         PVOID ptr = MmAllocateContiguousMemory(trySize, highestAcceptable);
         if (ptr)
         {
