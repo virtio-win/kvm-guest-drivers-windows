@@ -134,13 +134,13 @@ class VioGpuMemSegment
     {
         return m_pSGList;
     }
-    BOOLEAN Init(_In_ UINT size, _In_opt_ PPHYSICAL_ADDRESS pPAddr);
+    BOOLEAN Init(_In_ UINT size, _In_opt_ CPciBar *pBar = NULL);
     BOOLEAN IsSystemMemory(void)
     {
         return m_bSystemMemory;
     }
     void Close(void);
-    BOOLEAN Merge(SIZE_T targetSize);
+    BOOLEAN Merge(SIZE_T targetSize, CPciBar *pBar);
     void TakeFrom(VioGpuMemSegment &other);
 
   private:
@@ -148,6 +148,9 @@ class VioGpuMemSegment
     BOOLEAN MergeShrink(SIZE_T targetSize);
     BOOLEAN RebuildMapping();
     BOOLEAN RebuildSGList();
+    BOOLEAN AllocateBar(PHYSICAL_ADDRESS pAddr, SIZE_T size);
+    void CloseBar();
+    void CloseSystemMemory();
     BOOLEAN m_bSystemMemory;
     BOOLEAN m_bMapped;
     PSCATTER_GATHER_LIST m_pSGList;
