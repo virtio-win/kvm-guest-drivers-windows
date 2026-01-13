@@ -2220,7 +2220,7 @@ VioGpuAdapter::~VioGpuAdapter(void)
 NTSTATUS VioGpuAdapter::SetCurrentMode(ULONG Mode, CURRENT_MODE *pCurrentMode)
 {
     PAGED_CODE();
-    DbgPrint(TRACE_LEVEL_ERROR, ("---> %s - %d: Mode = %d\n", __FUNCTION__, m_Id, Mode));
+    DbgPrint(TRACE_LEVEL_INFORMATION, ("---> %s - %d: Mode = %d\n", __FUNCTION__, m_Id, Mode));
     for (ULONG idx = 0; idx < GetModeCount(); idx++)
     {
         if (Mode == m_ModeInfo[idx].ModeIndex /*m_ModeNumbers[idx]*/)
@@ -2270,8 +2270,8 @@ NTSTATUS VioGpuAdapter::SetCurrentMode(ULONG Mode, CURRENT_MODE *pCurrentMode)
                                          : CreateFrameBufferObj(&m_ModeInfo[idx], pCurrentMode);
             if (created)
             {
-                DbgPrint(TRACE_LEVEL_ERROR,
-                         ("%s device %d: setting current mode %d (%d x %d)\n",
+                DbgPrint(TRACE_LEVEL_INFORMATION,
+                         ("<--- %s device %d: setting current mode %d (%d x %d)\n",
                           __FUNCTION__,
                           m_Id,
                           Mode,
