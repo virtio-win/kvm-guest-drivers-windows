@@ -140,9 +140,14 @@ class VioGpuMemSegment
         return m_bSystemMemory;
     }
     void Close(void);
+    BOOLEAN Merge(SIZE_T targetSize);
     void TakeFrom(VioGpuMemSegment &other);
 
   private:
+    BOOLEAN MergeExpand(SIZE_T targetSize);
+    BOOLEAN MergeShrink(SIZE_T targetSize);
+    BOOLEAN RebuildMapping();
+    BOOLEAN RebuildSGList();
     BOOLEAN m_bSystemMemory;
     BOOLEAN m_bMapped;
     PSCATTER_GATHER_LIST m_pSGList;

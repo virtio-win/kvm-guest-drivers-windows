@@ -2519,53 +2519,53 @@ BOOLEAN VioGpuAdapter::AllocateFrameSegment(_In_ UINT req_size)
     PAGED_CODE();
     DbgPrint(TRACE_LEVEL_INFORMATION, ("---> %s: required size = %u\n", __FUNCTION__, req_size));
 
-    // Save state for rollback on failure
-    BOOLEAN savedUsePhysicalMemory = m_pVioGpuDod->IsUsePhysicalMemory();
-
     PHYSICAL_ADDRESS fb_pa = GetFrameBufferPA();
-    UINT fb_size = (UINT)m_PciResources.GetPciBar(0)->GetSize();
+    UINT bar_size = (UINT)m_PciResources.GetPciBar(0)->GetSize();
+    BOOLEAN barSufficient = fb_pa.QuadPart != 0 && bar_size >= req_size;
 
-    if (fb_size < req_size)
+    // Priority 1: Try BAR memory if sufficient (best performance, single SGL entry)
+    // Only allocate req_size, not the entire BAR (other things may use BAR space)
+    if (barSufficient)
     {
-        m_pVioGpuDod->SetUsePhysicalMemory(FALSE);
-    }
-    // Check if use system memory
-    if (!m_pVioGpuDod->IsUsePhysicalMemory() || fb_pa.QuadPart == 0 || fb_size < req_size)
-    {
-        fb_pa.QuadPart = 0LL;
-        fb_size = max(req_size, fb_size);
-    }
-
-    // Try to allocate framebuffer segment using BAR memory
-    if (fb_pa.QuadPart != 0LL)
-    {
-        VioGpuMemSegment barSegment;
-        if (barSegment.Init(fb_size, &fb_pa))
+        VioGpuMemSegment newSegment;
+        if (newSegment.Init(req_size, &fb_pa))
         {
-            m_FrameSegment.TakeFrom(barSegment);
+            m_FrameSegment.TakeFrom(newSegment);
+            m_pVioGpuDod->SetUsePhysicalMemory(TRUE);
             DbgPrint(TRACE_LEVEL_INFORMATION,
-                     ("<--- %s: allocated %u bytes using BAR memory\n", __FUNCTION__, fb_size));
+                     ("<--- %s: allocated %u bytes using BAR memory\n", __FUNCTION__, req_size));
             return TRUE;
         }
-        DbgPrint(TRACE_LEVEL_WARNING, ("%s: BAR memory init failed, falling back to system memory\n", __FUNCTION__));
+        DbgPrint(TRACE_LEVEL_WARNING, ("%s: BAR memory init failed, trying system memory\n", __FUNCTION__));
     }
 
-    // Try to allocate framebuffer segment using system memory
+    // Priority 2: If using system memory, try Merge (preserves allocated blocks)
+    if (m_FrameSegment.GetSize() > 0 && m_FrameSegment.IsSystemMemory())
+    {
+        if (m_FrameSegment.Merge(req_size))
+        {
+            DbgPrint(TRACE_LEVEL_INFORMATION,
+                     ("<--- %s: merged to %Iu bytes\n", __FUNCTION__, m_FrameSegment.GetSize()));
+            return TRUE;
+        }
+        DbgPrint(TRACE_LEVEL_WARNING, ("%s: Merge failed, trying fresh allocation\n", __FUNCTION__));
+    }
+
+    // Priority 3: Allocate fresh system memory (with fallback block sizes)
     m_pVioGpuDod->SetUsePhysicalMemory(FALSE);
     fb_pa.QuadPart = 0LL;
-    VioGpuMemSegment sysSegment;
 
-    if (sysSegment.Init(fb_size, &fb_pa))
+    VioGpuMemSegment newSegment;
+    if (newSegment.Init(req_size, &fb_pa))
     {
-        m_FrameSegment.TakeFrom(sysSegment);
-        DbgPrint(TRACE_LEVEL_INFORMATION, ("<--- %s: allocated %u bytes using system memory\n", __FUNCTION__, fb_size));
+        m_FrameSegment.TakeFrom(newSegment);
+        DbgPrint(TRACE_LEVEL_INFORMATION,
+                 ("<--- %s: allocated %u bytes using system memory\n", __FUNCTION__, req_size));
         return TRUE;
     }
 
-    // Rollback state on failure
-    m_pVioGpuDod->SetUsePhysicalMemory(savedUsePhysicalMemory);
-
-    DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s: failed to allocate %u bytes using system memory\n", __FUNCTION__, fb_size));
+    // Allocation failed, old segment is preserved
+    DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s: failed to allocate %u bytes, old segment preserved\n", __FUNCTION__, req_size));
     return FALSE;
 }
 
@@ -2657,7 +2657,7 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
     }
 
     UINT req_size = pDispInfo->Pitch * pDispInfo->Height;
-    req_size = max(req_size, 0x1000000);
+    req_size = max(req_size, MIN_FRAME_SEGMENT_SIZE);
 
     UINT max_res_size = MIN_WIDTH_SIZE * MIN_HEIGHT_SIZE;
     for (UINT idx = 0; idx < m_ModeCount; idx++)
