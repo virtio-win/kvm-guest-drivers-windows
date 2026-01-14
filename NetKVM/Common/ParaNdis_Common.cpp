@@ -298,6 +298,7 @@ static bool ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
             pContext->uNumberOfHandledRXPacketsInDPC = pConfiguration->NumberOfHandledRXPacketsInDPC.ulValue;
             pContext->bDoSupportPriority = pConfiguration->PrioritySupport.ulValue != 0;
             pContext->Offload.flagsValue = 0;
+            pContext->Offload.ipHeaderOffset = ETH_HEADER_SIZE;
             pContext->MinRxBufferPercent = pConfiguration->MinRxBufferPercent.ulValue;
             pContext->bRxSeparateTail = pConfiguration->RxSeparateTail.ulValue != 0;
             // TX caps: 1 - TCP, 2 - UDP, 4 - IP, 8 - TCPv6, 16 - UDPv6
