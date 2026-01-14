@@ -100,17 +100,12 @@ class VioGpuBuf
 // - 16KB: Final fallback with safe SGL margin (8K res: 8192 entries, 50% headroom)
 // - 4KB:  Page size, minimum allocation unit
 //
-static const SIZE_T g_ContiguousBlockSizes[] = {
-    1024 * 1024,  // 1MB
-    64 * 1024,    // 64KB
-    32 * 1024,    // 32KB
-    16 * 1024,    // 16KB
-    // 8KB is SKIPPED: Windows Buddy System merges adjacent free blocks, so if 16KB
-    // fails, isolated 8KB fragments are unlikely. Also 8KB leaves only 0.78% SGL
-    // margin (16256/16384 entries) - too risky for production use.
-    PAGE_SIZE     // 4KB
-};
-#define CONTIGUOUS_BLOCK_SIZE_COUNT ARRAYSIZE(g_ContiguousBlockSizes)
+// 8KB is SKIPPED: Windows Buddy System merges adjacent free blocks,
+// so if 16KB fails, isolated 8KB fragments are unlikely.
+// Also 8KB leaves only 0.78% SGL margin (16256/16384 entries) - too risky for production use.
+//
+static const SIZE_T g_ContiguousBlockSizes[] = {1024 * 1024, 64 * 1024, 32 * 1024, 16 * 1024, PAGE_SIZE};
+#define CONTIGUOUS_BLOCK_SIZE_COUNT    ARRAYSIZE(g_ContiguousBlockSizes)
 
 // QEMU hard limit for nr_entries in virtio_gpu_create_mapping_iov()
 // Reference: https://github.com/qemu/qemu/blob/master/hw/display/virtio-gpu.c
@@ -134,17 +129,17 @@ class VioGpuMemSegment
     {
         return m_pSGList;
     }
-    BOOLEAN Init(_In_ UINT size, _In_opt_ CPciBar *pBar = NULL);
+    BOOLEAN Init(_In_ UINT size, _In_opt_ CPciBar *pBar = NULL, _In_ BOOLEAN singleBlock = FALSE);
     BOOLEAN IsSystemMemory(void)
     {
         return m_bSystemMemory;
     }
     void Close(void);
-    BOOLEAN Merge(SIZE_T targetSize, CPciBar *pBar);
+    BOOLEAN Merge(SIZE_T targetSize, CPciBar *pBar, SIZE_T fixedBlockSize = 0);
     void TakeFrom(VioGpuMemSegment &other);
 
   private:
-    BOOLEAN MergeExpand(SIZE_T targetSize);
+    BOOLEAN MergeExpand(SIZE_T targetSize, SIZE_T fixedBlockSize = 0);
     BOOLEAN MergeShrink(SIZE_T targetSize);
     BOOLEAN RebuildMapping();
     BOOLEAN RebuildSGList();
