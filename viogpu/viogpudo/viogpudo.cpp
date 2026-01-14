@@ -2644,7 +2644,7 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
         return status;
     }
 
-    if (!m_CursorSegment.Init(POINTER_SIZE * POINTER_SIZE * 4, NULL))
+    if (!m_CursorSegment.Init(POINTER_SIZE * POINTER_SIZE * 4, NULL, TRUE))
     {
         DbgPrint(TRACE_LEVEL_FATAL, ("%s failed to allocate Cursor memory segment\n", __FUNCTION__));
         status = STATUS_INSUFFICIENT_RESOURCES;

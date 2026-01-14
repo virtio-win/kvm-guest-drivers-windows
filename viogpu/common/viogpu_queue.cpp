@@ -1012,11 +1012,13 @@ VioGpuMemSegment::~VioGpuMemSegment(void)
 // Helper function to try allocating contiguous memory with fallback sizes
 static PVOID AllocateContiguousWithFallback(SIZE_T requestedSize,
                                             SIZE_T *actualSize,
-                                            PHYSICAL_ADDRESS highestAcceptable)
+                                            PHYSICAL_ADDRESS highestAcceptable,
+                                            const SIZE_T *blockSizes = g_ContiguousBlockSizes,
+                                            UINT blockSizeCount = CONTIGUOUS_BLOCK_SIZE_COUNT)
 {
-    for (UINT i = 0; i < CONTIGUOUS_BLOCK_SIZE_COUNT; i++)
+    for (UINT i = 0; i < blockSizeCount; i++)
     {
-        SIZE_T trySize = min(requestedSize, g_ContiguousBlockSizes[i]);
+        SIZE_T trySize = min(requestedSize, blockSizes[i]);
         PVOID ptr = MmAllocateContiguousMemory(trySize, highestAcceptable);
         if (ptr)
         {
@@ -1031,18 +1033,19 @@ static PVOID AllocateContiguousWithFallback(SIZE_T requestedSize,
     return NULL;
 }
 
-BOOLEAN VioGpuMemSegment::Init(_In_ UINT size, _In_opt_ CPciBar *pBar)
+BOOLEAN VioGpuMemSegment::Init(_In_ UINT size, _In_opt_ CPciBar *pBar, _In_ BOOLEAN singleBlock)
 {
     PAGED_CODE();
 
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s size=%u\n", __FUNCTION__, size));
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s size=%u singleBlock=%d\n", __FUNCTION__, size, singleBlock));
 
     ASSERT(size);
     UINT pages = BYTES_TO_PAGES(size);
     size = pages * PAGE_SIZE;
 
     // Delegate to Merge which handles BAR vs system memory decision
-    return Merge(size, pBar);
+    // When singleBlock is TRUE, use size as fixedBlockSize to allocate in one block
+    return Merge(size, pBar, singleBlock ? size : 0);
 }
 
 PHYSICAL_ADDRESS VioGpuMemSegment::GetPhysicalAddress(void)
@@ -1234,10 +1237,11 @@ BOOLEAN VioGpuMemSegment::AllocateBar(PHYSICAL_ADDRESS pAddr, SIZE_T size)
     return TRUE;
 }
 
-BOOLEAN VioGpuMemSegment::MergeExpand(SIZE_T targetSize)
+BOOLEAN VioGpuMemSegment::MergeExpand(SIZE_T targetSize, SIZE_T fixedBlockSize)
 {
     SIZE_T additionalSize = targetSize - m_Size;
-    UINT maxNewBlocks = (UINT)((additionalSize + PAGE_SIZE - 1) / PAGE_SIZE);
+    SIZE_T minBlockSize = fixedBlockSize > 0 ? fixedBlockSize : PAGE_SIZE;
+    UINT maxNewBlocks = (UINT)((additionalSize + minBlockSize - 1) / minBlockSize);
 
     // Temporary storage for new blocks
     PVOID *newBlocks = reinterpret_cast<PVOID *>(new (NonPagedPoolNx) BYTE[maxNewBlocks * sizeof(PVOID)]);
@@ -1256,11 +1260,19 @@ BOOLEAN VioGpuMemSegment::MergeExpand(SIZE_T targetSize)
     highestAcceptable.QuadPart = 0xFFFFFFFFFF;
     SIZE_T remaining = additionalSize;
 
-    // Allocate new blocks using fallback strategy
+    // Use fixed block size as single-element fallback list, or default fallback list
+    const SIZE_T *blockSizes = fixedBlockSize > 0 ? &fixedBlockSize : g_ContiguousBlockSizes;
+    UINT blockSizeCount = fixedBlockSize > 0 ? 1 : CONTIGUOUS_BLOCK_SIZE_COUNT;
+
+    // Allocate new blocks
     while (remaining > 0 && newBlockCount < maxNewBlocks)
     {
         SIZE_T actualSize = 0;
-        newBlocks[newBlockCount] = AllocateContiguousWithFallback(remaining, &actualSize, highestAcceptable);
+        newBlocks[newBlockCount] = AllocateContiguousWithFallback(remaining,
+                                                                  &actualSize,
+                                                                  highestAcceptable,
+                                                                  blockSizes,
+                                                                  blockSizeCount);
 
         if (!newBlocks[newBlockCount])
         {
@@ -1420,10 +1432,11 @@ BOOLEAN VioGpuMemSegment::RebuildSGList()
     return TRUE;
 }
 
-BOOLEAN VioGpuMemSegment::Merge(SIZE_T targetSize, CPciBar *pBar)
+BOOLEAN VioGpuMemSegment::Merge(SIZE_T targetSize, CPciBar *pBar, SIZE_T fixedBlockSize)
 {
     PAGED_CODE();
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s current=%Iu target=%Iu\n", __FUNCTION__, m_Size, targetSize));
+    DbgPrint(TRACE_LEVEL_VERBOSE,
+             ("---> %s current=%Iu target=%Iu fixedBlock=%Iu\n", __FUNCTION__, m_Size, targetSize, fixedBlockSize));
 
     // Align to page size
     SIZE_T pages = BYTES_TO_PAGES(targetSize);
@@ -1443,7 +1456,11 @@ BOOLEAN VioGpuMemSegment::Merge(SIZE_T targetSize, CPciBar *pBar)
 
     DbgPrint(TRACE_LEVEL_INFORMATION,
              ("%s: barAvailable=%d shouldUseBar=%d targetSize=%Iu barSize=%Iu\n",
-              __FUNCTION__, barAvailable, shouldUseBar, targetSize, barSize));
+              __FUNCTION__,
+              barAvailable,
+              shouldUseBar,
+              targetSize,
+              barSize));
 
     if (shouldUseBar)
     {
@@ -1460,7 +1477,7 @@ BOOLEAN VioGpuMemSegment::Merge(SIZE_T targetSize, CPciBar *pBar)
             // BAR failed -> fallback to system memory
             DbgPrint(TRACE_LEVEL_WARNING, ("%s: BAR allocation failed, falling back to system memory\n", __FUNCTION__));
             m_bSystemMemory = TRUE;
-            if (!MergeExpand(targetSize))
+            if (!MergeExpand(targetSize, fixedBlockSize))
             {
                 DbgPrint(TRACE_LEVEL_ERROR, ("%s: system memory fallback failed\n", __FUNCTION__));
                 return FALSE;
@@ -1531,7 +1548,7 @@ BOOLEAN VioGpuMemSegment::Merge(SIZE_T targetSize, CPciBar *pBar)
     BOOLEAN success = FALSE;
     if (targetSize > m_Size)
     {
-        success = MergeExpand(targetSize);
+        success = MergeExpand(targetSize, fixedBlockSize);
     }
     else if (targetSize < m_Size)
     {
@@ -1558,8 +1575,7 @@ BOOLEAN VioGpuMemSegment::Merge(SIZE_T targetSize, CPciBar *pBar)
         return FALSE;
     }
 
-    DbgPrint(TRACE_LEVEL_INFORMATION,
-             ("<--- %s: merged to %Iu bytes (%u blocks)\n", __FUNCTION__, m_Size, m_nBlocks));
+    DbgPrint(TRACE_LEVEL_INFORMATION, ("<--- %s: merged to %Iu bytes (%u blocks)\n", __FUNCTION__, m_Size, m_nBlocks));
     return TRUE;
 }
 
