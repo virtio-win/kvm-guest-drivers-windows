@@ -139,10 +139,12 @@ class VioGpuMemSegment
     void TakeFrom(VioGpuMemSegment &other);
 
   private:
-    BOOLEAN MergeExpand(SIZE_T targetSize, SIZE_T fixedBlockSize = 0);
-    BOOLEAN MergeShrink(SIZE_T targetSize);
+    BOOLEAN ExpandSystemMemory(SIZE_T targetSize, SIZE_T fixedBlockSize = 0);
+    BOOLEAN ShrinkSystemMemory(SIZE_T targetSize);
     BOOLEAN RebuildMapping();
     BOOLEAN RebuildSGList();
+    void CleanMapping();
+    void CleanSGList();
     BOOLEAN AllocateBar(PHYSICAL_ADDRESS pAddr, SIZE_T size);
     void CloseBar();
     void CloseSystemMemory();

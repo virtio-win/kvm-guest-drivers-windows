@@ -2284,7 +2284,7 @@ NTSTATUS VioGpuAdapter::SetCurrentMode(ULONG Mode, CURRENT_MODE *pCurrentMode)
             return STATUS_INSUFFICIENT_RESOURCES;
         }
     }
-    DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s failed: mode %d not found\n", __FUNCTION__, Mode));
+    DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s failed\n", __FUNCTION__));
     return STATUS_UNSUCCESSFUL;
 }
 
@@ -2323,7 +2323,9 @@ NTSTATUS VioGpuAdapter::VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION *pDispInfo)
 
         AckFeature(VIRTIO_F_ACCESS_PLATFORM);
 
-        // Enable indirect descriptors for large transfers
+        // Enable indirect descriptors to support high-resolution modes.
+        // Large framebuffers (e.g., 4K) require thousands of memory page entries,
+        // which exceed the virtqueue's direct descriptor limit.
         AckFeature(VIRTIO_RING_F_INDIRECT_DESC);
 
         status = virtio_set_features(&m_VioDev, m_u64GuestFeatures);
