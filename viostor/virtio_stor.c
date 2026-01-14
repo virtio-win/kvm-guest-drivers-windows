@@ -981,23 +981,7 @@ VirtIoStartIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
         case SRB_FUNCTION_RESET_DEVICE:
         case SRB_FUNCTION_RESET_LOGICAL_UNIT:
             {
-                CompletePendingRequests(DeviceExtension);
                 CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_SUCCESS);
-#ifdef DBG
-                RhelDbgPrint(TRACE_LEVEL_INFORMATION,
-                             " RESET (%p) Function %x Cnt %d InQueue %d\n",
-                             Srb,
-                             SRB_FUNCTION(Srb),
-                             adaptExt->srb_cnt,
-                             adaptExt->inqueue_cnt);
-                for (USHORT i = 0; i < adaptExt->num_queues; i++)
-                {
-                    if (adaptExt->vq[i])
-                    {
-                        RhelDbgPrint(TRACE_LEVEL_ERROR, "%d indx %d\n", i, adaptExt->vq[i]->index);
-                    }
-                }
-#endif
                 return TRUE;
             }
         case SRB_FUNCTION_FLUSH:
@@ -1201,10 +1185,8 @@ BOOLEAN
 VirtIoResetBus(IN PVOID DeviceExtension, IN ULONG PathId)
 {
     UNREFERENCED_PARAMETER(PathId);
-    PADAPTER_EXTENSION adaptExt;
-    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    UNREFERENCED_PARAMETER(DeviceExtension);
 
-    CompletePendingRequests(DeviceExtension);
     return TRUE;
 }
 
