@@ -1421,7 +1421,6 @@ BOOLEAN VioGpuMemSegment::Merge(SIZE_T targetSize, CPciBar *pBar, SIZE_T fixedBl
         return TRUE;
     }
 
-
     // Get BAR info from CPciBar pointer
     PHYSICAL_ADDRESS barAddr = {0};
     SIZE_T barSize = 0;
