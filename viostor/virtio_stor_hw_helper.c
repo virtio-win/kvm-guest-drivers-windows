@@ -53,7 +53,7 @@
             if (QueueNumber >= adaptExt->num_queues)                                                                   \
             {                                                                                                          \
                 QueueNumber %= adaptExt->num_queues;                                                                   \
-                MessageId += 1;                                                                                        \
+                MessageId = QueueNumber + 1;                                                                           \
             }                                                                                                          \
         }                                                                                                              \
     }
