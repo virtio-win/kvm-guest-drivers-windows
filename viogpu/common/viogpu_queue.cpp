@@ -1153,7 +1153,6 @@ BOOLEAN VioGpuMemSegment::AllocateBar(PHYSICAL_ADDRESS pAddr, SIZE_T size)
         return FALSE;
     }
     m_bMapped = TRUE;
-    m_bSystemMemory = FALSE;
 
     m_pMdl = IoAllocateMdl(m_pVAddr, (ULONG)size, FALSE, FALSE, NULL);
     if (!m_pMdl)
@@ -1466,7 +1465,7 @@ BOOLEAN VioGpuMemSegment::Merge(SIZE_T targetSize, CPciBar *pBar, SIZE_T fixedBl
         if (success && m_bSystemMemory)
         {
             CloseSystemMemory();
-            DbgPrint(TRACE_LEVEL_INFORMATION, ("<--- %s: BAR->BAR released system memory\n", __FUNCTION__));
+            DbgPrint(TRACE_LEVEL_INFORMATION, ("%s: released system memory\n", __FUNCTION__));
         }
         m_bSystemMemory = FALSE;
         return success;
