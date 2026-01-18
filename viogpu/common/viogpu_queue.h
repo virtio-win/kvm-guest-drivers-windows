@@ -145,7 +145,7 @@ class VioGpuMemSegment
     BOOLEAN RebuildSGList();
     void CleanMapping();
     void CleanSGList();
-    BOOLEAN AllocateBar(PHYSICAL_ADDRESS pAddr, SIZE_T size);
+    BOOLEAN AllocateBar(PHYSICAL_ADDRESS pAddr, SIZE_T size, PVOID *pVAddr, PMDL *pMdl, PSCATTER_GATHER_LIST *pSGList);
     void CloseBar();
     void CloseSystemMemory();
     BOOLEAN m_bSystemMemory;
