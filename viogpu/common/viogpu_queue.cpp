@@ -1141,47 +1141,52 @@ void VioGpuMemSegment::CloseSystemMemory()
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
-BOOLEAN VioGpuMemSegment::AllocateBar(PHYSICAL_ADDRESS pAddr, SIZE_T size)
+BOOLEAN VioGpuMemSegment::AllocateBar(PHYSICAL_ADDRESS pAddr,
+                                      SIZE_T size,
+                                      PVOID *pVAddr,
+                                      PMDL *pMdl,
+                                      PSCATTER_GATHER_LIST *pSGList)
 {
     PAGED_CODE();
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s size=%Iu\n", __FUNCTION__, size));
 
-    NTSTATUS Status = MapFrameBuffer(pAddr, (ULONG)size, &m_pVAddr);
+    PVOID newVAddr = NULL;
+    PMDL newMdl = NULL;
+    PSCATTER_GATHER_LIST newSGList = NULL;
+
+    NTSTATUS Status = MapFrameBuffer(pAddr, (ULONG)size, &newVAddr);
     if (!NT_SUCCESS(Status))
     {
         DbgPrint(TRACE_LEVEL_ERROR, ("%s MapFrameBuffer failed with Status: 0x%X\n", __FUNCTION__, Status));
         return FALSE;
     }
-    m_bMapped = TRUE;
 
-    m_pMdl = IoAllocateMdl(m_pVAddr, (ULONG)size, FALSE, FALSE, NULL);
-    if (!m_pMdl)
+    newMdl = IoAllocateMdl(newVAddr, (ULONG)size, FALSE, FALSE, NULL);
+    if (!newMdl)
     {
         DbgPrint(TRACE_LEVEL_ERROR, ("%s insufficient resources to allocate MDL\n", __FUNCTION__));
-        UnmapFrameBuffer(m_pVAddr, (ULONG)size);
-        m_pVAddr = NULL;
-        m_bMapped = FALSE;
+        UnmapFrameBuffer(newVAddr, (ULONG)size);
         return FALSE;
     }
 
     UINT sglsize = sizeof(SCATTER_GATHER_LIST) + sizeof(SCATTER_GATHER_ELEMENT);
-    m_pSGList = reinterpret_cast<PSCATTER_GATHER_LIST>(new (NonPagedPoolNx) BYTE[sglsize]);
-    if (!m_pSGList)
+    newSGList = reinterpret_cast<PSCATTER_GATHER_LIST>(new (NonPagedPoolNx) BYTE[sglsize]);
+    if (!newSGList)
     {
         DbgPrint(TRACE_LEVEL_ERROR, ("%s insufficient resources to allocate SGL\n", __FUNCTION__));
-        IoFreeMdl(m_pMdl);
-        m_pMdl = NULL;
-        UnmapFrameBuffer(m_pVAddr, (ULONG)size);
-        m_pVAddr = NULL;
-        m_bMapped = FALSE;
+        IoFreeMdl(newMdl);
+        UnmapFrameBuffer(newVAddr, (ULONG)size);
         return FALSE;
     }
-    RtlZeroMemory(m_pSGList, sglsize);
+    RtlZeroMemory(newSGList, sglsize);
 
-    m_pSGList->NumberOfElements = 1;
-    m_pSGList->Elements[0].Address = pAddr;
-    m_pSGList->Elements[0].Length = (ULONG)size;
-    m_Size = size;
+    newSGList->NumberOfElements = 1;
+    newSGList->Elements[0].Address = pAddr;
+    newSGList->Elements[0].Length = (ULONG)size;
+
+    *pVAddr = newVAddr;
+    *pMdl = newMdl;
+    *pSGList = newSGList;
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s success\n", __FUNCTION__));
     return TRUE;
@@ -1445,14 +1450,30 @@ BOOLEAN VioGpuMemSegment::Merge(SIZE_T targetSize, CPciBar *pBar, SIZE_T fixedBl
     if (shouldUseBar)
     {
         // BAR path: targetSize <= barSize
-        if (hadUsedBar)
+        PVOID newVAddr = NULL;
+        PMDL newMdl = NULL;
+        PSCATTER_GATHER_LIST newSGList = NULL;
+
+        if (AllocateBar(barAddr, targetSize, &newVAddr, &newMdl, &newSGList))
         {
-            // Currently using BAR -> release BAR, try new BAR
-            CloseBar();
-        }
-        if (AllocateBar(barAddr, targetSize))
-        {
-            DbgPrint(TRACE_LEVEL_INFORMATION, ("<--- %s: BAR->BAR success\n", __FUNCTION__));
+            // Allocation succeeded - now clean up old resources
+            if (m_bSystemMemory)
+            {
+                CloseSystemMemory();
+            }
+            else if (m_bMapped)
+            {
+                CloseBar();
+            }
+
+            // Commit new BAR resources
+            m_pVAddr = newVAddr;
+            m_pMdl = newMdl;
+            m_pSGList = newSGList;
+            m_bMapped = TRUE;
+            m_Size = targetSize;
+
+            DbgPrint(TRACE_LEVEL_INFORMATION, ("<--- %s: ->BAR success\n", __FUNCTION__));
             success = TRUE;
         }
         else
@@ -1461,12 +1482,6 @@ BOOLEAN VioGpuMemSegment::Merge(SIZE_T targetSize, CPciBar *pBar, SIZE_T fixedBl
             success = FALSE;
         }
 
-        // Release system memory if used
-        if (success && m_bSystemMemory)
-        {
-            CloseSystemMemory();
-            DbgPrint(TRACE_LEVEL_INFORMATION, ("%s: released system memory\n", __FUNCTION__));
-        }
         m_bSystemMemory = FALSE;
         return success;
     }
@@ -1493,9 +1508,23 @@ BOOLEAN VioGpuMemSegment::Merge(SIZE_T targetSize, CPciBar *pBar, SIZE_T fixedBl
     if (!success && hadUsedBar && barAvailable)
     {
         DbgPrint(TRACE_LEVEL_WARNING, ("%s: system memory allocation failed, trying BAR again\n", __FUNCTION__));
-        if (AllocateBar(barAddr, targetSize))
+        PVOID newVAddr = NULL;
+        PMDL newMdl = NULL;
+        PSCATTER_GATHER_LIST newSGList = NULL;
+
+        if (AllocateBar(barAddr, targetSize, &newVAddr, &newMdl, &newSGList))
         {
+            // Clean up failed system memory state
+            CloseSystemMemory();
+
+            // Commit BAR resources
+            m_pVAddr = newVAddr;
+            m_pMdl = newMdl;
+            m_pSGList = newSGList;
+            m_bMapped = TRUE;
+            m_Size = targetSize;
             m_bSystemMemory = FALSE;
+
             DbgPrint(TRACE_LEVEL_INFORMATION, ("<--- %s: system memory->BAR success\n", __FUNCTION__));
             return TRUE;
         }
