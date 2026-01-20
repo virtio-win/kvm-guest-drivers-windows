@@ -44,48 +44,40 @@
         pa = va ? StorPortGetPhysicalAddress(DeviceExtension, NULL, va, &len).QuadPart : 0;                            \
     }
 
-#define MESSAGENUMBER_TO_QUEUE()                                                                                       \
-    {                                                                                                                  \
-        if (param.MessageNumber != 0)                                                                                  \
-        {                                                                                                              \
-            MessageId = param.MessageNumber;                                                                           \
-            QueueNumber = MessageId - 1;                                                                               \
-            if (QueueNumber >= adaptExt->num_queues)                                                                   \
-            {                                                                                                          \
-                QueueNumber %= adaptExt->num_queues;                                                                   \
-                MessageId = QueueNumber + 1;                                                                           \
-            }                                                                                                          \
-        }                                                                                                              \
-    }
-
 static ULONG GetSrbQueueNumber(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    ULONG QueueNumber = 0;
-    ULONG MessageId = 1;
+    STARTIO_PERFORMANCE_PARAMETERS param;
+    ULONG status;
+    ULONG QueueNumber;
 
-    if (adaptExt->num_queues > 1)
+    if (adaptExt->num_queues <= 1)
     {
-        STARTIO_PERFORMANCE_PARAMETERS param;
-        ULONG status = STOR_STATUS_SUCCESS;
-
-        param.Size = sizeof(STARTIO_PERFORMANCE_PARAMETERS);
-        status = StorPortGetStartIoPerfParams(DeviceExtension, (PSCSI_REQUEST_BLOCK)Srb, &param);
-        if (status == STOR_STATUS_SUCCESS)
-        {
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION,
-                         " srb %p, QueueNumber %lu, MessageNumber %lu, ChannelNumber %lu.\n",
-                         Srb,
-                         QueueNumber,
-                         param.MessageNumber,
-                         param.ChannelNumber);
-            MESSAGENUMBER_TO_QUEUE();
-        }
-        else
-        {
-            RhelDbgPrint(TRACE_LEVEL_ERROR, " StorPortGetStartIoPerfParams failed. srb %p status 0x%x.\n", Srb, status);
-        }
+        return 0;
     }
+
+    param.Size = sizeof(STARTIO_PERFORMANCE_PARAMETERS);
+    status = StorPortGetStartIoPerfParams(DeviceExtension, (PSCSI_REQUEST_BLOCK)Srb, &param);
+    if (status != STOR_STATUS_SUCCESS)
+    {
+        RhelDbgPrint(TRACE_LEVEL_ERROR, " StorPortGetStartIoPerfParams failed. srb %p status 0x%x.\n", Srb, status);
+        return 0;
+    }
+
+    if (param.MessageNumber == 0)
+    {
+        QueueNumber = 0;
+    }
+    else
+    {
+        QueueNumber = (param.MessageNumber - 1) % adaptExt->num_queues;
+    }
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                 " srb %p, MessageNumber %lu, ChannelNumber %lu -> QueueNumber %lu\n",
+                 Srb,
+                 param.MessageNumber,
+                 param.ChannelNumber,
+                 QueueNumber);
 
     return QueueNumber;
 }
