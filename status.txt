@@ -1,3 +1,12 @@
+Date    21 Jan 2026
+repo    https://github.com/virtio-win/kvm-guest-drivers-windows.git
+tag     mm315
+
+Fixed issues:
+Fix PowerShell variable parsing error in CollectSystemInfo.ps1
+[vioscsi] Fix for clobbered SRB Extension IDs
+[viostor] Fix for clobbered SRB Extension IDs
+
 Date    8 Dec 2025
 repo    https://github.com/virtio-win/kvm-guest-drivers-windows.git
 tag     mm314
