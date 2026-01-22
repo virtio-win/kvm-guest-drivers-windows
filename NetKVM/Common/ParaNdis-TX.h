@@ -70,7 +70,7 @@ class CNB : public CNdisAllocatableViaHelper<CNB>
 
     ULONG GetSGLLength() const
     {
-        return m_SGL->NumberOfElements;
+        return m_SGL ? m_SGL->NumberOfElements : 1;
     }
 
     NBMappingStatus BindToDescriptor(CTXDescriptor &Descriptor);
@@ -263,6 +263,7 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, 
     // TODO: Needs review
     void NBComplete();
     bool IsSendDone();
+    bool CheckMappingNeeded();
 
     UCHAR ProtocolID()
     {
@@ -338,6 +339,10 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, 
     {
         return m_NBL != nullptr;
     }
+    bool MappingNeeded() const
+    {
+        return !m_SkipMapping;
+    }
     ULONG NumberOfBuffers() const
     {
         return m_BuffersNumber;
@@ -396,6 +401,7 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, 
     ULONG_PTR m_CNB_Storage[(sizeof(CNB) + sizeof(ULONG_PTR) - 1) / sizeof(ULONG_PTR)];
     bool m_HaveFailedMappings = false;
     bool m_AllNBCompleted = false;
+    bool m_SkipMapping = false;
 
     CNdisList<CNB, CRawAccess, CNonCountingObject> m_Buffers;
 
@@ -417,7 +423,9 @@ class CNBL : public CNdisAllocatableViaHelper<CNBL>, public CRefCountingObject, 
 #endif
     CAllocationHelper<CNB> *m_NBAllocator;
 
+#if NBL_MAINTAIN_HISTORY
     CHistoryList m_History;
+#endif
 
     CChainOfNbls m_Chain = {};
 
@@ -481,7 +489,10 @@ class CParaNdisTX : public CParaNdisTemplatePath<CTXVirtQueue>, public CNdisAllo
     bool BorrowPages(CExtendedNBStorage *extraNBStorage, ULONG NeedPages);
     void ReturnPages(CExtendedNBStorage *extraNBStorage);
     void CheckStuckPackets(ULONG GraceTimeMillies);
-
+    ULONG MaxSizeForPacketData()
+    {
+        return m_VirtQueue.GetMaxSizeForPacketData();
+    }
   private:
     virtual void Notify(SMNotifications message) override;
 
