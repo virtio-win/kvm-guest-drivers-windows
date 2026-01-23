@@ -721,6 +721,48 @@ NTSTATUS VioGpuDod::IsSupportedVidPn(_Inout_ DXGKARG_ISSUPPORTEDVIDPN *pIsSuppor
         {
             return STATUS_SUCCESS;
         }
+
+        // Check if resolution exceeds framebuffer segment capacity
+        if (NumPathsFromSource > 0)
+        {
+            D3DKMDT_HVIDPNSOURCEMODESET hVidPnSourceModeSet;
+            CONST DXGK_VIDPNSOURCEMODESET_INTERFACE *pVidPnSourceModeSetInterface;
+            if (NT_SUCCESS(pVidPnInterface->pfnAcquireSourceModeSet(pIsSupportedVidPn->hDesiredVidPn,
+                                                                    SourceId,
+                                                                    &hVidPnSourceModeSet,
+                                                                    &pVidPnSourceModeSetInterface)))
+            {
+                CONST D3DKMDT_VIDPN_SOURCE_MODE *pPinnedVidPnSourceModeInfo = NULL;
+                pVidPnSourceModeSetInterface->pfnAcquirePinnedModeInfo(hVidPnSourceModeSet,
+                                                                       &pPinnedVidPnSourceModeInfo);
+
+                BOOLEAN bReject = FALSE;
+                if (pPinnedVidPnSourceModeInfo != NULL)
+                {
+                    SIZE_T RequiredSize = (SIZE_T)pPinnedVidPnSourceModeInfo->Format.Graphics.PrimSurfSize.cx *
+                                          pPinnedVidPnSourceModeInfo->Format.Graphics.PrimSurfSize.cy *
+                                          (BPPFromPixelFormat(pPinnedVidPnSourceModeInfo->Format.Graphics.PixelFormat) /
+                                           BITS_PER_BYTE);
+                    SIZE_T SegmentSize = m_pHWDevice->GetFrameSegmentSize();
+                    if (SegmentSize > 0 && RequiredSize > SegmentSize)
+                    {
+                        DbgPrint(TRACE_LEVEL_WARNING,
+                                 ("%s: Resolution requires %llu bytes, segment size is %llu\n",
+                                  __FUNCTION__,
+                                  (ULONGLONG)RequiredSize,
+                                  (ULONGLONG)SegmentSize));
+                        bReject = TRUE;
+                    }
+                    pVidPnSourceModeSetInterface->pfnReleaseModeInfo(hVidPnSourceModeSet, pPinnedVidPnSourceModeInfo);
+                }
+                pVidPnInterface->pfnReleaseSourceModeSet(pIsSupportedVidPn->hDesiredVidPn, hVidPnSourceModeSet);
+
+                if (bReject)
+                {
+                    return STATUS_SUCCESS; // IsVidPnSupported remains FALSE
+                }
+            }
+        }
     }
 
     pIsSupportedVidPn->IsVidPnSupported = TRUE;
