@@ -31,7 +31,7 @@
 #include "SessionMgr.h"
 #include "Session.h"
 
-CSessionMgr::CSessionMgr()
+CSessionMgr::CSessionMgr() : m_hThread(NULL)
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 }

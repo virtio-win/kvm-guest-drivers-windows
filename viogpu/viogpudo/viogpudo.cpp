@@ -53,6 +53,7 @@ VioGpuDod::VioGpuDod(_In_ DEVICE_OBJECT *pPhysicalDeviceObject)
     RtlZeroMemory(&m_DxgkInterface, sizeof(m_DxgkInterface));
     RtlZeroMemory(&m_DeviceInfo, sizeof(m_DeviceInfo));
     RtlZeroMemory(&m_CurrentMode, sizeof(m_CurrentMode));
+    RtlZeroMemory(&m_SystemDisplayInfo, sizeof(m_SystemDisplayInfo));
     RtlZeroMemory(&m_PointerShape, sizeof(m_PointerShape));
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
@@ -2191,6 +2192,8 @@ VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod)
     m_pWorkThread = NULL;
     m_ResolutionEvent = NULL;
     m_ResolutionEventHandle = NULL;
+    m_u64HostFeatures = 0;
+    m_u64GuestFeatures = 0;
     m_u32NumCapsets = 0;
     m_u32NumScanouts = 0;
 
