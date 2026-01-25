@@ -2517,7 +2517,11 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
         }
 
     } while (0);
-    // FIXME!!! exit if the block above failed
+    // Exit if the block above failed
+    if (!NT_SUCCESS(status))
+    {
+        return status;
+    }
 
     status = PsCreateSystemThread(&threadHandle,
                                   (ACCESS_MASK)0,
@@ -2755,7 +2759,6 @@ NTSTATUS VioGpuAdapter::ExecutePresentDisplayOnly(_In_ BYTE *DstAddr,
         updrect.left = 0;
         updrect.bottom = pModeCur->SrcModeHeight;
         updrect.right = pModeCur->SrcModeWidth;
-        offset = 0UL;
     }
     // FIXME!!! rotation
     offset = (updrect.top * pModeCur->DispInfo.Pitch) +
