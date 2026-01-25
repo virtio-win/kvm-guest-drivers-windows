@@ -19,7 +19,7 @@ static int write_splitted(int sockfd, char *buf, int size)
         {
             chunk = size;
         }
-        res = write(sockfd, buf, chunk);
+        res = write(sockfd, buf, (size_t)chunk);
         if (res <= 0)
         {
             return res;
@@ -116,6 +116,11 @@ static int do_server_job(int sockfd)
             return_code = 0;
             goto out;
         }
+        if (r.size < 0)
+        {
+            printf("negative size received\n");
+            goto out;
+        }
         if (r.size > max_size)
         {
             printf("too large block\n");
@@ -124,7 +129,7 @@ static int do_server_job(int sockfd)
         done = 0;
         do
         {
-            res = read(sockfd, buf, r.size - done);
+            res = read(sockfd, buf, (size_t)(r.size - done));
             if (res < 0)
             {
                 printf("Can't read data, error %d\n", errno);
