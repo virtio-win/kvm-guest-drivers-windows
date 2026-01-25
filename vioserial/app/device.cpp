@@ -189,22 +189,6 @@ BOOL CDevice::ReadEx(PVOID buf, size_t *size)
 
     CloseHandle(ol.hEvent);
     return res;
-
-    if (!res)
-    {
-
-        printf("PerformReadTest: ReadFile failed: "
-               "Error %d\n",
-               GetLastError());
-    }
-    else if (ret != bytes)
-    {
-        printf("Read vioserial device error. get = 0x%x, expected = 0x%x\n", ret, bytes);
-        *size = ret;
-        ret = FALSE;
-    }
-
-    return res;
 }
 
 BOOL CDevice::GetInfo(PVOID buf, size_t *size)
