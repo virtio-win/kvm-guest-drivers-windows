@@ -1592,7 +1592,7 @@ RhelScsiGetInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
         if (dataLen >= 0x18)
         {
             UCHAR len = strlen(adaptExt->sn);
-            SerialPage->PageLength = min(BLOCK_SERIAL_STRLEN, len);
+            SerialPage->PageLength = (UCHAR)min(BLOCK_SERIAL_STRLEN, len);
             RhelDbgPrint(TRACE_LEVEL_INFORMATION, "PageLength = %d (%d)\n", SerialPage->PageLength, len);
             StorPortCopyMemory(&SerialPage->SerialNumber, &adaptExt->sn, SerialPage->PageLength);
             SRB_SET_DATA_TRANSFER_LENGTH(Srb, (sizeof(VPD_SERIAL_NUMBER_PAGE) + SerialPage->PageLength));
@@ -2050,7 +2050,7 @@ VOID ReportDeviceIdentifier(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     IdentificationDescr = (PVPD_IDENTIFICATION_DESCRIPTOR)IdentificationPage->Descriptors;
     if (len)
     {
-        IdentificationDescr->IdentifierLength = min(BLOCK_SERIAL_STRLEN, len);
+        IdentificationDescr->IdentifierLength = (UCHAR)min(BLOCK_SERIAL_STRLEN, len);
         IdentificationDescr->CodeSet = VpdCodeSetAscii;
         IdentificationDescr->IdentifierType = VpdIdentifierTypeVendorSpecific;
         StorPortCopyMemory(&IdentificationDescr->Identifier, &adaptExt->sn, IdentificationDescr->IdentifierLength);
@@ -2173,7 +2173,7 @@ VOID VioStorCompleteRequest(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOO
                         SerialPage->DeviceTypeQualifier = DEVICE_CONNECTED;
                         SerialPage->PageCode = VPD_SERIAL_NUMBER;
 
-                        SerialPage->PageLength = min(BLOCK_SERIAL_STRLEN, len);
+                        SerialPage->PageLength = (UCHAR)min(BLOCK_SERIAL_STRLEN, len);
                         StorPortCopyMemory(&SerialPage->SerialNumber, &adaptExt->sn, SerialPage->PageLength);
                         RhelDbgPrint(TRACE_LEVEL_INFORMATION, "PageLength = %d (%d)\n", SerialPage->PageLength, len);
 
