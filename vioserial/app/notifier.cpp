@@ -5,6 +5,7 @@ CNotifier::CNotifier()
 {
     m_hThread = INVALID_HANDLE_VALUE;
     m_hEvent = INVALID_HANDLE_VALUE;
+    m_hWnd = NULL;
     m_bRunning = TRUE;
 }
 
