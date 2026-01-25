@@ -1,7 +1,7 @@
 /*
- * This file contains debug print support routines and globals.
+ * This include file contains Windows registry helper routines and globals for virtio.
  *
- * Copyright (c) 2008-2017 Red Hat, Inc.
+ * Copyright (c) 2008-2026 Red Hat, Inc.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -26,45 +26,20 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-#ifndef ___VIOSTOR_UTILS_H___
-#define ___VIOSTOR_UTILS_H___
 
-#include "virtio_stor_trace.h"
+#ifndef ___VIOSTOR_REG_HELPER_H___
+#define ___VIOSTOR_REG_HELPER_H___
 
-typedef enum _INL_FUNC_IDX
-{
-    idx_SetSenseInfo = 0x0,
-    idx_VirtIoStartIo,
-    idx_CompleteRequestWithStatus,
-    idx_DeviceChangeNotification,
-    idx_VirtIoInterrupt,
-    idx_VirtIoMSInterruptWorker,
-    idx_VirtIoHwReinitialize
-} INL_FUNC_IDX;
+#include <ntddk.h>
+#include <storport.h>
 
-#define CHECKBIT(value, nbit)      virtio_is_feature_enabled(value, nbit)
-#define CHECKFLAG(value, flag)     ((value & (flag)) == flag)
-#define SETFLAG(value, flag)       (value |= (flag))
+#include "virtio_stor.h"
+#include "virtio_stor_utils.h"
 
-#define CACHE_LINE_SIZE            64
-#define ROUND_TO_CACHE_LINES(Size) (((ULONG_PTR)(Size) + CACHE_LINE_SIZE - 1) & ~(CACHE_LINE_SIZE - 1))
+#define REGISTRY_MAX_PH_SEGMENTS "MaxPhysicalSegments"
 
-#define DbgGetScsiOp(Srb)          (SRB_CDB(Srb) ? SRB_CDB(Srb)->CDB6GENERIC.OperationCode : UCHAR_MAX)
+BOOLEAN VioStorReadRegistryParameter(IN PVOID DeviceExtension, IN PUCHAR ValueName, IN LONG offset);
 
-char *DbgGetScsiOpStr(IN UCHAR opCode);
+USHORT CopyBufferToAnsiString(void *_pDest, const void *_pSrc, const char delimiter, size_t _maxlength);
 
-void InitializeDebugPrints(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING RegistryPath);
-
-VOID LogError(IN PVOID HwDeviceExtension, IN ULONG ErrorCode, IN ULONG UniqueId);
-
-extern UCHAR *sendsrb_func_str_map[];
-extern UCHAR *inline_func_str_map[];
-extern UCHAR *virtio_blk_t_str_map[];
-extern UCHAR *lockmode_str_map[];
-extern UCHAR *srb_status_str_map[];
-
-extern char *GetVbrStatusDesc(vbrStatus);
-
-extern VOID GetTerminatedString(UCHAR *func, UCHAR *data, USHORT length);
-
-#endif //___VIOSTOR_UTILS_H___
+#endif //___VIOSTOR_REG_HELPER_H___

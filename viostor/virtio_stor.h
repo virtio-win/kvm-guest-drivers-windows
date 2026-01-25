@@ -42,56 +42,71 @@
 #include "virtio_stor_utils.h"
 #include "virtio_stor_hw_helper.h"
 
-typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
-
 /* Feature bits */
-#define VIRTIO_BLK_F_BARRIER               0  /* Does host support barriers? */
-#define VIRTIO_BLK_F_SIZE_MAX              1  /* Indicates maximum segment size */
-#define VIRTIO_BLK_F_SEG_MAX               2  /* Indicates maximum # of segments */
-#define VIRTIO_BLK_F_GEOMETRY              4  /* Legacy geometry available  */
-#define VIRTIO_BLK_F_RO                    5  /* Disk is read-only */
-#define VIRTIO_BLK_F_BLK_SIZE              6  /* Block size of disk is available*/
-#define VIRTIO_BLK_F_SCSI                  7  /* Supports scsi command passthru */
-#define VIRTIO_BLK_F_FLUSH                 9  /* Flush command supported */
-#define VIRTIO_BLK_F_TOPOLOGY              10 /* Topology information is available */
-#define VIRTIO_BLK_F_CONFIG_WCE            11 /* Writeback mode available in config */
-#define VIRTIO_BLK_F_MQ                    12 /* support more than one vq */
-#define VIRTIO_BLK_F_DISCARD               13 /* DISCARD is supported */
-#define VIRTIO_BLK_F_WRITE_ZEROES          14 /* WRITE ZEROES is supported */
+#define VIRTIO_BLK_F_BARRIER                 0  /* Does host support barriers? */
+#define VIRTIO_BLK_F_SIZE_MAX                1  /* Indicates maximum segment size */
+#define VIRTIO_BLK_F_SEG_MAX                 2  /* Indicates maximum # of segments */
+#define VIRTIO_BLK_F_GEOMETRY                4  /* Legacy geometry available  */
+#define VIRTIO_BLK_F_RO                      5  /* Disk is read-only */
+#define VIRTIO_BLK_F_BLK_SIZE                6  /* Block size of disk is available*/
+#define VIRTIO_BLK_F_SCSI                    7  /* Supports scsi command passthru */
+#define VIRTIO_BLK_F_FLUSH                   9  /* Flush command supported */
+#define VIRTIO_BLK_F_TOPOLOGY                10 /* Topology information is available */
+#define VIRTIO_BLK_F_CONFIG_WCE              11 /* Writeback mode available in config */
+#define VIRTIO_BLK_F_MQ                      12 /* support more than one vq */
+#define VIRTIO_BLK_F_DISCARD                 13 /* DISCARD is supported */
+#define VIRTIO_BLK_F_WRITE_ZEROES            14 /* WRITE ZEROES is supported */
 
 /* These two define direction. */
-#define VIRTIO_BLK_T_IN                    0
-#define VIRTIO_BLK_T_OUT                   1
+#define VIRTIO_BLK_T_IN                      0
+#define VIRTIO_BLK_T_OUT                     1
 
-#define VIRTIO_BLK_T_SCSI_CMD              2
-#define VIRTIO_BLK_T_FLUSH                 4
-#define VIRTIO_BLK_T_GET_ID                8
-#define VIRTIO_BLK_T_DISCARD               11
-#define VIRTIO_BLK_T_WRITE_ZEROES          13
+#define VIRTIO_BLK_T_SCSI_CMD                2
+#define VIRTIO_BLK_T_FLUSH                   4
+#define VIRTIO_BLK_T_GET_ID                  8
+#define VIRTIO_BLK_T_DISCARD                 11
+#define VIRTIO_BLK_T_WRITE_ZEROES            13
 
-#define VIRTIO_BLK_WRITE_ZEROES_FLAG_UNMAP 0x00000001
+#define VIRTIO_BLK_WRITE_ZEROES_FLAG_UNMAP   0x00000001
 
-#define VIRTIO_BLK_S_OK                    0
-#define VIRTIO_BLK_S_IOERR                 1
-#define VIRTIO_BLK_S_UNSUPP                2
+#define VIRTIO_BLK_S_OK                      0
+#define VIRTIO_BLK_S_IOERR                   1
+#define VIRTIO_BLK_S_UNSUPP                  2
 
-#define SECTOR_SIZE                        512
-#define SECTOR_SHIFT                       9
-#define IO_PORT_LENGTH                     0x40
-#define MAX_CPU                            256u
-#define MAX_DISCARD_SEGMENTS               256u
+#define SECTOR_SIZE                          512
+#define SECTOR_SHIFT                         9
+#define IO_PORT_LENGTH                       0x40
+#define MAX_CPU                              256u
+#define MAX_DISCARD_SEGMENTS                 256u
+#define MIN_DISCARD_SECTOR_ALIGNMENT         8
 
-#define VIRTIO_BLK_QUEUE_LAST              MAX_CPU
+#define VIRTIO_BLK_MSIX_VQ_OFFSET            1
+#define VIRTIO_BLK_MSIX_VQ_1_VCTR_OFFSET     0
+#define VIRTIO_BLK_MSIX_1_VECTOR_MSG_ID      0
+#define VIRTIO_BLK_MSIX_CONFIG_VECTOR        0
+#define VIRTIO_BLK_REQUEST_QUEUE_0           0
+#define VIRTIO_BLK_QUEUE_LAST                MAX_CPU
 
-#define VIRTIO_BLK_MSIX_CONFIG_VECTOR      0
-#define MIN_DISCARD_SECTOR_ALIGNMENT       8
+#define BLOCK_SERIAL_STRLEN                  20
 
-#define BLOCK_SERIAL_STRLEN                20
+#define MAX_PHYS_SEGMENTS                    1024
+#define VIRTIO_MS_NOPB_OFFSET                1
+#define VIRTIO_MAX_SG                        (MAX_PHYS_SEGMENTS + VIRTIO_MS_NOPB_OFFSET + VIRTIO_BLK_REQUEST_QUEUE_0)
 
-#define MAX_PHYS_SEGMENTS                  512
-#define VIRTIO_MAX_SG                      (3 + MAX_PHYS_SEGMENTS)
+#define VIOBLK_POOL_TAG                      'BoiV'
 
-#define VIOBLK_POOL_TAG                    'BoiV'
+/* Pad the following with spaces (ASCII '\20') */
+#define VIRTIO_BLK_VENDOR_ID                 "Red Hat "             // UCHAR VendorId[8]
+#define VIRTIO_BLK_PRODUCT_ID                "VirtIO          "     // UCHAR ProductId[16]
+#define VIRTIO_BLK_PROD_REV_LVL              "1001"                 // UCHAR ProductRevisionLevel[4]
+#define VIRTIO_BLK_VEND_SPECIFIC             "1001                " // UCHAR VendorSpecific[20]
+
+#define QUEUE_TO_MESSAGE(QueueId)            ((QueueId) + VIRTIO_BLK_MSIX_VQ_OFFSET)
+#define MESSAGE_TO_QUEUE(MessageId)          ((MessageId)-VIRTIO_BLK_MSIX_VQ_OFFSET)
+#define QUEUE_TO_MESSAGE_1_VECTOR(QueueId)   ((QueueId) + VIRTIO_BLK_MSIX_VQ_1_VCTR_OFFSET)
+#define MESSAGE_TO_QUEUE_1_VECTOR(MessageId) ((MessageId)-VIRTIO_BLK_MSIX_VQ_1_VCTR_OFFSET)
+
+typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
 #pragma pack(1)
 typedef struct virtio_blk_config
@@ -151,11 +166,12 @@ typedef struct virtio_blk_config
      * deallocation of one or more of the sectors.
      */
     u8 write_zeroes_may_unmap;
-
-    u8 unused1[3];
+    /* Align to 8 byte boundary rather than 4 byte per VirtIO v1.1 spec */
+    u8 unused1[7];
 } blk_config, *pblk_config;
 #pragma pack()
 
+#pragma pack(1)
 typedef struct virtio_blk_outhdr
 {
     /* VIRTIO_BLK_T* */
@@ -165,8 +181,10 @@ typedef struct virtio_blk_outhdr
     /* Sector (ie. 512 byte offset) */
     u64 sector;
 } blk_outhdr, *pblk_outhdr;
+#pragma pack()
 
 /* Discard/write zeroes range for each request. */
+#pragma pack(1)
 typedef struct virtio_blk_discard_write_zeroes
 {
     /* discard/write zeroes start sector */
@@ -176,14 +194,18 @@ typedef struct virtio_blk_discard_write_zeroes
     /* flags for this range */
     u32 flags;
 } blk_discard_write_zeroes, *pblk_discard_write_zeroes;
+#pragma pack()
 
+#pragma pack(1)
 typedef struct virtio_blk_req
 {
     LIST_ENTRY list_entry;
-    PVOID req;
+    PSRB_TYPE req;
     blk_outhdr out_hdr;
     u8 status;
+    u8 unused1[7];
 } blk_req, *pblk_req;
+#pragma pack()
 
 typedef struct virtio_bar
 {
@@ -207,6 +229,32 @@ typedef struct _REQUEST_LIST
     ULONG_PTR next_id;
 } REQUEST_LIST, *PREQUEST_LIST;
 
+typedef struct _VRING_DESC_ALIAS
+{
+    union {
+        ULONGLONG data[2];
+        UCHAR chars[SIZE_OF_SINGLE_INDIRECT_DESC];
+    } u;
+} VRING_DESC_ALIAS, *PVRING_DESC_ALIAS;
+
+#pragma pack(1)
+typedef struct _SRB_EXTENSION
+{
+    blk_req vbr;
+    ULONG_PTR id;
+    ULONG out;
+    ULONG in;
+    ULONG Xfer;
+    ULONG MessageID;
+    BOOLEAN fua;
+    u8 unused1;
+    PVIO_SG POINTER_ALIGN psgl;
+    PVRING_DESC_ALIAS POINTER_ALIGN pdesc;
+    VIO_SG sg[VIRTIO_MAX_SG];
+    VRING_DESC_ALIAS desc[VIRTIO_MAX_SG];
+} SRB_EXTENSION, *PSRB_EXTENSION;
+#pragma pack()
+
 typedef struct _ADAPTER_EXTENSION
 {
     VirtIODevice vdev;
@@ -220,7 +268,7 @@ typedef struct _ADAPTER_EXTENSION
     ULONG poolOffset;
 
     struct virtqueue *vq[VIRTIO_BLK_QUEUE_LAST];
-    USHORT num_queues;
+    ULONG num_queues;
     INQUIRYDATA inquiry_data;
     blk_config info;
     ULONG queue_depth;
@@ -228,6 +276,7 @@ typedef struct _ADAPTER_EXTENSION
     ULONG msix_vectors;
     BOOLEAN msix_enabled;
     BOOLEAN msix_one_vector;
+    INTERRUPT_SYNCHRONIZATION_MODE msix_sync_mode;
     ULONGLONG features;
     CHAR sn[BLOCK_SERIAL_STRLEN];
     BOOLEAN sn_ok;
@@ -244,12 +293,13 @@ typedef struct _ADAPTER_EXTENSION
     ULONG slot_number;
     ULONG perfFlags;
     PSTOR_DPC dpc;
-    BOOLEAN dpc_ok;
+    BOOLEAN dpc_ready;
     BOOLEAN check_condition;
     SENSE_INFO sense_info;
     BOOLEAN removed;
     BOOLEAN stopped;
     ULONG max_tx_length;
+    ULONG max_segments;
     PGROUP_AFFINITY pmsg_affinity;
     ULONG num_affinity;
     STOR_ADDR_BTL8 device_address;
@@ -262,29 +312,6 @@ typedef struct _ADAPTER_EXTENSION
     LONG inqueue_cnt;
 #endif
 } ADAPTER_EXTENSION, *PADAPTER_EXTENSION;
-
-typedef struct _VRING_DESC_ALIAS
-{
-    union {
-        ULONGLONG data[2];
-        UCHAR chars[SIZE_OF_SINGLE_INDIRECT_DESC];
-    } u;
-} VRING_DESC_ALIAS;
-
-typedef struct _SRB_EXTENSION
-{
-    blk_req vbr;
-    ULONG_PTR id;
-    ULONG out;
-    ULONG in;
-    ULONG MessageID;
-    BOOLEAN fua;
-    VIO_SG sg[VIRTIO_MAX_SG];
-    VRING_DESC_ALIAS desc[VIRTIO_MAX_SG];
-} SRB_EXTENSION, *PSRB_EXTENSION;
-
-BOOLEAN
-VirtIoInterrupt(IN PVOID DeviceExtension);
 
 #ifndef PCIX_TABLE_POINTER
 typedef struct
@@ -316,4 +343,4 @@ typedef struct
 } PCI_MSIX_CAPABILITY, *PPCI_MSIX_CAPABILITY;
 #endif
 
-#endif ___VIOSTOR__H__
+#endif //___VIOSTOR__H__

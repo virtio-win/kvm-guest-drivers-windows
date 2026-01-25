@@ -135,7 +135,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Win10 Release'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NTDDI_VERSION=NTDDI_WIN10</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <AdditionalDependencies>%(AdditionalDependencies);storport.lib</AdditionalDependencies>
@@ -143,7 +143,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Win11 Release'">
     <ClCompile>
-      <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NTDDI_VERSION=NTDDI_WIN10_CO</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <AdditionalDependencies>%(AdditionalDependencies);storport.lib</AdditionalDependencies>
@@ -225,6 +225,8 @@
     <ClInclude Include="virtio_stor_hw_helper.h" />
     <ClInclude Include="virtio_stor_trace.h" />
     <ClInclude Include="virtio_stor_utils.h" />
+    <ClInclude Include="virtio_stor_reg_helper.h" />
+    <ClInclude Include="ntddi_ver.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="virtio_stor.rc" />
@@ -234,6 +236,7 @@
     <ClCompile Include="virtio_stor.c" />
     <ClCompile Include="virtio_stor_hw_helper.c" />
     <ClCompile Include="virtio_stor_utils.c" />
+    <ClCompile Include="virtio_stor_reg_helper.c" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <Import Project="$(MSBuildProjectDirectory)\..\build\Driver.Common.targets" />
