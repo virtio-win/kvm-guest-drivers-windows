@@ -255,15 +255,16 @@ BOOL AddBufferToFile(PTCHAR sFileName, PVOID Buffer, ULONG BufferLen)
 
 BOOL Send(SOCKET sock, PCHAR Buffer, DWORD *BufferLen)
 {
-    while (BufferLen)
+    while (*BufferLen > 0)
     {
-        int len = send(sock, (char *)Buffer, *BufferLen, 0);
+        DWORD sendLen = (*BufferLen > (DWORD)INT_MAX) ? (DWORD)INT_MAX : *BufferLen;
+        int len = send(sock, (char *)Buffer, (int)sendLen, 0);
         if (len == SOCKET_ERROR)
         {
             _tprintf(_T("send failed: %d\n"), WSAGetLastError());
             return FALSE;
         }
-        else if (!len)
+        else if (len <= 0)
         {
             _tprintf(_T("connection closed\n"));
             return TRUE;
@@ -272,7 +273,7 @@ BOOL Send(SOCKET sock, PCHAR Buffer, DWORD *BufferLen)
         {
             _tprintf(_T("%d bytes sent\n"), len);
         }
-        *BufferLen -= len;
+        *BufferLen -= (DWORD)len;
         Buffer += len;
     }
     return TRUE;
