@@ -2394,7 +2394,7 @@ PBYTE VioGpuAdapter::GetCTA861Data(void)
     if (m_bEDID)
     {
         PEDID_DATA_V1 edid_data = (PEDID_DATA_V1)m_EDIDs;
-        if (edid_data->ExtensionFlag)
+        if (edid_data->ExtensionFlag[0])
         {
             PEDID_CTA_861 cta_data = (PEDID_CTA_861)(m_EDIDs + EDID_V1_BLOCK_SIZE);
             if (cta_data->ExtentionTag[0] >= 2 && cta_data->Revision[0] >= 3)
