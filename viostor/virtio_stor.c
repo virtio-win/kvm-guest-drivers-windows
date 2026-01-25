@@ -1059,6 +1059,7 @@ VirtIoStartIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
                     return TRUE;
                 }
             }
+            /* fallthrough */
         case SCSIOP_READ:
         case SCSIOP_READ16:
             {
