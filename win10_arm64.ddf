@@ -89,11 +89,9 @@
 .\viogpu\Install\Win10\ARM64\viogpuap.pdb
 .\viogpu\Install\Win10\ARM64\viogpuap.exe
 ; fwcfg driver
-;.Set DestinationDir=fwcfg
-;.\fwcfg64\Install\Win10\ARM64\fwcfg.cat
-;.\fwcfg64\Install\Win10\ARM64\fwcfg.inf
-;.\fwcfg64\Install\Win10\ARM64\fwcfg.pdb
-;.\fwcfg64\Install\Win10\ARM64\fwcfg.sys
+.Set DestinationDir=fwcfg
+.\fwcfg\Install\qemufwcfg.cat
+.\fwcfg\Install\qemufwcfg.inf
 ; viomem driver
 .Set DestinationDir=viomem
 .\viomem\Install\Win10\ARM64\viomem.cat
