@@ -225,7 +225,7 @@ typedef struct _ADAPTER_EXTENSION
     ULONG poolOffset;
 
     struct virtqueue *vq[VIRTIO_BLK_QUEUE_LAST];
-    USHORT num_queues;
+    ULONG num_queues;
     INQUIRYDATA inquiry_data;
     blk_config info;
     ULONG queue_depth;
