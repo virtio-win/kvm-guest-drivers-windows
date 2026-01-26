@@ -40,7 +40,6 @@
 #include "virtio.h"
 #include "virtio_ring.h"
 #include "virtio_stor_utils.h"
-#include "virtio_stor_hw_helper.h"
 
 typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
