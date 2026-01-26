@@ -983,11 +983,11 @@ VirtIoStartIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
                              SRB_FUNCTION(Srb),
                              adaptExt->srb_cnt,
                              adaptExt->inqueue_cnt);
-                for (ULONG i = 0; i < adaptExt->num_queues; i++)
+                for (ULONG vq_idx = 0; vq_idx < adaptExt->num_queues; vq_idx++)
                 {
-                    if (adaptExt->vq[i])
+                    if (adaptExt->vq[vq_idx])
                     {
-                        RhelDbgPrint(TRACE_LEVEL_ERROR, "%d indx %d\n", i, adaptExt->vq[i]->index);
+                        RhelDbgPrint(TRACE_LEVEL_ERROR, "%d indx %d\n", vq_idx, adaptExt->vq[vq_idx]->index);
                     }
                 }
 #endif
