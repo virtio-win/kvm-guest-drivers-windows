@@ -761,36 +761,53 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
             {
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_DPC_REDIRECTION))
                 {
-                    adaptExt->perfFlags |= STOR_PERF_DPC_REDIRECTION;
+                    adaptExt->perfFlags |= STOR_PERF_DPC_REDIRECTION; // SWITCH
+
+                    if (CHECKFLAG(perfData.Flags, STOR_PERF_INTERRUPT_MESSAGE_RANGES))
+                    {
+                        adaptExt->perfFlags |= STOR_PERF_INTERRUPT_MESSAGE_RANGES; // SWITCH
+                        perfData.FirstRedirectionMessageNumber = adaptExt->msix_cfg_vector_cnt;
+                        perfData.LastRedirectionMessageNumber = perfData.FirstRedirectionMessageNumber +
+                                                                adaptExt->num_queues - VIRTIO_STOR_PREFERRED_XTRA_VECTORS;
+                        ASSERT(perfData.lastRedirectionMessageNumber < adaptExt->num_affinity);
+
+                        if ((adaptExt->pmsg_affinity != NULL) && CHECKFLAG(perfData.Flags, STOR_PERF_ADV_CONFIG_LOCALITY))
+                        {
+                            RtlZeroMemory((PCHAR)adaptExt->pmsg_affinity,
+                                          sizeof(GROUP_AFFINITY) * ((ULONGLONG)adaptExt->num_affinity));
+                            adaptExt->perfFlags |= STOR_PERF_ADV_CONFIG_LOCALITY; // SWITCH
+                            perfData.MessageTargets = adaptExt->pmsg_affinity;
+                        }
+                    }
+
+                    if (CHECKFLAG(perfData.Flags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO))
+                    {
+                        adaptExt->perfFlags |= STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO; // SWITCH
+                    }
+
+                    if (CHECKFLAG(perfData.Flags, STOR_PERF_DPC_REDIRECTION_CURRENT_CPU))
+                    {
+                        // adaptExt->perfFlags |= STOR_PERF_DPC_REDIRECTION_CURRENT_CPU; // SWITCH
+                    }
                 }
-                if (CHECKFLAG(perfData.Flags, STOR_PERF_INTERRUPT_MESSAGE_RANGES))
-                {
-                    adaptExt->perfFlags |= STOR_PERF_INTERRUPT_MESSAGE_RANGES;
-                    perfData.FirstRedirectionMessageNumber = adaptExt->msix_cfg_vector_cnt;
-                    perfData.LastRedirectionMessageNumber = perfData.FirstRedirectionMessageNumber +
-                                                            adaptExt->num_queues - 1;
-                    ASSERT(perfData.lastRedirectionMessageNumber < adaptExt->num_affinity);
-                }
+
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_CONCURRENT_CHANNELS))
                 {
-                    adaptExt->perfFlags |= STOR_PERF_CONCURRENT_CHANNELS;
+                    adaptExt->perfFlags |= STOR_PERF_CONCURRENT_CHANNELS; // SWITCH
                     perfData.ConcurrentChannels = adaptExt->num_queues;
                 }
-                if ((adaptExt->pmsg_affinity != NULL) && CHECKFLAG(perfData.Flags, STOR_PERF_ADV_CONFIG_LOCALITY))
-                {
-                    RtlZeroMemory((PCHAR)adaptExt->pmsg_affinity,
-                                  sizeof(GROUP_AFFINITY) * ((ULONGLONG)adaptExt->num_queues + 1));
-                    adaptExt->perfFlags |= STOR_PERF_ADV_CONFIG_LOCALITY;
-                    perfData.MessageTargets = adaptExt->pmsg_affinity;
-                }
-                if (CHECKFLAG(perfData.Flags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO))
-                {
-                    adaptExt->perfFlags |= STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO;
-                }
+
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_NO_SGL))
                 {
-                    adaptExt->perfFlags |= STOR_PERF_NO_SGL;
+                    /* FIXME : We still use:
+                     *         * StorPortGetScatterGatherList(), and
+                     *         * ConfigInfo->ScatterGather = TRUE,
+                     *         so not sure why we are using STOR_PERF_NO_SGL here.
+                     *         Does not enable anyway...
+                     */
+                    adaptExt->perfFlags |= STOR_PERF_NO_SGL; // SWITCH
                 }
+
                 perfData.Flags = adaptExt->perfFlags;
                 RhelDbgPrint(TRACE_LEVEL_VERBOSE,
                              " Perf Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, "
