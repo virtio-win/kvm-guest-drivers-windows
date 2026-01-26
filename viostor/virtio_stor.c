@@ -715,6 +715,8 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
         /* if we don't have enough vectors, use one for all queues */
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, (" Using one MSI vector for all queues\n"));
         adaptExt->msix_one_vector = TRUE;
+        /* TODO Allow using multiple queues even with a single vector */
+        adaptExt->num_queues = 1;
     }
 
     if (!InitializeVirtualQueues(adaptExt))
@@ -767,7 +769,7 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_INTERRUPT_MESSAGE_RANGES))
                 {
                     adaptExt->perfFlags |= STOR_PERF_INTERRUPT_MESSAGE_RANGES;
-                    perfData.FirstRedirectionMessageNumber = 1;
+                    perfData.FirstRedirectionMessageNumber = adaptExt->msix_one_vector ? 0 : 1;
                     perfData.LastRedirectionMessageNumber = perfData.FirstRedirectionMessageNumber +
                                                             adaptExt->num_queues - 1;
                     ASSERT(perfData.lastRedirectionMessageNumber < adaptExt->num_affinity);
