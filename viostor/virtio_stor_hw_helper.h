@@ -73,7 +73,7 @@ static inline ULONG QueueToMessageId(PVOID DeviceExtension, ULONG QueueNumber)
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
-    if (!adaptExt->msix_one_vector)
+    if (adaptExt->msix_has_config_vector)
     {
         QueueNumber++;
     }
@@ -90,7 +90,7 @@ static inline ULONG MessageToDpcIdx(PVOID DeviceExtension, ULONG MessageId)
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
-    if (!adaptExt->msix_one_vector)
+    if (adaptExt->msix_has_config_vector)
     {
         /* The config vector doesn't have a slot in adaptExt->dpc */
         MessageId--;
