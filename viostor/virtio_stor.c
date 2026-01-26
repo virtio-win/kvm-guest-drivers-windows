@@ -688,22 +688,38 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
     }
 
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Queues %d msix_vectors %d\n", adaptExt->num_queues, adaptExt->msix_vectors);
-    if (adaptExt->num_queues > 1 && ((adaptExt->num_queues + 1U) > adaptExt->msix_vectors))
+
+    /* edge case when queues exceed MSI vectors */
+    if (adaptExt->num_queues > 1 &&
+        ((adaptExt->num_queues + VIRTIO_BLK_REQUEST_QUEUE_0 + VIRTIO_BLK_MSIX_VQ_OFFSET) > adaptExt->msix_vectors))
     {
-        adaptExt->num_queues = adaptExt->msix_vectors;
+        if (adaptExt->msix_vectors == 1)
+        {
+            adaptExt->num_queues = 1;
+        }
+        else
+        {
+            adaptExt->num_queues = (adaptExt->msix_vectors - VIRTIO_BLK_REQUEST_QUEUE_0 - VIRTIO_BLK_MSIX_VQ_OFFSET);
+        }
     }
 
-    if (adaptExt->msix_vectors >= (adaptExt->num_queues + 1U))
+    if (!adaptExt->dump_mode && adaptExt->msix_vectors > 0)
     {
-        /* initialize queues with a MSI vector per queue */
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, (" Using a unique MSI vector per queue\n"));
-        adaptExt->msix_one_vector = FALSE;
+        if (adaptExt->msix_vectors >= (adaptExt->num_queues + VIRTIO_BLK_REQUEST_QUEUE_0 + VIRTIO_BLK_MSIX_VQ_OFFSET))
+        {
+            /* initialize queues with a MSI vector per queue */
+            adaptExt->msix_one_vector = FALSE;
+        }
+        else
+        {
+            /* if we don't have enough vectors, use one for all queues */
+            adaptExt->msix_one_vector = TRUE;
+        }
     }
     else
     {
-        /* if we don't have enough vectors, use one for all queues */
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, (" Using one MSI vector for all queues\n"));
-        adaptExt->msix_one_vector = TRUE;
+        /* initialize queues with no MSI interrupts */
+        adaptExt->msix_enabled = FALSE;
     }
 
     if (!InitializeVirtualQueues(adaptExt))
