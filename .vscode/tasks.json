@@ -1,0 +1,408 @@
+{
+  "_comment": "For build prerequisites and setup instructions, see: https://virtio-win.github.io/Development/Building-the-drivers-using-Windows-11-24H2-EWDK",
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "▶ build_AllNoSdv: Win10 [All Archs]",
+      "type": "shell",
+      "command": "cmd",
+      "args": ["/c", "build_AllNoSdv.bat", "Win10"],
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "▶ build_AllNoSdv: Win10 [Choose Arch]",
+      "type": "shell",
+      "command": "cmd",
+      "args": ["/c", "build_AllNoSdv.bat", "Win10", "${input:architecture}"],
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "▶ build_AllNoSdv: Win11 [All Archs]",
+      "type": "shell",
+      "command": "cmd",
+      "args": ["/c", "build_AllNoSdv.bat", "Win11"],
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "▶ build_AllNoSdv: Win11 [Choose Arch]",
+      "type": "shell",
+      "command": "cmd",
+      "args": ["/c", "build_AllNoSdv.bat", "Win11", "${input:architecture}"],
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: Balloon",
+      "type": "shell",
+      "command": "cmd",
+      "args": ["/c", "build_AllNoSdv.bat", "${input:windowsVersion}", "${input:architecture}"],
+      "options": {
+        "cwd": "${workspaceFolder}/Balloon"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: pvpanic",
+      "type": "shell",
+      "command": "cmd",
+      "args": ["/c", "build_AllNoSdv.bat", "${input:windowsVersion}", "${input:architecture}"],
+      "options": {
+        "cwd": "${workspaceFolder}/pvpanic"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: NetKVM",
+      "type": "shell",
+      "command": "cmd",
+      "args": ["/c", "build_AllNoSdv.bat", "${input:windowsVersion}", "${input:architecture}"],
+      "options": {
+        "cwd": "${workspaceFolder}/NetKVM"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: viostor",
+      "type": "shell",
+      "command": "cmd",
+      "args": ["/c", "build_AllNoSdv.bat", "${input:windowsVersion}", "${input:architecture}"],
+      "options": {
+        "cwd": "${workspaceFolder}/viostor"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: vioscsi",
+      "type": "shell",
+      "command": "cmd",
+      "args": ["/c", "build_AllNoSdv.bat", "${input:windowsVersion}", "${input:architecture}"],
+      "options": {
+        "cwd": "${workspaceFolder}/vioscsi"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: vioserial",
+      "type": "shell",
+      "command": "cmd",
+      "args": ["/c", "build_AllNoSdv.bat", "${input:windowsVersion}", "${input:architecture}"],
+      "options": {
+        "cwd": "${workspaceFolder}/vioserial"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: viosock",
+      "type": "shell",
+      "command": "cmd",
+      "args": ["/c", "build_AllNoSdv.bat", "${input:windowsVersion}", "${input:architecture}"],
+      "options": {
+        "cwd": "${workspaceFolder}/viosock"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: viorng",
+      "type": "shell",
+      "command": "cmd",
+      "args": ["/c", "build_AllNoSdv.bat", "${input:windowsVersion}", "${input:architecture}"],
+      "options": {
+        "cwd": "${workspaceFolder}/viorng"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: viomem",
+      "type": "shell",
+      "command": "cmd",
+      "args": ["/c", "build_AllNoSdv.bat", "${input:windowsVersion}", "${input:architecture}"],
+      "options": {
+        "cwd": "${workspaceFolder}/viomem"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: vioinput",
+      "type": "shell",
+      "command": "cmd",
+      "args": ["/c", "build_AllNoSdv.bat", "${input:windowsVersion}", "${input:architecture}"],
+      "options": {
+        "cwd": "${workspaceFolder}/vioinput"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: viogpu",
+      "type": "shell",
+      "command": "cmd",
+      "args": ["/c", "build_AllNoSdv.bat", "${input:windowsVersion}", "${input:architecture}"],
+      "options": {
+        "cwd": "${workspaceFolder}/viogpu"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: viofs",
+      "type": "shell",
+      "command": "cmd",
+      "args": ["/c", "build_AllNoSdv.bat", "${input:windowsVersion}", "${input:architecture}"],
+      "options": {
+        "cwd": "${workspaceFolder}/viofs"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: viocrypt",
+      "type": "shell",
+      "command": "cmd",
+      "args": ["/c", "build_AllNoSdv.bat", "${input:windowsVersion}", "${input:architecture}"],
+      "options": {
+        "cwd": "${workspaceFolder}/viocrypt"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: ivshmem",
+      "type": "shell",
+      "command": "cmd",
+      "args": ["/c", "build_AllNoSdv.bat", "${input:windowsVersion}", "${input:architecture}"],
+      "options": {
+        "cwd": "${workspaceFolder}/ivshmem"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: fwcfg64",
+      "type": "shell",
+      "command": "cmd",
+      "args": ["/c", "build_AllNoSdv.bat", "${input:windowsVersion}", "${input:architecture}"],
+      "options": {
+        "cwd": "${workspaceFolder}/fwcfg64"
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Clean: All Drivers",
+      "type": "shell",
+      "command": "cmd",
+      "args": ["/c", "clean.bat"],
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "🔐 Sign All Drivers",
+      "type": "shell",
+      "command": "cmd",
+      "args": ["/c", "build\\signAll.bat"],
+      "group": "build",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "windowsVersion",
+      "type": "pickString",
+      "description": "Select Windows version:",
+      "options": [
+        "Win10",
+        "Win11"
+      ]
+    },
+    {
+      "id": "architecture",
+      "type": "pickString",
+      "description": "Select architecture to build:",
+      "options": [
+        "x86",
+        "x64",
+        "ARM64"
+      ]
+    }
+  ]
+}
