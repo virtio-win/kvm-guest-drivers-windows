@@ -69,6 +69,39 @@ FORCEINLINE VOID SrbGetPnpInfo(_In_ PVOID Srb, ULONG *PnPFlags, ULONG *PnPAction
     }
 }
 
+static inline ULONG QueueToMessageId(PVOID DeviceExtension, ULONG QueueNumber)
+{
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+
+    if (!adaptExt->msix_one_vector)
+    {
+        QueueNumber++;
+    }
+    else
+    {
+        NT_ASSERT(QueueNumber == 0);
+    }
+
+    /* TODO Limit to msix_vectors to allow multiple queues per vector */
+    return QueueNumber;
+}
+
+static inline ULONG MessageToDpcIdx(PVOID DeviceExtension, ULONG MessageId)
+{
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+
+    if (!adaptExt->msix_one_vector)
+    {
+        /* The config vector doesn't have a slot in adaptExt->dpc */
+        MessageId--;
+    }
+
+    NT_ASSERT(MessageId >= 0);
+    NT_ASSERT(MessageId < adaptExt->num_queues);
+
+    return MessageId;
+}
+
 #define PSRB_TYPE                      PSTORAGE_REQUEST_BLOCK
 #define PSRB_WMI_DATA                  PSRBEX_DATA_WMI
 #define PSTOR_DEVICE_CAPABILITIES_TYPE PSTOR_DEVICE_CAPABILITIES_EX
