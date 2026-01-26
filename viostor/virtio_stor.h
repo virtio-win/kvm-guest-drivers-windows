@@ -236,8 +236,8 @@ typedef struct _ADAPTER_EXTENSION
     ULONG queue_depth;
     BOOLEAN dump_mode;
     ULONG msix_vectors;
+    ULONG msix_cfg_vector_cnt;
     BOOLEAN msix_enabled;
-    BOOLEAN msix_config_vector;
     ULONGLONG features;
     CHAR sn[BLOCK_SERIAL_STRLEN];
     BOOLEAN sn_ok;

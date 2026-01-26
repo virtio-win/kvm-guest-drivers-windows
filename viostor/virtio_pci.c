@@ -231,15 +231,15 @@ static u16 vdev_get_msix_vector(void *context, int queue)
         /* queue interrupt */
         if (adaptExt->msix_enabled)
         {
-            vector = adaptExt->msix_config_vector ? queue + 1 : queue;
+            vector = (int)adaptExt->msix_cfg_vector_cnt + queue;
         }
     }
     else
     {
         /* on-device-config-change interrupt */
-        if (adaptExt->msix_config_vector)
+        if (adaptExt->msix_cfg_vector_cnt)
         {
-            vector = VIRTIO_BLK_MSIX_CONFIG_VECTOR;
+            vector = VIRTIO_STOR_MSIX_CONFIG_VECTOR;
         }
     }
 

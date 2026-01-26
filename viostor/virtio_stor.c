@@ -665,15 +665,12 @@ VOID RhelSetGuestFeatures(IN PVOID DeviceExtension)
 BOOLEAN
 VirtIoHwInitialize(IN PVOID DeviceExtension)
 {
-    PADAPTER_EXTENSION adaptExt;
-    BOOLEAN ret = FALSE;
-    ULONGLONG guestFeatures = 0;
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     PERF_CONFIGURATION_DATA perfData = {0};
-    ULONG status = STOR_STATUS_SUCCESS;
     MESSAGE_INTERRUPT_INFORMATION msi_info = {0};
     PREQUEST_LIST element = NULL;
-
-    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    ULONG status;
+    ULONG vector_idx = 0;
 
     adaptExt->msix_vectors = 0;
     adaptExt->pageOffset = 0;
@@ -701,6 +698,12 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
 
     if (adaptExt->msix_vectors >= (adaptExt->num_queues + 1U))
     {
+        /* initialize queues with a MSI vector per queue */
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, (" Using a unique MSI vector per queue\n"));
+        adaptExt->msix_config_vector = TRUE;
+    }
+    else
+    {
         /* if we don't have enough vectors, use one for all queues */
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, (" Using one MSI vector for all queues\n"));
         adaptExt->msix_config_vector = TRUE;
@@ -721,7 +724,7 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
 
         RhelDbgPrint(TRACE_LEVEL_FATAL, (" Cannot find snd virtual queue\n"));
         virtio_add_status(&adaptExt->vdev, VIRTIO_CONFIG_S_FAILED);
-        return ret;
+        return FALSE;
     }
 
     memset(&adaptExt->inquiry_data, 0, sizeof(INQUIRYDATA));
@@ -736,8 +739,6 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
     StorPortMoveMemory(&adaptExt->inquiry_data.ProductId, "VirtIO", sizeof("VirtIO"));
     StorPortMoveMemory(&adaptExt->inquiry_data.ProductRevisionLevel, "0001", sizeof("0001"));
     StorPortMoveMemory(&adaptExt->inquiry_data.VendorSpecific, "0001", sizeof("0001"));
-
-    ret = TRUE;
 
     if (!adaptExt->dump_mode)
     {
@@ -765,7 +766,7 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_INTERRUPT_MESSAGE_RANGES))
                 {
                     adaptExt->perfFlags |= STOR_PERF_INTERRUPT_MESSAGE_RANGES;
-                    perfData.FirstRedirectionMessageNumber = adaptExt->msix_config_vector ? 1 : 0;
+                    perfData.FirstRedirectionMessageNumber = adaptExt->msix_cfg_vector_cnt;
                     perfData.LastRedirectionMessageNumber = perfData.FirstRedirectionMessageNumber +
                                                             adaptExt->num_queues - 1;
                     ASSERT(perfData.lastRedirectionMessageNumber < adaptExt->num_affinity);
@@ -821,17 +822,12 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
         }
         if ((adaptExt->dpc != NULL) && (adaptExt->dpc_ok == FALSE))
         {
-            ret = StorPortEnablePassiveInitialization(DeviceExtension, VirtIoPassiveInitializeRoutine);
+            if (!StorPortEnablePassiveInitialization(DeviceExtension, VirtIoPassiveInitializeRoutine))
+            {
+                virtio_add_status(&adaptExt->vdev, VIRTIO_CONFIG_S_FAILED);
+                return FALSE;
+            }
         }
-    }
-
-    if (ret)
-    {
-        virtio_device_ready(&adaptExt->vdev);
-    }
-    else
-    {
-        virtio_add_status(&adaptExt->vdev, VIRTIO_CONFIG_S_FAILED);
     }
 
     for (ULONG index = 0; index < adaptExt->num_queues; ++index)
@@ -841,7 +837,8 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
         element->srb_cnt = 0;
     }
 
-    return ret;
+    virtio_device_ready(&adaptExt->vdev);
+    return TRUE;
 }
 
 static VOID CompletePendingRequestsOnReset(IN PVOID DeviceExtension)
@@ -1254,9 +1251,9 @@ VirtIoInterrupt(IN PVOID DeviceExtension)
     intReason = virtio_read_isr_status(&adaptExt->vdev);
     if (intReason == 1 || adaptExt->dump_mode)
     {
-        if (!CompleteDPC(DeviceExtension, !!adaptExt->msix_config_vector))
+        if (!CompleteDPC(DeviceExtension, !!adaptExt->msix_cfg_vector_cnt))
         {
-            VioStorCompleteRequest(DeviceExtension, !!adaptExt->msix_config_vector, TRUE);
+            VioStorCompleteRequest(DeviceExtension, !!adaptExt->msix_cfg_vector_cnt, TRUE);
         }
         isInterruptServiced = TRUE;
     }
@@ -1579,7 +1576,7 @@ VirtIoMSInterruptRoutine(IN PVOID DeviceExtension, IN ULONG MessageID)
         return FALSE;
     }
 
-    if (adaptExt->msix_config_vector && MessageID == VIRTIO_STOR_MSIX_CONFIG_VECTOR)
+    if (adaptExt->msix_cfg_vector_cnt && MessageID == VIRTIO_STOR_MSIX_CONFIG_VECTOR)
     {
         RhelGetDiskGeometry(DeviceExtension);
         adaptExt->sense_info.senseKey = SCSI_SENSE_UNIT_ATTENTION;
@@ -2174,7 +2171,7 @@ VOID VioStorCompleteRequest(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOO
 {
     unsigned int len = 0;
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    ULONG QueueNumber = MessageID - !!adaptExt->msix_config_vector;
+    ULONG QueueNumber = MessageID - !!adaptExt->msix_cfg_vector_cnt;
     STOR_LOCK_HANDLE queueLock = {0};
     struct virtqueue *vq = NULL;
     ULONG_PTR srbId = 0;
