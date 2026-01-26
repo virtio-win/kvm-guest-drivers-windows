@@ -858,7 +858,7 @@ static VOID CompletePendingRequestsOnReset(IN PVOID DeviceExtension)
     {
         PREQUEST_LIST element;
         STOR_LOCK_HANDLE LockHandle = {0};
-        ULONG MessageID = index + 1;
+        ULONG MessageID = QueueToMessageId(DeviceExtension, index);
         VioStorVQLock(DeviceExtension, MessageID, &LockHandle, FALSE);
         element = &adaptExt->processing_srbs[index];
         while (!IsListEmpty(&element->srb_list))
@@ -922,8 +922,9 @@ BOOLEAN VioStorResetBus(IN PVOID DeviceExtension)
      * are currently in progress in DPC. Each new DPC call will have no effect because
      * VioStorCompleteRequest will exit for any non-zero reset_in_progress_count value
      */
-    for (ULONG MessageId = 1; MessageId <= adaptExt->num_queues; MessageId++)
+    for (ULONG QueueNumber = 0; QueueNumber < adaptExt->num_queues; QueueNumber++)
     {
+        ULONG MessageId = QueueToMessageId(DeviceExtension, QueueNumber);
         STOR_LOCK_HANDLE LockHandle = {0};
         VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
         adaptExt->reset_in_progress_count++;
@@ -945,8 +946,9 @@ BOOLEAN VioStorResetBus(IN PVOID DeviceExtension)
         return FALSE;
     }
 
-    for (ULONG MessageId = 1; MessageId <= adaptExt->num_queues; MessageId++)
+    for (ULONG QueueNumber = 0; QueueNumber < adaptExt->num_queues; QueueNumber++)
     {
+        ULONG MessageId = QueueToMessageId(DeviceExtension, QueueNumber);
         STOR_LOCK_HANDLE LockHandle = {0};
         VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
         adaptExt->reset_in_progress_count--;
@@ -1251,9 +1253,9 @@ VirtIoInterrupt(IN PVOID DeviceExtension)
     intReason = virtio_read_isr_status(&adaptExt->vdev);
     if (intReason == 1 || adaptExt->dump_mode)
     {
-        if (!CompleteDPC(DeviceExtension, 1))
+        if (!CompleteDPC(DeviceExtension, !adaptExt->msix_one_vector))
         {
-            VioStorCompleteRequest(DeviceExtension, 1, TRUE);
+            VioStorCompleteRequest(DeviceExtension, !adaptExt->msix_one_vector, TRUE);
         }
         isInterruptServiced = TRUE;
     }
@@ -1576,22 +1578,15 @@ VirtIoMSInterruptRoutine(IN PVOID DeviceExtension, IN ULONG MessageID)
         return FALSE;
     }
 
-    if (adaptExt->msix_one_vector)
+    if (!adaptExt->msix_one_vector && MessageID == VIRTIO_BLK_MSIX_CONFIG_VECTOR)
     {
-        MessageID = 1;
-    }
-    else
-    {
-        if (MessageID == VIRTIO_BLK_MSIX_CONFIG_VECTOR)
-        {
-            RhelGetDiskGeometry(DeviceExtension);
-            adaptExt->sense_info.senseKey = SCSI_SENSE_UNIT_ATTENTION;
-            adaptExt->sense_info.additionalSenseCode = SCSI_ADSENSE_PARAMETERS_CHANGED;
-            adaptExt->sense_info.additionalSenseCodeQualifier = SCSI_SENSEQ_CAPACITY_DATA_CHANGED;
-            adaptExt->check_condition = TRUE;
-            DeviceChangeNotification(DeviceExtension, TRUE);
-            return TRUE;
-        }
+        RhelGetDiskGeometry(DeviceExtension);
+        adaptExt->sense_info.senseKey = SCSI_SENSE_UNIT_ATTENTION;
+        adaptExt->sense_info.additionalSenseCode = SCSI_ADSENSE_PARAMETERS_CHANGED;
+        adaptExt->sense_info.additionalSenseCodeQualifier = SCSI_SENSEQ_CAPACITY_DATA_CHANGED;
+        adaptExt->check_condition = TRUE;
+        DeviceChangeNotification(DeviceExtension, TRUE);
+        return TRUE;
     }
 
     if (!CompleteDPC(DeviceExtension, MessageID))
@@ -2113,10 +2108,11 @@ FORCEINLINE
 CompleteDPC(IN PVOID DeviceExtension, IN ULONG MessageID)
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    ULONG dpc_idx = MessageToDpcIdx(DeviceExtension, MessageID);
 
     if (!adaptExt->dump_mode && adaptExt->dpc_ok)
     {
-        StorPortIssueDpc(DeviceExtension, &adaptExt->dpc[MessageID - 1], ULongToPtr(MessageID), ULongToPtr(FALSE));
+        StorPortIssueDpc(DeviceExtension, &adaptExt->dpc[dpc_idx], ULongToPtr(MessageID), ULongToPtr(FALSE));
         return TRUE;
     }
     return FALSE;
@@ -2176,8 +2172,8 @@ UCHAR DeviceToSrbStatus(UCHAR status)
 VOID VioStorCompleteRequest(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOOLEAN bIsr)
 {
     unsigned int len = 0;
-    PADAPTER_EXTENSION adaptExt = NULL;
-    ULONG QueueNumber = MessageID - 1;
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    ULONG QueueNumber = adaptExt->msix_one_vector ? MessageID : MessageID - 1;
     STOR_LOCK_HANDLE queueLock = {0};
     struct virtqueue *vq = NULL;
     ULONG_PTR srbId = 0;
@@ -2187,8 +2183,6 @@ VOID VioStorCompleteRequest(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOO
     PREQUEST_LIST element = NULL;
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " ---> MessageID 0x%x\n", MessageID);
-
-    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     VioStorVQLock(DeviceExtension, MessageID, &queueLock, bIsr);
 

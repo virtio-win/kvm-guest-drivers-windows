@@ -103,7 +103,7 @@ RhelDoFlush(PVOID DeviceExtension, PSRB_TYPE Srb, BOOLEAN resend, BOOLEAN bIsr)
     SET_VA_PA();
 
     QueueNumber = resend ? srbExt->queue_number : GetSrbQueueNumber(DeviceExtension, Srb);
-    MessageId = QueueNumber + 1;
+    MessageId = QueueToMessageId(DeviceExtension, QueueNumber);
 
     srbExt->queue_number = QueueNumber;
     vq = adaptExt->vq[QueueNumber];
@@ -209,7 +209,7 @@ RhelDoReadWrite(PVOID DeviceExtension, PSRB_TYPE Srb)
     SET_VA_PA();
 
     QueueNumber = GetSrbQueueNumber(DeviceExtension, Srb);
-    MessageId = QueueNumber + 1;
+    MessageId = QueueToMessageId(DeviceExtension, QueueNumber);
 
     srbExt->queue_number = QueueNumber;
     vq = adaptExt->vq[QueueNumber];
@@ -365,7 +365,7 @@ RhelDoUnMap(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     srbExt->sg[2].length = sizeof(srbExt->vbr.status);
 
     QueueNumber = GetSrbQueueNumber(DeviceExtension, Srb);
-    MessageId = QueueNumber + 1;
+    MessageId = QueueToMessageId(DeviceExtension, QueueNumber);
 
     srbExt->queue_number = QueueNumber;
     vq = adaptExt->vq[QueueNumber];
@@ -446,7 +446,7 @@ RhelGetSerialNumber(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " srbExt %p.\n", srbExt);
 
     QueueNumber = GetSrbQueueNumber(DeviceExtension, Srb);
-    MessageId = QueueNumber + 1;
+    MessageId = QueueToMessageId(DeviceExtension, QueueNumber);
 
     srbExt->queue_number = QueueNumber;
     vq = adaptExt->vq[QueueNumber];
@@ -751,15 +751,13 @@ VOID VioStorVQLock(IN PVOID DeviceExtension, IN ULONG MessageID, IN OUT PSTOR_LO
         {
             if (adaptExt->num_queues > 1)
             {
-
-                NT_ASSERT(MessageID > 0);
-                NT_ASSERT(MessageID <= adaptExt->num_queues);
-                StorPortAcquireSpinLock(DeviceExtension, DpcLock, &adaptExt->dpc[MessageID - 1], LockHandle);
+                ULONG dpc_idx = MessageToDpcIdx(DeviceExtension, MessageID);
+                StorPortAcquireSpinLock(DeviceExtension, DpcLock, &adaptExt->dpc[dpc_idx], LockHandle);
             }
             else
             {
                 ULONG oldIrql = 0;
-                StorPortAcquireMSISpinLock(DeviceExtension, (adaptExt->msix_one_vector ? 0 : MessageID), &oldIrql);
+                StorPortAcquireMSISpinLock(DeviceExtension, MessageID, &oldIrql);
                 LockHandle->Context.OldIrql = (KIRQL)oldIrql;
             }
         }
@@ -787,9 +785,7 @@ VOID VioStorVQUnlock(IN PVOID DeviceExtension, IN ULONG MessageID, IN PSTOR_LOCK
             }
             else
             {
-                StorPortReleaseMSISpinLock(DeviceExtension,
-                                           (adaptExt->msix_one_vector ? 0 : MessageID),
-                                           LockHandle->Context.OldIrql);
+                StorPortReleaseMSISpinLock(DeviceExtension, MessageID, LockHandle->Context.OldIrql);
             }
         }
         else
