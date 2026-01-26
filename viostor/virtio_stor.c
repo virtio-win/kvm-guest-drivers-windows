@@ -443,7 +443,7 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
         virtio_get_config(&adaptExt->vdev,
                           FIELD_OFFSET(blk_config, num_queues),
                           &adaptExt->num_queues,
-                          sizeof(adaptExt->num_queues));
+                          sizeof(adaptExt->info.num_queues));
     }
 
     if (adaptExt->dump_mode || !adaptExt->msix_enabled)
@@ -452,7 +452,7 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
     }
     else
     {
-        adaptExt->num_queues = min(adaptExt->num_queues, (USHORT)num_cpus);
+        adaptExt->num_queues = min(adaptExt->num_queues, num_cpus);
     }
 
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Queues %d CPUs %d\n", adaptExt->num_queues, num_cpus);
@@ -694,7 +694,7 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Queues %d msix_vectors %d\n", adaptExt->num_queues, adaptExt->msix_vectors);
     if (adaptExt->num_queues > 1 && ((adaptExt->num_queues + 1U) > adaptExt->msix_vectors))
     {
-        adaptExt->num_queues = (USHORT)adaptExt->msix_vectors;
+        adaptExt->num_queues = adaptExt->msix_vectors;
     }
 
     if (adaptExt->msix_vectors >= (adaptExt->num_queues + 1U))
@@ -981,7 +981,7 @@ VirtIoStartIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
                              SRB_FUNCTION(Srb),
                              adaptExt->srb_cnt,
                              adaptExt->inqueue_cnt);
-                for (USHORT i = 0; i < adaptExt->num_queues; i++)
+                for (ULONG i = 0; i < adaptExt->num_queues; i++)
                 {
                     if (adaptExt->vq[i])
                     {
