@@ -703,13 +703,14 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
     {
         /* initialize queues with a MSI vector per queue */
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, (" Using a unique MSI vector per queue\n"));
-        adaptExt->msix_one_vector = FALSE;
+        adaptExt->msix_has_config_vector = TRUE;
     }
     else
     {
         /* if we don't have enough vectors, use one for all queues */
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, (" Disabling MSI config vector\n"));
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, (" Using one MSI vector for all queues\n"));
-        adaptExt->msix_one_vector = TRUE;
+        adaptExt->msix_has_config_vector = FALSE;
         /* TODO Allow using multiple queues even with a single vector */
         adaptExt->num_queues = 1;
     }
@@ -764,7 +765,7 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_INTERRUPT_MESSAGE_RANGES))
                 {
                     adaptExt->perfFlags |= STOR_PERF_INTERRUPT_MESSAGE_RANGES;
-                    perfData.FirstRedirectionMessageNumber = adaptExt->msix_one_vector ? 0 : 1;
+                    perfData.FirstRedirectionMessageNumber = adaptExt->msix_has_config_vector ? 1 : 0;
                     perfData.LastRedirectionMessageNumber = perfData.FirstRedirectionMessageNumber +
                                                             adaptExt->num_queues - 1;
                     ASSERT(perfData.lastRedirectionMessageNumber < adaptExt->num_affinity);
@@ -1253,9 +1254,9 @@ VirtIoInterrupt(IN PVOID DeviceExtension)
     intReason = virtio_read_isr_status(&adaptExt->vdev);
     if (intReason == 1 || adaptExt->dump_mode)
     {
-        if (!CompleteDPC(DeviceExtension, !adaptExt->msix_one_vector))
+        if (!CompleteDPC(DeviceExtension, adaptExt->msix_has_config_vector))
         {
-            VioStorCompleteRequest(DeviceExtension, !adaptExt->msix_one_vector, TRUE);
+            VioStorCompleteRequest(DeviceExtension, adaptExt->msix_has_config_vector, TRUE);
         }
         isInterruptServiced = TRUE;
     }
@@ -1578,7 +1579,7 @@ VirtIoMSInterruptRoutine(IN PVOID DeviceExtension, IN ULONG MessageID)
         return FALSE;
     }
 
-    if (!adaptExt->msix_one_vector && MessageID == VIRTIO_BLK_MSIX_CONFIG_VECTOR)
+    if (adaptExt->msix_has_config_vector && MessageID == VIRTIO_BLK_MSIX_CONFIG_VECTOR)
     {
         RhelGetDiskGeometry(DeviceExtension);
         adaptExt->sense_info.senseKey = SCSI_SENSE_UNIT_ATTENTION;
@@ -2173,7 +2174,7 @@ VOID VioStorCompleteRequest(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOO
 {
     unsigned int len = 0;
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    ULONG QueueNumber = adaptExt->msix_one_vector ? MessageID : MessageID - 1;
+    ULONG QueueNumber = MessageID - adaptExt->msix_has_config_vector;
     STOR_LOCK_HANDLE queueLock = {0};
     struct virtqueue *vq = NULL;
     ULONG_PTR srbId = 0;

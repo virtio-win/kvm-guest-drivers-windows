@@ -231,7 +231,8 @@ typedef struct _ADAPTER_EXTENSION
     BOOLEAN dump_mode;
     ULONG msix_vectors;
     BOOLEAN msix_enabled;
-    BOOLEAN msix_one_vector;
+    /* Standard C type because we do arithmetics with it */
+    _Bool msix_has_config_vector;
     ULONGLONG features;
     CHAR sn[BLOCK_SERIAL_STRLEN];
     BOOLEAN sn_ok;
