@@ -440,10 +440,12 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
     adaptExt->num_queues = 1;
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_MQ))
     {
+        USHORT num_queues_u16 = 1;
         virtio_get_config(&adaptExt->vdev,
                           FIELD_OFFSET(blk_config, num_queues),
-                          &adaptExt->num_queues,
-                          sizeof(adaptExt->num_queues));
+                          &num_queues_u16,
+                          sizeof(adaptExt->info.num_queues));
+        adaptExt->num_queues = (ULONG)num_queues_u16;
     }
 
     if (adaptExt->dump_mode || !adaptExt->msix_enabled)
@@ -452,7 +454,7 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
     }
     else
     {
-        adaptExt->num_queues = min(adaptExt->num_queues, (USHORT)num_cpus);
+        adaptExt->num_queues = min(adaptExt->num_queues, num_cpus);
     }
     adaptExt->reset_in_progress_count = 0;
 
@@ -695,7 +697,7 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Queues %d msix_vectors %d\n", adaptExt->num_queues, adaptExt->msix_vectors);
     if (adaptExt->num_queues > 1 && ((adaptExt->num_queues + 1U) > adaptExt->msix_vectors))
     {
-        adaptExt->num_queues = (USHORT)adaptExt->msix_vectors;
+        adaptExt->num_queues = adaptExt->msix_vectors;
     }
 
     if (adaptExt->msix_vectors >= (adaptExt->num_queues + 1U))
