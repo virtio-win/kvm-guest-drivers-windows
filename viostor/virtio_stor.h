@@ -281,7 +281,7 @@ typedef struct _SRB_EXTENSION
     ULONG_PTR id;
     ULONG out;
     ULONG in;
-    ULONG MessageID;
+    ULONG queue_number;
     BOOLEAN fua;
     VIO_SG sg[VIRTIO_MAX_SG];
     VRING_DESC_ALIAS desc[VIRTIO_MAX_SG];

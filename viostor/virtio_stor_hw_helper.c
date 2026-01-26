@@ -102,18 +102,10 @@ RhelDoFlush(PVOID DeviceExtension, PSRB_TYPE Srb, BOOLEAN resend, BOOLEAN bIsr)
 
     SET_VA_PA();
 
-    if (resend)
-    {
-        MessageId = srbExt->MessageID;
-        QueueNumber = MessageId - 1;
-    }
-    else
-    {
-        QueueNumber = GetSrbQueueNumber(DeviceExtension, Srb);
-        MessageId = QueueNumber + 1;
-    }
+    QueueNumber = resend ? srbExt->queue_number : GetSrbQueueNumber(DeviceExtension, Srb);
+    MessageId = QueueNumber + 1;
 
-    srbExt->MessageID = MessageId;
+    srbExt->queue_number = QueueNumber;
     vq = adaptExt->vq[QueueNumber];
 
     srbExt->vbr.out_hdr.sector = 0;
@@ -219,7 +211,7 @@ RhelDoReadWrite(PVOID DeviceExtension, PSRB_TYPE Srb)
     QueueNumber = GetSrbQueueNumber(DeviceExtension, Srb);
     MessageId = QueueNumber + 1;
 
-    srbExt->MessageID = MessageId;
+    srbExt->queue_number = QueueNumber;
     vq = adaptExt->vq[QueueNumber];
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " QueueNumber 0x%x vq = %p\n", QueueNumber, vq);
 
@@ -375,7 +367,7 @@ RhelDoUnMap(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     QueueNumber = GetSrbQueueNumber(DeviceExtension, Srb);
     MessageId = QueueNumber + 1;
 
-    srbExt->MessageID = MessageId;
+    srbExt->queue_number = QueueNumber;
     vq = adaptExt->vq[QueueNumber];
     RhelDbgPrint(TRACE_LEVEL_INFORMATION,
                  " QueueNumber 0x%x vq = %p type = %d\n",
@@ -456,7 +448,7 @@ RhelGetSerialNumber(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     QueueNumber = GetSrbQueueNumber(DeviceExtension, Srb);
     MessageId = QueueNumber + 1;
 
-    srbExt->MessageID = MessageId;
+    srbExt->queue_number = QueueNumber;
     vq = adaptExt->vq[QueueNumber];
 
     srbExt->vbr.out_hdr.sector = 0;
