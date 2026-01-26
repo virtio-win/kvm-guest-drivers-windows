@@ -663,15 +663,11 @@ VOID RhelSetGuestFeatures(IN PVOID DeviceExtension)
 BOOLEAN
 VirtIoHwInitialize(IN PVOID DeviceExtension)
 {
-    PADAPTER_EXTENSION adaptExt;
-    BOOLEAN ret = FALSE;
-    ULONGLONG guestFeatures = 0;
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     PERF_CONFIGURATION_DATA perfData = {0};
-    ULONG status = STOR_STATUS_SUCCESS;
     MESSAGE_INTERRUPT_INFORMATION msi_info = {0};
     PREQUEST_LIST element = NULL;
-
-    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    ULONG status;
 
     adaptExt->msix_vectors = 0;
     adaptExt->pageOffset = 0;
@@ -716,7 +712,7 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
 
         RhelDbgPrint(TRACE_LEVEL_FATAL, (" Cannot find snd virtual queue\n"));
         virtio_add_status(&adaptExt->vdev, VIRTIO_CONFIG_S_FAILED);
-        return ret;
+        return FALSE;
     }
 
     memset(&adaptExt->inquiry_data, 0, sizeof(INQUIRYDATA));
@@ -731,8 +727,6 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
     StorPortMoveMemory(&adaptExt->inquiry_data.ProductId, "VirtIO", sizeof("VirtIO"));
     StorPortMoveMemory(&adaptExt->inquiry_data.ProductRevisionLevel, "0001", sizeof("0001"));
     StorPortMoveMemory(&adaptExt->inquiry_data.VendorSpecific, "0001", sizeof("0001"));
-
-    ret = TRUE;
 
     if (!adaptExt->dump_mode)
     {
@@ -816,17 +810,11 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
         }
         if ((adaptExt->dpc != NULL) && (adaptExt->dpc_ok == FALSE))
         {
-            ret = StorPortEnablePassiveInitialization(DeviceExtension, VirtIoPassiveInitializeRoutine);
+            if (!StorPortEnablePassiveInitialization(DeviceExtension, VirtIoPassiveInitializeRoutine))
+            {
+                virtio_add_status(&adaptExt->vdev, VIRTIO_CONFIG_S_FAILED);
+                return FALSE;
         }
-    }
-
-    if (ret)
-    {
-        virtio_device_ready(&adaptExt->vdev);
-    }
-    else
-    {
-        virtio_add_status(&adaptExt->vdev, VIRTIO_CONFIG_S_FAILED);
     }
 
     for (ULONG index = 0; index < adaptExt->num_queues; ++index)
@@ -836,7 +824,8 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
         element->srb_cnt = 0;
     }
 
-    return ret;
+    virtio_device_ready(&adaptExt->vdev);
+    return TRUE;
 }
 
 VOID CompletePendingRequests(IN PVOID DeviceExtension)
