@@ -80,11 +80,13 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define IO_PORT_LENGTH                     0x40
 #define MAX_CPU                            256u
 #define MAX_DISCARD_SEGMENTS               256u
-
-#define VIRTIO_BLK_QUEUE_LAST              MAX_CPU
-
-#define VIRTIO_BLK_MSIX_CONFIG_VECTOR      0
 #define MIN_DISCARD_SECTOR_ALIGNMENT       8
+
+#define VIRTIO_BLK_MSIX_VQ_OFFSET          1
+#define VIRTIO_BLK_MSIX_VQ_1_VCTR_OFFSET   0
+#define VIRTIO_BLK_MSIX_CONFIG_VECTOR      0
+#define VIRTIO_BLK_REQUEST_QUEUE_0         0
+#define VIRTIO_BLK_QUEUE_LAST              MAX_CPU
 
 #define BLOCK_SERIAL_STRLEN                20
 
