@@ -255,7 +255,7 @@ typedef struct _ADAPTER_EXTENSION
     STOR_ADDR_BTL8 device_address;
     blk_discard_write_zeroes blk_discard[16];
     REQUEST_LIST processing_srbs[MAX_CPU];
-    BOOLEAN reset_in_progress;
+    ULONG reset_in_progress_count;
     ULONGLONG fw_ver;
 #ifdef DBG
     LONG srb_cnt;
