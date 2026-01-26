@@ -259,7 +259,7 @@ typedef struct _ADAPTER_EXTENSION
     ULONG num_affinity;
     STOR_ADDR_BTL8 device_address;
     REQUEST_LIST processing_srbs[MAX_CPU];
-    BOOLEAN reset_in_progress;
+    ULONG reset_in_progress_count;
     ULONGLONG fw_ver;
 #ifdef DBG
     LONG srb_cnt;

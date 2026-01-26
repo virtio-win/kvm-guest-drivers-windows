@@ -113,13 +113,6 @@ RhelDoFlush(PVOID DeviceExtension, PSRB_TYPE Srb, BOOLEAN resend, BOOLEAN bIsr)
         MessageId = QueueNumber + 1;
     }
 
-    if (adaptExt->reset_in_progress)
-    {
-        SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
-        CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_BUS_RESET);
-        return TRUE;
-    }
-
     srbExt->MessageID = MessageId;
     vq = adaptExt->vq[QueueNumber];
 
@@ -139,6 +132,15 @@ RhelDoFlush(PVOID DeviceExtension, PSRB_TYPE Srb, BOOLEAN resend, BOOLEAN bIsr)
     {
         VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
 
+        if (adaptExt->reset_in_progress_count)
+        {
+            VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
+
+            SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
+            CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_BUS_RESET);
+            return TRUE;
+        }
+
         element = &adaptExt->processing_srbs[QueueNumber];
 
         ULONG_PTR id = element->next_id;
@@ -153,6 +155,13 @@ RhelDoFlush(PVOID DeviceExtension, PSRB_TYPE Srb, BOOLEAN resend, BOOLEAN bIsr)
     }
     else
     {
+        if (adaptExt->reset_in_progress_count)
+        {
+            SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
+            CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_BUS_RESET);
+            return TRUE;
+        }
+
         element = &adaptExt->processing_srbs[QueueNumber];
     }
 
@@ -210,18 +219,20 @@ RhelDoReadWrite(PVOID DeviceExtension, PSRB_TYPE Srb)
     QueueNumber = GetSrbQueueNumber(DeviceExtension, Srb);
     MessageId = QueueNumber + 1;
 
-    if (adaptExt->reset_in_progress)
-    {
-        SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
-        CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_BUS_RESET);
-        return TRUE;
-    }
-
     srbExt->MessageID = MessageId;
     vq = adaptExt->vq[QueueNumber];
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " QueueNumber 0x%x vq = %p\n", QueueNumber, vq);
 
     VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
+
+    if (adaptExt->reset_in_progress_count)
+    {
+        VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
+
+        SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
+        CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_BUS_RESET);
+        return TRUE;
+    }
 
     element = &adaptExt->processing_srbs[QueueNumber];
 
@@ -364,13 +375,6 @@ RhelDoUnMap(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     QueueNumber = GetSrbQueueNumber(DeviceExtension, Srb);
     MessageId = QueueNumber + 1;
 
-    if (adaptExt->reset_in_progress)
-    {
-        SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
-        CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_BUS_RESET);
-        return TRUE;
-    }
-
     srbExt->MessageID = MessageId;
     vq = adaptExt->vq[QueueNumber];
     RhelDbgPrint(TRACE_LEVEL_INFORMATION,
@@ -380,6 +384,15 @@ RhelDoUnMap(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
                  srbExt->vbr.out_hdr.type);
 
     VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
+
+    if (adaptExt->reset_in_progress_count)
+    {
+        VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
+
+        SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
+        CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_BUS_RESET);
+        return TRUE;
+    }
 
     element = &adaptExt->processing_srbs[QueueNumber];
 
@@ -443,13 +456,6 @@ RhelGetSerialNumber(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     QueueNumber = GetSrbQueueNumber(DeviceExtension, Srb);
     MessageId = QueueNumber + 1;
 
-    if (adaptExt->reset_in_progress)
-    {
-        SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
-        CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_BUS_RESET);
-        return TRUE;
-    }
-
     srbExt->MessageID = MessageId;
     vq = adaptExt->vq[QueueNumber];
 
@@ -468,6 +474,15 @@ RhelGetSerialNumber(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     srbExt->sg[2].length = sizeof(srbExt->vbr.status);
 
     VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
+
+    if (adaptExt->reset_in_progress_count)
+    {
+        VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
+
+        SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
+        CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_BUS_RESET);
+        return TRUE;
+    }
 
     element = &adaptExt->processing_srbs[QueueNumber];
 
