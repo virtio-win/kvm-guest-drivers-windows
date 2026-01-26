@@ -691,31 +691,28 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
     }
 
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Queues %d msix_vectors %d\n", adaptExt->num_queues, adaptExt->msix_vectors);
-    if (adaptExt->num_queues > 1 && ((adaptExt->num_queues + 1U) > adaptExt->msix_vectors))
-    {
-        adaptExt->num_queues = adaptExt->msix_vectors;
-    }
 
-    if (adaptExt->msix_vectors >= (adaptExt->num_queues + 1U))
+    if (!adaptExt->dump_mode && adaptExt->msix_vectors > 0)
     {
-        /* initialize queues with a MSI vector per queue */
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, (" Using a unique MSI vector per queue\n"));
-        adaptExt->msix_config_vector = TRUE;
+        if (adaptExt->msix_vectors == 1)
+        {
+            /* Use one MSI-X vector for all queues */
+            adaptExt->msix_cfg_vector_cnt = FALSE;
+            /* TODO : Allow using multiple queues even with a single vector */
+            adaptExt->num_queues = 1;
+        }
+        else
+        {
+            /* Use one MSI-X vector per queue PLUS one MSI-X vector for configuration changes */
+            /* TODO : Allow multiple MSI-X vectors per queue */
+            adaptExt->msix_cfg_vector_cnt = VIRTIO_STOR_VQ_0_MSIX_IDX;
+            adaptExt->num_queues = (adaptExt->msix_vectors - VIRTIO_STOR_PREFERRED_XTRA_VECTORS);
+        }
     }
     else
     {
-        /* if we don't have enough vectors, use one for all queues */
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, (" Using one MSI vector for all queues\n"));
-        adaptExt->msix_config_vector = TRUE;
-    }
-    else
-    {
-        /* if we don't have enough vectors, use one for all queues */
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, (" Disabling MSI config vector\n"));
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, (" Using one MSI vector for all queues\n"));
-        adaptExt->msix_config_vector = FALSE;
-        /* TODO Allow using multiple queues even with a single vector */
-        adaptExt->num_queues = 1;
+        /* Do NOT use any MSI-X vectors */
+        adaptExt->msix_enabled = FALSE;
     }
 
     if (!InitializeVirtualQueues(adaptExt))
