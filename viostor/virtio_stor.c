@@ -30,6 +30,7 @@
  * SUCH DAMAGE.
  */
 #include "virtio_stor.h"
+#include "virtio_stor_hw_helper.h"
 #if defined(EVENT_TRACING)
 #include "virtio_stor.tmh"
 #endif
@@ -443,7 +444,7 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
         virtio_get_config(&adaptExt->vdev,
                           FIELD_OFFSET(blk_config, num_queues),
                           &adaptExt->num_queues,
-                          sizeof(adaptExt->num_queues));
+                          sizeof(adaptExt->info.num_queues));
     }
 
     if (adaptExt->dump_mode || !adaptExt->msix_enabled)
@@ -452,7 +453,7 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
     }
     else
     {
-        adaptExt->num_queues = min(adaptExt->num_queues, (USHORT)num_cpus);
+        adaptExt->num_queues = min(adaptExt->num_queues, num_cpus);
     }
     adaptExt->reset_in_progress_count = 0;
 
@@ -695,20 +696,23 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Queues %d msix_vectors %d\n", adaptExt->num_queues, adaptExt->msix_vectors);
     if (adaptExt->num_queues > 1 && ((adaptExt->num_queues + 1U) > adaptExt->msix_vectors))
     {
-        adaptExt->num_queues = (USHORT)adaptExt->msix_vectors;
+        adaptExt->num_queues = adaptExt->msix_vectors;
     }
 
     if (adaptExt->msix_vectors >= (adaptExt->num_queues + 1U))
     {
-        /* initialize queues with a MSI vector per queue */
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, (" Using a unique MSI vector per queue\n"));
-        adaptExt->msix_one_vector = FALSE;
+        /* if we don't have enough vectors, use one for all queues */
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, (" Using one MSI vector for all queues\n"));
+        adaptExt->msix_config_vector = TRUE;
     }
     else
     {
         /* if we don't have enough vectors, use one for all queues */
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, (" Disabling MSI config vector\n"));
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, (" Using one MSI vector for all queues\n"));
-        adaptExt->msix_one_vector = TRUE;
+        adaptExt->msix_config_vector = FALSE;
+        /* TODO Allow using multiple queues even with a single vector */
+        adaptExt->num_queues = 1;
     }
 
     if (!InitializeVirtualQueues(adaptExt))
@@ -761,7 +765,7 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_INTERRUPT_MESSAGE_RANGES))
                 {
                     adaptExt->perfFlags |= STOR_PERF_INTERRUPT_MESSAGE_RANGES;
-                    perfData.FirstRedirectionMessageNumber = 1;
+                    perfData.FirstRedirectionMessageNumber = adaptExt->msix_config_vector ? 1 : 0;
                     perfData.LastRedirectionMessageNumber = perfData.FirstRedirectionMessageNumber +
                                                             adaptExt->num_queues - 1;
                     ASSERT(perfData.lastRedirectionMessageNumber < adaptExt->num_affinity);
@@ -855,7 +859,7 @@ static VOID CompletePendingRequestsOnReset(IN PVOID DeviceExtension)
     {
         PREQUEST_LIST element;
         STOR_LOCK_HANDLE LockHandle = {0};
-        ULONG MessageID = index + 1;
+        ULONG MessageID = QueueToMessageId(DeviceExtension, index);
         VioStorVQLock(DeviceExtension, MessageID, &LockHandle, FALSE);
         element = &adaptExt->processing_srbs[index];
         while (!IsListEmpty(&element->srb_list))
@@ -919,8 +923,9 @@ BOOLEAN VioStorResetBus(IN PVOID DeviceExtension)
      * are currently in progress in DPC. Each new DPC call will have no effect because
      * VioStorCompleteRequest will exit for any non-zero reset_in_progress_count value
      */
-    for (ULONG MessageId = 1; MessageId <= adaptExt->num_queues; MessageId++)
+    for (ULONG QueueNumber = 0; QueueNumber < adaptExt->num_queues; QueueNumber++)
     {
+        ULONG MessageId = QueueToMessageId(DeviceExtension, QueueNumber);
         STOR_LOCK_HANDLE LockHandle = {0};
         VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
         adaptExt->reset_in_progress_count++;
@@ -942,8 +947,9 @@ BOOLEAN VioStorResetBus(IN PVOID DeviceExtension)
         return FALSE;
     }
 
-    for (ULONG MessageId = 1; MessageId <= adaptExt->num_queues; MessageId++)
+    for (ULONG QueueNumber = 0; QueueNumber < adaptExt->num_queues; QueueNumber++)
     {
+        ULONG MessageId = QueueToMessageId(DeviceExtension, QueueNumber);
         STOR_LOCK_HANDLE LockHandle = {0};
         VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
         adaptExt->reset_in_progress_count--;
@@ -1064,11 +1070,11 @@ VirtIoStartIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
                              adaptExt->srb_cnt,
                              adaptExt->inqueue_cnt,
                              status ? "SRB_STATUS_SUCCESS" : "SRB_STATUS_ERROR");
-                for (USHORT i = 0; i < adaptExt->num_queues; i++)
+                for (ULONG vq_idx = 0; vq_idx < adaptExt->num_queues; vq_idx++)
                 {
-                    if (adaptExt->vq[i])
+                    if (adaptExt->vq[vq_idx])
                     {
-                        RhelDbgPrint(TRACE_LEVEL_ERROR, "%d indx %d\n", i, adaptExt->vq[i]->index);
+                        RhelDbgPrint(TRACE_LEVEL_ERROR, "%d indx %d\n", vq_idx, adaptExt->vq[vq_idx]->index);
                     }
                 }
 #endif
@@ -1248,9 +1254,9 @@ VirtIoInterrupt(IN PVOID DeviceExtension)
     intReason = virtio_read_isr_status(&adaptExt->vdev);
     if (intReason == 1 || adaptExt->dump_mode)
     {
-        if (!CompleteDPC(DeviceExtension, 1))
+        if (!CompleteDPC(DeviceExtension, !!adaptExt->msix_config_vector))
         {
-            VioStorCompleteRequest(DeviceExtension, 1, TRUE);
+            VioStorCompleteRequest(DeviceExtension, !!adaptExt->msix_config_vector, TRUE);
         }
         isInterruptServiced = TRUE;
     }
@@ -1573,22 +1579,15 @@ VirtIoMSInterruptRoutine(IN PVOID DeviceExtension, IN ULONG MessageID)
         return FALSE;
     }
 
-    if (adaptExt->msix_one_vector)
+    if (adaptExt->msix_config_vector && MessageID == VIRTIO_BLK_MSIX_CONFIG_VECTOR)
     {
-        MessageID = 1;
-    }
-    else
-    {
-        if (MessageID == VIRTIO_BLK_MSIX_CONFIG_VECTOR)
-        {
-            RhelGetDiskGeometry(DeviceExtension);
-            adaptExt->sense_info.senseKey = SCSI_SENSE_UNIT_ATTENTION;
-            adaptExt->sense_info.additionalSenseCode = SCSI_ADSENSE_PARAMETERS_CHANGED;
-            adaptExt->sense_info.additionalSenseCodeQualifier = SCSI_SENSEQ_CAPACITY_DATA_CHANGED;
-            adaptExt->check_condition = TRUE;
-            DeviceChangeNotification(DeviceExtension, TRUE);
-            return TRUE;
-        }
+        RhelGetDiskGeometry(DeviceExtension);
+        adaptExt->sense_info.senseKey = SCSI_SENSE_UNIT_ATTENTION;
+        adaptExt->sense_info.additionalSenseCode = SCSI_ADSENSE_PARAMETERS_CHANGED;
+        adaptExt->sense_info.additionalSenseCodeQualifier = SCSI_SENSEQ_CAPACITY_DATA_CHANGED;
+        adaptExt->check_condition = TRUE;
+        DeviceChangeNotification(DeviceExtension, TRUE);
+        return TRUE;
     }
 
     if (!CompleteDPC(DeviceExtension, MessageID))
@@ -2110,10 +2109,11 @@ FORCEINLINE
 CompleteDPC(IN PVOID DeviceExtension, IN ULONG MessageID)
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    ULONG dpc_idx = MessageToDpcIdx(DeviceExtension, MessageID);
 
     if (!adaptExt->dump_mode && adaptExt->dpc_ok)
     {
-        StorPortIssueDpc(DeviceExtension, &adaptExt->dpc[MessageID - 1], ULongToPtr(MessageID), ULongToPtr(FALSE));
+        StorPortIssueDpc(DeviceExtension, &adaptExt->dpc[dpc_idx], ULongToPtr(MessageID), ULongToPtr(FALSE));
         return TRUE;
     }
     return FALSE;
@@ -2173,8 +2173,8 @@ UCHAR DeviceToSrbStatus(UCHAR status)
 VOID VioStorCompleteRequest(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOOLEAN bIsr)
 {
     unsigned int len = 0;
-    PADAPTER_EXTENSION adaptExt = NULL;
-    ULONG QueueNumber = MessageID - 1;
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    ULONG QueueNumber = MessageID - !!adaptExt->msix_config_vector;
     STOR_LOCK_HANDLE queueLock = {0};
     struct virtqueue *vq = NULL;
     ULONG_PTR srbId = 0;
@@ -2184,8 +2184,6 @@ VOID VioStorCompleteRequest(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOO
     PREQUEST_LIST element = NULL;
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " ---> MessageID 0x%x\n", MessageID);
-
-    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     VioStorVQLock(DeviceExtension, MessageID, &queueLock, bIsr);
 

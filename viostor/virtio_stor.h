@@ -40,7 +40,6 @@
 #include "virtio.h"
 #include "virtio_ring.h"
 #include "virtio_stor_utils.h"
-#include "virtio_stor_hw_helper.h"
 
 typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
@@ -79,7 +78,6 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define SECTOR_SHIFT                       9
 #define IO_PORT_LENGTH                     0x40
 #define MAX_CPU                            256u
-
 /*
  * QEMU's virtio-blk implementation supports only a single segment (as of
  * QEMU 10.2), so this is more than enough.
@@ -225,14 +223,14 @@ typedef struct _ADAPTER_EXTENSION
     ULONG poolOffset;
 
     struct virtqueue *vq[VIRTIO_BLK_QUEUE_LAST];
-    USHORT num_queues;
+    ULONG num_queues;
     INQUIRYDATA inquiry_data;
     blk_config info;
     ULONG queue_depth;
     BOOLEAN dump_mode;
     ULONG msix_vectors;
     BOOLEAN msix_enabled;
-    BOOLEAN msix_one_vector;
+    BOOLEAN msix_config_vector;
     ULONGLONG features;
     CHAR sn[BLOCK_SERIAL_STRLEN];
     BOOLEAN sn_ok;
@@ -281,7 +279,7 @@ typedef struct _SRB_EXTENSION
     ULONG_PTR id;
     ULONG out;
     ULONG in;
-    ULONG MessageID;
+    ULONG queue_number;
     BOOLEAN fua;
     VIO_SG sg[VIRTIO_MAX_SG];
     VRING_DESC_ALIAS desc[VIRTIO_MAX_SG];
