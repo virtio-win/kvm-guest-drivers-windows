@@ -30,6 +30,7 @@
  * SUCH DAMAGE.
  */
 #include "virtio_stor.h"
+#include "virtio_stor_hw_helper.h"
 #if defined(EVENT_TRACING)
 #include "virtio_stor.tmh"
 #endif
