@@ -258,6 +258,7 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
     UNREFERENCED_PARAMETER(Again);
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    RtlZeroMemory(adaptExt, sizeof(ADAPTER_EXTENSION));
 
     adaptExt->system_io_bus_number = ConfigInfo->SystemIoBusNumber;
     adaptExt->slot_number = ConfigInfo->SlotNumber;
