@@ -103,6 +103,12 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
 #define VIOBLK_POOL_TAG                    'BoiV'
 
+/* Pad the following with spaces (ASCII '\20') */
+#define VIRTIO_BLK_VENDOR_ID               "Red Hat "             // UCHAR VendorId[8]
+#define VIRTIO_BLK_PRODUCT_ID              "VirtIO          "     // UCHAR ProductId[16]
+#define VIRTIO_BLK_PROD_REV_LVL            "1001"                 // UCHAR ProductRevisionLevel[4]
+#define VIRTIO_BLK_VEND_SPECIFIC           "1001                " // UCHAR VendorSpecific[20]
+
 #pragma pack(1)
 typedef struct virtio_blk_config
 {

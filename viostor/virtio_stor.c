@@ -914,19 +914,6 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
         }
     }
 
-    memset(&adaptExt->inquiry_data, 0, sizeof(INQUIRYDATA));
-
-    adaptExt->inquiry_data.ANSIVersion = 4;
-    adaptExt->inquiry_data.ResponseDataFormat = 2;
-    adaptExt->inquiry_data.CommandQueue = 1;
-    adaptExt->inquiry_data.DeviceType = DIRECT_ACCESS_DEVICE;
-    adaptExt->inquiry_data.Wide32Bit = 1;
-    adaptExt->inquiry_data.AdditionalLength = 91;
-    StorPortMoveMemory(&adaptExt->inquiry_data.VendorId, "Red Hat ", sizeof("Red Hat "));
-    StorPortMoveMemory(&adaptExt->inquiry_data.ProductId, "VirtIO", sizeof("VirtIO"));
-    StorPortMoveMemory(&adaptExt->inquiry_data.ProductRevisionLevel, "0001", sizeof("0001"));
-    StorPortMoveMemory(&adaptExt->inquiry_data.VendorSpecific, "0001", sizeof("0001"));
-
     if (!adaptExt->dump_mode)
     {
         /* We don't get another chance to call StorPortEnablePassiveInitialization and initialize
@@ -957,6 +944,76 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
             return FALSE;
         }
     }
+
+    /* Zero out and set inquiry data */
+    RtlZeroMemory(&adaptExt->inquiry_data, sizeof(INQUIRYDATA));
+
+    adaptExt->inquiry_data.ANSIVersion = 4;
+    adaptExt->inquiry_data.ResponseDataFormat = 2;
+    adaptExt->inquiry_data.CommandQueue = 1;
+    adaptExt->inquiry_data.DeviceType = DIRECT_ACCESS_DEVICE;
+    adaptExt->inquiry_data.Wide32Bit = 1;
+    adaptExt->inquiry_data.AdditionalLength = 91;
+    StorPortMoveMemory(&adaptExt->inquiry_data.VendorId, VIRTIO_BLK_VENDOR_ID, sizeof(UCHAR[8]));
+    StorPortMoveMemory(&adaptExt->inquiry_data.ProductId, VIRTIO_BLK_PRODUCT_ID, sizeof(UCHAR[16]));
+    StorPortMoveMemory(&adaptExt->inquiry_data.ProductRevisionLevel, VIRTIO_BLK_PROD_REV_LVL, sizeof(UCHAR[4]));
+    StorPortMoveMemory(&adaptExt->inquiry_data.VendorSpecific, VIRTIO_BLK_VEND_SPECIFIC, sizeof(UCHAR[20]));
+
+    /* Get any NULL-terminated strings we might need for DBG / ETW, adding extra byte for terminator */
+    UCHAR vend_id[9];
+    UCHAR prod_id[17];
+    UCHAR prod_rev_lvl[5];
+    UCHAR vend_specific[21];
+    GetTerminatedString(vend_id, adaptExt->inquiry_data.VendorId, 8);
+    GetTerminatedString(prod_id, adaptExt->inquiry_data.ProductId, 16);
+    GetTerminatedString(prod_rev_lvl, adaptExt->inquiry_data.ProductRevisionLevel, 4);
+    GetTerminatedString(vend_specific, adaptExt->inquiry_data.VendorSpecific, 20);
+
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                 " INQUIRYDATA : SCSI Primary Commands - 2 (SPC-2) Compliant : %s | ANSIVersion : 0x%x\n",
+                 (adaptExt->inquiry_data.ANSIVersion >= 4) ? "YES" : "NO",
+                 adaptExt->inquiry_data.ANSIVersion);
+
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                 " INQUIRYDATA : Disk Device Type : %s\n",
+                 (adaptExt->inquiry_data.DeviceType == DIRECT_ACCESS_DEVICE) ? "YES" : "NO");
+
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                 " INQUIRYDATA : 32-bit Wide Transfers Supported : %s\n",
+                 (adaptExt->inquiry_data.Wide32Bit) ? "YES" : "NO");
+
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                 " INQUIRYDATA : Command Queuing Supported : %s\n",
+                 (adaptExt->inquiry_data.CommandQueue) ? "YES" : "NO");
+
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                 " INQUIRYDATA : CDB Parameter Length : %d Bytes\n",
+                 adaptExt->inquiry_data.AdditionalLength);
+
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                 " INQUIRYDATA : VendorId : \"%s\""
+                 " without quotes - used to show ASCII padding ('\\20') |"
+                 " size : %d Bytes / Characters\n",
+                 vend_id,
+                 sizeof(adaptExt->inquiry_data.VendorId));
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                 " INQUIRYDATA : ProductId : \"%s\""
+                 " without quotes - used to show ASCII padding ('\\20') |"
+                 " size : %d Bytes / Characters\n",
+                 prod_id,
+                 sizeof(adaptExt->inquiry_data.ProductId));
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                 " INQUIRYDATA : ProductRevisionLevel : \"%s\""
+                 " without quotes - used to show ASCII padding ('\\20') |"
+                 " size : %d Bytes / Characters\n",
+                 prod_rev_lvl,
+                 sizeof(adaptExt->inquiry_data.ProductRevisionLevel));
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                 " INQUIRYDATA : VendorSpecific : \"%s\""
+                 " without quotes - used to show ASCII padding ('\\20') |"
+                 " size : %d Bytes / Characters\n",
+                 vend_specific,
+                 sizeof(adaptExt->inquiry_data.VendorSpecific));
 
     virtio_device_ready(&adaptExt->vdev);
     return TRUE;
