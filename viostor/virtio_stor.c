@@ -747,13 +747,13 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
             status = StorPortInitializePerfOpts(DeviceExtension, TRUE, &perfData);
 
             RhelDbgPrint(TRACE_LEVEL_VERBOSE,
-                         " Perf Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, FirstRedirectionMessageNumber = "
-                         "%d,LastRedirectionMessageNumber = %d\n",
-                         perfData.Version,
-                         perfData.Flags,
-                         perfData.ConcurrentChannels,
-                         perfData.FirstRedirectionMessageNumber,
-                         perfData.LastRedirectionMessageNumber);
+                            " Perf Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, FirstRedirectionMessageNumber = "
+                            "%d,LastRedirectionMessageNumber = %d\n",
+                            perfData.Version,
+                            perfData.Flags,
+                            perfData.ConcurrentChannels,
+                            perfData.FirstRedirectionMessageNumber,
+                            perfData.LastRedirectionMessageNumber);
             if (status == STOR_STATUS_SUCCESS)
             {
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_DPC_REDIRECTION))
@@ -771,7 +771,7 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
                         if ((adaptExt->pmsg_affinity != NULL) && CHECKFLAG(perfData.Flags, STOR_PERF_ADV_CONFIG_LOCALITY))
                         {
                             RtlZeroMemory((PCHAR)adaptExt->pmsg_affinity,
-                                          sizeof(GROUP_AFFINITY) * ((ULONGLONG)adaptExt->num_affinity));
+                                            sizeof(GROUP_AFFINITY) * ((ULONGLONG)adaptExt->num_affinity));
                             adaptExt->perfFlags |= STOR_PERF_ADV_CONFIG_LOCALITY; // SWITCH
                             perfData.MessageTargets = adaptExt->pmsg_affinity;
                         }
@@ -797,23 +797,23 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_NO_SGL))
                 {
                     /* FIXME : We still use:
-                     *         * StorPortGetScatterGatherList(), and
-                     *         * ConfigInfo->ScatterGather = TRUE,
-                     *         so not sure why we are using STOR_PERF_NO_SGL here.
-                     *         Does not enable anyway...
-                     */
+                        *         * StorPortGetScatterGatherList(), and
+                        *         * ConfigInfo->ScatterGather = TRUE,
+                        *         so not sure why we are using STOR_PERF_NO_SGL here.
+                        *         Does not enable anyway...
+                        */
                     adaptExt->perfFlags |= STOR_PERF_NO_SGL; // SWITCH
                 }
 
                 perfData.Flags = adaptExt->perfFlags;
                 RhelDbgPrint(TRACE_LEVEL_VERBOSE,
-                             " Perf Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, "
-                             "FirstRedirectionMessageNumber = %d,LastRedirectionMessageNumber = %d\n",
-                             perfData.Version,
-                             perfData.Flags,
-                             perfData.ConcurrentChannels,
-                             perfData.FirstRedirectionMessageNumber,
-                             perfData.LastRedirectionMessageNumber);
+                                " Perf Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, "
+                                "FirstRedirectionMessageNumber = %d,LastRedirectionMessageNumber = %d\n",
+                                perfData.Version,
+                                perfData.Flags,
+                                perfData.ConcurrentChannels,
+                                perfData.FirstRedirectionMessageNumber,
+                                perfData.LastRedirectionMessageNumber);
                 status = StorPortInitializePerfOpts(DeviceExtension, FALSE, &perfData);
                 if (status != STOR_STATUS_SUCCESS)
                 {
@@ -830,17 +830,32 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
 
     if (!adaptExt->dump_mode)
     {
+        /* We don't get another chance to call StorPortEnablePassiveInitialization and initialize
+         * DPCs if the adapter is being restarted, so leave our datastructures alone on restart
+         */
         if (adaptExt->dpc == NULL)
         {
             adaptExt->dpc = (PSTOR_DPC)VioStorPoolAlloc(DeviceExtension, sizeof(STOR_DPC) * adaptExt->num_queues);
         }
-        if ((adaptExt->dpc != NULL) && (adaptExt->dpc_ok == FALSE))
+
+        if (adaptExt->dpc_ok)
+        {
+            RhelDbgPrint(TRACE_LEVEL_WARNING, "DPC already initialized.\n");
+        }
+        else if (adaptExt->dpc != NULL)
         {
             if (!StorPortEnablePassiveInitialization(DeviceExtension, VirtIoPassiveInitializeRoutine))
             {
                 virtio_add_status(&adaptExt->vdev, VIRTIO_CONFIG_S_FAILED);
+                RhelDbgPrint(TRACE_LEVEL_FATAL, " StorPortEnablePassiveInitialization() FAILED..!!!\n");
                 return FALSE;
             }
+        }
+        else
+        {
+            /* VioStorPoolAlloc() ran out of memory and reported as such */
+            virtio_add_status(&adaptExt->vdev, VIRTIO_CONFIG_S_FAILED);
+            return FALSE;
         }
     }
 
