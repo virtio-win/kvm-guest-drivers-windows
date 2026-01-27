@@ -681,14 +681,25 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
 
         status = StorPortInitializePerfOpts(DeviceExtension, TRUE, &perfData);
 
-        RhelDbgPrint(TRACE_LEVEL_VERBOSE,
-                        " Perf Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, FirstRedirectionMessageNumber = "
-                        "%d,LastRedirectionMessageNumber = %d\n",
-                        perfData.Version,
-                        perfData.Flags,
-                        perfData.ConcurrentChannels,
-                        perfData.FirstRedirectionMessageNumber,
-                        perfData.LastRedirectionMessageNumber);
+        if (status == STOR_STATUS_SUCCESS)
+        {
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                         " PERF: GET PerfOpts : Version = 0x%x | Flags = 0x%x | ConcurrentChannels = %d |"
+                         " FirstRedirectionMessageNumber = %d | LastRedirectionMessageNumber = %d | DeviceNode = %d\n",
+                         perfData.Version,
+                         perfData.Flags,
+                         perfData.ConcurrentChannels,
+                         perfData.FirstRedirectionMessageNumber,
+                         perfData.LastRedirectionMessageNumber,
+                         perfData.DeviceNode);
+        }
+        else
+        {
+            RhelDbgPrint(TRACE_LEVEL_WARNING,
+                         " PERF: StorPortInitializePerfOpts GET failed with status = 0x%x\n",
+                         status);
+        }
+
         if (status == STOR_STATUS_SUCCESS)
         {
             if (CHECKFLAG(perfData.Flags, STOR_PERF_DPC_REDIRECTION))
@@ -742,41 +753,90 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
             }
 
             perfData.Flags = adaptExt->perfFlags;
-            RhelDbgPrint(TRACE_LEVEL_VERBOSE,
-                            " Perf Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, "
-                            "FirstRedirectionMessageNumber = %d,LastRedirectionMessageNumber = %d\n",
-                            perfData.Version,
-                            perfData.Flags,
-                            perfData.ConcurrentChannels,
-                            perfData.FirstRedirectionMessageNumber,
-                            perfData.LastRedirectionMessageNumber);
+
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                         " PERF: SET PerfOpts : Version = 0x%x | Flags = 0x%x | ConcurrentChannels = %d |"
+                         " FirstRedirectionMessageNumber = %d | LastRedirectionMessageNumber = %d | DeviceNode = %d\n",
+                         perfData.Version,
+                         perfData.Flags,
+                         perfData.ConcurrentChannels,
+                         perfData.FirstRedirectionMessageNumber,
+                         perfData.LastRedirectionMessageNumber,
+                         perfData.DeviceNode);
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                         " PERF: STOR_PERF_DPC_REDIRECTION flag is : %s \n",
+                         (CHECKFLAG(perfData.Flags, STOR_PERF_DPC_REDIRECTION)) ? "ON" : "OFF");
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                         " PERF: STOR_PERF_CONCURRENT_CHANNELS flag is: %s \n",
+                         (CHECKFLAG(perfData.Flags, STOR_PERF_CONCURRENT_CHANNELS)) ? "ON" : "OFF");
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                         " PERF: STOR_PERF_INTERRUPT_MESSAGE_RANGES flag is : %s \n",
+                         (CHECKFLAG(perfData.Flags, STOR_PERF_INTERRUPT_MESSAGE_RANGES)) ? "ON" : "OFF");
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                         " PERF: STOR_PERF_ADV_CONFIG_LOCALITY flag is: %s \n",
+                         (CHECKFLAG(perfData.Flags, STOR_PERF_ADV_CONFIG_LOCALITY)) ? "ON" : "OFF");
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                         " PERF: STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO flag is: %s \n",
+                         (CHECKFLAG(perfData.Flags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO)) ? "ON" : "OFF");
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                         " PERF: STOR_PERF_DPC_REDIRECTION_CURRENT_CPU flag is : %s \n",
+                         (CHECKFLAG(perfData.Flags, STOR_PERF_DPC_REDIRECTION_CURRENT_CPU)) ? "ON" : "OFF");
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                         " PERF: STOR_PERF_NO_SGL flag is : %s \n",
+                         (CHECKFLAG(perfData.Flags, STOR_PERF_NO_SGL)) ? "ON" : "OFF");
+
             status = StorPortInitializePerfOpts(DeviceExtension, FALSE, &perfData);
+
             if (status != STOR_STATUS_SUCCESS)
             {
                 adaptExt->perfFlags = 0;
-                RhelDbgPrint(TRACE_LEVEL_ERROR, " StorPortInitializePerfOpts FALSE status = 0x%x\n", status);
+                RhelDbgPrint(TRACE_LEVEL_ERROR,
+                             " PERF: StorPortInitializePerfOpts SET failed with status = 0x%x\n",
+                             status);
             }
-        }
-        else
-        {
-            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " StorPortInitializePerfOpts TRUE status = 0x%x\n", status);
+            for (ULONG cpu_idx = 0; cpu_idx < adaptExt->num_affinity; ++cpu_idx)
+            {
+                GROUP_AFFINITY vector_affinity = adaptExt->pmsg_affinity[cpu_idx];
+                RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                             " PERF: MSI-X Vector %lu CPU Affinity : KAFFINITY Mask = %I64d | CPU Group = %lu \n",
+                             cpu_idx,
+                             vector_affinity.Mask,
+                             vector_affinity.Group);
+            }
         }
     }
 
     while (StorPortGetMSIInfo(DeviceExtension, adaptExt->msix_vectors, &msi_info) == STOR_STATUS_SUCCESS)
     {
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " MessageId = %x\n", msi_info.MessageId);
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " MessageData = %x\n", msi_info.MessageData);
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " InterruptVector = %x\n", msi_info.InterruptVector);
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " InterruptLevel = %x\n", msi_info.InterruptLevel);
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION,
-                     " InterruptMode = %s\n",
-                     msi_info.InterruptMode == LevelSensitive ? "LevelSensitive" : "Latched");
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " MessageAddress = %I64x\n\n", msi_info.MessageAddress.QuadPart);
+        if (adaptExt->num_queues > 1)
+        {
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                         " MSI-X Vector [MessageId] = %lu | MessageAddress = 0x%I64x | MessageData = %lu|"
+                         " InterruptVector = %lu | InterruptLevel = %lu | InterruptMode = %s |"
+                         " CPU Affinity : Mask = %I64d  | Group = %lu \n",
+                         msi_info.MessageId,
+                         msi_info.MessageAddress.QuadPart,
+                         msi_info.MessageData,
+                         msi_info.InterruptVector,
+                         msi_info.InterruptLevel,
+                         msi_info.InterruptMode == LevelSensitive ? "LevelSensitive" : "Latched",
+                         adaptExt->pmsg_affinity[msi_info.MessageId].Mask,
+                         adaptExt->pmsg_affinity[msi_info.MessageId].Group);
+        }
+        else
+        {
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                         " MSI-X Vector [MessageId] = %lu | MessageAddress = 0x%I64x | MessageData = %lu|"
+                         " InterruptVector = %lu | InterruptLevel = %lu | InterruptMode = %s \n",
+                         msi_info.MessageId,
+                         msi_info.MessageAddress.QuadPart,
+                         msi_info.MessageData,
+                         msi_info.InterruptVector,
+                         msi_info.InterruptLevel,
+                         msi_info.InterruptMode == LevelSensitive ? "LevelSensitive" : "Latched");
+        }
         ++adaptExt->msix_vectors;
     }
-
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Queues %d msix_vectors %d\n", adaptExt->num_queues, adaptExt->msix_vectors);
 
     /* edge case when queues exceed MSI vectors */
     if (adaptExt->num_queues > 1 &&
@@ -815,16 +875,47 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
     {
         LogError(DeviceExtension, SP_INTERNAL_ADAPTER_ERROR, __LINE__);
 
-        RhelDbgPrint(TRACE_LEVEL_FATAL, (" Cannot find snd virtual queue\n"));
+        RhelDbgPrint(TRACE_LEVEL_FATAL, " !!! - Failed to initialize the Virtual Queues - !!!\n");
         virtio_add_status(&adaptExt->vdev, VIRTIO_CONFIG_S_FAILED);
         return FALSE;
     }
 
-    for (ULONG index = 0; index < adaptExt->num_queues; ++index)
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                 " VirtIO Request Queues : %d | MSI-X Enabled : %s | MSI-X Use ONE Vector : %s |"
+                 " MSI-X Vectors [msix_vectors] : %d \n",
+                 adaptExt->num_queues,
+                 (adaptExt->msix_enabled) ? "YES" : "NO",
+                 (adaptExt->msix_one_vector) ? "YES" : "NO",
+                 adaptExt->msix_vectors);
+
+    if (adaptExt->msix_enabled && !adaptExt->msix_one_vector)
     {
-        element = &adaptExt->processing_srbs[index];
+        RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                     " MSI-X Vector : %lu | StorPort exclusive control \n",
+                     VIRTIO_BLK_MSIX_CONFIG_VECTOR);
+    }
+
+    for (ULONG vq_req_idx = VIRTIO_BLK_REQUEST_QUEUE_0; vq_req_idx < adaptExt->num_queues; ++vq_req_idx)
+    {
+        element = &adaptExt->processing_srbs[vq_req_idx];
         InitializeListHead(&element->srb_list);
         element->srb_cnt = 0;
+        if (adaptExt->msix_enabled)
+        {
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                         " MSI-X Vector : %lu | VIRTIO Request Queue : %lu (QueueNumber / vq_req_idx : %lu) \n",
+                         (vq_req_idx + VIRTIO_BLK_REQUEST_QUEUE_0 +
+                          (adaptExt->msix_one_vector ? VIRTIO_BLK_MSIX_VQ_1_VCTR_OFFSET : VIRTIO_BLK_MSIX_VQ_OFFSET)),
+                         (vq_req_idx + 1),
+                         vq_req_idx);
+        }
+        else
+        {
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                         " VIRTIO Request Queue : %lu (QueueNumber / vq_req_idx : %lu) \n",
+                         (vq_req_idx + 1),
+                         vq_req_idx);
+        }
     }
 
     memset(&adaptExt->inquiry_data, 0, sizeof(INQUIRYDATA));
