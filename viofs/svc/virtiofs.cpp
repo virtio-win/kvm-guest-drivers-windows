@@ -772,6 +772,16 @@ static NTSTATUS SubmitReadLinkRequest(HANDLE Device, UINT64 NodeId, PWSTR Substi
 
     if (NT_SUCCESS(Status))
     {
+        // Validate device response to prevent buffer overruns
+        if (readlink_out.hdr.len < sizeof(readlink_out.hdr) || readlink_out.hdr.len > sizeof(readlink_out))
+        {
+            DBG("Invalid readlink response size: %u (valid range: %u-%u)",
+                readlink_out.hdr.len,
+                (UINT32)sizeof(readlink_out.hdr),
+                (UINT32)sizeof(readlink_out));
+            return STATUS_IO_DEVICE_ERROR;
+        }
+
         int namelen = readlink_out.hdr.len - sizeof(readlink_out.hdr);
 
         *SubstituteNameLength = (USHORT)MultiByteToWideChar(CP_UTF8,
@@ -1105,12 +1115,35 @@ static NTSTATUS IsEmptyDirectory(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0
 
     if (NT_SUCCESS(Status))
     {
-        Entries = 0;
+        // Validate device response to prevent buffer overruns
+        if (read_out->hdr.len > sizeof(ReadOutBuf) || read_out->hdr.len < sizeof(struct fuse_out_header))
+        {
+            DBG("Device returned invalid header length: %u (valid range: %u-%u)",
+                read_out->hdr.len,
+                (UINT32)sizeof(struct fuse_out_header),
+                (UINT32)sizeof(ReadOutBuf));
+            return STATUS_IO_DEVICE_ERROR;
+        }
+
         Remains = read_out->hdr.len - sizeof(struct fuse_out_header);
+
+        if (Remains > read_in.read.size)
+        {
+            DBG("Device returned more data than requested: %u (requested: %u)", Remains, read_in.read.size);
+            return STATUS_IO_DEVICE_ERROR;
+        }
+
+        Entries = 0;
         DirEntry = (struct fuse_dirent *)read_out->buf;
 
         while (Remains > sizeof(struct fuse_dirent))
         {
+            if (FUSE_DIRENT_SIZE(DirEntry) > Remains)
+            {
+                DBG("Invalid dirent size: %u (remaining: %u)", (UINT32)FUSE_DIRENT_SIZE(DirEntry), Remains);
+                return STATUS_IO_DEVICE_ERROR;
+            }
+
             if (++Entries > 2)
             {
                 Status = STATUS_DIRECTORY_NOT_EMPTY;
@@ -1570,7 +1603,27 @@ static NTSTATUS Read(FSP_FILE_SYSTEM *FileSystem,
             return Status;
         }
 
+        // Validate device response to prevent buffer overruns
+        if (read_out->hdr.len < sizeof(struct fuse_out_header) ||
+            read_out->hdr.len > sizeof(struct fuse_out_header) + Size)
+        {
+            DBG("Device returned invalid header length: %u (valid range: %u-%u)",
+                read_out->hdr.len,
+                (UINT32)sizeof(struct fuse_out_header),
+                (UINT32)(sizeof(struct fuse_out_header) + Size));
+            SafeHeapFree(read_out);
+            return STATUS_IO_DEVICE_ERROR;
+        }
+
         OutSize = read_out->hdr.len - sizeof(struct fuse_out_header);
+
+        if (OutSize > Size)
+        {
+            DBG("Device returned more data than requested: %u (requested: %u)", OutSize, Size);
+            SafeHeapFree(read_out);
+            return STATUS_IO_DEVICE_ERROR;
+        }
+
         CopyMemory(Buf, read_out->buf, OutSize);
         *PBytesTransferred += OutSize;
 
@@ -1660,7 +1713,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    do
+    while (Length > 0)
     {
         FUSE_HEADER_INIT(&write_in->hdr, FUSE_WRITE, FileContext->NodeId, sizeof(struct fuse_write_in) + WriteSize);
 
@@ -1680,10 +1733,18 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
             break;
         }
 
+        // Validate device response to prevent buffer overruns
+        if (write_out.write.size > WriteSize || write_out.write.size == 0)
+        {
+            DBG("Invalid write size from device: %u (requested: %u)", write_out.write.size, WriteSize);
+            Status = STATUS_IO_DEVICE_ERROR;
+            break;
+        }
+
         *PBytesTransferred += write_out.write.size;
         Length -= write_out.write.size;
         WriteSize = min(Length, VirtFs->MaxWrite);
-    } while (Length > 0);
+    }
 
     SafeHeapFree(write_in);
 
@@ -2174,7 +2235,25 @@ NTSTATUS VIRTFS::ReadDirAndIgnoreCaseSearch(const VIRTFS_FILE_CONTEXT *ParentCon
             return Status;
         }
 
+        // Validate device response to prevent buffer overruns
+        if (read_out->hdr.len > buf_size + sizeof(struct fuse_out_header) ||
+            read_out->hdr.len < sizeof(struct fuse_out_header))
+        {
+            DBG("Device returned invalid header length: %u (valid range: %u-%u)",
+                read_out->hdr.len,
+                (UINT32)sizeof(struct fuse_out_header),
+                (UINT32)(buf_size + sizeof(struct fuse_out_header)));
+            return STATUS_IO_DEVICE_ERROR;
+        }
+
         Remains = read_out->hdr.len - sizeof(struct fuse_out_header);
+
+        if (Remains > buf_size)
+        {
+            DBG("Device returned more data than requested: %u (requested: %u)", Remains, buf_size);
+            return STATUS_IO_DEVICE_ERROR;
+        }
+
         if (Remains == 0)
         {
             break;
@@ -2184,6 +2263,12 @@ NTSTATUS VIRTFS::ReadDirAndIgnoreCaseSearch(const VIRTFS_FILE_CONTEXT *ParentCon
 
         while (Remains > sizeof(struct fuse_dirent))
         {
+            if (FUSE_DIRENT_SIZE(dirent) > Remains)
+            {
+                DBG("Invalid dirent size: %u (remaining: %u)", (UINT32)FUSE_DIRENT_SIZE(dirent), Remains);
+                return STATUS_IO_DEVICE_ERROR;
+            }
+
             if (FileNameIgnoreCaseCompare(FileName, dirent->name, dirent->namelen))
             {
                 result.assign(dirent->name, dirent->namelen);
@@ -2249,7 +2334,29 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
                     break;
                 }
 
+                // Validate device response to prevent buffer overruns
+                if (read_out->hdr.len > sizeof(struct fuse_out_header) + (ULONG64)BufferLength * 2 ||
+                    read_out->hdr.len < sizeof(struct fuse_out_header))
+                {
+                    DBG("Device returned invalid header length: %u (valid range: %u-%I64u)",
+                        read_out->hdr.len,
+                        (UINT32)sizeof(struct fuse_out_header),
+                        sizeof(struct fuse_out_header) + (ULONG64)BufferLength * 2);
+                    Status = STATUS_IO_DEVICE_ERROR;
+                    break;
+                }
+
                 Remains = read_out->hdr.len - sizeof(struct fuse_out_header);
+
+                if (Remains > (ULONG64)BufferLength * 2)
+                {
+                    DBG("Device returned more data than requested: %u (requested: %I64u)",
+                        Remains,
+                        (ULONG64)BufferLength * 2);
+                    Status = STATUS_IO_DEVICE_ERROR;
+                    break;
+                }
+
                 if (Remains == 0)
                 {
                     // A successful request with no data means no more
@@ -2261,6 +2368,15 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
 
                 while (Remains > sizeof(struct fuse_direntplus))
                 {
+                    if (FUSE_DIRENTPLUS_SIZE(DirEntryPlus) > Remains)
+                    {
+                        DBG("Invalid direntplus size: %u (remaining: %u)",
+                            (UINT32)FUSE_DIRENTPLUS_SIZE(DirEntryPlus),
+                            Remains);
+                        Status = STATUS_IO_DEVICE_ERROR;
+                        break;
+                    }
+
                     DBG("ino=%I64u off=%I64u namelen=%u type=%u name=%s",
                         DirEntryPlus->dirent.ino,
                         DirEntryPlus->dirent.off,
@@ -2303,6 +2419,11 @@ static NTSTATUS ReadDirectory(FSP_FILE_SYSTEM *FileSystem,
                     Offset = DirEntryPlus->dirent.off;
                     Remains -= FUSE_DIRENTPLUS_SIZE(DirEntryPlus);
                     DirEntryPlus = (struct fuse_direntplus *)((PBYTE)DirEntryPlus + FUSE_DIRENTPLUS_SIZE(DirEntryPlus));
+                }
+
+                if (!NT_SUCCESS(Status))
+                {
+                    break;
                 }
             }
 
