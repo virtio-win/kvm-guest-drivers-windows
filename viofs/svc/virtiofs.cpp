@@ -1049,13 +1049,13 @@ static NTSTATUS GetFileInfoInternal(VIRTFS *VirtFs,
 
     FUSE_HEADER_INIT(&getattr_in.hdr, FUSE_GETATTR, FileContext->NodeId, sizeof(getattr_in.getattr));
 
+    ZeroMemory(&getattr_in.getattr, sizeof(getattr_in.getattr));
+
     if (FileContext->FileHandle != INVALID_FILE_HANDLE)
     {
         getattr_in.getattr.fh = FileContext->FileHandle;
         getattr_in.getattr.getattr_flags |= FUSE_GETATTR_FH;
     }
-
-    getattr_in.getattr.getattr_flags = 0;
 
     Status = VirtFsFuseRequest(VirtFs->Device, &getattr_in, sizeof(getattr_in), &getattr_out, sizeof(getattr_out));
 
