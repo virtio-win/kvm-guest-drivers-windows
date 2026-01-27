@@ -372,7 +372,6 @@ static VOID HandleGetVolumeName(IN PDEVICE_CONTEXT Context, IN WDFREQUEST Reques
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "Failed to convert config tag: %!STATUS!", status);
-        status = STATUS_SUCCESS;
     }
     else
     {
