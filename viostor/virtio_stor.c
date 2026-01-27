@@ -838,16 +838,32 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
 
     if (!adaptExt->dump_mode)
     {
+        /* We don't get another chance to call StorPortEnablePassiveInitialization and initialize
+         * DPCs if the adapter is being restarted, so leave our datastructures alone on restart
+         */
         if (adaptExt->dpc == NULL)
         {
             adaptExt->dpc = (PSTOR_DPC)VioStorPoolAlloc(DeviceExtension, sizeof(STOR_DPC) * adaptExt->num_queues);
         }
-        if ((adaptExt->dpc != NULL) && (adaptExt->dpc_ok == FALSE))
+
+        if (adaptExt->dpc_ok)
+        {
+            RhelDbgPrint(TRACE_LEVEL_WARNING, "DPC already initialized.\n");
+        }
+        else if (adaptExt->dpc != NULL)
         {
             if (!StorPortEnablePassiveInitialization(DeviceExtension, VirtIoPassiveInitializeRoutine))
             {
                 virtio_add_status(&adaptExt->vdev, VIRTIO_CONFIG_S_FAILED);
+                RhelDbgPrint(TRACE_LEVEL_FATAL, " StorPortEnablePassiveInitialization() FAILED..!!!\n");
                 return FALSE;
+            }
+        }
+        else
+        {
+            /* VioStorPoolAlloc() ran out of memory and reported as such */
+            virtio_add_status(&adaptExt->vdev, VIRTIO_CONFIG_S_FAILED);
+            return FALSE;
         }
     }
 
