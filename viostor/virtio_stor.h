@@ -79,7 +79,12 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define SECTOR_SHIFT                       9
 #define IO_PORT_LENGTH                     0x40
 #define MAX_CPU                            256u
-#define MAX_DISCARD_SEGMENTS               256u
+
+/*
+ * QEMU's virtio-blk implementation supports only a single segment (as of
+ * QEMU 10.2), so this is more than enough.
+ */
+#define MAX_DISCARD_SEGMENTS               16u
 
 #define VIRTIO_BLK_QUEUE_LAST              MAX_CPU
 
@@ -253,7 +258,7 @@ typedef struct _ADAPTER_EXTENSION
     PGROUP_AFFINITY pmsg_affinity;
     ULONG num_affinity;
     STOR_ADDR_BTL8 device_address;
-    blk_discard_write_zeroes blk_discard[16];
+    blk_discard_write_zeroes blk_discard[MAX_DISCARD_SEGMENTS];
     REQUEST_LIST processing_srbs[MAX_CPU];
     BOOLEAN reset_in_progress;
     ULONGLONG fw_ver;
