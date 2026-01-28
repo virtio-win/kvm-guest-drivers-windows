@@ -258,7 +258,6 @@ typedef struct _ADAPTER_EXTENSION
     PGROUP_AFFINITY pmsg_affinity;
     ULONG num_affinity;
     STOR_ADDR_BTL8 device_address;
-    blk_discard_write_zeroes blk_discard[MAX_DISCARD_SEGMENTS];
     REQUEST_LIST processing_srbs[MAX_CPU];
     BOOLEAN reset_in_progress;
     ULONGLONG fw_ver;
@@ -286,6 +285,7 @@ typedef struct _SRB_EXTENSION
     BOOLEAN fua;
     VIO_SG sg[VIRTIO_MAX_SG];
     VRING_DESC_ALIAS desc[VIRTIO_MAX_SG];
+    blk_discard_write_zeroes blk_discard[MAX_DISCARD_SEGMENTS];
 } SRB_EXTENSION, *PSRB_EXTENSION;
 
 BOOLEAN
