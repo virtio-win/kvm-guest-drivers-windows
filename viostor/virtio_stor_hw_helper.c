@@ -324,7 +324,7 @@ RhelDoUnMap(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
      * the request. Doing something more sophisticated like splitting into
      * multiple requests is not needed.
      */
-    if (BlockDescrCount > ARRAYSIZE(adaptExt->blk_discard))
+    if (BlockDescrCount > ARRAYSIZE(srbExt->blk_discard))
     {
         Srb->SrbStatus = SRB_STATUS_INVALID_REQUEST;
         return FALSE;
@@ -342,9 +342,9 @@ RhelDoUnMap(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
                      BlockDescrCount,
                      blockDescrStartingLba,
                      blockDescrLbaCount);
-        adaptExt->blk_discard[i].sector = blockDescrStartingLba * (adaptExt->info.blk_size / SECTOR_SIZE);
-        adaptExt->blk_discard[i].num_sectors = blockDescrLbaCount * (adaptExt->info.blk_size / SECTOR_SIZE);
-        adaptExt->blk_discard[i].flags = 0;
+        srbExt->blk_discard[i].sector = blockDescrStartingLba * (adaptExt->info.blk_size / SECTOR_SIZE);
+        srbExt->blk_discard[i].num_sectors = blockDescrLbaCount * (adaptExt->info.blk_size / SECTOR_SIZE);
+        srbExt->blk_discard[i].flags = 0;
     }
 
     srbExt->vbr.out_hdr.sector = 0;
@@ -356,7 +356,7 @@ RhelDoUnMap(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
 
     srbExt->sg[0].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.out_hdr, &fragLen);
     srbExt->sg[0].length = sizeof(srbExt->vbr.out_hdr);
-    srbExt->sg[1].physAddr = MmGetPhysicalAddress(&adaptExt->blk_discard[0]);
+    srbExt->sg[1].physAddr = MmGetPhysicalAddress(&srbExt->blk_discard[0]);
     srbExt->sg[1].length = sizeof(blk_discard_write_zeroes) * BlockDescrCount;
     srbExt->sg[2].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
     srbExt->sg[2].length = sizeof(srbExt->vbr.status);
