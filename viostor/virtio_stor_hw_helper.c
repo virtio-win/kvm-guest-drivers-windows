@@ -300,8 +300,8 @@ RhelDoUnMap(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     SET_VA_PA();
 
     unmapList = (PUNMAP_LIST_HEADER)srbDataBuffer;
-
-    if (unmapList == NULL)
+    if (!(CHECKBIT(adaptExt->features, VIRTIO_BLK_F_DISCARD)) || (unmapList == NULL) ||
+        (srbDataBufferLength < sizeof(*unmapList)))
     {
         Srb->SrbStatus = SRB_STATUS_INVALID_REQUEST;
         return FALSE;
@@ -309,15 +309,27 @@ RhelDoUnMap(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
 
     REVERSE_BYTES_SHORT(&blockDescrDataLength, unmapList->BlockDescrDataLength);
 
-    if (!(CHECKBIT(adaptExt->features, VIRTIO_BLK_F_DISCARD)) ||
-        (srbDataBufferLength < (ULONG)(blockDescrDataLength + 8)))
+    if (srbDataBufferLength < sizeof(*unmapList) + (ULONG)blockDescrDataLength)
     {
         Srb->SrbStatus = SRB_STATUS_INVALID_REQUEST;
         return FALSE;
     }
 
-    BlockDescriptors = (PUNMAP_BLOCK_DESCRIPTOR)((PCHAR)srbDataBuffer + 8);
+    BlockDescriptors = unmapList->Descriptors;
     BlockDescrCount = blockDescrDataLength / sizeof(UNMAP_BLOCK_DESCRIPTOR);
+
+    /*
+     * RhelGetDiskGeometry() never advertises more than MAX_DISCARD_SEGMENTS, so
+     * the caller tried to exceed the advertised limit and we should just fail
+     * the request. Doing something more sophisticated like splitting into
+     * multiple requests is not needed.
+     */
+    if (BlockDescrCount > ARRAYSIZE(adaptExt->blk_discard))
+    {
+        Srb->SrbStatus = SRB_STATUS_INVALID_REQUEST;
+        return FALSE;
+    }
+
     for (i = 0; i < BlockDescrCount; i++)
     {
         ULONGLONG blockDescrStartingLba;
@@ -715,7 +727,7 @@ VOID RhelGetDiskGeometry(IN PVOID DeviceExtension)
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, " max_discard_sectors = %d\n", adaptExt->info.max_discard_sectors);
 
         virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(blk_config, max_discard_seg), &v, sizeof(v));
-        adaptExt->info.max_discard_seg = (v < MAX_DISCARD_SEGMENTS) ? v : MAX_DISCARD_SEGMENTS - 1;
+        adaptExt->info.max_discard_seg = min(v, MAX_DISCARD_SEGMENTS);
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, " max_discard_seg = %d\n", adaptExt->info.max_discard_seg);
     }
 }
