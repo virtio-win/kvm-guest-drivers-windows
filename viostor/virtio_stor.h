@@ -80,11 +80,13 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define IO_PORT_LENGTH                     0x40
 #define MAX_CPU                            256u
 #define MAX_DISCARD_SEGMENTS               256u
-
-#define VIRTIO_BLK_QUEUE_LAST              MAX_CPU
-
-#define VIRTIO_BLK_MSIX_CONFIG_VECTOR      0
 #define MIN_DISCARD_SECTOR_ALIGNMENT       8
+
+#define VIRTIO_BLK_MSIX_VQ_OFFSET          1
+#define VIRTIO_BLK_MSIX_VQ_1_VCTR_OFFSET   0
+#define VIRTIO_BLK_MSIX_CONFIG_VECTOR      0
+#define VIRTIO_BLK_REQUEST_QUEUE_0         0
+#define VIRTIO_BLK_QUEUE_LAST              MAX_CPU
 
 #define BLOCK_SERIAL_STRLEN                20
 
@@ -92,6 +94,12 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define VIRTIO_MAX_SG                      (3 + MAX_PHYS_SEGMENTS)
 
 #define VIOBLK_POOL_TAG                    'BoiV'
+
+/* Pad the following with spaces (ASCII '\20') */
+#define VIRTIO_BLK_VENDOR_ID               "Red Hat "             // UCHAR VendorId[8]
+#define VIRTIO_BLK_PRODUCT_ID              "VirtIO          "     // UCHAR ProductId[16]
+#define VIRTIO_BLK_PROD_REV_LVL            "1001"                 // UCHAR ProductRevisionLevel[4]
+#define VIRTIO_BLK_VEND_SPECIFIC           "1001                " // UCHAR VendorSpecific[20]
 
 #pragma pack(1)
 typedef struct virtio_blk_config
@@ -220,7 +228,7 @@ typedef struct _ADAPTER_EXTENSION
     ULONG poolOffset;
 
     struct virtqueue *vq[VIRTIO_BLK_QUEUE_LAST];
-    USHORT num_queues;
+    ULONG num_queues;
     INQUIRYDATA inquiry_data;
     blk_config info;
     ULONG queue_depth;
