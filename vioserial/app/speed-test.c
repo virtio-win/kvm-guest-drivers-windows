@@ -19,7 +19,7 @@ static int write_splitted(int sockfd, char *buf, int size)
         {
             chunk = size;
         }
-        res = write(sockfd, buf, chunk);
+        res = write(sockfd, buf, (size_t)chunk);
         if (res <= 0)
         {
             return res;
@@ -57,23 +57,23 @@ static void do_client_job(int sockfd)
         if (write(sockfd, &r, sizeof(r)) < 0)
         {
             printf("Can't write %d, error %d\n", (int)sizeof(r), errno);
-            return;
+            goto out;
         }
         if (write_splitted(sockfd, p, size) < 0)
         {
             printf("Can't write %d, error %d\n", (int)size, errno);
-            return;
+            goto out;
         }
         r.magic = r.size = 0;
         if (read(sockfd, &r, sizeof(r)) < 0)
         {
             printf("Can't read header, error %d\n", errno);
-            return;
+            goto out;
         }
         if (r.magic != MAGIC || r.size != size)
         {
             printf("Wrong header received for size %d\n", (int)size);
-            return;
+            goto out;
         }
         t2 = time_ms();
         printf("%d transferred in %d ms\n", size, (int)(t2 - t1));
@@ -83,8 +83,10 @@ static void do_client_job(int sockfd)
     if (write(sockfd, &r, sizeof(r)) < 0)
     {
         printf("Can't write %d, error %d\n", (int)sizeof(r), errno);
-        return;
+        goto out;
     }
+
+out:
     free(p);
 }
 
@@ -92,6 +94,7 @@ static int do_server_job(int sockfd)
 {
     int max_size = 128 * 1024 * 1024;
     void *p = malloc(max_size);
+    int return_code = 1;
     req_header r;
     int res;
     int done;
@@ -101,35 +104,41 @@ static int do_server_job(int sockfd)
         if (read(sockfd, &r, sizeof(r)) < 0)
         {
             printf("Can't read header, error %d\n", errno);
-            return 1;
+            goto out;
         }
         if (r.magic != MAGIC)
         {
             printf("Wrong header received\n");
-            return 1;
+            goto out;
         }
         if (r.size == 0)
         {
-            break;
+            return_code = 0;
+            goto out;
+        }
+        if (r.size < 0)
+        {
+            printf("negative size received\n");
+            goto out;
         }
         if (r.size > max_size)
         {
             printf("too large block\n");
-            return 1;
+            goto out;
         }
         done = 0;
         do
         {
-            res = read(sockfd, buf, r.size - done);
+            res = read(sockfd, buf, (size_t)(r.size - done));
             if (res < 0)
             {
                 printf("Can't read data, error %d\n", errno);
-                return 1;
+                goto out;
             }
             if (res == 0)
             {
                 printf("Disconnected, error %d\n", errno);
-                return 1;
+                goto out;
             }
             done += res;
             buf += res;
@@ -138,12 +147,13 @@ static int do_server_job(int sockfd)
         if (write(sockfd, &r, sizeof(r)) < 0)
         {
             printf("Can't write %d, error %d\n", (int)sizeof(r), errno);
-            return 1;
+            goto out;
         }
     } while (1);
 
+out:
     free(p);
-    return 0;
+    return return_code;
 }
 
 #ifndef WIN32
