@@ -185,7 +185,7 @@ ViomemEvtDevicePrepareHardware(IN WDFDEVICE Device,
 
     if (devCtx->plugRequest)
     {
-        RtlFillMemory(devCtx->plugRequest, sizeof(virtio_mem_req), VIRTIO_MEM_POOL_TAG);
+        RtlZeroMemory(devCtx->plugRequest, sizeof(virtio_mem_req));
     }
     else
     {
@@ -202,7 +202,7 @@ ViomemEvtDevicePrepareHardware(IN WDFDEVICE Device,
 
     if (devCtx->MemoryResponse)
     {
-        RtlFillMemory(devCtx->MemoryResponse, sizeof(virtio_mem_resp), VIRTIO_MEM_POOL_TAG);
+        RtlZeroMemory(devCtx->MemoryResponse, sizeof(virtio_mem_resp));
     }
     else
     {
@@ -210,7 +210,7 @@ ViomemEvtDevicePrepareHardware(IN WDFDEVICE Device,
         status = STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    RtlFillMemory(&devCtx->memoryBitmapHandle, sizeof(RTL_BITMAP), 0);
+    RtlZeroMemory(&devCtx->memoryBitmapHandle, sizeof(RTL_BITMAP));
     devCtx->bitmapBuffer = NULL;
 
     //
