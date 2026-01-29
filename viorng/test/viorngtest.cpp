@@ -102,6 +102,6 @@ int __cdecl wmain(int argc, LPWSTR argv[])
         BCryptCloseAlgorithmProvider(h, 0);
     }
 
-    delete Buffer;
+    delete[] Buffer;
     return status;
 }
