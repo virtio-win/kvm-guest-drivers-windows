@@ -8,20 +8,15 @@
 #include <stdio.h>
 #include <string.h>
 #include <conio.h>
+#include <vector>
 #include "..\sys\public.h"
-#pragma warning(disable : 4201)
-
-#include <setupapi.h>
-#include <winioctl.h>
-
-#pragma warning(default : 4201)
 
 class CDevice
 {
   public:
     CDevice();
     ~CDevice();
-    BOOL Init(BOOL ovrl, UINT index);
+    BOOL Init(BOOL ovrl, UINT portId);
     BOOL Write(PVOID buf, size_t *size);
     BOOL WriteEx(PVOID buf, size_t *size);
     BOOL Read(PVOID buf, size_t *size);
@@ -30,7 +25,7 @@ class CDevice
 
   protected:
     HANDLE m_hDevice;
-    PTCHAR GetDevicePath(UINT index, IN LPGUID InterfaceGuid);
+    PTCHAR GetDevicePath(UINT portId, IN LPGUID InterfaceGuid, std::vector<uint8_t> &devpathBuf);
 };
 
 #endif
