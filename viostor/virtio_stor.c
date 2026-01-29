@@ -30,6 +30,7 @@
  * SUCH DAMAGE.
  */
 #include "virtio_stor.h"
+#include "virtio_stor_hw_helper.h"
 #if defined(EVENT_TRACING)
 #include "virtio_stor.tmh"
 #endif
@@ -454,6 +455,7 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
     {
         adaptExt->num_queues = min(adaptExt->num_queues, (USHORT)num_cpus);
     }
+    adaptExt->reset_in_progress_count = 0;
 
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Queues %d CPUs %d\n", adaptExt->num_queues, num_cpus);
 
@@ -701,13 +703,16 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
     {
         /* initialize queues with a MSI vector per queue */
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, (" Using a unique MSI vector per queue\n"));
-        adaptExt->msix_one_vector = FALSE;
+        adaptExt->msix_config_vector = TRUE;
     }
     else
     {
         /* if we don't have enough vectors, use one for all queues */
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, (" Disabling MSI config vector\n"));
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, (" Using one MSI vector for all queues\n"));
-        adaptExt->msix_one_vector = TRUE;
+        adaptExt->msix_config_vector = FALSE;
+        /* TODO Allow using multiple queues even with a single vector */
+        adaptExt->num_queues = 1;
     }
 
     if (!InitializeVirtualQueues(adaptExt))
@@ -760,7 +765,7 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_INTERRUPT_MESSAGE_RANGES))
                 {
                     adaptExt->perfFlags |= STOR_PERF_INTERRUPT_MESSAGE_RANGES;
-                    perfData.FirstRedirectionMessageNumber = 1;
+                    perfData.FirstRedirectionMessageNumber = adaptExt->msix_config_vector ? 1 : 0;
                     perfData.LastRedirectionMessageNumber = perfData.FirstRedirectionMessageNumber +
                                                             adaptExt->num_queues - 1;
                     ASSERT(perfData.lastRedirectionMessageNumber < adaptExt->num_affinity);
@@ -839,54 +844,119 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
     return ret;
 }
 
-VOID CompletePendingRequests(IN PVOID DeviceExtension)
+static VOID CompletePendingRequestsOnReset(IN PVOID DeviceExtension)
 {
     PADAPTER_EXTENSION adaptExt;
 
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 #ifdef DBG
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, "CompletePendingRequests %d %d\n", adaptExt->srb_cnt, adaptExt->inqueue_cnt);
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                 "CompletePendingRequestsOnReset %d %d\n",
+                 adaptExt->srb_cnt,
+                 adaptExt->inqueue_cnt);
 #endif
-    if (!adaptExt->reset_in_progress)
+    for (ULONG index = 0; index < adaptExt->num_queues; index++)
     {
-        adaptExt->reset_in_progress = TRUE;
-        StorPortPause(DeviceExtension, 10);
-
-        for (ULONG index = 0; index < adaptExt->num_queues; index++)
+        PREQUEST_LIST element;
+        STOR_LOCK_HANDLE LockHandle = {0};
+        ULONG MessageID = QueueToMessageId(DeviceExtension, index);
+        VioStorVQLock(DeviceExtension, MessageID, &LockHandle, FALSE);
+        element = &adaptExt->processing_srbs[index];
+        while (!IsListEmpty(&element->srb_list))
         {
-            PREQUEST_LIST element = &adaptExt->processing_srbs[index];
-            STOR_LOCK_HANDLE LockHandle = {0};
-            ULONG MessageID = index + 1;
-            VioStorVQLock(DeviceExtension, MessageID, &LockHandle, FALSE);
-            while (!IsListEmpty(&element->srb_list))
+            PLIST_ENTRY entry = RemoveHeadList(&element->srb_list);
+            if (entry)
             {
-                PLIST_ENTRY entry = RemoveHeadList(&element->srb_list);
-                if (entry)
+                pblk_req req = CONTAINING_RECORD(entry, blk_req, list_entry);
+                PSCSI_REQUEST_BLOCK Srb = (PSCSI_REQUEST_BLOCK)req->req;
+                if (Srb)
                 {
-                    pblk_req req = CONTAINING_RECORD(entry, blk_req, list_entry);
-                    PSCSI_REQUEST_BLOCK currSrb = (PSCSI_REQUEST_BLOCK)req->req;
-                    PSRB_EXTENSION currSrbExt = SRB_EXTENSION(currSrb);
-                    if (currSrb)
-                    {
-                        SRB_SET_DATA_TRANSFER_LENGTH(currSrb, 0);
-                        CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)currSrb, SRB_STATUS_BUS_RESET);
-                        element->srb_cnt--;
-                    }
+                    SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
+                    CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_BUS_RESET);
+                    element->srb_cnt--;
                 }
             }
-            if (element->srb_cnt)
-            {
-                element->srb_cnt = 0;
-            }
-            VioStorVQUnlock(DeviceExtension, MessageID, &LockHandle, FALSE);
         }
-        StorPortResume(DeviceExtension);
+        element->srb_cnt = 0;
+        VioStorVQUnlock(DeviceExtension, MessageID, &LockHandle, FALSE);
     }
-    else
+}
+
+/*
+ * The VirtIO BLK device does not have special reset events/routines
+ * like the VirtIO SCSI device (controlq command VIRTIO_SCSI_T_TMF_LOGICAL_UNIT_RESET),
+ * but Windows requires to have some mechanism to fix a device when it hangs.
+ * The most appropriate way is perform a full VirtIO reset and initialization
+ * flow based on spec.
+ *
+ * The following flow is implemented:
+ *
+ * 1. Reset VirtIO device (virtio_device_reset)
+ * 2. Delete VirtIO queues (virtio_delete_queues)
+ * 3. Clean up all device memory (virtio_device_shutdown)
+ * 4. Complete all pending SRBs (in guest, CompletePendingRequestsOnReset)
+ * 5. Perform VirtIO device initialization (virtio_device_initialize, virtio_find_queues, etc)
+ *
+ * Note: We don't pause StorPort because the port driver pauses all device IO queues for the
+ * adapter and then calls the HwStorResetBus routine
+ * https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/storport/nc-storport-hw_reset_bus
+ *
+ * Note: We cannot just complete all pending SRBs and continue, because this
+ * memory will be still in use by the device and free in Windows. As a result,
+ * we got use-after-free when the device completes the request and sends it back to Windows.
+ * This may cause a memory corruption, as Windows may already have reused the memory.
+ */
+BOOLEAN VioStorResetBus(IN PVOID DeviceExtension)
+{
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    if (adaptExt->reset_in_progress_count)
     {
-        RhelDbgPrint(TRACE_LEVEL_ERROR, "RESET IN THE PROGRESS !!!!\n");
+        RhelDbgPrint(TRACE_LEVEL_ERROR, "VioStorResetBus RESET ALREADY IN PROGRESS !!!!\n");
+        return FALSE;
     }
-    adaptExt->reset_in_progress = FALSE;
+
+    // MSFT reports reset as a warning event in event logs, so keep the same level there
+    RhelDbgPrint(TRACE_LEVEL_WARNING, " VioStorResetBus initiated\n");
+
+    /*
+     * Try to lock each Queue/DPC to make sure there is no requests that
+     * are currently in progress in DPC. Each new DPC call will have no affect because
+     * VioStorCompleteRequest will exits for any non-zero reset_in_progress_count value
+     */
+    for (ULONG QueueNumber = 0; QueueNumber < adaptExt->num_queues; QueueNumber++)
+    {
+        ULONG MessageId = QueueToMessageId(DeviceExtension, QueueNumber);
+        STOR_LOCK_HANDLE LockHandle = {0};
+        VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
+        adaptExt->reset_in_progress_count++;
+        VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
+    }
+
+    RhelShutDown(DeviceExtension);
+    CompletePendingRequestsOnReset(DeviceExtension);
+
+    if (!VirtIoHwReinitialize(DeviceExtension))
+    {
+        RhelDbgPrint(TRACE_LEVEL_FATAL, " VioStorResetBus cannot reinitialize HW\n");
+        /*
+         * The device is terminally broken in this case. There is no known things to do,
+         * so keep everything as is:
+         *   reset_in_progress_count > 0
+         *   VirtIoStartIo will reject all requests with SRB_STATUS_BUS_RESET.
+         */
+        return FALSE;
+    }
+
+    for (ULONG QueueNumber = 0; QueueNumber < adaptExt->num_queues; QueueNumber++)
+    {
+        ULONG MessageId = QueueToMessageId(DeviceExtension, QueueNumber);
+        STOR_LOCK_HANDLE LockHandle = {0};
+        VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
+        adaptExt->reset_in_progress_count--;
+        VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
+    }
+
+    return TRUE;
 }
 
 BOOLEAN
@@ -899,6 +969,21 @@ VirtIoStartIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     SRB_SET_SCSI_STATUS(((PSRB_TYPE)Srb), ScsiStatus);
+
+    /*
+     * https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/storport/nc-storport-hw_reset_bus
+     * The port driver pauses all device IO queues for the adapter and then
+     * calls the HwStorResetBus routine at IRQL DISPATCH_LEVEL after acquiring
+     * the StartIo spin lock. A miniport driver is responsible for completing
+     * SRBs received by HwStorStartIo for PathId during this routine and setting
+     * their status to SRB_STATUS_BUS_RESET if necessary.
+     */
+    if (adaptExt->reset_in_progress_count)
+    {
+        RhelDbgPrint(TRACE_LEVEL_ERROR, "VirtIoStartIo RESET ALREADY IN PROGRESS !!!! Srb = 0x%p\n", Srb);
+        CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_BUS_RESET);
+        return TRUE;
+    }
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " Srb = 0x%p\n", Srb);
 
@@ -972,15 +1057,18 @@ VirtIoStartIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
         case SRB_FUNCTION_RESET_DEVICE:
         case SRB_FUNCTION_RESET_LOGICAL_UNIT:
             {
-                CompletePendingRequests(DeviceExtension);
-                CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_SUCCESS);
+                BOOLEAN status = VioStorResetBus(DeviceExtension);
+                CompleteRequestWithStatus(DeviceExtension,
+                                          (PSRB_TYPE)Srb,
+                                          status ? SRB_STATUS_SUCCESS : SRB_STATUS_ERROR);
 #ifdef DBG
                 RhelDbgPrint(TRACE_LEVEL_INFORMATION,
-                             " RESET (%p) Function %x Cnt %d InQueue %d\n",
+                             " RESET (%p) : Function : %x | Cnt %d | InQueue %d | Status: %s\n",
                              Srb,
                              SRB_FUNCTION(Srb),
                              adaptExt->srb_cnt,
-                             adaptExt->inqueue_cnt);
+                             adaptExt->inqueue_cnt,
+                             status ? "SRB_STATUS_SUCCESS" : "SRB_STATUS_ERROR");
                 for (USHORT i = 0; i < adaptExt->num_queues; i++)
                 {
                     if (adaptExt->vq[i])
@@ -989,7 +1077,7 @@ VirtIoStartIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
                     }
                 }
 #endif
-                return TRUE;
+                return status;
             }
         case SRB_FUNCTION_FLUSH:
         case SRB_FUNCTION_SHUTDOWN:
@@ -1165,9 +1253,9 @@ VirtIoInterrupt(IN PVOID DeviceExtension)
     intReason = virtio_read_isr_status(&adaptExt->vdev);
     if (intReason == 1 || adaptExt->dump_mode)
     {
-        if (!CompleteDPC(DeviceExtension, 1))
+        if (!CompleteDPC(DeviceExtension, !!adaptExt->msix_config_vector))
         {
-            VioStorCompleteRequest(DeviceExtension, 1, TRUE);
+            VioStorCompleteRequest(DeviceExtension, !!adaptExt->msix_config_vector, TRUE);
         }
         isInterruptServiced = TRUE;
     }
@@ -1192,11 +1280,8 @@ BOOLEAN
 VirtIoResetBus(IN PVOID DeviceExtension, IN ULONG PathId)
 {
     UNREFERENCED_PARAMETER(PathId);
-    PADAPTER_EXTENSION adaptExt;
-    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
-    CompletePendingRequests(DeviceExtension);
-    return TRUE;
+    return VioStorResetBus(DeviceExtension);
 }
 
 SCSI_ADAPTER_CONTROL_STATUS
@@ -1493,22 +1578,15 @@ VirtIoMSInterruptRoutine(IN PVOID DeviceExtension, IN ULONG MessageID)
         return FALSE;
     }
 
-    if (adaptExt->msix_one_vector)
+    if (adaptExt->msix_config_vector && MessageID == VIRTIO_BLK_MSIX_CONFIG_VECTOR)
     {
-        MessageID = 1;
-    }
-    else
-    {
-        if (MessageID == VIRTIO_BLK_MSIX_CONFIG_VECTOR)
-        {
-            RhelGetDiskGeometry(DeviceExtension);
-            adaptExt->sense_info.senseKey = SCSI_SENSE_UNIT_ATTENTION;
-            adaptExt->sense_info.additionalSenseCode = SCSI_ADSENSE_PARAMETERS_CHANGED;
-            adaptExt->sense_info.additionalSenseCodeQualifier = SCSI_SENSEQ_CAPACITY_DATA_CHANGED;
-            adaptExt->check_condition = TRUE;
-            DeviceChangeNotification(DeviceExtension, TRUE);
-            return TRUE;
-        }
+        RhelGetDiskGeometry(DeviceExtension);
+        adaptExt->sense_info.senseKey = SCSI_SENSE_UNIT_ATTENTION;
+        adaptExt->sense_info.additionalSenseCode = SCSI_ADSENSE_PARAMETERS_CHANGED;
+        adaptExt->sense_info.additionalSenseCodeQualifier = SCSI_SENSEQ_CAPACITY_DATA_CHANGED;
+        adaptExt->check_condition = TRUE;
+        DeviceChangeNotification(DeviceExtension, TRUE);
+        return TRUE;
     }
 
     if (!CompleteDPC(DeviceExtension, MessageID))
@@ -2030,10 +2108,11 @@ FORCEINLINE
 CompleteDPC(IN PVOID DeviceExtension, IN ULONG MessageID)
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    ULONG dpc_idx = MessageToDpcIdx(DeviceExtension, MessageID);
 
     if (!adaptExt->dump_mode && adaptExt->dpc_ok)
     {
-        StorPortIssueDpc(DeviceExtension, &adaptExt->dpc[MessageID - 1], ULongToPtr(MessageID), ULongToPtr(FALSE));
+        StorPortIssueDpc(DeviceExtension, &adaptExt->dpc[dpc_idx], ULongToPtr(MessageID), ULongToPtr(FALSE));
         return TRUE;
     }
     return FALSE;
@@ -2093,8 +2172,8 @@ UCHAR DeviceToSrbStatus(UCHAR status)
 VOID VioStorCompleteRequest(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOOLEAN bIsr)
 {
     unsigned int len = 0;
-    PADAPTER_EXTENSION adaptExt = NULL;
-    ULONG QueueNumber = MessageID - 1;
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    ULONG QueueNumber = MessageID - !!adaptExt->msix_config_vector;
     STOR_LOCK_HANDLE queueLock = {0};
     struct virtqueue *vq = NULL;
     ULONG_PTR srbId = 0;
@@ -2105,12 +2184,26 @@ VOID VioStorCompleteRequest(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOO
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " ---> MessageID 0x%x\n", MessageID);
 
-    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    VioStorVQLock(DeviceExtension, MessageID, &queueLock, bIsr);
 
     vq = adaptExt->vq[QueueNumber];
     element = &adaptExt->processing_srbs[QueueNumber];
 
-    VioStorVQLock(DeviceExtension, MessageID, &queueLock, bIsr);
+    /*
+     * Device can send ISR that will trigger DPC during SRB_FUNCTION_RESET_*.
+     * Driver can ignore this, because driver must complite all requests independantly
+     * of ISR/DPC after reset finishes.
+     * At the same time DPC can be called before device will be initialized again
+     * after the reset.
+     * So, driver will safely ignore DPC during reset and manualy complete all requests
+     * after full re-initialization.
+     */
+    if (adaptExt->reset_in_progress_count)
+    {
+        RhelDbgPrint(TRACE_LEVEL_ERROR, "VioStorCompleteRequest RESET ALREADY IN PROGRESS !!!!\n");
+        goto out;
+    }
+
     do
     {
         virtqueue_disable_cb(vq);
@@ -2214,6 +2307,7 @@ VOID VioStorCompleteRequest(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOO
         }
     } while (!virtqueue_enable_cb(vq));
 
+out:
     VioStorVQUnlock(DeviceExtension, MessageID, &queueLock, bIsr);
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " <--- MessageID 0x%x\n", MessageID);
@@ -2223,6 +2317,7 @@ VOID VioStorCompleteRequest(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOO
 VOID CompleteDpcRoutine(IN PSTOR_DPC Dpc, IN PVOID Context, IN PVOID SystemArgument1, IN PVOID SystemArgument2)
 {
     ULONG MessageID = PtrToUlong(SystemArgument1);
+
     VioStorCompleteRequest(Context, MessageID, FALSE);
 }
 
