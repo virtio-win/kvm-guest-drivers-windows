@@ -116,6 +116,17 @@ ViomemInit(IN WDFOBJECT WdfDevice)
             VirtIOWdfDeviceGet(&devCtx->VDevice, 0, &configReqest, sizeof(configReqest));
 
             //
+            // Validate that block_size is non-zero to prevent division by zero.
+            //
+            if (configReqest.block_size == 0)
+            {
+                TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "Invalid block_size (0) received from device\n");
+                VirtIOWdfSetDriverFailed(&devCtx->VDevice);
+                status = STATUS_DEVICE_DATA_ERROR;
+                goto Exit;
+            }
+
+            //
             // Calculate the size of bitmap representing memory region and
             // try to allocate memory for the bitmap.
             //
@@ -163,6 +174,7 @@ ViomemInit(IN WDFOBJECT WdfDevice)
         VirtIOWdfSetDriverFailed(&devCtx->VDevice);
     }
 
+Exit:
     WdfObjectReleaseLock(WdfDevice);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s Return\n", __FUNCTION__);
