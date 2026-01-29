@@ -265,8 +265,12 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
 
     ConfigInfo->Master = TRUE;
     ConfigInfo->ScatterGather = TRUE;
+#ifndef _WIN64
+    /* On 32-bit systems, keep the old behavior to avoid unknown side effects.
+     * This will be removed when 32-bit systems are deprecated. */
     ConfigInfo->DmaWidth = Width32Bits;
     ConfigInfo->Dma32BitAddresses = TRUE;
+#endif
     ConfigInfo->Dma64BitAddresses = SCSI_DMA64_MINIPORT_FULL64BIT_SUPPORTED;
     ConfigInfo->WmiDataProvider = FALSE;
     ConfigInfo->AlignmentMask = 0x3;
