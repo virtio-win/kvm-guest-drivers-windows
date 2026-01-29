@@ -493,7 +493,8 @@ HIDKeyboardProbe(PINPUT_DEVICE pContext,
                                                                        VIOINPUT_DRIVER_MEMORY_TAG);
         if (pKeyboardDesc->pLastOutputReport == NULL)
         {
-            return STATUS_INSUFFICIENT_RESOURCES;
+            status = STATUS_INSUFFICIENT_RESOURCES;
+            goto Exit;
         }
         RtlZeroMemory(pKeyboardDesc->pLastOutputReport, pKeyboardDesc->cbOutputReport);
     }
