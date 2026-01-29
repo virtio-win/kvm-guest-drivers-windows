@@ -985,7 +985,7 @@ void VioGpuMemSegment::Close(void)
 
     if (m_bSystemMemory)
     {
-        delete[] m_pVAddr;
+        delete[] reinterpret_cast<PBYTE>(m_pVAddr);
     }
     else
     {

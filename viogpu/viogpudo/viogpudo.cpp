@@ -53,6 +53,7 @@ VioGpuDod::VioGpuDod(_In_ DEVICE_OBJECT *pPhysicalDeviceObject)
     RtlZeroMemory(&m_DxgkInterface, sizeof(m_DxgkInterface));
     RtlZeroMemory(&m_DeviceInfo, sizeof(m_DeviceInfo));
     RtlZeroMemory(&m_CurrentMode, sizeof(m_CurrentMode));
+    RtlZeroMemory(&m_SystemDisplayInfo, sizeof(m_SystemDisplayInfo));
     RtlZeroMemory(&m_PointerShape, sizeof(m_PointerShape));
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
@@ -2191,6 +2192,8 @@ VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod)
     m_pWorkThread = NULL;
     m_ResolutionEvent = NULL;
     m_ResolutionEventHandle = NULL;
+    m_u64HostFeatures = 0;
+    m_u64GuestFeatures = 0;
     m_u32NumCapsets = 0;
     m_u32NumScanouts = 0;
 
@@ -2394,7 +2397,7 @@ PBYTE VioGpuAdapter::GetCTA861Data(void)
     if (m_bEDID)
     {
         PEDID_DATA_V1 edid_data = (PEDID_DATA_V1)m_EDIDs;
-        if (edid_data->ExtensionFlag)
+        if (edid_data->ExtensionFlag[0])
         {
             PEDID_CTA_861 cta_data = (PEDID_CTA_861)(m_EDIDs + EDID_V1_BLOCK_SIZE);
             if (cta_data->ExtentionTag[0] >= 2 && cta_data->Revision[0] >= 3)
@@ -2517,7 +2520,11 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
         }
 
     } while (0);
-    // FIXME!!! exit if the block above failed
+    // Exit if the block above failed
+    if (!NT_SUCCESS(status))
+    {
+        return status;
+    }
 
     status = PsCreateSystemThread(&threadHandle,
                                   (ACCESS_MASK)0,
@@ -2755,7 +2762,6 @@ NTSTATUS VioGpuAdapter::ExecutePresentDisplayOnly(_In_ BYTE *DstAddr,
         updrect.left = 0;
         updrect.bottom = pModeCur->SrcModeHeight;
         updrect.right = pModeCur->SrcModeWidth;
-        offset = 0UL;
     }
     // FIXME!!! rotation
     offset = (updrect.top * pModeCur->DispInfo.Pitch) +
