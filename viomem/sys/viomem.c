@@ -1711,6 +1711,7 @@ BOOLEAN SynchronizeDeviceAndDriverMemory(IN WDFOBJECT Device, virtio_mem_config 
 
             st[Top].address.QuadPart = startBlockAddr;
             st[Top].numberOfBlocks = NumberOfBlocks;
+            Top++;
 
             //
             // As long as there is data for processing, do it in a loop:
