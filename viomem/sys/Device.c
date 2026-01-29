@@ -185,7 +185,7 @@ ViomemEvtDevicePrepareHardware(IN WDFDEVICE Device,
 
     if (devCtx->plugRequest)
     {
-        RtlFillMemory(devCtx->plugRequest, sizeof(virtio_mem_req), VIRTIO_MEM_POOL_TAG);
+        RtlFillMemory(devCtx->plugRequest, sizeof(virtio_mem_req), 0);
     }
     else
     {
@@ -202,7 +202,7 @@ ViomemEvtDevicePrepareHardware(IN WDFDEVICE Device,
 
     if (devCtx->MemoryResponse)
     {
-        RtlFillMemory(devCtx->MemoryResponse, sizeof(virtio_mem_resp), VIRTIO_MEM_POOL_TAG);
+        RtlFillMemory(devCtx->MemoryResponse, sizeof(virtio_mem_resp), 0);
     }
     else
     {
