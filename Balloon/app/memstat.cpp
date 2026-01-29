@@ -58,7 +58,8 @@ BOOL CMemStat::Init()
         return FALSE;
     }
 
-    status = locator->ConnectServer(L"root\\cimv2", NULL, NULL, 0L, 0L, NULL, NULL, &service);
+    const _bstr_t bstrNamespace(L"root\\cimv2");
+    status = locator->ConnectServer(bstrNamespace, NULL, NULL, 0L, 0L, NULL, NULL, &service);
     if (FAILED(status))
     {
         PrintMessage("Cannot connect to wmi server");
@@ -97,8 +98,10 @@ BOOL CMemStat::Update()
 
     GetSystemInfo(&sysinfo);
 
-    status = service->ExecQuery(L"WQL",
-                                L"SELECT * FROM Win32_PerfRawData_PerfOS_Memory",
+    const _bstr_t bstrQueryLanguage(L"WQL");
+    const _bstr_t bstrQuery(L"SELECT * FROM Win32_PerfRawData_PerfOS_Memory");
+    status = service->ExecQuery(bstrQueryLanguage,
+                                bstrQuery,
                                 WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
                                 NULL,
                                 &enumerator);
