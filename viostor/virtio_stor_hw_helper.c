@@ -300,8 +300,8 @@ RhelDoUnMap(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     SET_VA_PA();
 
     unmapList = (PUNMAP_LIST_HEADER)srbDataBuffer;
-
-    if (unmapList == NULL)
+    if (!(CHECKBIT(adaptExt->features, VIRTIO_BLK_F_DISCARD)) || (unmapList == NULL) ||
+        (srbDataBufferLength < sizeof(*unmapList)))
     {
         Srb->SrbStatus = SRB_STATUS_INVALID_REQUEST;
         return FALSE;
@@ -309,15 +309,27 @@ RhelDoUnMap(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
 
     REVERSE_BYTES_SHORT(&blockDescrDataLength, unmapList->BlockDescrDataLength);
 
-    if (!(CHECKBIT(adaptExt->features, VIRTIO_BLK_F_DISCARD)) ||
-        (srbDataBufferLength < (ULONG)(blockDescrDataLength + 8)))
+    if (srbDataBufferLength < sizeof(*unmapList) + (ULONG)blockDescrDataLength)
     {
         Srb->SrbStatus = SRB_STATUS_INVALID_REQUEST;
         return FALSE;
     }
 
-    BlockDescriptors = (PUNMAP_BLOCK_DESCRIPTOR)((PCHAR)srbDataBuffer + 8);
+    BlockDescriptors = unmapList->Descriptors;
     BlockDescrCount = blockDescrDataLength / sizeof(UNMAP_BLOCK_DESCRIPTOR);
+
+    /*
+     * RhelGetDiskGeometry() never advertises more than MAX_DISCARD_SEGMENTS, so
+     * the caller tried to exceed the advertised limit and we should just fail
+     * the request. Doing something more sophisticated like splitting into
+     * multiple requests is not needed.
+     */
+    if (BlockDescrCount > ARRAYSIZE(srbExt->blk_discard))
+    {
+        Srb->SrbStatus = SRB_STATUS_INVALID_REQUEST;
+        return FALSE;
+    }
+
     for (i = 0; i < BlockDescrCount; i++)
     {
         ULONGLONG blockDescrStartingLba;
@@ -330,9 +342,9 @@ RhelDoUnMap(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
                      BlockDescrCount,
                      blockDescrStartingLba,
                      blockDescrLbaCount);
-        adaptExt->blk_discard[i].sector = blockDescrStartingLba * (adaptExt->info.blk_size / SECTOR_SIZE);
-        adaptExt->blk_discard[i].num_sectors = blockDescrLbaCount * (adaptExt->info.blk_size / SECTOR_SIZE);
-        adaptExt->blk_discard[i].flags = 0;
+        srbExt->blk_discard[i].sector = blockDescrStartingLba * (adaptExt->info.blk_size / SECTOR_SIZE);
+        srbExt->blk_discard[i].num_sectors = blockDescrLbaCount * (adaptExt->info.blk_size / SECTOR_SIZE);
+        srbExt->blk_discard[i].flags = 0;
     }
 
     srbExt->vbr.out_hdr.sector = 0;
@@ -344,7 +356,7 @@ RhelDoUnMap(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
 
     srbExt->sg[0].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.out_hdr, &fragLen);
     srbExt->sg[0].length = sizeof(srbExt->vbr.out_hdr);
-    srbExt->sg[1].physAddr = MmGetPhysicalAddress(&adaptExt->blk_discard[0]);
+    srbExt->sg[1].physAddr = MmGetPhysicalAddress(&srbExt->blk_discard[0]);
     srbExt->sg[1].length = sizeof(blk_discard_write_zeroes) * BlockDescrCount;
     srbExt->sg[2].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
     srbExt->sg[2].length = sizeof(srbExt->vbr.status);
@@ -715,7 +727,7 @@ VOID RhelGetDiskGeometry(IN PVOID DeviceExtension)
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, " max_discard_sectors = %d\n", adaptExt->info.max_discard_sectors);
 
         virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(blk_config, max_discard_seg), &v, sizeof(v));
-        adaptExt->info.max_discard_seg = (v < MAX_DISCARD_SEGMENTS) ? v : MAX_DISCARD_SEGMENTS - 1;
+        adaptExt->info.max_discard_seg = min(v, MAX_DISCARD_SEGMENTS);
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, " max_discard_seg = %d\n", adaptExt->info.max_discard_seg);
     }
 }
