@@ -394,35 +394,6 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
     GetScsiConfig(DeviceExtension);
     SetGuestFeatures(DeviceExtension);
 
-    /* The following *NumberOf* PORT_CONFIGURATION_INFORMATION members are set by values with a zero-based index,
-     * so add one (1) to each: NumberOfBuses, MaximumNumberOfTargets and MaximumNumberOfLogicalUnits.
-     * -----------------------------------------------------------------------------------------------------------
-     **  Most hypervisors will report the max_channel value as zero (0) per the VirtIO standard,
-     **  but the Storport limit is SCSI_MAXIMUM_BUSES_PER_ADAPTER (255). However, we must also limit
-     **  max_channel to num_queues, as each channel requires at least one virtqueue. Therefore, we
-     **  copy the value of num_queues to max_channels limited by SCSI_MAXIMUM_BUSES_PER_ADAPTER and
-     **  then use max_channels as the upper limit for scsi_config.max_channel + 1. To avoid an integer
-     **  wrap-around following scsi_config.max_channel + 1, we also initially cast max_channel as ULONG.
-     **
-     **  NOTE: QEMU/KVM does not support more than one channel / bus and the channel ID must be 0.
-     **        The VirtIO standard states that hypervisors SHOULD set the value of max_channel to zero (0).
-     **
-     **  Most hypervisors will report the max_target value as 255 per the VirtIO standard,
-     **  and whilst SCSI port used SCSI_MAXIMUM_TARGETS_PER_BUS (128), in Storport the limit is 255.
-     **  To avoid an integer wrap-around following scsi_config.max_target + 1, we also initially cast
-     **  max_target as ULONG.
-     **
-     **  Most hypervisors will report the max_lun value as 16383 per the VirtIO standard,
-     **  but the Storport limit is SCSI_MAXIMUM_LUNS_PER_TARGET (255). We also need to cast to UCHAR
-     **  as MaximumNumberOfLogicalUnits is UCHAR but max_lun is ULONG. To avoid an integer wrap-around
-     **  following scsi_config.max_lun + 1, we also initially cast max_lun as ULONGLONG.
-     */
-    max_channels = (UCHAR)min(adaptExt->num_queues, SCSI_MAXIMUM_BUSES_PER_ADAPTER);
-    ConfigInfo->NumberOfBuses = (UCHAR)min((ULONG)adaptExt->scsi_config.max_channel + 1, max_channels);
-    ConfigInfo->MaximumNumberOfTargets = (UCHAR)min((ULONG)adaptExt->scsi_config.max_target + 1, 255);
-    ConfigInfo->MaximumNumberOfLogicalUnits = (UCHAR)min((ULONGLONG)adaptExt->scsi_config.max_lun + 1,
-                                                         SCSI_MAXIMUM_LUNS_PER_TARGET);
-
     ConfigInfo->MaximumTransferLength = SP_UNINITIALIZED_VALUE;  // Unlimited
     ConfigInfo->NumberOfPhysicalBreaks = SP_UNINITIALIZED_VALUE; // Unlimited
 
@@ -467,6 +438,35 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
     {
         adaptExt->num_queues = min(adaptExt->num_queues, (USHORT)num_cpus);
     }
+
+    /* The following *NumberOf* PORT_CONFIGURATION_INFORMATION members are set by values with a zero-based index,
+     * so add one (1) to each: NumberOfBuses, MaximumNumberOfTargets and MaximumNumberOfLogicalUnits.
+     * -----------------------------------------------------------------------------------------------------------
+     **  Most hypervisors will report the max_channel value as zero (0) per the VirtIO standard,
+     **  but the Storport limit is SCSI_MAXIMUM_BUSES_PER_ADAPTER (255). However, we must also limit
+     **  max_channel to num_queues, as each channel requires at least one virtqueue. Therefore, we
+     **  copy the value of num_queues to max_channels limited by SCSI_MAXIMUM_BUSES_PER_ADAPTER and
+     **  then use max_channels as the upper limit for scsi_config.max_channel + 1. To avoid an integer
+     **  wrap-around following scsi_config.max_channel + 1, we also initially cast max_channel as ULONG.
+     **
+     **  NOTE: QEMU/KVM does not support more than one channel / bus and the channel ID must be 0.
+     **        The VirtIO standard states that hypervisors SHOULD set the value of max_channel to zero (0).
+     **
+     **  Most hypervisors will report the max_target value as 255 per the VirtIO standard,
+     **  and whilst SCSI port used SCSI_MAXIMUM_TARGETS_PER_BUS (128), in Storport the limit is 255.
+     **  To avoid an integer wrap-around following scsi_config.max_target + 1, we also initially cast
+     **  max_target as ULONG.
+     **
+     **  Most hypervisors will report the max_lun value as 16383 per the VirtIO standard,
+     **  but the Storport limit is SCSI_MAXIMUM_LUNS_PER_TARGET (255). We also need to cast to UCHAR
+     **  as MaximumNumberOfLogicalUnits is UCHAR but max_lun is ULONG. To avoid an integer wrap-around
+     **  following scsi_config.max_lun + 1, we also initially cast max_lun as ULONGLONG.
+     */
+    max_channels = (UCHAR)min(adaptExt->num_queues, SCSI_MAXIMUM_BUSES_PER_ADAPTER);
+    ConfigInfo->NumberOfBuses = (UCHAR)min((ULONG)adaptExt->scsi_config.max_channel + 1, max_channels);
+    ConfigInfo->MaximumNumberOfTargets = (UCHAR)min((ULONG)adaptExt->scsi_config.max_target + 1, 255);
+    ConfigInfo->MaximumNumberOfLogicalUnits = (UCHAR)min((ULONGLONG)adaptExt->scsi_config.max_lun + 1,
+                                                         SCSI_MAXIMUM_LUNS_PER_TARGET);
 
     adaptExt->action_on_reset = VioscsiResetCompleteRequests;
     VioScsiReadRegistryParameter(DeviceExtension,
