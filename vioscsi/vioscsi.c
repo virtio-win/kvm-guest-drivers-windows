@@ -1303,17 +1303,17 @@ VioScsiBuildIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
     PSRB_EXTENSION srbExt;
     PSTOR_SCATTER_GATHER_LIST sgList;
     VirtIOSCSICmd *cmd;
-    UCHAR TargetId;
+    UCHAR Target;
     UCHAR Lun;
 
     ENTER_FN_SRB();
     cdb = SRB_CDB(Srb);
     srbExt = SRB_EXTENSION(Srb);
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    TargetId = SRB_TARGET_ID(Srb);
+    Target = SRB_TARGET_ID(Srb);
     Lun = SRB_LUN(Srb);
 
-    if ((SRB_PATH_ID(Srb) > (UCHAR)adaptExt->num_queues) || (TargetId >= adaptExt->scsi_config.max_target) ||
+    if ((SRB_PATH_ID(Srb) > (UCHAR)adaptExt->num_queues) || (Target >= adaptExt->scsi_config.max_target) ||
         (Lun >= adaptExt->scsi_config.max_lun) || adaptExt->bRemoved)
     {
         SRB_SET_SRB_STATUS(Srb, SRB_STATUS_NO_DEVICE);
@@ -1332,7 +1332,7 @@ VioScsiBuildIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
     cmd = &srbExt->cmd;
     cmd->srb = (PVOID)Srb;
     cmd->req.cmd.lun[0] = 1;
-    cmd->req.cmd.lun[1] = TargetId;
+    cmd->req.cmd.lun[1] = Target;
     cmd->req.cmd.lun[2] = 0;
     cmd->req.cmd.lun[3] = Lun;
     cmd->req.cmd.tag = (ULONG_PTR)(Srb);
