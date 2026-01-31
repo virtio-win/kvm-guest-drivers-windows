@@ -394,9 +394,23 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
     SetGuestFeatures(DeviceExtension);
 
     ConfigInfo->NumberOfBuses = 1;
-    ConfigInfo->MaximumNumberOfTargets = min((UCHAR)adaptExt->scsi_config.max_target,
-                                             255 /*SCSI_MAXIMUM_TARGETS_PER_BUS*/);
-    ConfigInfo->MaximumNumberOfLogicalUnits = min((UCHAR)adaptExt->scsi_config.max_lun, SCSI_MAXIMUM_LUNS_PER_TARGET);
+    /* The following *NumberOf* PORT_CONFIGURATION_INFORMATION members are set by values with a zero-based index,
+     * so add one (1) to each: MaximumNumberOfTargets and MaximumNumberOfLogicalUnits.
+     * -----------------------------------------------------------------------------------------------------------
+     **  Most hypervisors will report the max_target value as 255 per the VirtIO standard,
+     **  and whilst SCSI port used SCSI_MAXIMUM_TARGETS_PER_BUS (128), in Storport the limit is 255.
+     **  To avoid an integer wrap-around following scsi_config.max_target + 1, we also initially cast
+     **  max_target as ULONG.
+     **
+     **  Most hypervisors will report the max_lun value as 16383 per the VirtIO standard,
+     **  but the Storport limit is SCSI_MAXIMUM_LUNS_PER_TARGET (255). We also need to cast to UCHAR
+     **  as MaximumNumberOfLogicalUnits is UCHAR but max_lun is ULONG. To avoid an integer wrap-around
+     **  following scsi_config.max_lun + 1, we also initially cast max_lun as ULONGLONG.
+     */
+    ConfigInfo->MaximumNumberOfTargets = (UCHAR)min((ULONG)adaptExt->scsi_config.max_target + 1, 255);
+    ConfigInfo->MaximumNumberOfLogicalUnits = (UCHAR)min((ULONGLONG)adaptExt->scsi_config.max_lun + 1,
+                                                         SCSI_MAXIMUM_LUNS_PER_TARGET);
+
     ConfigInfo->MaximumTransferLength = SP_UNINITIALIZED_VALUE;  // Unlimited
     ConfigInfo->NumberOfPhysicalBreaks = SP_UNINITIALIZED_VALUE; // Unlimited
 
@@ -1313,8 +1327,8 @@ VioScsiBuildIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
     Target = SRB_TARGET_ID(Srb);
     Lun = SRB_LUN(Srb);
 
-    if ((SRB_PATH_ID(Srb) > (UCHAR)adaptExt->num_queues) || (Target >= adaptExt->scsi_config.max_target) ||
-        (Lun >= adaptExt->scsi_config.max_lun) || adaptExt->bRemoved)
+    if ((SRB_PATH_ID(Srb) > (UCHAR)adaptExt->num_queues) || (Target > adaptExt->scsi_config.max_target) ||
+        (Lun > adaptExt->scsi_config.max_lun) || adaptExt->bRemoved)
     {
         SRB_SET_SRB_STATUS(Srb, SRB_STATUS_NO_DEVICE);
         SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
