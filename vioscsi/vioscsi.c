@@ -348,6 +348,7 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
     ULONG num_cpus;
     ULONG max_cpus;
     ULONG max_queues;
+    UCHAR max_channels;
 
     UNREFERENCED_PARAMETER(HwContext);
     UNREFERENCED_PARAMETER(BusInformation);
@@ -393,10 +394,6 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
     GetScsiConfig(DeviceExtension);
     SetGuestFeatures(DeviceExtension);
 
-    ConfigInfo->NumberOfBuses = 1;
-    ConfigInfo->MaximumNumberOfTargets = min((UCHAR)adaptExt->scsi_config.max_target,
-                                             255 /*SCSI_MAXIMUM_TARGETS_PER_BUS*/);
-    ConfigInfo->MaximumNumberOfLogicalUnits = min((UCHAR)adaptExt->scsi_config.max_lun, SCSI_MAXIMUM_LUNS_PER_TARGET);
     ConfigInfo->MaximumTransferLength = SP_UNINITIALIZED_VALUE;  // Unlimited
     ConfigInfo->NumberOfPhysicalBreaks = SP_UNINITIALIZED_VALUE; // Unlimited
 
@@ -441,6 +438,35 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
     {
         adaptExt->num_queues = min(adaptExt->num_queues, (USHORT)num_cpus);
     }
+
+    /* The following *NumberOf* PORT_CONFIGURATION_INFORMATION members are set by values with a zero-based index,
+     * so add one (1) to each: NumberOfBuses, MaximumNumberOfTargets and MaximumNumberOfLogicalUnits.
+     * -----------------------------------------------------------------------------------------------------------
+     **  Most hypervisors will report the max_channel value as zero (0) per the VirtIO standard,
+     **  but the Storport limit is SCSI_MAXIMUM_BUSES_PER_ADAPTER (255). However, we must also limit
+     **  max_channel to num_queues, as each channel requires at least one virtqueue. Therefore, we
+     **  copy the value of num_queues to max_channels limited by SCSI_MAXIMUM_BUSES_PER_ADAPTER and
+     **  then use max_channels as the upper limit for scsi_config.max_channel + 1. To avoid an integer
+     **  wrap-around following scsi_config.max_channel + 1, we also initially cast max_channel as ULONG.
+     **
+     **  NOTE: QEMU/KVM does not support more than one channel / bus and the channel ID must be 0.
+     **        The VirtIO standard states that hypervisors SHOULD set the value of max_channel to zero (0).
+     **
+     **  Most hypervisors will report the max_target value as 255 per the VirtIO standard,
+     **  and whilst SCSI port used SCSI_MAXIMUM_TARGETS_PER_BUS (128), in Storport the limit is 255.
+     **  To avoid an integer wrap-around following scsi_config.max_target + 1, we also initially cast
+     **  max_target as ULONG.
+     **
+     **  Most hypervisors will report the max_lun value as 16383 per the VirtIO standard,
+     **  but the Storport limit is SCSI_MAXIMUM_LUNS_PER_TARGET (255). We also need to cast to UCHAR
+     **  as MaximumNumberOfLogicalUnits is UCHAR but max_lun is ULONG. To avoid an integer wrap-around
+     **  following scsi_config.max_lun + 1, we also initially cast max_lun as ULONGLONG.
+     */
+    max_channels = (UCHAR)min(adaptExt->num_queues, SCSI_MAXIMUM_BUSES_PER_ADAPTER);
+    ConfigInfo->NumberOfBuses = (UCHAR)min((ULONG)adaptExt->scsi_config.max_channel + 1, max_channels);
+    ConfigInfo->MaximumNumberOfTargets = (UCHAR)min((ULONG)adaptExt->scsi_config.max_target + 1, 255);
+    ConfigInfo->MaximumNumberOfLogicalUnits = (UCHAR)min((ULONGLONG)adaptExt->scsi_config.max_lun + 1,
+                                                         SCSI_MAXIMUM_LUNS_PER_TARGET);
 
     adaptExt->action_on_reset = VioscsiResetCompleteRequests;
     VioScsiReadRegistryParameter(DeviceExtension,
@@ -1303,18 +1329,20 @@ VioScsiBuildIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
     PSRB_EXTENSION srbExt;
     PSTOR_SCATTER_GATHER_LIST sgList;
     VirtIOSCSICmd *cmd;
-    UCHAR TargetId;
+    UCHAR Channel;
+    UCHAR Target;
     UCHAR Lun;
 
     ENTER_FN_SRB();
     cdb = SRB_CDB(Srb);
     srbExt = SRB_EXTENSION(Srb);
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    TargetId = SRB_TARGET_ID(Srb);
+    Channel = SRB_PATH_ID(Srb);
+    Target = SRB_TARGET_ID(Srb);
     Lun = SRB_LUN(Srb);
 
-    if ((SRB_PATH_ID(Srb) > (UCHAR)adaptExt->num_queues) || (TargetId >= adaptExt->scsi_config.max_target) ||
-        (Lun >= adaptExt->scsi_config.max_lun) || adaptExt->bRemoved)
+    if ((Channel > adaptExt->scsi_config.max_channel) || (Target > adaptExt->scsi_config.max_target) ||
+        (Lun > adaptExt->scsi_config.max_lun) || adaptExt->bRemoved)
     {
         SRB_SET_SRB_STATUS(Srb, SRB_STATUS_NO_DEVICE);
         SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
@@ -1332,7 +1360,7 @@ VioScsiBuildIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
     cmd = &srbExt->cmd;
     cmd->srb = (PVOID)Srb;
     cmd->req.cmd.lun[0] = 1;
-    cmd->req.cmd.lun[1] = TargetId;
+    cmd->req.cmd.lun[1] = Target;
     cmd->req.cmd.lun[2] = 0;
     cmd->req.cmd.lun[3] = Lun;
     cmd->req.cmd.tag = (ULONG_PTR)(Srb);
@@ -1782,7 +1810,7 @@ VOID LogError(IN PVOID DeviceExtension, IN ULONG ErrorCode, IN ULONG UniqueId)
 
 VOID TransportReset(IN PVOID DeviceExtension, IN PVirtIOSCSIEvent evt)
 {
-    UCHAR TargetId = evt->lun[1];
+    UCHAR Target = evt->lun[1];
     UCHAR Lun = (evt->lun[2] << 8) | evt->lun[3];
     ENTER_FN();
 
@@ -1802,7 +1830,7 @@ VOID TransportReset(IN PVOID DeviceExtension, IN PVirtIOSCSIEvent evt)
 
 VOID ParamChange(IN PVOID DeviceExtension, IN PVirtIOSCSIEvent evt)
 {
-    UCHAR TargetId = evt->lun[1];
+    UCHAR Target = evt->lun[1];
     UCHAR Lun = (evt->lun[2] << 8) | evt->lun[3];
     UCHAR AdditionalSenseCode = (UCHAR)(evt->reason & 255);
     UCHAR AdditionalSenseCodeQualifier = (UCHAR)(evt->reason >> 8);
