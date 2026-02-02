@@ -1,3 +1,18 @@
+Date    2 Feb 2026
+repo    https://github.com/virtio-win/kvm-guest-drivers-windows.git
+tag     mm316
+
+Fixed issues:
+[netkvm] set ipHeaderOffset to ETH_HEADER_SIZE
+[viostor] Fix MessageId update in MESSAGENUMBER_TO_QUEUE() and related cleanup
+[viosock] Resolve Coverity defects
+[viogpu] Resolve Coverity defects
+[viorng] Fix array delete in viorngtest
+[vioinput] Fix memory leak on allocation failure
+[vioserial] Fix Coverity issues
+[viostor] Fix buffer overrun in unmap code
+[viostor] Reimplement bus reset operation
+
 Date    21 Jan 2026
 repo    https://github.com/virtio-win/kvm-guest-drivers-windows.git
 tag     mm315
