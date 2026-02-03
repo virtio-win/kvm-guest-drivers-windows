@@ -715,6 +715,94 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
         adaptExt->msix_enabled = FALSE;
     }
 
+    if ((!adaptExt->dump_mode) && (adaptExt->num_queues > 1) && (adaptExt->perfFlags == 0))
+    {
+        perfData.Version = STOR_PERF_VERSION;
+        perfData.Size = sizeof(PERF_CONFIGURATION_DATA);
+
+        status = StorPortInitializePerfOpts(DeviceExtension, TRUE, &perfData);
+
+        RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                        " Perf Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, FirstRedirectionMessageNumber = "
+                        "%d,LastRedirectionMessageNumber = %d\n",
+                        perfData.Version,
+                        perfData.Flags,
+                        perfData.ConcurrentChannels,
+                        perfData.FirstRedirectionMessageNumber,
+                        perfData.LastRedirectionMessageNumber);
+        if (status == STOR_STATUS_SUCCESS)
+        {
+            if (CHECKFLAG(perfData.Flags, STOR_PERF_DPC_REDIRECTION))
+            {
+                adaptExt->perfFlags |= STOR_PERF_DPC_REDIRECTION; // SWITCH
+
+                if (CHECKFLAG(perfData.Flags, STOR_PERF_INTERRUPT_MESSAGE_RANGES))
+                {
+                    adaptExt->perfFlags |= STOR_PERF_INTERRUPT_MESSAGE_RANGES; // SWITCH
+                    perfData.FirstRedirectionMessageNumber = adaptExt->msix_cfg_vector_cnt;
+                    perfData.LastRedirectionMessageNumber = perfData.FirstRedirectionMessageNumber +
+                                                            adaptExt->num_queues - VIRTIO_STOR_PREFERRED_XTRA_VECTORS;
+                    ASSERT(perfData.lastRedirectionMessageNumber < adaptExt->num_affinity);
+
+                    if ((adaptExt->pmsg_affinity != NULL) && CHECKFLAG(perfData.Flags, STOR_PERF_ADV_CONFIG_LOCALITY))
+                    {
+                        RtlZeroMemory((PCHAR)adaptExt->pmsg_affinity,
+                                        sizeof(GROUP_AFFINITY) * ((ULONGLONG)adaptExt->num_affinity));
+                        adaptExt->perfFlags |= STOR_PERF_ADV_CONFIG_LOCALITY; // SWITCH
+                        perfData.MessageTargets = adaptExt->pmsg_affinity;
+                    }
+                }
+
+                if (CHECKFLAG(perfData.Flags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO))
+                {
+                    adaptExt->perfFlags |= STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO; // SWITCH
+                }
+
+                if (CHECKFLAG(perfData.Flags, STOR_PERF_DPC_REDIRECTION_CURRENT_CPU))
+                {
+                    // adaptExt->perfFlags |= STOR_PERF_DPC_REDIRECTION_CURRENT_CPU; // SWITCH
+                }
+            }
+
+            if (CHECKFLAG(perfData.Flags, STOR_PERF_CONCURRENT_CHANNELS))
+            {
+                adaptExt->perfFlags |= STOR_PERF_CONCURRENT_CHANNELS; // SWITCH
+                perfData.ConcurrentChannels = adaptExt->num_queues;
+            }
+
+            if (CHECKFLAG(perfData.Flags, STOR_PERF_NO_SGL))
+            {
+                /* FIXME : We still use:
+                    *         * StorPortGetScatterGatherList(), and
+                    *         * ConfigInfo->ScatterGather = TRUE,
+                    *         so not sure why we are using STOR_PERF_NO_SGL here.
+                    *         Does not enable anyway...
+                    */
+                adaptExt->perfFlags |= STOR_PERF_NO_SGL; // SWITCH
+            }
+
+            perfData.Flags = adaptExt->perfFlags;
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                            " Perf Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, "
+                            "FirstRedirectionMessageNumber = %d,LastRedirectionMessageNumber = %d\n",
+                            perfData.Version,
+                            perfData.Flags,
+                            perfData.ConcurrentChannels,
+                            perfData.FirstRedirectionMessageNumber,
+                            perfData.LastRedirectionMessageNumber);
+            status = StorPortInitializePerfOpts(DeviceExtension, FALSE, &perfData);
+            if (status != STOR_STATUS_SUCCESS)
+            {
+                adaptExt->perfFlags = 0;
+                RhelDbgPrint(TRACE_LEVEL_ERROR, " StorPortInitializePerfOpts FALSE status = 0x%x\n", status);
+            }
+        }
+        else
+        {
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " StorPortInitializePerfOpts TRUE status = 0x%x\n", status);
+        }
+    }
+
     if (!InitializeVirtualQueues(adaptExt))
     {
         LogError(DeviceExtension, SP_INTERNAL_ADAPTER_ERROR, __LINE__);
@@ -722,6 +810,13 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
         RhelDbgPrint(TRACE_LEVEL_FATAL, (" Cannot find snd virtual queue\n"));
         virtio_add_status(&adaptExt->vdev, VIRTIO_CONFIG_S_FAILED);
         return FALSE;
+    }
+
+    for (ULONG index = 0; index < adaptExt->num_queues; ++index)
+    {
+        element = &adaptExt->processing_srbs[index];
+        InitializeListHead(&element->srb_list);
+        element->srb_cnt = 0;
     }
 
     memset(&adaptExt->inquiry_data, 0, sizeof(INQUIRYDATA));
@@ -736,97 +831,6 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
     StorPortMoveMemory(&adaptExt->inquiry_data.ProductId, "VirtIO", sizeof("VirtIO"));
     StorPortMoveMemory(&adaptExt->inquiry_data.ProductRevisionLevel, "0001", sizeof("0001"));
     StorPortMoveMemory(&adaptExt->inquiry_data.VendorSpecific, "0001", sizeof("0001"));
-
-    if (!adaptExt->dump_mode)
-    {
-        if ((adaptExt->num_queues > 1) && (adaptExt->perfFlags == 0))
-        {
-            perfData.Version = STOR_PERF_VERSION;
-            perfData.Size = sizeof(PERF_CONFIGURATION_DATA);
-
-            status = StorPortInitializePerfOpts(DeviceExtension, TRUE, &perfData);
-
-            RhelDbgPrint(TRACE_LEVEL_VERBOSE,
-                            " Perf Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, FirstRedirectionMessageNumber = "
-                            "%d,LastRedirectionMessageNumber = %d\n",
-                            perfData.Version,
-                            perfData.Flags,
-                            perfData.ConcurrentChannels,
-                            perfData.FirstRedirectionMessageNumber,
-                            perfData.LastRedirectionMessageNumber);
-            if (status == STOR_STATUS_SUCCESS)
-            {
-                if (CHECKFLAG(perfData.Flags, STOR_PERF_DPC_REDIRECTION))
-                {
-                    adaptExt->perfFlags |= STOR_PERF_DPC_REDIRECTION; // SWITCH
-
-                    if (CHECKFLAG(perfData.Flags, STOR_PERF_INTERRUPT_MESSAGE_RANGES))
-                    {
-                        adaptExt->perfFlags |= STOR_PERF_INTERRUPT_MESSAGE_RANGES; // SWITCH
-                        perfData.FirstRedirectionMessageNumber = adaptExt->msix_cfg_vector_cnt;
-                        perfData.LastRedirectionMessageNumber = perfData.FirstRedirectionMessageNumber +
-                                                                adaptExt->num_queues - VIRTIO_STOR_PREFERRED_XTRA_VECTORS;
-                        ASSERT(perfData.lastRedirectionMessageNumber < adaptExt->num_affinity);
-
-                        if ((adaptExt->pmsg_affinity != NULL) && CHECKFLAG(perfData.Flags, STOR_PERF_ADV_CONFIG_LOCALITY))
-                        {
-                            RtlZeroMemory((PCHAR)adaptExt->pmsg_affinity,
-                                            sizeof(GROUP_AFFINITY) * ((ULONGLONG)adaptExt->num_affinity));
-                            adaptExt->perfFlags |= STOR_PERF_ADV_CONFIG_LOCALITY; // SWITCH
-                            perfData.MessageTargets = adaptExt->pmsg_affinity;
-                        }
-                    }
-
-                    if (CHECKFLAG(perfData.Flags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO))
-                    {
-                        adaptExt->perfFlags |= STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO; // SWITCH
-                    }
-
-                    if (CHECKFLAG(perfData.Flags, STOR_PERF_DPC_REDIRECTION_CURRENT_CPU))
-                    {
-                        // adaptExt->perfFlags |= STOR_PERF_DPC_REDIRECTION_CURRENT_CPU; // SWITCH
-                    }
-                }
-
-                if (CHECKFLAG(perfData.Flags, STOR_PERF_CONCURRENT_CHANNELS))
-                {
-                    adaptExt->perfFlags |= STOR_PERF_CONCURRENT_CHANNELS; // SWITCH
-                    perfData.ConcurrentChannels = adaptExt->num_queues;
-                }
-
-                if (CHECKFLAG(perfData.Flags, STOR_PERF_NO_SGL))
-                {
-                    /* FIXME : We still use:
-                        *         * StorPortGetScatterGatherList(), and
-                        *         * ConfigInfo->ScatterGather = TRUE,
-                        *         so not sure why we are using STOR_PERF_NO_SGL here.
-                        *         Does not enable anyway...
-                        */
-                    adaptExt->perfFlags |= STOR_PERF_NO_SGL; // SWITCH
-                }
-
-                perfData.Flags = adaptExt->perfFlags;
-                RhelDbgPrint(TRACE_LEVEL_VERBOSE,
-                                " Perf Version = 0x%x, Flags = 0x%x, ConcurrentChannels = %d, "
-                                "FirstRedirectionMessageNumber = %d,LastRedirectionMessageNumber = %d\n",
-                                perfData.Version,
-                                perfData.Flags,
-                                perfData.ConcurrentChannels,
-                                perfData.FirstRedirectionMessageNumber,
-                                perfData.LastRedirectionMessageNumber);
-                status = StorPortInitializePerfOpts(DeviceExtension, FALSE, &perfData);
-                if (status != STOR_STATUS_SUCCESS)
-                {
-                    adaptExt->perfFlags = 0;
-                    RhelDbgPrint(TRACE_LEVEL_ERROR, " StorPortInitializePerfOpts FALSE status = 0x%x\n", status);
-                }
-            }
-            else
-            {
-                RhelDbgPrint(TRACE_LEVEL_INFORMATION, " StorPortInitializePerfOpts TRUE status = 0x%x\n", status);
-            }
-        }
-    }
 
     if (!adaptExt->dump_mode)
     {
@@ -857,13 +861,6 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
             virtio_add_status(&adaptExt->vdev, VIRTIO_CONFIG_S_FAILED);
             return FALSE;
         }
-    }
-
-    for (ULONG index = 0; index < adaptExt->num_queues; ++index)
-    {
-        element = &adaptExt->processing_srbs[index];
-        InitializeListHead(&element->srb_list);
-        element->srb_cnt = 0;
     }
 
     virtio_device_ready(&adaptExt->vdev);
