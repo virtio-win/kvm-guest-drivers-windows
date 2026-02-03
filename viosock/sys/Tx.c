@@ -327,7 +327,22 @@ _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxVqProcess(IN PDEVICE_CO
 
     InitializeListHead(&CompletionList);
 
+    BOOLEAN bDeviceReady = !!InterlockedCompareExchange(&pContext->DeviceReady, 1, 1);
+    if (!bDeviceReady)
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION,
+                    DBG_WRITE,
+                    "Device not fully ready, but allowing queue processing for cleanup\n");
+    }
+
     WdfSpinLockAcquire(pContext->TxLock);
+
+    if (!pContext->TxVq)
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_WRITE, "TxVq is null, skipping processing\n");
+        WdfSpinLockRelease(pContext->TxLock);
+        return;
+    }
     do
     {
         virtqueue_disable_cb(pContext->TxVq);
@@ -695,6 +710,31 @@ VIOSockTxEnqueue(IN PSOCKET_CONTEXT pSocket,
                                         Flags,
                                         Request,
                                         (Request == WDF_NO_HANDLE) ? 0 : GetRequestTxContext(Request)->len);
+    }
+
+    BOOLEAN bDeviceReady = !!InterlockedCompareExchange(&pContext->DeviceReady, 1, 1);
+    BOOLEAN bIsCloseOperation = (Op == VIRTIO_VSOCK_OP_RST || Op == VIRTIO_VSOCK_OP_SHUTDOWN);
+
+    if (!bDeviceReady && !bIsCloseOperation)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "Device not ready, rejecting non-close I/O request\n");
+        return STATUS_DEVICE_NOT_READY;
+    }
+
+    if (!pContext->TxVq)
+    {
+        if (bIsCloseOperation)
+        {
+            TraceEvents(TRACE_LEVEL_WARNING,
+                        DBG_WRITE,
+                        "TxVq is null but allowing close operation to prevent memory leak\n");
+            return STATUS_SUCCESS;
+        }
+        else
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "TxVq is null, device not ready\n");
+            return STATUS_DEVICE_NOT_READY;
+        }
     }
 
     if (Request == WDF_NO_HANDLE)

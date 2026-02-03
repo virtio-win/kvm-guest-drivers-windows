@@ -158,7 +158,7 @@ _IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockEvtVqProcess(IN PDEVICE_CONTEXT 
         {
             /* Drop short/long events */
 
-            if (len != sizeof(pEvt))
+            if (len != sizeof(*pEvt))
             {
                 TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "Invalid event\n");
             }
@@ -181,9 +181,20 @@ _IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockEvtVqProcess(IN PDEVICE_CONTEXT 
     {
         VirtIOWdfDeviceGet(&pContext->VDevice, 0, &pContext->Config, sizeof(pContext->Config));
 
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "New guest_cid %lld\n", pContext->Config.guest_cid);
+        TraceEvents(TRACE_LEVEL_INFORMATION,
+                    DBG_HW_ACCESS,
+                    "Transport reset detected, new guest_cid: %lld\n",
+                    pContext->Config.guest_cid);
 
-        VIOSockHandleTransportReset(pContext);
+        InterlockedExchange(&pContext->DeviceReady, 0);
+
+        if (InterlockedCompareExchange(&pContext->TransportResetPending, 1, 0) == 0)
+        {
+            TraceEvents(TRACE_LEVEL_WARNING,
+                        DBG_HW_ACCESS,
+                        "Queuing transport reset workitem for PASSIVE_LEVEL processing\n");
+            WdfWorkItemEnqueue(pContext->TransportResetWorkitem);
+        }
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
