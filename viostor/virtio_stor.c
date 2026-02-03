@@ -1579,7 +1579,7 @@ VirtIoMSInterruptRoutine(IN PVOID DeviceExtension, IN ULONG MessageID)
         return FALSE;
     }
 
-    if (adaptExt->msix_config_vector && MessageID == VIRTIO_BLK_MSIX_CONFIG_VECTOR)
+    if (adaptExt->msix_config_vector && MessageID == VIRTIO_STOR_MSIX_CONFIG_VECTOR)
     {
         RhelGetDiskGeometry(DeviceExtension);
         adaptExt->sense_info.senseKey = SCSI_SENSE_UNIT_ATTENTION;

@@ -83,11 +83,18 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
  * QEMU 10.2), so this is more than enough.
  */
 #define MAX_DISCARD_SEGMENTS               16u
-
-#define VIRTIO_BLK_QUEUE_LAST              MAX_CPU
-
-#define VIRTIO_BLK_MSIX_CONFIG_VECTOR      0
 #define MIN_DISCARD_SECTOR_ALIGNMENT       8
+
+/* Defines the index of the MSI-X vector for configuration change notifications */
+#define VIRTIO_STOR_MSIX_CONFIG_VECTOR     0
+/* Defines the index of the MSI-X vector servicing the first virtqueue during preferred opertion */
+#define VIRTIO_STOR_VQ_0_MSIX_IDX          1
+/* Defines the index of the first virtqueue that StorPort will use to queue requests */
+#define VIRTIO_STOR_REQUEST_QUEUE_0        0
+/* Defines the number of addtional MSI-X vectors for preferred operation */
+#define VIRTIO_STOR_PREFERRED_XTRA_VECTORS (VIRTIO_STOR_REQUEST_QUEUE_0 + VIRTIO_STOR_VQ_0_MSIX_IDX)
+/* Defines the index of the last virtqueue that StorPort will use to queue requests */
+#define VIRTIO_STOR_VQ_LAST                MAX_CPU
 
 #define BLOCK_SERIAL_STRLEN                20
 
@@ -222,7 +229,7 @@ typedef struct _ADAPTER_EXTENSION
     ULONG poolAllocationSize;
     ULONG poolOffset;
 
-    struct virtqueue *vq[VIRTIO_BLK_QUEUE_LAST];
+    struct virtqueue *vq[VIRTIO_STOR_VQ_LAST];
     ULONG num_queues;
     INQUIRYDATA inquiry_data;
     blk_config info;
