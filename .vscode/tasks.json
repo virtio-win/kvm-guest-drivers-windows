@@ -1,0 +1,579 @@
+{
+  "_comment": "For build prerequisites and setup instructions, see: https://virtio-win.github.io/Development/Building-the-drivers-using-Windows-11-24H2-EWDK",
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "▶ build_AllNoSdv: Win10 [All Archs]",
+      "type": "shell",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "build_AllNoSdv.bat",
+        "Win10"
+      ],
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "▶ build_AllNoSdv: Win10 [Choose Arch]",
+      "type": "shell",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "build_AllNoSdv.bat",
+        "Win10",
+        "${input:architecture}"
+      ],
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "▶ build_AllNoSdv: Win11 [All Archs]",
+      "type": "shell",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "build_AllNoSdv.bat",
+        "Win11"
+      ],
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "▶ build_AllNoSdv: Win11 [Choose Arch]",
+      "type": "shell",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "build_AllNoSdv.bat",
+        "Win11",
+        "${input:architecture}"
+      ],
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: VirtIO Library",
+      "type": "shell",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "buildAll.bat",
+        "${input:windowsVersion}",
+        "${input:architecture}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/VirtIO",
+        "env": {
+          "VIRTIO_WIN_NO_ARM": "1"
+        }
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: Balloon",
+      "type": "shell",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "build_AllNoSdv.bat",
+        "${input:windowsVersion}",
+        "${input:architecture}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/Balloon",
+        "env": {
+          "VIRTIO_WIN_NO_ARM": "1"
+        }
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: pvpanic",
+      "type": "shell",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "build_AllNoSdv.bat",
+        "${input:windowsVersion}",
+        "${input:architecture}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/pvpanic",
+        "env": {
+          "VIRTIO_WIN_NO_ARM": "1"
+        }
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: NetKVM",
+      "type": "shell",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "build_AllNoSdv.bat",
+        "${input:windowsVersion}",
+        "${input:architecture}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/NetKVM",
+        "env": {
+          "VIRTIO_WIN_NO_ARM": "1"
+        }
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: viostor",
+      "type": "shell",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "build_AllNoSdv.bat",
+        "${input:windowsVersion}",
+        "${input:architecture}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/viostor",
+        "env": {
+          "VIRTIO_WIN_NO_ARM": "1"
+        }
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: vioscsi",
+      "type": "shell",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "build_AllNoSdv.bat",
+        "${input:windowsVersion}",
+        "${input:architecture}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/vioscsi",
+        "env": {
+          "VIRTIO_WIN_NO_ARM": "1"
+        }
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: vioserial",
+      "type": "shell",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "build_AllNoSdv.bat",
+        "${input:windowsVersion}",
+        "${input:architecture}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/vioserial",
+        "env": {
+          "VIRTIO_WIN_NO_ARM": "1"
+        }
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: viosock",
+      "type": "shell",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "build_AllNoSdv.bat",
+        "${input:windowsVersion}",
+        "${input:architecture}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/viosock",
+        "env": {
+          "VIRTIO_WIN_NO_ARM": "1"
+        }
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: viorng",
+      "type": "shell",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "build_AllNoSdv.bat",
+        "${input:windowsVersion}",
+        "${input:architecture}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/viorng",
+        "env": {
+          "VIRTIO_WIN_NO_ARM": "1"
+        }
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: viomem",
+      "type": "shell",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "build_AllNoSdv.bat",
+        "${input:windowsVersion}",
+        "${input:architecture}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/viomem",
+        "env": {
+          "VIRTIO_WIN_NO_ARM": "1"
+        }
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: vioinput",
+      "type": "shell",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "build_AllNoSdv.bat",
+        "${input:windowsVersion}",
+        "${input:architecture}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/vioinput",
+        "env": {
+          "VIRTIO_WIN_NO_ARM": "1"
+        }
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: viogpu",
+      "type": "shell",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "build_AllNoSdv.bat",
+        "${input:windowsVersion}",
+        "${input:architecture}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/viogpu",
+        "env": {
+          "VIRTIO_WIN_NO_ARM": "1"
+        }
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: viofs",
+      "type": "shell",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "build_AllNoSdv.bat",
+        "${input:windowsVersion}",
+        "${input:architecture}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/viofs",
+        "env": {
+          "VIRTIO_WIN_NO_ARM": "1"
+        }
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: viocrypt",
+      "type": "shell",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "build_AllNoSdv.bat",
+        "${input:windowsVersion}",
+        "${input:architecture}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/viocrypt",
+        "env": {
+          "VIRTIO_WIN_NO_ARM": "1"
+        }
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: ivshmem",
+      "type": "shell",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "build_AllNoSdv.bat",
+        "${input:windowsVersion}",
+        "${input:architecture}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/ivshmem",
+        "env": {
+          "VIRTIO_WIN_NO_ARM": "1"
+        }
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Build: fwcfg64",
+      "type": "shell",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "build_AllNoSdv.bat",
+        "${input:windowsVersion}",
+        "${input:architecture}"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/fwcfg64",
+        "env": {
+          "VIRTIO_WIN_NO_ARM": "1"
+        }
+      },
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "Clean: All Drivers",
+      "type": "shell",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "clean.bat"
+      ],
+      "group": "build",
+      "problemMatcher": "$msCompile",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    },
+    {
+      "label": "🔐 Sign All Drivers",
+      "type": "shell",
+      "command": "cmd",
+      "args": [
+        "/c",
+        "build\\signAll.bat"
+      ],
+      "group": "build",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false
+      }
+    }
+  ],
+  "inputs": [
+    {
+      "id": "windowsVersion",
+      "type": "pickString",
+      "description": "Select Windows version:",
+      "options": [
+        "Win10",
+        "Win11"
+      ]
+    },
+    {
+      "id": "architecture",
+      "type": "pickString",
+      "description": "Select architecture to build:",
+      "options": [
+        "x86",
+        "x64",
+        "ARM64"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+{
+  "_comment": "Increase terminal scrollback buffer to handle large build outputs",
+  "terminal.integrated.scrollback": 10000
+}
