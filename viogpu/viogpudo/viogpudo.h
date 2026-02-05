@@ -227,6 +227,9 @@ class VioGpuDod
     DXGKARG_SETPOINTERSHAPE m_PointerShape;
     VioGpuAdapter *m_pHWDevice;
 
+    USHORT m_PersistentDispMode0Width;
+    USHORT m_PersistentDispMode0Height;
+
   public:
     VioGpuDod(_In_ DEVICE_OBJECT *pPhysicalDeviceObject);
     ~VioGpuDod(void);
@@ -283,6 +286,26 @@ class VioGpuDod
     void SetUsePresentProgress(BOOLEAN enable)
     {
         m_Flags.UsePresentProgress = enable;
+    }
+    void SetPersistentDispMode0Width(USHORT res)
+    {
+        m_PersistentDispMode0Width = res;
+    }
+    USHORT GetPersistentDispMode0Width()
+    {
+        return m_PersistentDispMode0Width;
+    }
+    void SetPersistentDispMode0Height(USHORT res)
+    {
+        m_PersistentDispMode0Height = res;
+    }
+    USHORT GetPersistentDispMode0Height()
+    {
+        return m_PersistentDispMode0Height;
+    }
+    BOOLEAN IsPersistentDispMode0Set()
+    {
+        return (m_PersistentDispMode0Width > 0) && (m_PersistentDispMode0Height > 0);
     }
 #pragma code_seg(pop)
 

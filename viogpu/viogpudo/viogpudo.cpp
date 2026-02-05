@@ -55,6 +55,8 @@ VioGpuDod::VioGpuDod(_In_ DEVICE_OBJECT *pPhysicalDeviceObject)
     RtlZeroMemory(&m_CurrentMode, sizeof(m_CurrentMode));
     RtlZeroMemory(&m_SystemDisplayInfo, sizeof(m_SystemDisplayInfo));
     RtlZeroMemory(&m_PointerShape, sizeof(m_PointerShape));
+    m_PersistentDispMode0Width = 0;
+    m_PersistentDispMode0Height = 0;
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
@@ -2130,6 +2132,7 @@ NTSTATUS VioGpuDod::GetRegisterInfo(void)
     PAGED_CODE();
 
     NTSTATUS Status = STATUS_SUCCESS;
+    NTSTATUS StatusOptional = STATUS_SUCCESS;
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
     HANDLE DevInstRegKeyHandle;
     Status = IoOpenDeviceRegistryKey(m_pPhysicalDevice, PLUGPLAY_REGKEY_DRIVER, KEY_READ, &DevInstRegKeyHandle);
@@ -2166,6 +2169,21 @@ NTSTATUS VioGpuDod::GetRegisterInfo(void)
     if (NT_SUCCESS(Status))
     {
         SetUsePresentProgress(!!value);
+    }
+
+    // The following keys are optional and no need to report error if them are missing
+    value = 0;
+    StatusOptional = ReadRegistryDWORD(DevInstRegKeyHandle, L"PersistentDispMode0Width", &value);
+    if (NT_SUCCESS(StatusOptional))
+    {
+        SetPersistentDispMode0Width((USHORT)value);
+    }
+
+    value = 0;
+    StatusOptional = ReadRegistryDWORD(DevInstRegKeyHandle, L"PersistentDispMode0Height", &value);
+    if (NT_SUCCESS(StatusOptional))
+    {
+        SetPersistentDispMode0Height((USHORT)value);
     }
 
     ZwClose(DevInstRegKeyHandle);
@@ -3418,6 +3436,12 @@ NTSTATUS VioGpuAdapter::BuildModeList(DXGK_DISPLAY_INFORMATION *pDispInfo)
     DbgPrint(TRACE_LEVEL_INFORMATION, ("ModeCount filtered %d\n", m_ModeCount));
 
     GetDisplayInfo();
+
+    if (m_pVioGpuDod->IsPersistentDispMode0Set())
+    {
+        SetCustomDisplay(m_pVioGpuDod->GetPersistentDispMode0Width(), m_pVioGpuDod->GetPersistentDispMode0Height());
+        SetCurrentModeIndex(m_CurrentModeIndex);
+    }
 
     for (UINT idx = 0; idx < m_ModeCount; idx++)
     {
