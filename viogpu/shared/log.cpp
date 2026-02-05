@@ -3,6 +3,8 @@
 #include "log.h"
 #include "strsafe.h"
 
+extern const char *LogFilePath;
+
 void ErrorHandler(const char *s, int err)
 {
     wprintf(L"Failed. Error %d\n", err);
@@ -26,7 +28,7 @@ void ErrorHandler(const char *s, int err)
     }
 
     FILE *pLog;
-    if (fopen_s(&pLog, "vgpusvp.log", "a") == 0 && pLog)
+    if (fopen_s(&pLog, LogFilePath, "a") == 0 && pLog)
     {
         fprintf(pLog, "%s failed, error code = %d\n", s, err);
         fclose(pLog);
@@ -46,7 +48,7 @@ void PrintMessage(LPCWSTR pFormat, ...)
     OutputDebugString(debugOutputBuffer);
 
     FILE *pLog;
-    if (fopen_s(&pLog, "vgpusvp.log", "a") == 0 && pLog)
+    if (fopen_s(&pLog, LogFilePath, "a") == 0 && pLog)
     {
         fwprintf(pLog, debugOutputBuffer);
         fclose(pLog);
