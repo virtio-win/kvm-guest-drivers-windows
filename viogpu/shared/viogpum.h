@@ -31,6 +31,7 @@
 
 #define VIOGPU_GET_DEVICE_ID         0x00
 #define VIOGPU_GET_CUSTOM_RESOLUTION 0x01
+#define VIOGPU_SET_CUSTOM_RESOLUTION 0x02
 
 #pragma pack(1)
 typedef struct _VIOGPU_DISP_MODE
