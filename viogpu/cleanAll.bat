@@ -1,6 +1,6 @@
 @echo off
 set _cln_tgt_=viogpu
-set _cln_subdirs_=viogpudo viogpuap viogpusc
+set _cln_subdirs_=viogpudo viogpuap viogpusc viogpures
 call ..\build\clean.bat
 call :subdir %_cln_subdirs_%
 goto :eof
