@@ -3045,6 +3045,41 @@ NTSTATUS VioGpuAdapter::Escape(_In_ CONST DXGKARG_ESCAPE *pEscape)
                 pVioGpuEscape->Resolution.YResolution = (USHORT)m_ModeInfo[m_CustomModeIndex].VisScreenHeight;
                 break;
             }
+        case VIOGPU_SET_CUSTOM_RESOLUTION:
+            {
+                size = sizeof(VIOGPU_DISP_MODE);
+                if (pVioGpuEscape->DataLength < size)
+                {
+                    DbgPrint(TRACE_LEVEL_ERROR,
+                             ("%s buffer too small %d, should be at least %d\n",
+                              __FUNCTION__,
+                              pVioGpuEscape->DataLength,
+                              size));
+                    return STATUS_INVALID_BUFFER_SIZE;
+                }
+                if (pVioGpuEscape->Resolution.XResolution <= 0 || pVioGpuEscape->Resolution.YResolution <= 0)
+                {
+                    DbgPrint(TRACE_LEVEL_ERROR,
+                             ("%s PersistentDispMode0 width %d and height %d should be > 0\n",
+                              __FUNCTION__,
+                              pVioGpuEscape->Resolution.XResolution,
+                              pVioGpuEscape->Resolution.YResolution));
+                    return STATUS_INVALID_PARAMETER;
+                }
+
+                DbgPrint(TRACE_LEVEL_INFORMATION,
+                         ("%s PersistentDispMode0 width %d, height %d\n",
+                          __FUNCTION__,
+                          pVioGpuEscape->Resolution.XResolution,
+                          pVioGpuEscape->Resolution.YResolution));
+
+                m_pVioGpuDod->SetPersistentDispMode0Width(pVioGpuEscape->Resolution.XResolution);
+                m_pVioGpuDod->SetPersistentDispMode0Height(pVioGpuEscape->Resolution.YResolution);
+                m_pVioGpuDod->SetRegisterConfigInfo();
+                SetCustomDisplay(pVioGpuEscape->Resolution.XResolution, pVioGpuEscape->Resolution.YResolution);
+                SetCurrentModeIndex(m_CurrentModeIndex);
+                break;
+            }
         default:
             DbgPrint(TRACE_LEVEL_ERROR, ("%s: invalid Escape type 0x%x\n", __FUNCTION__, pVioGpuEscape->Type));
             status = STATUS_INVALID_PARAMETER;
