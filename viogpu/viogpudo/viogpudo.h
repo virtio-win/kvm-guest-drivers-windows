@@ -354,6 +354,8 @@ class VioGpuDod
                             _In_ UINT SourceStride,
                             _In_ INT PositionX,
                             _In_ INT PositionY);
+    NTSTATUS SetRegisterConfigInfo(void);
+
     PDXGKRNL_INTERFACE GetDxgkInterface(void)
     {
         return &m_DxgkInterface;

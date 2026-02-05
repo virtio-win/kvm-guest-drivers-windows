@@ -2127,6 +2127,53 @@ NTSTATUS VioGpuDod::SetRegisterInfo(_In_ ULONG Id, _In_ DWORD MemSize)
     return Status;
 }
 
+NTSTATUS VioGpuDod::SetRegisterConfigInfo()
+{
+    PAGED_CODE();
+
+    NTSTATUS Status = STATUS_SUCCESS;
+    DWORD value = 0;
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
+
+    HANDLE DevInstRegKeyHandle;
+    Status = IoOpenDeviceRegistryKey(m_pPhysicalDevice, PLUGPLAY_REGKEY_DRIVER, KEY_SET_VALUE, &DevInstRegKeyHandle);
+    if (!NT_SUCCESS(Status))
+    {
+        DbgPrint(TRACE_LEVEL_ERROR,
+                 ("IoOpenDeviceRegistryKey failed for PDO: 0x%p, Status: 0x%X", m_pPhysicalDevice, Status));
+        return Status;
+    }
+
+    do
+    {
+        if (IsPersistentDispMode0Set())
+        {
+            value = GetPersistentDispMode0Width();
+            Status = WriteRegistryDWORD(DevInstRegKeyHandle, L"PersistentDispMode0Width", &value);
+            if (!NT_SUCCESS(Status))
+            {
+                DbgPrint(TRACE_LEVEL_ERROR,
+                         ("WriteRegistryDWORD failed for PersistentDispMode0Width with Status: 0x%X", Status));
+                break;
+            }
+
+            value = GetPersistentDispMode0Height();
+            Status = WriteRegistryDWORD(DevInstRegKeyHandle, L"PersistentDispMode0Height", &value);
+            if (!NT_SUCCESS(Status))
+            {
+                DbgPrint(TRACE_LEVEL_ERROR,
+                         ("WriteRegistryDWORD failed for PersistentDispMode0Height with Status: 0x%X", Status));
+                break;
+            }
+        }
+    } while (0);
+
+    ZwClose(DevInstRegKeyHandle);
+
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+    return Status;
+}
+
 NTSTATUS VioGpuDod::GetRegisterInfo(void)
 {
     PAGED_CODE();
