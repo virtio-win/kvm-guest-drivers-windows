@@ -1289,8 +1289,6 @@ VirtIoAdapterControl(IN PVOID DeviceExtension, IN SCSI_ADAPTER_CONTROL_TYPE Cont
     SCSI_ADAPTER_CONTROL_STATUS status = ScsiAdapterControlUnsuccessful;
     BOOLEAN SupportedControlTypes[5] = {TRUE, TRUE, TRUE, FALSE, FALSE};
 
-    RhelDbgPrint(TRACE_LEVEL_VERBOSE, " ControlType %d\n", ControlType);
-
     switch (ControlType)
     {
         case ScsiQuerySupportedControlTypes:
@@ -1338,6 +1336,7 @@ VirtIoAdapterControl(IN PVOID DeviceExtension, IN SCSI_ADAPTER_CONTROL_TYPE Cont
                 break;
             }
         default:
+            RhelDbgPrint(TRACE_LEVEL_ERROR, " Unsupported ControlType %d\n", ControlType);
             break;
     }
 
