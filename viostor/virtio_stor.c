@@ -47,6 +47,7 @@ HW_STARTIO VirtIoStartIo;
 HW_FIND_ADAPTER VirtIoFindAdapter;
 HW_RESET_BUS VirtIoResetBus;
 HW_ADAPTER_CONTROL VirtIoAdapterControl;
+HW_UNIT_CONTROL VirtIoUnitControl;
 HW_INTERRUPT VirtIoInterrupt;
 HW_BUILDIO VirtIoBuildIo;
 HW_DPC_ROUTINE CompleteDpcRoutine;
@@ -165,6 +166,7 @@ DriverEntry(IN PVOID DriverObject, IN PVOID RegistryPath)
     hwInitData.HwInterrupt = VirtIoInterrupt;
     hwInitData.HwResetBus = VirtIoResetBus;
     hwInitData.HwAdapterControl = VirtIoAdapterControl;
+    hwInitData.HwUnitControl = VirtIoUnitControl;
     hwInitData.HwBuildIo = VirtIoBuildIo;
     hwInitData.NeedPhysicalAddresses = TRUE;
     hwInitData.TaggedQueuing = TRUE;
@@ -1349,6 +1351,98 @@ VirtIoAdapterControl(IN PVOID DeviceExtension, IN SCSI_ADAPTER_CONTROL_TYPE Cont
                 break;
             }
         default:
+            break;
+    }
+
+    return status;
+}
+
+SCSI_UNIT_CONTROL_STATUS
+VirtIoUnitControl(PVOID DeviceExtension, SCSI_UNIT_CONTROL_TYPE ControlType, PVOID Parameters)
+{
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    PSCSI_SUPPORTED_CONTROL_TYPE_LIST ControlTypeList;
+    ULONG AdjustedMaxControlType;
+    ULONG list_idx;
+    ULONG vq_idx;
+    SCSI_UNIT_CONTROL_STATUS status = ScsiUnitControlUnsuccessful;
+    BOOLEAN SupportedControlTypes[ScsiUnitControlMax] = {FALSE};
+
+    SupportedControlTypes[ScsiQuerySupportedControlTypes] = TRUE;
+    SupportedControlTypes[ScsiUnitStart] = TRUE;
+    SupportedControlTypes[ScsiUnitRemove] = TRUE;
+    SupportedControlTypes[ScsiUnitSurpriseRemoval] = TRUE;
+
+    switch (ControlType)
+    {
+        case ScsiQuerySupportedUnitControlTypes:
+            {
+                RhelDbgPrint(TRACE_LEVEL_VERBOSE, " ScsiQuerySupportedControlTypes\n");
+                ControlTypeList = (PSCSI_SUPPORTED_CONTROL_TYPE_LIST)Parameters;
+                AdjustedMaxControlType = (ControlTypeList->MaxControlType < ScsiUnitControlMax) ? ControlTypeList->MaxControlType
+                                                                                                : ScsiUnitControlMax;
+                for (list_idx = 0; list_idx < AdjustedMaxControlType; list_idx++)
+                {
+                    ControlTypeList->SupportedTypeList[list_idx] = SupportedControlTypes[list_idx];
+                }
+                status = ScsiUnitControlSuccess;
+                break;
+            }
+        case ScsiUnitStart:
+            {
+                RhelDbgPrint(TRACE_LEVEL_VERBOSE, " ScsiUnitStart\n");
+                status = ScsiUnitControlSuccess;
+                break;
+            }
+        case ScsiUnitRemove:
+        case ScsiUnitSurpriseRemoval:
+            {
+                RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                             " %s \n",
+                             ControlType == ScsiUnitRemove ? "ScsiUnitRemove" : "ScsiUnitSurpriseRemoval");
+                ULONG QueueNumber;
+                ULONG MessageId;
+                PREQUEST_LIST element;
+                STOR_LOCK_HANDLE LockHandle = {0};
+                PSTOR_ADDR_BTL8 stor_addr = (PSTOR_ADDR_BTL8)Parameters;
+
+                for (vq_idx = 0; vq_idx < adaptExt->num_queues; vq_idx++)
+                {
+                    QueueNumber = vq_idx;
+                    MessageId = QueueToMessageId(DeviceExtension, QueueNumber);
+                    VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
+                    element = &adaptExt->processing_srbs[vq_idx];
+                    if (!IsListEmpty(&element->srb_list))
+                    {
+                        PLIST_ENTRY entry = element->srb_list.Flink;
+                        while (entry != &element->srb_list)
+                        {
+                            pblk_req req = CONTAINING_RECORD(entry, blk_req, list_entry);
+                            PSRB_TYPE Srb = req->req;
+                            PLIST_ENTRY next = entry->Flink;
+                            if (SRB_PATH_ID(Srb) == stor_addr->Path && SRB_TARGET_ID(Srb) == stor_addr->Target &&
+                                SRB_LUN(Srb) == stor_addr->Lun)
+                            {
+                                RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                                             " Complete pending I/Os on Path %d Target %d Lun %d \n",
+                                             SRB_PATH_ID(Srb),
+                                             SRB_TARGET_ID(Srb),
+                                             SRB_LUN(Srb));
+                                SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
+                                CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_NO_DEVICE);
+                                RemoveEntryList(entry);
+                                element->srb_cnt--;
+                            }
+                            entry = next;
+                        }
+                    }
+                    VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
+                }
+                status = ScsiUnitControlSuccess;
+                break;
+            }
+        default:
+            RhelDbgPrint(TRACE_LEVEL_ERROR, " Unsupported Unit ControlType %d\n", ControlType);
             break;
     }
 
