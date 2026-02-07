@@ -1282,28 +1282,25 @@ VirtIoResetBus(IN PVOID DeviceExtension, IN ULONG PathId)
 SCSI_ADAPTER_CONTROL_STATUS
 VirtIoAdapterControl(IN PVOID DeviceExtension, IN SCSI_ADAPTER_CONTROL_TYPE ControlType, IN PVOID Parameters)
 {
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     PSCSI_SUPPORTED_CONTROL_TYPE_LIST ControlTypeList;
     ULONG AdjustedMaxControlType;
-    ULONG Index;
-    PADAPTER_EXTENSION adaptExt;
+    ULONG list_idx;
     SCSI_ADAPTER_CONTROL_STATUS status = ScsiAdapterControlUnsuccessful;
     BOOLEAN SupportedControlTypes[5] = {TRUE, TRUE, TRUE, FALSE, FALSE};
-
-    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " ControlType %d\n", ControlType);
 
     switch (ControlType)
     {
-
         case ScsiQuerySupportedControlTypes:
             {
                 RhelDbgPrint(TRACE_LEVEL_VERBOSE, " ScsiQuerySupportedControlTypes\n");
                 ControlTypeList = (PSCSI_SUPPORTED_CONTROL_TYPE_LIST)Parameters;
                 AdjustedMaxControlType = (ControlTypeList->MaxControlType < 5) ? ControlTypeList->MaxControlType : 5;
-                for (Index = 0; Index < AdjustedMaxControlType; Index++)
+                for (list_idx = 0; list_idx < AdjustedMaxControlType; list_idx++)
                 {
-                    ControlTypeList->SupportedTypeList[Index] = SupportedControlTypes[Index];
+                    ControlTypeList->SupportedTypeList[list_idx] = SupportedControlTypes[list_idx];
                 }
                 status = ScsiAdapterControlSuccess;
                 break;
