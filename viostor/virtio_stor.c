@@ -1292,6 +1292,7 @@ VirtIoAdapterControl(IN PVOID DeviceExtension, IN SCSI_ADAPTER_CONTROL_TYPE Cont
     SupportedControlTypes[ScsiQuerySupportedControlTypes] = TRUE;
     SupportedControlTypes[ScsiStopAdapter] = TRUE;
     SupportedControlTypes[ScsiRestartAdapter] = TRUE;
+    SupportedControlTypes[ScsiAdapterSurpriseRemoval] = TRUE;
 
     switch (ControlType)
     {
@@ -1337,6 +1338,13 @@ VirtIoAdapterControl(IN PVOID DeviceExtension, IN SCSI_ADAPTER_CONTROL_TYPE Cont
                     break;
                 }
                 adaptExt->removed = FALSE;
+                status = ScsiAdapterControlSuccess;
+                break;
+            }
+        case ScsiAdapterSurpriseRemoval:
+            {
+                RhelDbgPrint(TRACE_LEVEL_FATAL, " ScsiAdapterSurpriseRemoval\n");
+                adaptExt->removed = TRUE;
                 status = ScsiAdapterControlSuccess;
                 break;
             }
