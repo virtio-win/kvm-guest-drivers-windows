@@ -42,4 +42,6 @@ void InitializeDebugPrints(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Re
 
 VOID LogError(IN PVOID HwDeviceExtension, IN ULONG ErrorCode, IN ULONG UniqueId);
 
+extern VOID GetTerminatedString(UCHAR *func, UCHAR *data, USHORT length);
+
 #endif ___VIOSTOR_UTILS_H___

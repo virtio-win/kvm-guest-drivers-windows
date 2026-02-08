@@ -40,7 +40,6 @@
 #include "virtio.h"
 #include "virtio_ring.h"
 #include "virtio_stor_utils.h"
-#include "virtio_stor_hw_helper.h"
 
 typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
@@ -79,17 +78,23 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define SECTOR_SHIFT                       9
 #define IO_PORT_LENGTH                     0x40
 #define MAX_CPU                            256u
-
 /*
  * QEMU's virtio-blk implementation supports only a single segment (as of
  * QEMU 10.2), so this is more than enough.
  */
 #define MAX_DISCARD_SEGMENTS               16u
-
-#define VIRTIO_BLK_QUEUE_LAST              MAX_CPU
-
-#define VIRTIO_BLK_MSIX_CONFIG_VECTOR      0
 #define MIN_DISCARD_SECTOR_ALIGNMENT       8
+
+/* Defines the index of the MSI-X vector for configuration change notifications */
+#define VIRTIO_STOR_MSIX_CONFIG_VECTOR     0
+/* Defines the index of the MSI-X vector servicing the first virtqueue during preferred opertion */
+#define VIRTIO_STOR_VQ_0_MSIX_IDX          1
+/* Defines the index of the first virtqueue that StorPort will use to queue requests */
+#define VIRTIO_STOR_REQUEST_QUEUE_0        0
+/* Defines the number of addtional MSI-X vectors for preferred operation */
+#define VIRTIO_STOR_PREFERRED_XTRA_VECTORS (VIRTIO_STOR_REQUEST_QUEUE_0 + VIRTIO_STOR_VQ_0_MSIX_IDX)
+/* Defines the index of the last virtqueue that StorPort will use to queue requests */
+#define VIRTIO_STOR_VQ_LAST                MAX_CPU
 
 #define BLOCK_SERIAL_STRLEN                20
 
@@ -97,6 +102,12 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define VIRTIO_MAX_SG                      (3 + MAX_PHYS_SEGMENTS)
 
 #define VIOBLK_POOL_TAG                    'BoiV'
+
+/* Pad the following with spaces (ASCII '\20') */
+#define VIRTIO_BLK_VENDOR_ID               "Red Hat "             // UCHAR VendorId[8]
+#define VIRTIO_BLK_PRODUCT_ID              "VirtIO          "     // UCHAR ProductId[16]
+#define VIRTIO_BLK_PROD_REV_LVL            "1001"                 // UCHAR ProductRevisionLevel[4]
+#define VIRTIO_BLK_VEND_SPECIFIC           "1001                " // UCHAR VendorSpecific[20]
 
 #pragma pack(1)
 typedef struct virtio_blk_config
@@ -224,15 +235,15 @@ typedef struct _ADAPTER_EXTENSION
     ULONG poolAllocationSize;
     ULONG poolOffset;
 
-    struct virtqueue *vq[VIRTIO_BLK_QUEUE_LAST];
-    USHORT num_queues;
+    struct virtqueue *vq[VIRTIO_STOR_VQ_LAST];
+    ULONG num_queues;
     INQUIRYDATA inquiry_data;
     blk_config info;
     ULONG queue_depth;
     BOOLEAN dump_mode;
     ULONG msix_vectors;
+    ULONG msix_cfg_vector_cnt;
     BOOLEAN msix_enabled;
-    BOOLEAN msix_one_vector;
     ULONGLONG features;
     CHAR sn[BLOCK_SERIAL_STRLEN];
     BOOLEAN sn_ok;
@@ -281,7 +292,7 @@ typedef struct _SRB_EXTENSION
     ULONG_PTR id;
     ULONG out;
     ULONG in;
-    ULONG MessageID;
+    ULONG queue_number;
     BOOLEAN fua;
     VIO_SG sg[VIRTIO_MAX_SG];
     VRING_DESC_ALIAS desc[VIRTIO_MAX_SG];

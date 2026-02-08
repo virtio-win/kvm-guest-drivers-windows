@@ -110,3 +110,13 @@ virtioDebugLevel = 0;
 nViostorDebugLevel = 0xFF;
 tDebugPrintFunc VirtioDebugPrintProc = DbgPrint;
 #endif
+
+/* Various Helper functions */
+void GetTerminatedString(UCHAR *func, UCHAR *data, USHORT length)
+{
+    for (USHORT char_idx = 0; char_idx < length; ++char_idx)
+    {
+        func[char_idx] = data[char_idx];
+    }
+    func[length] = '\0';
+}
