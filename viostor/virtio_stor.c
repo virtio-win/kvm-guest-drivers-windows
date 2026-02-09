@@ -1301,10 +1301,30 @@ VirtIoMSInterruptRoutine(IN PVOID DeviceExtension, IN ULONG MessageID)
         return FALSE;
     }
 
-    if (adaptExt->msix_has_config_vector && MessageID == VIRTIO_BLK_MSIX_CONFIG_VECTOR)
+    if (MessageID == VIRTIO_BLK_MSIX_CONFIG_VECTOR)
     {
-        VirtIoConfigUpdated(adaptExt);
-        return TRUE;
+        u8 isr;
+
+        /*
+         * If the config vector is separate, we know that the configuration has
+         * definitely changed and handling the update is the only thing we need
+         * to do.
+         *
+         * With a shared config vector, check ISR to see if there even was a
+         * configuration update and afterwards move on to checking queues that
+         * share the same vector.
+         */
+        if (adaptExt->msix_has_config_vector)
+        {
+            VirtIoConfigUpdated(adaptExt);
+            return TRUE;
+        }
+
+        isr = virtio_read_isr_status(&adaptExt->vdev);
+        if (isr & VIRTIO_PCI_ISR_CONFIG)
+        {
+            VirtIoConfigUpdated(adaptExt);
+        }
     }
 
     if (!CompleteDPC(DeviceExtension, MessageID))
