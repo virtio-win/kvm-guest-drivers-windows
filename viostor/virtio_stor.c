@@ -1242,6 +1242,18 @@ VirtIoStartIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
     return TRUE;
 }
 
+static VOID VirtIoConfigUpdated(PADAPTER_EXTENSION adaptExt)
+{
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Device Config Interrupt\n");
+
+    RhelGetDiskGeometry(adaptExt);
+    adaptExt->sense_info.senseKey = SCSI_SENSE_UNIT_ATTENTION;
+    adaptExt->sense_info.additionalSenseCode = SCSI_ADSENSE_PARAMETERS_CHANGED;
+    adaptExt->sense_info.additionalSenseCodeQualifier = SCSI_SENSEQ_CAPACITY_DATA_CHANGED;
+    adaptExt->check_condition = TRUE;
+    DeviceChangeNotification(adaptExt, TRUE);
+}
+
 BOOLEAN
 VirtIoInterrupt(IN PVOID DeviceExtension)
 {
@@ -1268,13 +1280,8 @@ VirtIoInterrupt(IN PVOID DeviceExtension)
     }
     else if (intReason == 3)
     {
-        RhelGetDiskGeometry(DeviceExtension);
+        VirtIoConfigUpdated(adaptExt);
         isInterruptServiced = TRUE;
-        adaptExt->sense_info.senseKey = SCSI_SENSE_UNIT_ATTENTION;
-        adaptExt->sense_info.additionalSenseCode = SCSI_ADSENSE_PARAMETERS_CHANGED;
-        adaptExt->sense_info.additionalSenseCodeQualifier = SCSI_SENSEQ_CAPACITY_DATA_CHANGED;
-        adaptExt->check_condition = TRUE;
-        DeviceChangeNotification(DeviceExtension, TRUE);
     }
     if (!isInterruptServiced)
     {
@@ -1296,12 +1303,7 @@ VirtIoMSInterruptRoutine(IN PVOID DeviceExtension, IN ULONG MessageID)
 
     if (adaptExt->msix_has_config_vector && MessageID == VIRTIO_BLK_MSIX_CONFIG_VECTOR)
     {
-        RhelGetDiskGeometry(DeviceExtension);
-        adaptExt->sense_info.senseKey = SCSI_SENSE_UNIT_ATTENTION;
-        adaptExt->sense_info.additionalSenseCode = SCSI_ADSENSE_PARAMETERS_CHANGED;
-        adaptExt->sense_info.additionalSenseCodeQualifier = SCSI_SENSEQ_CAPACITY_DATA_CHANGED;
-        adaptExt->check_condition = TRUE;
-        DeviceChangeNotification(DeviceExtension, TRUE);
+        VirtIoConfigUpdated(adaptExt);
         return TRUE;
     }
 
