@@ -1270,7 +1270,7 @@ VirtIoInterrupt(IN PVOID DeviceExtension)
         return FALSE;
     }
     intReason = virtio_read_isr_status(&adaptExt->vdev);
-    if (intReason == 1 || adaptExt->dump_mode)
+    if (intReason & 0x1 || adaptExt->dump_mode)
     {
         if (!CompleteDPC(DeviceExtension, adaptExt->msix_has_config_vector))
         {
@@ -1278,7 +1278,7 @@ VirtIoInterrupt(IN PVOID DeviceExtension)
         }
         isInterruptServiced = TRUE;
     }
-    else if (intReason == 3)
+    if (intReason & VIRTIO_PCI_ISR_CONFIG)
     {
         VirtIoConfigUpdated(adaptExt);
         isInterruptServiced = TRUE;
