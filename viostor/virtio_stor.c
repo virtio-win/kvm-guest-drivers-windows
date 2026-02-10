@@ -30,6 +30,7 @@
  * SUCH DAMAGE.
  */
 #include "virtio_stor.h"
+#include "virtio_stor_hw_helper.h"
 #if defined(EVENT_TRACING)
 #include "virtio_stor.tmh"
 #endif
@@ -46,6 +47,7 @@ HW_STARTIO VirtIoStartIo;
 HW_FIND_ADAPTER VirtIoFindAdapter;
 HW_RESET_BUS VirtIoResetBus;
 HW_ADAPTER_CONTROL VirtIoAdapterControl;
+HW_UNIT_CONTROL VirtIoUnitControl;
 HW_INTERRUPT VirtIoInterrupt;
 HW_BUILDIO VirtIoBuildIo;
 HW_DPC_ROUTINE CompleteDpcRoutine;
@@ -164,6 +166,7 @@ DriverEntry(IN PVOID DriverObject, IN PVOID RegistryPath)
     hwInitData.HwInterrupt = VirtIoInterrupt;
     hwInitData.HwResetBus = VirtIoResetBus;
     hwInitData.HwAdapterControl = VirtIoAdapterControl;
+    hwInitData.HwUnitControl = VirtIoUnitControl;
     hwInitData.HwBuildIo = VirtIoBuildIo;
     hwInitData.NeedPhysicalAddresses = TRUE;
     hwInitData.TaggedQueuing = TRUE;
@@ -708,13 +711,16 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
     {
         /* initialize queues with a MSI vector per queue */
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, (" Using a unique MSI vector per queue\n"));
-        adaptExt->msix_one_vector = FALSE;
+        adaptExt->msix_config_vector = TRUE;
     }
     else
     {
         /* if we don't have enough vectors, use one for all queues */
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION, (" Disabling MSI config vector\n"));
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, (" Using one MSI vector for all queues\n"));
-        adaptExt->msix_one_vector = TRUE;
+        adaptExt->msix_config_vector = FALSE;
+        /* TODO Allow using multiple queues even with a single vector */
+        adaptExt->num_queues = 1;
     }
 
     if (!InitializeVirtualQueues(adaptExt))
@@ -767,7 +773,7 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
                 if (CHECKFLAG(perfData.Flags, STOR_PERF_INTERRUPT_MESSAGE_RANGES))
                 {
                     adaptExt->perfFlags |= STOR_PERF_INTERRUPT_MESSAGE_RANGES;
-                    perfData.FirstRedirectionMessageNumber = 1;
+                    perfData.FirstRedirectionMessageNumber = adaptExt->msix_config_vector ? 1 : 0;
                     perfData.LastRedirectionMessageNumber = perfData.FirstRedirectionMessageNumber +
                                                             adaptExt->num_queues - 1;
                     ASSERT(perfData.lastRedirectionMessageNumber < adaptExt->num_affinity);
@@ -861,7 +867,7 @@ static VOID CompletePendingRequestsOnReset(IN PVOID DeviceExtension)
     {
         PREQUEST_LIST element;
         STOR_LOCK_HANDLE LockHandle = {0};
-        ULONG MessageID = index + 1;
+        ULONG MessageID = QueueToMessageId(DeviceExtension, index);
         VioStorVQLock(DeviceExtension, MessageID, &LockHandle, FALSE);
         element = &adaptExt->processing_srbs[index];
         while (!IsListEmpty(&element->srb_list))
@@ -925,8 +931,9 @@ BOOLEAN VioStorResetBus(IN PVOID DeviceExtension)
      * are currently in progress in DPC. Each new DPC call will have no effect because
      * VioStorCompleteRequest will exit for any non-zero reset_in_progress_count value
      */
-    for (ULONG MessageId = 1; MessageId <= adaptExt->num_queues; MessageId++)
+    for (ULONG QueueNumber = 0; QueueNumber < adaptExt->num_queues; QueueNumber++)
     {
+        ULONG MessageId = QueueToMessageId(DeviceExtension, QueueNumber);
         STOR_LOCK_HANDLE LockHandle = {0};
         VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
         adaptExt->reset_in_progress_count++;
@@ -948,8 +955,9 @@ BOOLEAN VioStorResetBus(IN PVOID DeviceExtension)
         return FALSE;
     }
 
-    for (ULONG MessageId = 1; MessageId <= adaptExt->num_queues; MessageId++)
+    for (ULONG QueueNumber = 0; QueueNumber < adaptExt->num_queues; QueueNumber++)
     {
+        ULONG MessageId = QueueToMessageId(DeviceExtension, QueueNumber);
         STOR_LOCK_HANDLE LockHandle = {0};
         VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
         adaptExt->reset_in_progress_count--;
@@ -1254,9 +1262,9 @@ VirtIoInterrupt(IN PVOID DeviceExtension)
     intReason = virtio_read_isr_status(&adaptExt->vdev);
     if (intReason == 1 || adaptExt->dump_mode)
     {
-        if (!CompleteDPC(DeviceExtension, 1))
+        if (!CompleteDPC(DeviceExtension, !!adaptExt->msix_config_vector))
         {
-            VioStorCompleteRequest(DeviceExtension, 1, TRUE);
+            VioStorCompleteRequest(DeviceExtension, !!adaptExt->msix_config_vector, TRUE);
         }
         isInterruptServiced = TRUE;
     }
@@ -1347,6 +1355,98 @@ VirtIoAdapterControl(IN PVOID DeviceExtension, IN SCSI_ADAPTER_CONTROL_TYPE Cont
                 break;
             }
         default:
+            break;
+    }
+
+    return status;
+}
+
+SCSI_UNIT_CONTROL_STATUS
+VirtIoUnitControl(PVOID DeviceExtension, SCSI_UNIT_CONTROL_TYPE ControlType, PVOID Parameters)
+{
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    PSCSI_SUPPORTED_CONTROL_TYPE_LIST ControlTypeList;
+    ULONG AdjustedMaxControlType;
+    ULONG list_idx;
+    ULONG vq_idx;
+    SCSI_UNIT_CONTROL_STATUS status = ScsiUnitControlUnsuccessful;
+    BOOLEAN SupportedControlTypes[ScsiUnitControlMax] = {FALSE};
+
+    SupportedControlTypes[ScsiQuerySupportedControlTypes] = TRUE;
+    SupportedControlTypes[ScsiUnitStart] = TRUE;
+    SupportedControlTypes[ScsiUnitRemove] = TRUE;
+    SupportedControlTypes[ScsiUnitSurpriseRemoval] = TRUE;
+
+    switch (ControlType)
+    {
+        case ScsiQuerySupportedUnitControlTypes:
+            {
+                RhelDbgPrint(TRACE_LEVEL_VERBOSE, " ScsiQuerySupportedControlTypes\n");
+                ControlTypeList = (PSCSI_SUPPORTED_CONTROL_TYPE_LIST)Parameters;
+                AdjustedMaxControlType = (ControlTypeList->MaxControlType < ScsiUnitControlMax) ? ControlTypeList->MaxControlType
+                                                                                                : ScsiUnitControlMax;
+                for (list_idx = 0; list_idx < AdjustedMaxControlType; list_idx++)
+                {
+                    ControlTypeList->SupportedTypeList[list_idx] = SupportedControlTypes[list_idx];
+                }
+                status = ScsiUnitControlSuccess;
+                break;
+            }
+        case ScsiUnitStart:
+            {
+                RhelDbgPrint(TRACE_LEVEL_VERBOSE, " ScsiUnitStart\n");
+                status = ScsiUnitControlSuccess;
+                break;
+            }
+        case ScsiUnitRemove:
+        case ScsiUnitSurpriseRemoval:
+            {
+                RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                             " %s \n",
+                             ControlType == ScsiUnitRemove ? "ScsiUnitRemove" : "ScsiUnitSurpriseRemoval");
+                ULONG QueueNumber;
+                ULONG MessageId;
+                PREQUEST_LIST element;
+                STOR_LOCK_HANDLE LockHandle = {0};
+                PSTOR_ADDR_BTL8 stor_addr = (PSTOR_ADDR_BTL8)Parameters;
+
+                for (vq_idx = 0; vq_idx < adaptExt->num_queues; vq_idx++)
+                {
+                    QueueNumber = vq_idx;
+                    MessageId = QueueToMessageId(DeviceExtension, QueueNumber);
+                    VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
+                    element = &adaptExt->processing_srbs[vq_idx];
+                    if (!IsListEmpty(&element->srb_list))
+                    {
+                        PLIST_ENTRY entry = element->srb_list.Flink;
+                        while (entry != &element->srb_list)
+                        {
+                            pblk_req req = CONTAINING_RECORD(entry, blk_req, list_entry);
+                            PSRB_TYPE Srb = req->req;
+                            PLIST_ENTRY next = entry->Flink;
+                            if (SRB_PATH_ID(Srb) == stor_addr->Path && SRB_TARGET_ID(Srb) == stor_addr->Target &&
+                                SRB_LUN(Srb) == stor_addr->Lun)
+                            {
+                                RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                                             " Complete pending I/Os on Path %d Target %d Lun %d \n",
+                                             SRB_PATH_ID(Srb),
+                                             SRB_TARGET_ID(Srb),
+                                             SRB_LUN(Srb));
+                                SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
+                                CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_NO_DEVICE);
+                                RemoveEntryList(entry);
+                                element->srb_cnt--;
+                            }
+                            entry = next;
+                        }
+                    }
+                    VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
+                }
+                status = ScsiUnitControlSuccess;
+                break;
+            }
+        default:
+            RhelDbgPrint(TRACE_LEVEL_ERROR, " Unsupported Unit ControlType %d\n", ControlType);
             break;
     }
 
@@ -1579,22 +1679,15 @@ VirtIoMSInterruptRoutine(IN PVOID DeviceExtension, IN ULONG MessageID)
         return FALSE;
     }
 
-    if (adaptExt->msix_one_vector)
+    if (adaptExt->msix_config_vector && MessageID == VIRTIO_BLK_MSIX_CONFIG_VECTOR)
     {
-        MessageID = 1;
-    }
-    else
-    {
-        if (MessageID == VIRTIO_BLK_MSIX_CONFIG_VECTOR)
-        {
-            RhelGetDiskGeometry(DeviceExtension);
-            adaptExt->sense_info.senseKey = SCSI_SENSE_UNIT_ATTENTION;
-            adaptExt->sense_info.additionalSenseCode = SCSI_ADSENSE_PARAMETERS_CHANGED;
-            adaptExt->sense_info.additionalSenseCodeQualifier = SCSI_SENSEQ_CAPACITY_DATA_CHANGED;
-            adaptExt->check_condition = TRUE;
-            DeviceChangeNotification(DeviceExtension, TRUE);
-            return TRUE;
-        }
+        RhelGetDiskGeometry(DeviceExtension);
+        adaptExt->sense_info.senseKey = SCSI_SENSE_UNIT_ATTENTION;
+        adaptExt->sense_info.additionalSenseCode = SCSI_ADSENSE_PARAMETERS_CHANGED;
+        adaptExt->sense_info.additionalSenseCodeQualifier = SCSI_SENSEQ_CAPACITY_DATA_CHANGED;
+        adaptExt->check_condition = TRUE;
+        DeviceChangeNotification(DeviceExtension, TRUE);
+        return TRUE;
     }
 
     if (!CompleteDPC(DeviceExtension, MessageID))
@@ -2116,10 +2209,11 @@ FORCEINLINE
 CompleteDPC(IN PVOID DeviceExtension, IN ULONG MessageID)
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    ULONG dpc_idx = MessageToDpcIdx(DeviceExtension, MessageID);
 
     if (!adaptExt->dump_mode && adaptExt->dpc_ok)
     {
-        StorPortIssueDpc(DeviceExtension, &adaptExt->dpc[MessageID - 1], ULongToPtr(MessageID), ULongToPtr(FALSE));
+        StorPortIssueDpc(DeviceExtension, &adaptExt->dpc[dpc_idx], ULongToPtr(MessageID), ULongToPtr(FALSE));
         return TRUE;
     }
     return FALSE;
@@ -2179,8 +2273,8 @@ UCHAR DeviceToSrbStatus(UCHAR status)
 VOID VioStorCompleteRequest(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOOLEAN bIsr)
 {
     unsigned int len = 0;
-    PADAPTER_EXTENSION adaptExt = NULL;
-    ULONG QueueNumber = MessageID - 1;
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    ULONG QueueNumber = MessageID - !!adaptExt->msix_config_vector;
     STOR_LOCK_HANDLE queueLock = {0};
     struct virtqueue *vq = NULL;
     ULONG_PTR srbId = 0;
@@ -2190,8 +2284,6 @@ VOID VioStorCompleteRequest(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOO
     PREQUEST_LIST element = NULL;
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " ---> MessageID 0x%x\n", MessageID);
-
-    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     VioStorVQLock(DeviceExtension, MessageID, &queueLock, bIsr);
 

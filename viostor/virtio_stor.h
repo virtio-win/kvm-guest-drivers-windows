@@ -40,7 +40,6 @@
 #include "virtio.h"
 #include "virtio_ring.h"
 #include "virtio_stor_utils.h"
-#include "virtio_stor_hw_helper.h"
 
 typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
@@ -232,7 +231,7 @@ typedef struct _ADAPTER_EXTENSION
     BOOLEAN dump_mode;
     ULONG msix_vectors;
     BOOLEAN msix_enabled;
-    BOOLEAN msix_one_vector;
+    BOOLEAN msix_config_vector;
     ULONGLONG features;
     CHAR sn[BLOCK_SERIAL_STRLEN];
     BOOLEAN sn_ok;
@@ -281,7 +280,7 @@ typedef struct _SRB_EXTENSION
     ULONG_PTR id;
     ULONG out;
     ULONG in;
-    ULONG MessageID;
+    ULONG queue_number;
     BOOLEAN fua;
     VIO_SG sg[VIRTIO_MAX_SG];
     VRING_DESC_ALIAS desc[VIRTIO_MAX_SG];

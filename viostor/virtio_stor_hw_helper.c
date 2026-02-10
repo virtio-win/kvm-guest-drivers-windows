@@ -102,18 +102,10 @@ RhelDoFlush(PVOID DeviceExtension, PSRB_TYPE Srb, BOOLEAN resend, BOOLEAN bIsr)
 
     SET_VA_PA();
 
-    if (resend)
-    {
-        MessageId = srbExt->MessageID;
-        QueueNumber = MessageId - 1;
-    }
-    else
-    {
-        QueueNumber = GetSrbQueueNumber(DeviceExtension, Srb);
-        MessageId = QueueNumber + 1;
-    }
+    QueueNumber = resend ? srbExt->queue_number : GetSrbQueueNumber(DeviceExtension, Srb);
+    MessageId = QueueToMessageId(DeviceExtension, QueueNumber);
 
-    srbExt->MessageID = MessageId;
+    srbExt->queue_number = QueueNumber;
     vq = adaptExt->vq[QueueNumber];
 
     srbExt->vbr.out_hdr.sector = 0;
@@ -217,9 +209,9 @@ RhelDoReadWrite(PVOID DeviceExtension, PSRB_TYPE Srb)
     SET_VA_PA();
 
     QueueNumber = GetSrbQueueNumber(DeviceExtension, Srb);
-    MessageId = QueueNumber + 1;
+    MessageId = QueueToMessageId(DeviceExtension, QueueNumber);
 
-    srbExt->MessageID = MessageId;
+    srbExt->queue_number = QueueNumber;
     vq = adaptExt->vq[QueueNumber];
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " QueueNumber 0x%x vq = %p\n", QueueNumber, vq);
 
@@ -373,9 +365,9 @@ RhelDoUnMap(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     srbExt->sg[2].length = sizeof(srbExt->vbr.status);
 
     QueueNumber = GetSrbQueueNumber(DeviceExtension, Srb);
-    MessageId = QueueNumber + 1;
+    MessageId = QueueToMessageId(DeviceExtension, QueueNumber);
 
-    srbExt->MessageID = MessageId;
+    srbExt->queue_number = QueueNumber;
     vq = adaptExt->vq[QueueNumber];
     RhelDbgPrint(TRACE_LEVEL_INFORMATION,
                  " QueueNumber 0x%x vq = %p type = %d\n",
@@ -454,9 +446,9 @@ RhelGetSerialNumber(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " srbExt %p.\n", srbExt);
 
     QueueNumber = GetSrbQueueNumber(DeviceExtension, Srb);
-    MessageId = QueueNumber + 1;
+    MessageId = QueueToMessageId(DeviceExtension, QueueNumber);
 
-    srbExt->MessageID = MessageId;
+    srbExt->queue_number = QueueNumber;
     vq = adaptExt->vq[QueueNumber];
 
     srbExt->vbr.out_hdr.sector = 0;
@@ -759,15 +751,13 @@ VOID VioStorVQLock(IN PVOID DeviceExtension, IN ULONG MessageID, IN OUT PSTOR_LO
         {
             if (adaptExt->num_queues > 1)
             {
-
-                NT_ASSERT(MessageID > 0);
-                NT_ASSERT(MessageID <= adaptExt->num_queues);
-                StorPortAcquireSpinLock(DeviceExtension, DpcLock, &adaptExt->dpc[MessageID - 1], LockHandle);
+                ULONG dpc_idx = MessageToDpcIdx(DeviceExtension, MessageID);
+                StorPortAcquireSpinLock(DeviceExtension, DpcLock, &adaptExt->dpc[dpc_idx], LockHandle);
             }
             else
             {
                 ULONG oldIrql = 0;
-                StorPortAcquireMSISpinLock(DeviceExtension, (adaptExt->msix_one_vector ? 0 : MessageID), &oldIrql);
+                StorPortAcquireMSISpinLock(DeviceExtension, MessageID, &oldIrql);
                 LockHandle->Context.OldIrql = (KIRQL)oldIrql;
             }
         }
@@ -795,9 +785,7 @@ VOID VioStorVQUnlock(IN PVOID DeviceExtension, IN ULONG MessageID, IN PSTOR_LOCK
             }
             else
             {
-                StorPortReleaseMSISpinLock(DeviceExtension,
-                                           (adaptExt->msix_one_vector ? 0 : MessageID),
-                                           LockHandle->Context.OldIrql);
+                StorPortReleaseMSISpinLock(DeviceExtension, MessageID, LockHandle->Context.OldIrql);
             }
         }
         else
