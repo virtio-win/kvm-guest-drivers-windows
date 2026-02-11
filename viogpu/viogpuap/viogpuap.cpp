@@ -30,6 +30,8 @@
 #include "pch.h"
 #include <iostream>
 
+extern const char *LogFilePath = "viogpuap.log";
+
 int _cdecl wmain(__in ULONG argc, __in_ecount(argc) PWCHAR argv[])
 {
     PrintMessage(L"viogpuap.exe built on %ws %ws\n", _CRT_WIDE(__DATE__), _CRT_WIDE(__TIME__));
