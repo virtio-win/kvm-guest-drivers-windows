@@ -1284,6 +1284,36 @@ VirtIoInterrupt(IN PVOID DeviceExtension)
 }
 
 BOOLEAN
+VirtIoMSInterruptRoutine(IN PVOID DeviceExtension, IN ULONG MessageID)
+{
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+
+    if (MessageID > adaptExt->num_queues || adaptExt->removed == TRUE || adaptExt->stopped == TRUE)
+    {
+        RhelDbgPrint(TRACE_LEVEL_ERROR, " MessageID = %d\n", MessageID);
+        return FALSE;
+    }
+
+    if (adaptExt->msix_has_config_vector && MessageID == VIRTIO_BLK_MSIX_CONFIG_VECTOR)
+    {
+        RhelGetDiskGeometry(DeviceExtension);
+        adaptExt->sense_info.senseKey = SCSI_SENSE_UNIT_ATTENTION;
+        adaptExt->sense_info.additionalSenseCode = SCSI_ADSENSE_PARAMETERS_CHANGED;
+        adaptExt->sense_info.additionalSenseCodeQualifier = SCSI_SENSEQ_CAPACITY_DATA_CHANGED;
+        adaptExt->check_condition = TRUE;
+        DeviceChangeNotification(DeviceExtension, TRUE);
+        return TRUE;
+    }
+
+    if (!CompleteDPC(DeviceExtension, MessageID))
+    {
+        VioStorCompleteRequest(DeviceExtension, MessageID, TRUE);
+    }
+
+    return TRUE;
+}
+
+BOOLEAN
 VirtIoResetBus(IN PVOID DeviceExtension, IN ULONG PathId)
 {
     UNREFERENCED_PARAMETER(PathId);
@@ -1570,36 +1600,6 @@ VirtIoBuildIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
 
     srbExt->sg[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &dummy);
     srbExt->sg[sgElement].length = sizeof(srbExt->vbr.status);
-
-    return TRUE;
-}
-
-BOOLEAN
-VirtIoMSInterruptRoutine(IN PVOID DeviceExtension, IN ULONG MessageID)
-{
-    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-
-    if (MessageID > adaptExt->num_queues || adaptExt->removed == TRUE || adaptExt->stopped == TRUE)
-    {
-        RhelDbgPrint(TRACE_LEVEL_ERROR, " MessageID = %d\n", MessageID);
-        return FALSE;
-    }
-
-    if (adaptExt->msix_has_config_vector && MessageID == VIRTIO_BLK_MSIX_CONFIG_VECTOR)
-    {
-        RhelGetDiskGeometry(DeviceExtension);
-        adaptExt->sense_info.senseKey = SCSI_SENSE_UNIT_ATTENTION;
-        adaptExt->sense_info.additionalSenseCode = SCSI_ADSENSE_PARAMETERS_CHANGED;
-        adaptExt->sense_info.additionalSenseCodeQualifier = SCSI_SENSEQ_CAPACITY_DATA_CHANGED;
-        adaptExt->check_condition = TRUE;
-        DeviceChangeNotification(DeviceExtension, TRUE);
-        return TRUE;
-    }
-
-    if (!CompleteDPC(DeviceExtension, MessageID))
-    {
-        VioStorCompleteRequest(DeviceExtension, MessageID, TRUE);
-    }
 
     return TRUE;
 }
