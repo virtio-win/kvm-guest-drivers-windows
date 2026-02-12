@@ -1242,6 +1242,18 @@ VirtIoStartIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
     return TRUE;
 }
 
+static VOID VirtIoConfigUpdated(PADAPTER_EXTENSION adaptExt)
+{
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Device Config Interrupt\n");
+
+    RhelGetDiskGeometry(adaptExt);
+    adaptExt->sense_info.senseKey = SCSI_SENSE_UNIT_ATTENTION;
+    adaptExt->sense_info.additionalSenseCode = SCSI_ADSENSE_PARAMETERS_CHANGED;
+    adaptExt->sense_info.additionalSenseCodeQualifier = SCSI_SENSEQ_CAPACITY_DATA_CHANGED;
+    adaptExt->check_condition = TRUE;
+    DeviceChangeNotification(adaptExt, TRUE);
+}
+
 BOOLEAN
 VirtIoInterrupt(IN PVOID DeviceExtension)
 {
@@ -1258,7 +1270,7 @@ VirtIoInterrupt(IN PVOID DeviceExtension)
         return FALSE;
     }
     intReason = virtio_read_isr_status(&adaptExt->vdev);
-    if (intReason == 1 || adaptExt->dump_mode)
+    if (intReason & 0x1 || adaptExt->dump_mode)
     {
         if (!CompleteDPC(DeviceExtension, adaptExt->msix_has_config_vector))
         {
@@ -1266,21 +1278,61 @@ VirtIoInterrupt(IN PVOID DeviceExtension)
         }
         isInterruptServiced = TRUE;
     }
-    else if (intReason == 3)
+    if (intReason & VIRTIO_PCI_ISR_CONFIG)
     {
-        RhelGetDiskGeometry(DeviceExtension);
+        VirtIoConfigUpdated(adaptExt);
         isInterruptServiced = TRUE;
-        adaptExt->sense_info.senseKey = SCSI_SENSE_UNIT_ATTENTION;
-        adaptExt->sense_info.additionalSenseCode = SCSI_ADSENSE_PARAMETERS_CHANGED;
-        adaptExt->sense_info.additionalSenseCodeQualifier = SCSI_SENSEQ_CAPACITY_DATA_CHANGED;
-        adaptExt->check_condition = TRUE;
-        DeviceChangeNotification(DeviceExtension, TRUE);
     }
     if (!isInterruptServiced)
     {
         RhelDbgPrint(TRACE_LEVEL_ERROR, " was not serviced ISR status = %d\n", intReason);
     }
     return isInterruptServiced;
+}
+
+BOOLEAN
+VirtIoMSInterruptRoutine(IN PVOID DeviceExtension, IN ULONG MessageID)
+{
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+
+    if (MessageID > adaptExt->num_queues || adaptExt->removed == TRUE || adaptExt->stopped == TRUE)
+    {
+        RhelDbgPrint(TRACE_LEVEL_ERROR, " MessageID = %d\n", MessageID);
+        return FALSE;
+    }
+
+    if (MessageID == VIRTIO_BLK_MSIX_CONFIG_VECTOR)
+    {
+        u8 isr;
+
+        /*
+         * If the config vector is separate, we know that the configuration has
+         * definitely changed and handling the update is the only thing we need
+         * to do.
+         *
+         * With a shared config vector, check ISR to see if there even was a
+         * configuration update and afterwards move on to checking queues that
+         * share the same vector.
+         */
+        if (adaptExt->msix_has_config_vector)
+        {
+            VirtIoConfigUpdated(adaptExt);
+            return TRUE;
+        }
+
+        isr = virtio_read_isr_status(&adaptExt->vdev);
+        if (isr & VIRTIO_PCI_ISR_CONFIG)
+        {
+            VirtIoConfigUpdated(adaptExt);
+        }
+    }
+
+    if (!CompleteDPC(DeviceExtension, MessageID))
+    {
+        VioStorCompleteRequest(DeviceExtension, MessageID, TRUE);
+    }
+
+    return TRUE;
 }
 
 BOOLEAN
@@ -1570,36 +1622,6 @@ VirtIoBuildIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
 
     srbExt->sg[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &dummy);
     srbExt->sg[sgElement].length = sizeof(srbExt->vbr.status);
-
-    return TRUE;
-}
-
-BOOLEAN
-VirtIoMSInterruptRoutine(IN PVOID DeviceExtension, IN ULONG MessageID)
-{
-    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-
-    if (MessageID > adaptExt->num_queues || adaptExt->removed == TRUE || adaptExt->stopped == TRUE)
-    {
-        RhelDbgPrint(TRACE_LEVEL_ERROR, " MessageID = %d\n", MessageID);
-        return FALSE;
-    }
-
-    if (adaptExt->msix_has_config_vector && MessageID == VIRTIO_BLK_MSIX_CONFIG_VECTOR)
-    {
-        RhelGetDiskGeometry(DeviceExtension);
-        adaptExt->sense_info.senseKey = SCSI_SENSE_UNIT_ATTENTION;
-        adaptExt->sense_info.additionalSenseCode = SCSI_ADSENSE_PARAMETERS_CHANGED;
-        adaptExt->sense_info.additionalSenseCodeQualifier = SCSI_SENSEQ_CAPACITY_DATA_CHANGED;
-        adaptExt->check_condition = TRUE;
-        DeviceChangeNotification(DeviceExtension, TRUE);
-        return TRUE;
-    }
-
-    if (!CompleteDPC(DeviceExtension, MessageID))
-    {
-        VioStorCompleteRequest(DeviceExtension, MessageID, TRUE);
-    }
 
     return TRUE;
 }
