@@ -365,6 +365,11 @@ class CTXVirtQueue : public CVirtQueue
         return m_TotalDescriptors;
     }
 
+    ULONG GetMaxSizeForPacketData() const
+    {
+        return m_MaxSizeForPacketData;
+    }
+
     // TODO: Needs review
     void Shutdown();
 
@@ -375,6 +380,7 @@ class CTXVirtQueue : public CVirtQueue
     void FreeBuffers();
     ULONG m_MaxBuffers = 0;
     ULONG m_HeaderSize = 0;
+    ULONG m_MaxSizeForPacketData = 0;
 
     void KickQueueOnOverflow();
     void UpdateTXStats(const CNB &NB, CTXDescriptor &Descriptor);
