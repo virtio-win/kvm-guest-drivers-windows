@@ -1368,7 +1368,7 @@ BOOLEAN VioGpuMemSegment::RebuildMapping()
         return FALSE;
     }
 
-    // Build PFN array from all blocks
+    // MmAllocateContiguousMemory guarantees physical contiguity within each block
     PPFN_NUMBER pfnArray = MmGetMdlPfnArray(m_pMdl);
     UINT pfnIndex = 0;
 
@@ -1376,10 +1376,11 @@ BOOLEAN VioGpuMemSegment::RebuildMapping()
     {
         UINT blockPages = (UINT)(m_pBlockSizes[i] / PAGE_SIZE);
         PHYSICAL_ADDRESS blockPA = MmGetPhysicalAddress(m_pBlocks[i]);
+        PFN_NUMBER basePfn = (PFN_NUMBER)(blockPA.QuadPart / PAGE_SIZE);
 
         for (UINT j = 0; j < blockPages; j++)
         {
-            pfnArray[pfnIndex++] = (PFN_NUMBER)((blockPA.QuadPart / PAGE_SIZE) + j);
+            pfnArray[pfnIndex++] = basePfn + j;
         }
     }
 
