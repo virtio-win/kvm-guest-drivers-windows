@@ -341,7 +341,7 @@ void CtrlQueue::CreateResource(UINT res_id, UINT format, UINT width, UINT height
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
-void CtrlQueue::CreateResourceSync(UINT res_id, UINT format, UINT width, UINT height)
+BOOLEAN CtrlQueue::CreateResourceSync(UINT res_id, UINT format, UINT width, UINT height)
 {
     PAGED_CODE();
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s res_id=%u width=%u height=%u\n", __FUNCTION__, res_id, width, height));
@@ -367,8 +367,17 @@ void CtrlQueue::CreateResourceSync(UINT res_id, UINT format, UINT width, UINT he
     QueueBuffer(vbuf);
     KeWaitForSingleObject(&event, Executive, KernelMode, FALSE, NULL);
 
+    PGPU_CTRL_HDR resp = (PGPU_CTRL_HDR)vbuf->resp_buf;
+    BOOLEAN success = (resp && resp->type == VIRTIO_GPU_RESP_OK_NODATA);
+    if (!success)
+    {
+        DbgPrint(TRACE_LEVEL_ERROR,
+                 ("<--- %s FAILED res_id=%u resp_type=0x%x\n", __FUNCTION__, res_id, resp ? resp->type : 0));
+    }
+
     ReleaseBuffer(vbuf);
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s res_id=%u\n", __FUNCTION__, res_id));
+    return success;
 }
 
 void CtrlQueue::ResFlush(UINT res_id, UINT width, UINT height, UINT x, UINT y)
