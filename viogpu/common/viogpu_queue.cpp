@@ -1274,9 +1274,11 @@ BOOLEAN VioGpuMemSegment::ExpandSystemMemory(SIZE_T targetSize, SIZE_T fixedBloc
         return FALSE;
     }
 
-    // Copy existing blocks
-    RtlCopyMemory(expandedBlocks, m_pBlocks, m_nBlocks * sizeof(PVOID));
-    RtlCopyMemory(expandedSizes, m_pBlockSizes, m_nBlocks * sizeof(SIZE_T));
+    if (m_nBlocks > 0)
+    {
+        RtlCopyMemory(expandedBlocks, m_pBlocks, m_nBlocks * sizeof(PVOID));
+        RtlCopyMemory(expandedSizes, m_pBlockSizes, m_nBlocks * sizeof(SIZE_T));
+    }
 
     // Append new blocks
     RtlCopyMemory(&expandedBlocks[m_nBlocks], newBlocks, newBlockCount * sizeof(PVOID));
