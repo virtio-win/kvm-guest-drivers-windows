@@ -279,7 +279,7 @@ class CtrlQueue : public VioGpuQueue
     PGPU_VBUFFER DequeueBuffer(_Out_ UINT *len);
 
     void CreateResource(UINT res_id, UINT format, UINT width, UINT height);
-    void CreateResourceSync(UINT res_id, UINT format, UINT width, UINT height);
+    BOOLEAN CreateResourceSync(UINT res_id, UINT format, UINT width, UINT height);
     void DestroyResource(UINT res_id);
     void DestroyResourceSync(UINT res_id);
     void SetScanout(UINT scan_id, UINT res_id, UINT width, UINT height, UINT x, UINT y);

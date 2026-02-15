@@ -3821,7 +3821,17 @@ BOOLEAN VioGpuAdapter::CreateFrameBufferObjSync(PVIDEO_MODE_INFORMATION pModeInf
     // requested resolution exceeds this limit on the host side.
     // Workaround: -device virtio-gpu-pci,max_hostmem=512M (or larger)
     // See: https://patchwork.kernel.org/patch/9451903/
-    m_CtrlQueue.CreateResourceSync(resid, format, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight);
+    if (!m_CtrlQueue.CreateResourceSync(resid, format, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight))
+    {
+        DbgPrint(TRACE_LEVEL_FATAL,
+                 ("<--- %s QEMU rejected resource creation (res_id=%u, %ux%u)\n",
+                  __FUNCTION__,
+                  resid,
+                  pModeInfo->VisScreenWidth,
+                  pModeInfo->VisScreenHeight));
+        m_Idr.PutId(resid);
+        return FALSE;
+    }
     obj = new (NonPagedPoolNx) VioGpuObj();
     if (!obj->Init(size, &m_FrameSegment))
     {
