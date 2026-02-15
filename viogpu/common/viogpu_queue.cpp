@@ -1445,7 +1445,7 @@ BOOLEAN VioGpuMemSegment::Merge(SIZE_T targetSize, CPciBar *pBar, SIZE_T fixedBl
               targetSize,
               barSize));
 
-    BOOLEAN hadUsedBar = (m_bSystemMemory == FALSE);
+    BOOLEAN hadUsedBar = (!m_bSystemMemory && m_Size > 0);
     BOOLEAN success = FALSE;
     if (shouldUseBar)
     {
