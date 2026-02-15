@@ -1471,19 +1471,17 @@ BOOLEAN VioGpuMemSegment::Merge(SIZE_T targetSize, CPciBar *pBar, SIZE_T fixedBl
             m_pMdl = newMdl;
             m_pSGList = newSGList;
             m_bMapped = TRUE;
+            m_bSystemMemory = FALSE;
             m_Size = targetSize;
 
             DbgPrint(TRACE_LEVEL_INFORMATION, ("<--- %s: ->BAR success\n", __FUNCTION__));
-            success = TRUE;
+            return TRUE;
         }
         else
         {
             DbgPrint(TRACE_LEVEL_WARNING, ("%s: BAR allocation failed\n", __FUNCTION__));
-            success = FALSE;
+            return FALSE;
         }
-
-        m_bSystemMemory = FALSE;
-        return success;
     }
     else if (hadUsedBar)
     {
