@@ -783,7 +783,7 @@ NTSTATUS VioGpuDod::IsSupportedVidPn(_Inout_ DXGKARG_ISSUPPORTEDVIDPN *pIsSuppor
 
         if (bReject)
         {
-            return STATUS_SUCCESS; // IsVidPnSupported remains FALSE
+            return STATUS_NO_MEMORY;
         }
     }
 
