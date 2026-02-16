@@ -724,45 +724,66 @@ NTSTATUS VioGpuDod::IsSupportedVidPn(_Inout_ DXGKARG_ISSUPPORTEDVIDPN *pIsSuppor
         }
 
         // Check if resolution exceeds framebuffer segment capacity
-        if (NumPathsFromSource > 0)
+        if (NumPathsFromSource == 0)
         {
-            D3DKMDT_HVIDPNSOURCEMODESET hVidPnSourceModeSet;
-            CONST DXGK_VIDPNSOURCEMODESET_INTERFACE *pVidPnSourceModeSetInterface;
-            if (NT_SUCCESS(pVidPnInterface->pfnAcquireSourceModeSet(pIsSupportedVidPn->hDesiredVidPn,
-                                                                    SourceId,
-                                                                    &hVidPnSourceModeSet,
-                                                                    &pVidPnSourceModeSetInterface)))
+            continue;
+        }
+
+        D3DKMDT_HVIDPNSOURCEMODESET hVidPnSourceModeSet;
+        CONST DXGK_VIDPNSOURCEMODESET_INTERFACE *pVidPnSourceModeSetInterface;
+        Status = pVidPnInterface->pfnAcquireSourceModeSet(pIsSupportedVidPn->hDesiredVidPn,
+                                                          SourceId,
+                                                          &hVidPnSourceModeSet,
+                                                          &pVidPnSourceModeSetInterface);
+        if (!NT_SUCCESS(Status))
+        {
+            if (Status == STATUS_GRAPHICS_INVALID_VIDEO_PRESENT_SOURCE)
             {
-                CONST D3DKMDT_VIDPN_SOURCE_MODE *pPinnedVidPnSourceModeInfo = NULL;
-                pVidPnSourceModeSetInterface->pfnAcquirePinnedModeInfo(hVidPnSourceModeSet,
-                                                                       &pPinnedVidPnSourceModeInfo);
-
-                BOOLEAN bReject = FALSE;
-                if (pPinnedVidPnSourceModeInfo != NULL)
-                {
-                    SIZE_T RequiredSize = (SIZE_T)pPinnedVidPnSourceModeInfo->Format.Graphics.PrimSurfSize.cx *
-                                          pPinnedVidPnSourceModeInfo->Format.Graphics.PrimSurfSize.cy *
-                                          (BPPFromPixelFormat(pPinnedVidPnSourceModeInfo->Format.Graphics.PixelFormat) /
-                                           BITS_PER_BYTE);
-                    SIZE_T SegmentSize = m_pHWDevice->GetFrameSegmentSize();
-                    if (SegmentSize > 0 && RequiredSize > SegmentSize)
-                    {
-                        DbgPrint(TRACE_LEVEL_WARNING,
-                                 ("%s: Resolution requires %llu bytes, segment size is %llu\n",
-                                  __FUNCTION__,
-                                  (ULONGLONG)RequiredSize,
-                                  (ULONGLONG)SegmentSize));
-                        bReject = TRUE;
-                    }
-                    pVidPnSourceModeSetInterface->pfnReleaseModeInfo(hVidPnSourceModeSet, pPinnedVidPnSourceModeInfo);
-                }
-                pVidPnInterface->pfnReleaseSourceModeSet(pIsSupportedVidPn->hDesiredVidPn, hVidPnSourceModeSet);
-
-                if (bReject)
-                {
-                    return STATUS_SUCCESS; // IsVidPnSupported remains FALSE
-                }
+                continue;
             }
+            DbgPrint(TRACE_LEVEL_ERROR,
+                     ("<--- %s pfnAcquireSourceModeSet failed with Status = 0x%X, SourceId = %llu\n",
+                      __FUNCTION__,
+                      Status,
+                      LONG_PTR(SourceId)));
+            return Status;
+        }
+
+        CONST D3DKMDT_VIDPN_SOURCE_MODE *pPinnedVidPnSourceModeInfo = NULL;
+        Status = pVidPnSourceModeSetInterface->pfnAcquirePinnedModeInfo(hVidPnSourceModeSet,
+                                                                        &pPinnedVidPnSourceModeInfo);
+        if (!NT_SUCCESS(Status))
+        {
+            pVidPnInterface->pfnReleaseSourceModeSet(pIsSupportedVidPn->hDesiredVidPn, hVidPnSourceModeSet);
+            DbgPrint(TRACE_LEVEL_ERROR,
+                     ("<--- %s pfnAcquirePinnedModeInfo failed with Status = 0x%X\n", __FUNCTION__, Status));
+            return Status;
+        }
+
+        BOOLEAN bReject = FALSE;
+        if (pPinnedVidPnSourceModeInfo != NULL)
+        {
+            SIZE_T RequiredSize = (SIZE_T)pPinnedVidPnSourceModeInfo->Format.Graphics.PrimSurfSize.cx *
+                                  pPinnedVidPnSourceModeInfo->Format.Graphics.PrimSurfSize.cy *
+                                  (BPPFromPixelFormat(pPinnedVidPnSourceModeInfo->Format.Graphics.PixelFormat) /
+                                   BITS_PER_BYTE);
+            SIZE_T SegmentSize = m_pHWDevice->GetFrameSegmentSize();
+            if (SegmentSize > 0 && RequiredSize > SegmentSize)
+            {
+                DbgPrint(TRACE_LEVEL_WARNING,
+                         ("<--- %s Resolution requires %llu bytes, segment size is %llu\n",
+                          __FUNCTION__,
+                          (ULONGLONG)RequiredSize,
+                          (ULONGLONG)SegmentSize));
+                bReject = TRUE;
+            }
+            pVidPnSourceModeSetInterface->pfnReleaseModeInfo(hVidPnSourceModeSet, pPinnedVidPnSourceModeInfo);
+        }
+        pVidPnInterface->pfnReleaseSourceModeSet(pIsSupportedVidPn->hDesiredVidPn, hVidPnSourceModeSet);
+
+        if (bReject)
+        {
+            return STATUS_SUCCESS; // IsVidPnSupported remains FALSE
         }
     }
 
