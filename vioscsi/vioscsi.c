@@ -340,10 +340,12 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
 {
     PADAPTER_EXTENSION adaptExt;
     PVOID uncachedExtensionVa;
-    USHORT queueLength = 0;
+    USHORT queue_length = 0;
     ULONG Size;
     ULONG HeapSize;
-    ULONG extensionSize;
+    ULONG uncachedExtPad1 = 0;
+    ULONG uncachedExtPad2 = 4096;
+    ULONG uncachedExtSize;
     ULONG index;
     ULONG num_cpus;
     ULONG max_cpus;
@@ -389,7 +391,7 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
     adaptExt->scsi_config.num_queues = 1;
     adaptExt->scsi_config.seg_max = SCSI_MINIMUM_PHYSICAL_BREAKS;
     adaptExt->indirect = FALSE;
-    adaptExt->max_physical_breaks = SCSI_MINIMUM_PHYSICAL_BREAKS;
+    adaptExt->max_segments = SCSI_MINIMUM_PHYSICAL_BREAKS;
     GetScsiConfig(DeviceExtension);
     SetGuestFeatures(DeviceExtension);
 
@@ -402,26 +404,25 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
 
     if (!adaptExt->dump_mode)
     {
-        adaptExt->max_physical_breaks = adaptExt->indirect ? MAX_PHYS_SEGMENTS : PHYS_SEGMENTS;
+        adaptExt->max_segments = adaptExt->indirect ? PHYS_SEGMENTS_LIMIT : PHYS_SEGMENTS;
 
-        /* Allow user to override max_physical_breaks via reg key
+        /* Allow user to override max_segments via reg key
          * [HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\vioscsi\Parameters\Device]
          * "PhysicalBreaks"={dword value here}
          */
         VioScsiReadRegistryParameter(DeviceExtension,
                                      REGISTRY_MAX_PH_BREAKS,
-                                     FIELD_OFFSET(ADAPTER_EXTENSION, max_physical_breaks));
-        adaptExt->max_physical_breaks = min(max(SCSI_MINIMUM_PHYSICAL_BREAKS, adaptExt->max_physical_breaks),
-                                            MAX_PHYS_SEGMENTS);
+                                     FIELD_OFFSET(ADAPTER_EXTENSION, max_segments));
+        adaptExt->max_segments = min(max(SCSI_MINIMUM_PHYSICAL_BREAKS, adaptExt->max_segments), PHYS_SEGMENTS_LIMIT);
 
         if (adaptExt->scsi_config.max_sectors > 0 && adaptExt->scsi_config.max_sectors != 0xFFFF &&
-            adaptExt->max_physical_breaks * PAGE_SIZE > adaptExt->scsi_config.max_sectors * SECTOR_SIZE)
+            adaptExt->max_segments * PAGE_SIZE > adaptExt->scsi_config.max_sectors * SECTOR_SIZE)
         {
-            adaptExt->max_physical_breaks = adaptExt->scsi_config.max_sectors * SECTOR_SIZE / PAGE_SIZE;
+            adaptExt->max_segments = adaptExt->scsi_config.max_sectors * SECTOR_SIZE / PAGE_SIZE;
         }
     }
-    ConfigInfo->NumberOfPhysicalBreaks = adaptExt->max_physical_breaks + 1;
-    ConfigInfo->MaximumTransferLength = adaptExt->max_physical_breaks * PAGE_SIZE;
+    ConfigInfo->NumberOfPhysicalBreaks = adaptExt->max_segments + 1;
+    ConfigInfo->MaximumTransferLength = adaptExt->max_segments * PAGE_SIZE;
 
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " NumberOfPhysicalBreaks %d\n", ConfigInfo->NumberOfPhysicalBreaks);
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " MaximumTransferLength %d\n", ConfigInfo->MaximumTransferLength);
@@ -463,7 +464,7 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
     }
     else
     {
-        max_queues = min(max_cpus, adaptExt->scsi_config.num_queues);
+        max_queues = min(max_cpus, adaptExt->scsi_config.num_queues) + VIRTIO_SCSI_REQUEST_QUEUE_0;
         if (adaptExt->num_queues > max_queues)
         {
             RhelDbgPrint(TRACE_LEVEL_WARNING, " Multiqueue can only use at most one queue per cpu.");
@@ -486,65 +487,150 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
     adaptExt->pageOffset = 0;
     adaptExt->poolOffset = 0;
     Size = 0;
-    for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < max_queues + VIRTIO_SCSI_REQUEST_QUEUE_0; ++index)
+#if !defined(RUN_UNCHECKED)
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                 " START: pageAllocationSize : %lu KiB | Size : %lu KiB | poolAllocationSize : %lu Bytes |"
+                 " HeapSize is not yet defined. \n",
+                 (adaptExt->pageAllocationSize / 1024),
+                 (Size / 1024),
+                 adaptExt->poolAllocationSize);
+#endif
+    for (index = VIRTIO_SCSI_CONTROL_QUEUE; index < max_queues; ++index)
     {
-        virtio_query_queue_allocation(&adaptExt->vdev, index, &queueLength, &Size, &HeapSize);
+        virtio_query_queue_allocation(&adaptExt->vdev, index, &queue_length, &Size, &HeapSize);
         if (Size == 0)
         {
             LogError(DeviceExtension, SP_INTERNAL_ADAPTER_ERROR, __LINE__);
 
-            RhelDbgPrint(TRACE_LEVEL_FATAL, " Virtual queue %d config failed.\n", index);
+#if !defined(RUN_UNCHECKED)
+            RhelDbgPrint(TRACE_LEVEL_FATAL, " Virtual queue %lu config failed.\n", index);
+            EXIT_FN();
+#endif
             return SP_RETURN_ERROR;
         }
         adaptExt->pageAllocationSize += ROUND_TO_PAGES(Size);
         adaptExt->poolAllocationSize += ROUND_TO_CACHE_LINES(HeapSize);
+#if !defined(RUN_UNCHECKED)
+        RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                     " INCR : pageAllocationSize : %lu KiB | Size : %lu KiB | poolAllocationSize : %lu Bytes |"
+                     " HeapSize : %lu Bytes \n",
+                     (adaptExt->pageAllocationSize / 1024),
+                     (Size / 1024),
+                     adaptExt->poolAllocationSize,
+                     HeapSize);
+#endif
     }
     if (!adaptExt->dump_mode)
     {
         adaptExt->poolAllocationSize += ROUND_TO_CACHE_LINES(sizeof(SRB_EXTENSION));
         adaptExt->poolAllocationSize += ROUND_TO_CACHE_LINES(sizeof(VirtIOSCSIEventNode) * 8);
         adaptExt->poolAllocationSize += ROUND_TO_CACHE_LINES(sizeof(STOR_DPC) * max_queues);
+#if !defined(RUN_UNCHECKED)
+        RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                     " DUMP : pageAllocationSize : %lu KiB | Size : %lu KiB | poolAllocationSize : %lu Bytes |"
+                     " HeapSize : %lu Bytes \n",
+                     (adaptExt->pageAllocationSize / 1024),
+                     (Size / 1024),
+                     adaptExt->poolAllocationSize,
+                     HeapSize);
+#endif
     }
-    if (max_queues + VIRTIO_SCSI_REQUEST_QUEUE_0 > MAX_QUEUES_PER_DEVICE_DEFAULT)
+
+    if (max_queues > MAX_QUEUES_PER_DEVICE_DEFAULT)
     {
         adaptExt->poolAllocationSize += ROUND_TO_CACHE_LINES(((ULONGLONG)max_queues + VIRTIO_SCSI_REQUEST_QUEUE_0) *
                                                              virtio_get_queue_descriptor_size());
+#if !defined(RUN_UNCHECKED)
+        RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                     " LIMIT: pageAllocationSize : %lu KiB | Size : %lu KiB | poolAllocationSize : %lu Bytes |"
+                     " HeapSize : %lu Bytes \n",
+                     (adaptExt->pageAllocationSize / 1024),
+                     (Size / 1024),
+                     adaptExt->poolAllocationSize,
+                     HeapSize);
+#endif
     }
+
+#if !defined(RUN_UNCHECKED)
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                 " FINAL: pageAllocationSize : %lu KiB | Size : %lu KiB | poolAllocationSize : %lu Bytes |"
+                 " HeapSize : %lu Bytes \n",
+                 (adaptExt->pageAllocationSize / 1024),
+                 (Size / 1024),
+                 adaptExt->poolAllocationSize,
+                 HeapSize);
+#endif
 
     if (adaptExt->indirect)
     {
-        adaptExt->queue_depth = queueLength;
+        adaptExt->queue_depth = queue_length;
     }
     else
     {
-        adaptExt->queue_depth = queueLength / ConfigInfo->NumberOfPhysicalBreaks - 1;
+        adaptExt->queue_depth = queue_length / adaptExt->max_segments;
     }
+#if !defined(RUN_UNCHECKED)
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                 " Calculate Queue Depth : VIRTIO_RING_F_INDIRECT_DESC is %s | VIRTIO determined Queue Length"
+                 " [queue_length] : %lu | Calulated Queue Depth [queue_depth] : %lu \n",
+                 (adaptExt->indirect) ? "ON" : "OFF",
+                 queue_length,
+                 adaptExt->queue_depth);
+#endif
+
     ConfigInfo->MaxIOsPerLun = adaptExt->queue_depth * adaptExt->num_queues;
     ConfigInfo->InitialLunQueueDepth = ConfigInfo->MaxIOsPerLun;
     ConfigInfo->MaxNumberOfIO = ConfigInfo->MaxIOsPerLun;
 
+#if !defined(RUN_UNCHECKED)
     RhelDbgPrint(TRACE_LEVEL_INFORMATION,
-                 " breaks_number = %x  queue_depth = %x\n",
+                 " StorPort Submission: NumberOfPhysicalBreaks = 0x%x (%lu), MaximumTransferLength = 0x%x (%lu KiB), "
+                 "MaxNumberOfIO = %lu, MaxIOsPerLun = %lu, InitialLunQueueDepth = %lu \n",
                  ConfigInfo->NumberOfPhysicalBreaks,
-                 adaptExt->queue_depth);
+                 ConfigInfo->NumberOfPhysicalBreaks,
+                 ConfigInfo->MaximumTransferLength,
+                 (ConfigInfo->MaximumTransferLength / 1024),
+                 ConfigInfo->MaxNumberOfIO,
+                 ConfigInfo->MaxIOsPerLun,
+                 ConfigInfo->InitialLunQueueDepth);
+#endif
 
-    extensionSize = PAGE_SIZE + adaptExt->pageAllocationSize + adaptExt->poolAllocationSize;
-    uncachedExtensionVa = StorPortGetUncachedExtension(DeviceExtension, ConfigInfo, extensionSize);
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION,
-                 " StorPortGetUncachedExtension uncachedExtensionVa = %p allocation size = %d\n",
-                 uncachedExtensionVa,
-                 extensionSize);
+    /* If needed, calculate the padding for the pool allocation to keep the uncached extension page aligned */
+    if (adaptExt->poolAllocationSize > 0)
+    {
+        uncachedExtPad2 = (ROUND_TO_PAGES(adaptExt->poolAllocationSize)) - adaptExt->poolAllocationSize;
+    }
+    uncachedExtSize = uncachedExtPad1 + adaptExt->pageAllocationSize + adaptExt->poolAllocationSize + uncachedExtPad2;
+    uncachedExtensionVa = StorPortGetUncachedExtension(DeviceExtension, ConfigInfo, uncachedExtSize);
+
     if (!uncachedExtensionVa)
     {
         LogError(DeviceExtension, SP_INTERNAL_ADAPTER_ERROR, __LINE__);
-
-        RhelDbgPrint(TRACE_LEVEL_FATAL, " Can't get uncached extension allocation size = %d\n", extensionSize);
+#if !defined(RUN_UNCHECKED)
+        RhelDbgPrint(TRACE_LEVEL_FATAL,
+                     " Unable to obtain uncached extension allocation of size = %lu Bytes (%lu KiB)\n",
+                     uncachedExtSize,
+                     (uncachedExtSize / 1024));
+        EXIT_FN();
+#endif
         return SP_RETURN_ERROR;
+    }
+    else
+    {
+#if !defined(RUN_UNCHECKED)
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                     " MEMORY ALLOCATION : %p, size = %lu (0x%x) Bytes | StorPortGetUncachedExtension() "
+                     "[uncachedExtensionVa] (size = %lu KiB) \n",
+                     uncachedExtensionVa,
+                     uncachedExtSize,
+                     uncachedExtSize,
+                     (uncachedExtSize / 1024));
+#endif
     }
 
     /* At this point we have all the memory we're going to need. We lay it out as follows.
-     * Note that StorPortGetUncachedExtension tends to return page-aligned memory so the
-     * padding1 region will typically be empty and the size of padding2 equal to PAGE_SIZE.
+     * Note that we cause StorPortGetUncachedExtension to return a page-aligned memory allocation so
+     * the padding1 region will typically be empty and padding2 will be sized to ensure page alignment.
      *
      * uncachedExtensionVa    pageAllocationVa         poolAllocationVa
      * +----------------------+------------------------+--------------------------+----------------------+
@@ -553,32 +639,58 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
      * | \ \ \ \ \ \ \ \ \ \  |    page-aligned area   | pool area for cache-line | \ \ \ \ \ \ \ \ \ \  |
      * |  \ \ \ \ \ \ \ \ \ \ |                        | aligned allocations      |  \ \ \ \ \ \ \ \ \ \ |
      * +----------------------+------------------------+--------------------------+----------------------+
-     * |<=====================================  extensionSize  =========================================>|
+     * |<====================================  uncachedExtSize  ========================================>|
      */
-    adaptExt->pageAllocationVa = (PVOID)(((ULONG_PTR)(uncachedExtensionVa) + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1));
+
+    /* Get the Virtual Address of the page aligned area */
+    adaptExt->pageAllocationVa = (PVOID)(((ULONG_PTR)(uncachedExtensionVa) + (PAGE_SIZE - 1)) & ~(PAGE_SIZE - 1));
+
+    /* If needed, get the Virtual Address of the pool (cache-line aligned) area */
     if (adaptExt->poolAllocationSize > 0)
     {
         adaptExt->poolAllocationVa = (PVOID)((ULONG_PTR)adaptExt->pageAllocationVa + adaptExt->pageAllocationSize);
     }
+#if !defined(RUN_UNCHECKED)
     RhelDbgPrint(TRACE_LEVEL_INFORMATION,
-                 " Page-aligned area at %p, size = %d\n",
+                 " MEMORY ALLOCATION : %p, size = %lu (0x%x) Bytes |"
+                 " Page-aligned area [pageAllocationVa] (size = %lu KiB) \n",
                  adaptExt->pageAllocationVa,
-                 adaptExt->pageAllocationSize);
+                 adaptExt->pageAllocationSize,
+                 adaptExt->pageAllocationSize,
+                 (adaptExt->pageAllocationSize / 1024));
     RhelDbgPrint(TRACE_LEVEL_INFORMATION,
-                 " Pool area at %p, size = %d\n",
+                 " MEMORY ALLOCATION : %p, size = %lu (0x%x) Bytes |"
+                 " Pool (cache-line aligned) area [poolAllocationVa] \n",
                  adaptExt->poolAllocationVa,
+                 adaptExt->poolAllocationSize,
                  adaptExt->poolAllocationSize);
+#endif
 
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " pmsg_affinity = %p\n", adaptExt->pmsg_affinity);
-    if (!adaptExt->dump_mode && (adaptExt->num_queues > 1) && (adaptExt->pmsg_affinity == NULL))
+    /* Allocate a memory pool for the CPU affinity masks */
+    if ((!adaptExt->dump_mode) && (adaptExt->num_queues > 1) && (adaptExt->pmsg_affinity == NULL))
     {
-        adaptExt->num_affinity = adaptExt->num_queues + 3;
+        adaptExt->num_affinity = adaptExt->num_queues + VIRTIO_SCSI_REQUEST_QUEUE_0 + VIRTIO_SCSI_MSI_CONTROL_Q_OFFSET;
+
         ULONG Status = StorPortAllocatePool(DeviceExtension,
                                             sizeof(GROUP_AFFINITY) * (ULONGLONG)adaptExt->num_affinity,
                                             VIOSCSI_POOL_TAG,
                                             (PVOID *)&adaptExt->pmsg_affinity);
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " pmsg_affinity = %p Status = %lu\n", adaptExt->pmsg_affinity, Status);
+
+#if !defined(RUN_UNCHECKED)
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                     " MEMORY ALLOCATION : %p, size = %lu (0x%x) Bytes | CPU Affinity [pmsg_affinity] |"
+                     " num_affinity = %lu, StorPortAllocatePool() Status = 0x%x \n",
+                     adaptExt->pmsg_affinity,
+                     (sizeof(GROUP_AFFINITY) * (ULONGLONG)adaptExt->num_affinity),
+                     (sizeof(GROUP_AFFINITY) * (ULONGLONG)adaptExt->num_affinity),
+                     adaptExt->num_affinity,
+                     Status);
+        // FIXME : SDV banned functions - sometimes useful for debug
+        // RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Higest NUMA Node Number : %lu \n", KeQueryHighestNodeNumber());
+        // RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Active CPU KAFFINITY Mask : %I64d \n", KeQueryActiveProcessors());
+#endif
     }
+
     adaptExt->fw_ver = '0';
 
     EXIT_FN();
@@ -1352,7 +1464,7 @@ VioScsiBuildIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
     sgList = StorPortGetScatterGatherList(DeviceExtension, Srb);
     if (sgList)
     {
-        sgMaxElements = min((adaptExt->max_physical_breaks + 1), sgList->NumberOfElements);
+        sgMaxElements = min((adaptExt->max_segments + 1), sgList->NumberOfElements);
 
         if ((SRB_FLAGS(Srb) & SRB_FLAGS_DATA_OUT) == SRB_FLAGS_DATA_OUT)
         {
@@ -1371,7 +1483,7 @@ VioScsiBuildIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
     sgElement++;
     if (sgList)
     {
-        sgMaxElements = min((adaptExt->max_physical_breaks + 1), sgList->NumberOfElements);
+        sgMaxElements = min((adaptExt->max_segments + 1), sgList->NumberOfElements);
 
         if ((SRB_FLAGS(Srb) & SRB_FLAGS_DATA_OUT) != SRB_FLAGS_DATA_OUT)
         {
@@ -2562,7 +2674,7 @@ VOID VioScsiReadExtendedData(IN PVOID Context, OUT PUCHAR Buffer)
     extInfo->ConcurrentChannels = CHECKFLAG(adaptExt->perfFlags, STOR_PERF_CONCURRENT_CHANNELS);
     extInfo->InterruptMsgRanges = CHECKFLAG(adaptExt->perfFlags, STOR_PERF_INTERRUPT_MESSAGE_RANGES);
     extInfo->CompletionDuringStartIo = CHECKFLAG(adaptExt->perfFlags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO);
-    extInfo->PhysicalBreaks = adaptExt->max_physical_breaks;
+    extInfo->PhysicalBreaks = adaptExt->max_segments;
     extInfo->ResponseTime = adaptExt->resp_time;
     EXIT_FN();
 }
