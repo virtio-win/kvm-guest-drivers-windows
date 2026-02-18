@@ -1,3 +1,21 @@
+Date    18 Feb 2026
+repo    https://github.com/virtio-win/kvm-guest-drivers-windows.git
+tag     mm317
+
+Fixed issues:
+[viogpu] Fix null pointer dereference in VioGpuObj::Init error path
+[Balloon] Fix invalid BSTR usage in WMI connection and query
+[viofs] Fix Coverity findings: Input validation and code cleanup
+[viomem] Fix Coverity issues
+[viostor] Use ULONG for num_queues
+Add VS Code tasks for building virtio-win drivers
+[viogpu] Fix resource leak when framebuffer init fails
+viostor: Remove DmaWidth initialization in HwStorFindAdapter
+RHEL-149878: viostor: Cleanups around msix_one_vector and MessageId
+RHEL-149866: viostor: Fix device configuration updates
+RHEL-149886: [viogpu] Reject resolutions exceeding framebuffer segment capacity
+netkvm: Add mergeable receive buffers support
+
 Date    2 Feb 2026
 repo    https://github.com/virtio-win/kvm-guest-drivers-windows.git
 tag     mm316
