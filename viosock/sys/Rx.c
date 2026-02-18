@@ -495,6 +495,46 @@ _Requires_lock_not_held_(pContext->RxLock) VOID VIOSockRxVqCleanup(IN PDEVICE_CO
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
 }
 
+VOID VIOSockRxVqDrainAllPackets(IN PDEVICE_CONTEXT pContext)
+{
+    PVIOSOCK_RX_PKT pPkt;
+    PSINGLE_LIST_ENTRY pListEntry;
+    ULONG packetsRemoved = 0;
+
+    TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
+
+    if (!pContext->RxVq)
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "<-- %s: No RxVq to drain\n", __FUNCTION__);
+        return;
+    }
+
+    WdfSpinLockAcquire(pContext->RxLock);
+
+    // Drain all unused buffers from virtqueue
+    while (pPkt = (PVIOSOCK_RX_PKT)virtqueue_detach_unused_buf(pContext->RxVq))
+    {
+        VIOSockRxPktCleanup(pContext, pPkt);
+        packetsRemoved++;
+    }
+
+    // Clear all postponed packets
+    while (pListEntry = PopEntryList(&pContext->RxPktList))
+    {
+        pPkt = CONTAINING_RECORD(pListEntry, VIOSOCK_RX_PKT, RxPktListEntry);
+        VIOSockRxPktCleanup(pContext, pPkt);
+        packetsRemoved++;
+    }
+
+    WdfSpinLockRelease(pContext->RxLock);
+
+    TraceEvents(TRACE_LEVEL_WARNING,
+                DBG_HW_ACCESS,
+                "<-- %s: Drained %d packets from receive queue\n",
+                __FUNCTION__,
+                packetsRemoved);
+}
+
 NTSTATUS
 VIOSockRxVqInit(IN PDEVICE_CONTEXT pContext)
 {
@@ -965,7 +1005,19 @@ _Requires_lock_not_held_(pContext->RxLock) VOID VIOSockRxVqProcess(IN PDEVICE_CO
             continue;
         }
 
-        ASSERT(pContext->Config.guest_cid == (ULONG32)pPkt->Header.dst_cid);
+        if (pContext->Config.guest_cid != (ULONG32)pPkt->Header.dst_cid)
+        {
+            TraceEvents(TRACE_LEVEL_CRITICAL,
+                        DBG_SOCKET,
+                        "Packet CID mismatch: expected %d, got %d\n",
+                        (ULONG)pContext->Config.guest_cid,
+                        (ULONG)pPkt->Header.dst_cid);
+
+            ASSERT(FALSE);
+
+            VIOSockRxPktInsertOrPostpone(pContext, pPkt);
+            continue;
+        }
 
         TraceEvents(TRACE_LEVEL_INFORMATION,
                     DBG_SOCKET,
