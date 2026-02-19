@@ -1950,6 +1950,16 @@ ParseIdentificationDescr(IN PVOID DeviceExtension,
     {
         CodeSet = IdentificationDescr->CodeSet;               //(UCHAR)(((PCHAR)IdentificationDescr)[0]);
         IdentifierType = IdentificationDescr->IdentifierType; //(UCHAR)(((PCHAR)IdentificationDescr)[1]);
+        if (PageLength < IdentificationDescr->IdentifierLength)
+        {
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                         " Skipping VPD identifier's descriptor as its length"
+                         "(0x%02x) is bigger than the remaining data buffer length (0x%02x), therefore"
+                         "the descriptor is unreliable.\n",
+                         IdentificationDescr->IdentifierLength,
+                         PageLength);
+            return PageLength;
+        }
         switch (IdentifierType)
         {
             case VioscsiVpdIdentifierTypeVendorSpecific:
@@ -2077,7 +2087,13 @@ VOID VioScsiSaveInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
                     PVPD_IDENTIFICATION_DESCRIPTOR IdentificationDescr;
                     UCHAR PageLength = 0;
                     IdentificationPage = (PVPD_IDENTIFICATION_PAGE)dataBuffer;
-                    PageLength = IdentificationPage->PageLength;
+                    PageLength = min((UCHAR)(dataLen & 0xFF) - sizeof(VPD_IDENTIFICATION_PAGE),
+                                     IdentificationPage->PageLength);
+                    RhelDbgPrint(TRACE_LEVEL_VERBOSE, " SRB's DataTransferLength: 0x%x\n", dataLen);
+                    RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                                 " Identification page's length: 0x%x\n",
+                                 IdentificationPage->PageLength);
+                    RhelDbgPrint(TRACE_LEVEL_VERBOSE, " Total PageLength: 0x%x\n", PageLength);
                     if (PageLength >= sizeof(VPD_IDENTIFICATION_DESCRIPTOR))
                     {
                         UCHAR IdentifierLength = 0;
@@ -2092,7 +2108,8 @@ VOID VioScsiSaveInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
                             PageLength -= min(PageLength, offset);
                             IdentificationDescr = (PVPD_IDENTIFICATION_DESCRIPTOR)((ULONG_PTR)IdentificationDescr +
                                                                                    offset);
-                        } while (PageLength);
+                            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " Remaining PageLength: 0x%x\n", PageLength);
+                        } while (PageLength >= sizeof(VPD_IDENTIFICATION_DESCRIPTOR));
                     }
                 }
                 break;
