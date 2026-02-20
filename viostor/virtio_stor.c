@@ -500,6 +500,10 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
                  ConfigInfo->NumberOfPhysicalBreaks,
                  adaptExt->queue_depth);
 
+    ConfigInfo->MaxIOsPerLun = adaptExt->queue_depth * adaptExt->num_queues;
+    ConfigInfo->InitialLunQueueDepth = ConfigInfo->MaxIOsPerLun;
+    ConfigInfo->MaxNumberOfIO = ConfigInfo->MaxIOsPerLun;
+
     extensionSize = PAGE_SIZE + adaptExt->pageAllocationSize + adaptExt->poolAllocationSize;
     uncachedExtensionVa = StorPortGetUncachedExtension(DeviceExtension, ConfigInfo, extensionSize);
     RhelDbgPrint(TRACE_LEVEL_INFORMATION,
