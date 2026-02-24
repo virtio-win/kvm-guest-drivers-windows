@@ -424,9 +424,11 @@ NTSTATUS VirtIOWdfDeviceCheckIOMMUActive(PVIRTIO_WDF_DRIVER pWdfDriver, WDFDEVIC
     NTSTATUS status =
         WdfDeviceQueryPropertyEx(wdfDev, &propData, sizeof(value), &value, &reqSize, &propType);
     DPrintf(0, "%s: status %X, dma remap=%d\n", __FUNCTION__, status, value);
+    pWdfDriver->IsIoMmuActive = bHasFeature && value == 2;
     if (!NT_SUCCESS(status) || value != 2 || bHasFeature) {
         return STATUS_SUCCESS;
     }
+    pWdfDriver->IsIoMmuActive = FALSE;
 
     // the VIRTIO_F_ACCESS_PLATFORM is not set and there is
     // a possibility of DMA remapping
