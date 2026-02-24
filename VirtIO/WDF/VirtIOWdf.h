@@ -62,6 +62,8 @@ typedef struct virtio_wdf_driver {
     WDFCOLLECTION MemoryBlockCollection;
     WDFSPINLOCK DmaSpinlock;
 
+    BOOLEAN IsIoMmuActive;
+
 } VIRTIO_WDF_DRIVER, *PVIRTIO_WDF_DRIVER;
 
 /* Queue discovery callbacks used by VirtIOWdfInitQueuesCB. */
