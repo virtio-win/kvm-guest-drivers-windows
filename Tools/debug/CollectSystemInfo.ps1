@@ -233,6 +233,69 @@ function Export-VirtioWinStorageDrivers {
     Write-Host 'Virtio-Win storage drivers configuration collection completed.'
 }
 
+function Export-PhantomDevices {
+    try {
+        $phantomDevices = Get-PnpDevice -PresentOnly:$false -ErrorAction Stop |
+            Where-Object { $_.Present -eq $false } |
+            Select-Object -Property InstanceId, Status, Class, FriendlyName, Manufacturer, Service, Present, Problem
+        $phantomDevices | Export-Csv -Path (Join-Path $logfolderPath 'PhantomDevices.csv') -NoTypeInformation
+        Write-Host "Phantom devices collection completed."
+    } catch {
+        Write-Warning "Failed to collect phantom devices: $_"
+    }
+}
+
+function Export-PhantomNICConfig {
+    try {
+        $phantomNics = Get-PnpDevice -PresentOnly:$false -Class Net -ErrorAction Stop |
+            Where-Object { $_.Present -eq $false }
+        if (-not $phantomNics -or $phantomNics.Count -eq 0) {
+            Write-Host 'No phantom NICs found; skipping phantom NIC config export.'
+            return
+        }
+        $netClassPath = 'HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}'
+        $instanceIdToGuid = @{}
+        Get-ChildItem -Path $netClassPath -ErrorAction SilentlyContinue | ForEach-Object {
+            $props = Get-ItemProperty -Path $_.PSPath -Name 'DeviceInstanceID', 'NetCfgInstanceId' -ErrorAction SilentlyContinue
+            if ($props -and $props.DeviceInstanceID -and $props.NetCfgInstanceId) {
+                $instanceIdToGuid[$props.DeviceInstanceID] = $props.NetCfgInstanceId
+            }
+        }
+        $tcpipInterfacesPath = 'HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces'
+        $rows = foreach ($nic in $phantomNics) {
+            $guid = $instanceIdToGuid[$nic.InstanceId]
+            $registryDump = ''
+            if ($guid) {
+                $ifKey = Join-Path $tcpipInterfacesPath $guid
+                if (Test-Path $ifKey) {
+                    $props = Get-ItemProperty -Path $ifKey -ErrorAction SilentlyContinue
+                    if ($props) {
+                        $registryDump = ($props.PSObject.Properties |
+                            Where-Object { $_.Name -notmatch '^(PSPath|PSParentPath|PSChildName|PSDrive|PSProvider)$' } |
+                            ForEach-Object {
+                                $val = $_.Value
+                                if ($val -is [array]) { $val = $val -join '; ' }
+                                "$($_.Name)=$val"
+                            }) -join ' | '
+                    }
+                }
+            } else {
+                $guid = 'N/A'
+            }
+            [PSCustomObject]@{
+                FriendlyName           = $nic.FriendlyName
+                InstanceId             = $nic.InstanceId
+                NetCfgInstanceId       = if ($guid) { $guid } else { 'N/A' }
+                InterfaceRegistryValues = $registryDump
+            }
+        }
+        $rows | Export-Csv -Path (Join-Path $logfolderPath 'PhantomNICConfig.csv') -NoTypeInformation
+        Write-Host "Phantom NIC config collection completed"
+    } catch {
+        Write-Warning "Failed to collect phantom NIC config: $_"
+    }
+}
+
 function Export-WindowsUpdateLogs {
     try {
         $logPath = Join-Path $logfolderPath 'WindowsUpdate.log'
@@ -414,6 +477,8 @@ try {
     Export-EventLogs
     Export-DriversList
     Export-VirtioWinStorageDrivers
+    Export-PhantomDevices
+    Export-PhantomNICConfig
     Export-WindowsUpdateLogs
     Export-ServicesList
     Export-WindowsUptime
