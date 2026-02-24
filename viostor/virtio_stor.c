@@ -436,8 +436,8 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
     ConfigInfo->NumberOfPhysicalBreaks++;
     adaptExt->max_tx_length = ConfigInfo->MaximumTransferLength;
 
-    num_cpus = KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
-    max_cpus = KeQueryMaximumProcessorCountEx(ALL_PROCESSOR_GROUPS);
+    num_cpus = min(KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS), MAX_CPU);
+    max_cpus = min(KeQueryMaximumProcessorCountEx(ALL_PROCESSOR_GROUPS), MAX_CPU);
     /* Set num_cpus and max_cpus to some sane values, to keep Static Driver Verification happy */
     num_cpus = max(1, num_cpus);
     max_cpus = max(1, max_cpus);
