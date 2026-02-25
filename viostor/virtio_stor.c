@@ -1346,28 +1346,29 @@ VirtIoResetBus(IN PVOID DeviceExtension, IN ULONG PathId)
 SCSI_ADAPTER_CONTROL_STATUS
 VirtIoAdapterControl(IN PVOID DeviceExtension, IN SCSI_ADAPTER_CONTROL_TYPE ControlType, IN PVOID Parameters)
 {
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     PSCSI_SUPPORTED_CONTROL_TYPE_LIST ControlTypeList;
     ULONG AdjustedMaxControlType;
-    ULONG Index;
-    PADAPTER_EXTENSION adaptExt;
+    ULONG list_idx;
     SCSI_ADAPTER_CONTROL_STATUS status = ScsiAdapterControlUnsuccessful;
-    BOOLEAN SupportedControlTypes[5] = {TRUE, TRUE, TRUE, FALSE, FALSE};
+    BOOLEAN SupportedControlTypes[ScsiAdapterControlMax] = {FALSE};
 
-    adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-
-    RhelDbgPrint(TRACE_LEVEL_VERBOSE, " ControlType %d\n", ControlType);
+    SupportedControlTypes[ScsiQuerySupportedControlTypes] = TRUE;
+    SupportedControlTypes[ScsiStopAdapter] = TRUE;
+    SupportedControlTypes[ScsiRestartAdapter] = TRUE;
+    SupportedControlTypes[ScsiAdapterSurpriseRemoval] = TRUE;
 
     switch (ControlType)
     {
-
         case ScsiQuerySupportedControlTypes:
             {
                 RhelDbgPrint(TRACE_LEVEL_VERBOSE, " ScsiQuerySupportedControlTypes\n");
                 ControlTypeList = (PSCSI_SUPPORTED_CONTROL_TYPE_LIST)Parameters;
-                AdjustedMaxControlType = (ControlTypeList->MaxControlType < 5) ? ControlTypeList->MaxControlType : 5;
-                for (Index = 0; Index < AdjustedMaxControlType; Index++)
+                AdjustedMaxControlType = (ControlTypeList->MaxControlType < ScsiAdapterControlMax) ? ControlTypeList->MaxControlType
+                                                                                                   : ScsiAdapterControlMax;
+                for (list_idx = 0; list_idx < AdjustedMaxControlType; list_idx++)
                 {
-                    ControlTypeList->SupportedTypeList[Index] = SupportedControlTypes[Index];
+                    ControlTypeList->SupportedTypeList[list_idx] = SupportedControlTypes[list_idx];
                 }
                 status = ScsiAdapterControlSuccess;
                 break;
@@ -1404,7 +1405,15 @@ VirtIoAdapterControl(IN PVOID DeviceExtension, IN SCSI_ADAPTER_CONTROL_TYPE Cont
                 status = ScsiAdapterControlSuccess;
                 break;
             }
+        case ScsiAdapterSurpriseRemoval:
+            {
+                RhelDbgPrint(TRACE_LEVEL_FATAL, " ScsiAdapterSurpriseRemoval\n");
+                adaptExt->removed = TRUE;
+                status = ScsiAdapterControlSuccess;
+                break;
+            }
         default:
+            RhelDbgPrint(TRACE_LEVEL_ERROR, " Unsupported ControlType %d\n", ControlType);
             break;
     }
 
