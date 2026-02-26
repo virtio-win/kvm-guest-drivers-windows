@@ -953,7 +953,7 @@ VOID ParaNdis_ResetRxClassification(PARANDIS_ADAPTER *pContext)
 pRxNetDescriptor CParaNdisRX::ProcessMergedBuffers(pRxNetDescriptor pFirstBuffer, UINT nFullLength)
 {
     // Access mergeable header to get num_buffers
-    virtio_net_hdr_mrg_rxbuf *pMrgHeader = (virtio_net_hdr_mrg_rxbuf *)pFirstBuffer->PhysicalPages[0].Virtual;
+    virtio_net_hdr_mrg_rxbuf *pMrgHeader = (virtio_net_hdr_mrg_rxbuf *)pFirstBuffer->PhysicalPages[pFirstBuffer->HeaderPage].Virtual;
     UINT16 numBuffers = pMrgHeader->num_buffers;
 
     DPrintf(5, "Received packet: length=%u, num_buffers=%u", nFullLength, numBuffers);
