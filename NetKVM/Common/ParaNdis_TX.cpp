@@ -51,7 +51,9 @@ CNBL::~CNBL()
         }
     }
 
+#if NBL_MAINTAIN_HISTORY
     m_History.ForEachDetached([this](NBLHistory *Entry) { NBLHistory::Destroy(Entry, m_Context->MiniportHandle); });
+#endif
 }
 
 bool CNBL::ParsePriority()
@@ -305,17 +307,37 @@ bool CNBL::ParseOffloads()
     return true;
 }
 
+bool CNBL::CheckMappingNeeded()
+{
+    // checksums are excluded for simplicity
+    // if the packet is short, without LSO, CSO and USO, any layout is ok
+    // then no need to map it
+    // TODO: + driver verifier? + DMAR
+    bool bNoMap = m_MaxDataLength < m_ParentTXPath->MaxSizeForPacketData() && !IsLSO();
+    bNoMap = bNoMap && !m_CsoInfo.Value && !IsUSO() && m_Context->bAnyLayout;
+    m_SkipMapping = bNoMap;
+    return !m_SkipMapping;
+}
+
 void CNBL::StartMapping()
 {
     CDpcIrqlRaiser OnDpc;
+    bool bMappingNeeded = CheckMappingNeeded();
 
     AddRef();
 
-    m_Buffers.ForEach([this](CNB *NB) {
-        if (!NB->ScheduleBuildSGListForTx())
+    m_Buffers.ForEach([&](CNB *NB) {
+        if (!bMappingNeeded)
         {
-            m_HaveFailedMappings = true;
             NB->MappingDone(nullptr);
+        }
+        else
+        {
+            if (!NB->ScheduleBuildSGListForTx())
+            {
+                m_HaveFailedMappings = true;
+                NB->MappingDone(nullptr);
+            }
         }
     });
 
@@ -1224,7 +1246,12 @@ NBMappingStatus CNB::FillDescriptorSGList(CTXDescriptor &Descriptor, ULONG Parse
     {
         return NBMappingStatus::FAILURE;
     }
-    if (Descriptor.HasRoom(m_SGL->NumberOfElements))
+    if (ParsedHeadersLength == GetDataLength())
+    {
+        m_Context->extraStatistics.copiedTxPackets++;
+        return NBMappingStatus::SUCCESS;
+    }
+    if (m_SGL && Descriptor.HasRoom(m_SGL->NumberOfElements))
     {
         return MapDataToVirtioSGL(Descriptor, ParsedHeadersLength + NET_BUFFER_DATA_OFFSET(m_NB));
     }
@@ -1293,8 +1320,8 @@ bool CNB::CopyHeaders(PVOID Destination, ULONG MaxSize, ULONG &HeadersLength, UL
     }
     else
     {
-        HeadersLength = ETH_HEADER_SIZE;
-        Copy(Destination, HeadersLength);
+        HeadersLength = m_ParentNBL->MappingNeeded() ? ETH_HEADER_SIZE : MaxSize;
+        HeadersLength = Copy(Destination, HeadersLength);
     }
 
     return (HeadersLength <= MaxSize);
@@ -1353,7 +1380,7 @@ void CNB::Report(int level, bool Success)
 
 NBMappingStatus CNB::BindToDescriptor(CTXDescriptor &Descriptor)
 {
-    if (m_SGL == nullptr)
+    if (m_SGL == nullptr && m_ParentNBL->MappingNeeded())
     {
         return NBMappingStatus::FAILURE;
     }
