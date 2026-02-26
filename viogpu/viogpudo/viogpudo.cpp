@@ -3542,7 +3542,9 @@ void VioGpuAdapter::VioGpuAdapterClose()
         m_pVioGpuDod->SetHardwareInit(FALSE);
         m_CtrlQueue.DisableInterrupt();
         m_CursorQueue.DisableInterrupt();
-        KeFlushQueuedDpcs();
+        if (KeGetCurrentIrql() < DISPATCH_LEVEL) {
+            KeFlushQueuedDpcs();
+        }
         virtio_device_reset(&m_VioDev);
         virtio_delete_queues(&m_VioDev);
         m_CtrlQueue.Close();
