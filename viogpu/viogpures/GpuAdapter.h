@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2020 Red Hat, Inc.
+ * Copyright (C) 2021-2022 Red Hat, Inc.
  *
  * Written By: Vadim Rozenfeld <vrozenfe@redhat.com>
  *
@@ -29,30 +29,61 @@
 
 #pragma once
 
-#define VIOGPU_GET_DEVICE_ID         0x00
-#define VIOGPU_GET_CUSTOM_RESOLUTION 0x01
-#define VIOGPU_SET_CUSTOM_RESOLUTION 0x02
-
-#pragma pack(1)
-typedef struct _VIOGPU_DISP_MODE
+enum Status
 {
-    USHORT XResolution;
-    USHORT YResolution;
-} VIOGPU_DISP_MODE, *PVIOGPU_DISP_MODE;
-#pragma pack()
+    None,
+    Active,
+    Reset
+};
 
-#pragma pack(1)
-typedef struct _VIOGPU_ESCAPE
+class GpuAdapter
 {
-    USHORT Type;
-    USHORT DataLength;
-    union {
-        ULONG Id;
-        VIOGPU_DISP_MODE Resolution;
-    } DUMMYUNIONNAME;
-} VIOGPU_ESCAPE, *PVIOGPU_ESCAPE;
-#pragma pack()
+  public:
+    GpuAdapter(const std::wstring LinkName);
+    virtual ~GpuAdapter()
+    {
+        Close();
+    }
+    Status GetStatus(void)
+    {
+        return m_Flag;
+    }
+    void SetStatus(Status flag)
+    {
+        m_Flag = flag;
+    }
+    void Init();
+    bool GetCurrentResolution(PVIOGPU_DISP_MODE mode);
+    bool SetCustomResolution(USHORT Width, USHORT Height);
 
-#define BASE_NAMED_OBJECTS    L"\\BaseNamedObjects\\"
-#define GLOBAL_OBJECTS        L"Global\\"
-#define RESOLUTION_EVENT_NAME L"VioGpuResolutionEvent"
+  private:
+    void Close();
+    bool QueryAdapterId();
+    UINT GetNumbersOfPathArrayElements(void)
+    {
+        return m_PathArrayElements;
+    }
+    UINT GetNumbersOfModeInfoArrayElements(void)
+    {
+        return m_ModeInfoArrayElements;
+    }
+
+    DISPLAYCONFIG_MODE_INFO *GetDisplayConfig(UINT index);
+    bool GetCustomResolution(PVIOGPU_DISP_MODE mode);
+    bool SetResolution(PVIOGPU_DISP_MODE mode);
+    void UpdateDisplayConfig(void);
+    void ClearDisplayConfig(void);
+
+  public:
+    std::wstring m_DeviceName;
+
+  private:
+    HDC m_hDC;
+    D3DKMT_HANDLE m_hAdapter;
+    ULONG m_Index;
+    UINT m_PathArrayElements;
+    UINT m_ModeInfoArrayElements;
+    DISPLAYCONFIG_PATH_INFO *m_pDisplayPathInfo;
+    DISPLAYCONFIG_MODE_INFO *m_pDisplayModeInfo;
+    Status m_Flag;
+};

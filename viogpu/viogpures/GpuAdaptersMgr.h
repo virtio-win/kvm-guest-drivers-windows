@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2020 Red Hat, Inc.
+ * Copyright (C) 2021-2022 Red Hat, Inc.
  *
  * Written By: Vadim Rozenfeld <vrozenfe@redhat.com>
  *
@@ -29,30 +29,43 @@
 
 #pragma once
 
-#define VIOGPU_GET_DEVICE_ID         0x00
-#define VIOGPU_GET_CUSTOM_RESOLUTION 0x01
-#define VIOGPU_SET_CUSTOM_RESOLUTION 0x02
+class GpuAdapter;
 
-#pragma pack(1)
-typedef struct _VIOGPU_DISP_MODE
+class Notification
 {
-    USHORT XResolution;
-    USHORT YResolution;
-} VIOGPU_DISP_MODE, *PVIOGPU_DISP_MODE;
-#pragma pack()
+  private:
+#pragma warning(push)
+#pragma warning(disable : 26495)
+    Notification(){};
+#pragma warning(pop)
+  public:
+    UINT msg;
+    WPARAM wParam;
+    LPARAM lParam;
+    Notification(UINT msg, WPARAM wParam, LPARAM lParam) : msg(msg), wParam(wParam), lParam(lParam){};
+};
 
-#pragma pack(1)
-typedef struct _VIOGPU_ESCAPE
+class GpuAdaptersMgr
 {
-    USHORT Type;
-    USHORT DataLength;
-    union {
-        ULONG Id;
-        VIOGPU_DISP_MODE Resolution;
-    } DUMMYUNIONNAME;
-} VIOGPU_ESCAPE, *PVIOGPU_ESCAPE;
-#pragma pack()
+  public:
+    GpuAdaptersMgr()
+    {
+    }
+    ~GpuAdaptersMgr()
+    {
+    }
+    BOOL Init();
+    void Close();
+    void SetCustomResolution(USHORT Width, USHORT Height);
 
-#define BASE_NAMED_OBJECTS    L"\\BaseNamedObjects\\"
-#define GLOBAL_OBJECTS        L"Global\\"
-#define RESOLUTION_EVENT_NAME L"VioGpuResolutionEvent"
+  protected:
+    void FindAdapters();
+    BOOL FindDisplayDevice(PDISPLAY_DEVICE lpDisplayDevice, std::wstring &name, PDWORD adapterIndex);
+    BOOL GetDisplayDevice(LPCTSTR lpDevice, DWORD iDevNum, PDISPLAY_DEVICE lpDisplayDevice, DWORD dwFlags);
+    void AddAdapter(const wchar_t *name);
+    void RemoveAllAdapters();
+
+  private:
+    std::list<GpuAdapter *> Adapters;
+    typedef std::list<GpuAdapter *>::iterator Iterator;
+};

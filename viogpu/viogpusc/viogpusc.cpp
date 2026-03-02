@@ -32,6 +32,8 @@
 #include "Service.h"
 #include <stdio.h>
 
+extern const char *LogFilePath = "viogpusc.log";
+
 CService srvc;
 
 DWORD WINAPI HandlerEx(DWORD ctlcode, DWORD evtype, PVOID evdata, PVOID context)

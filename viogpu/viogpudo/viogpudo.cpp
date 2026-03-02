@@ -55,6 +55,8 @@ VioGpuDod::VioGpuDod(_In_ DEVICE_OBJECT *pPhysicalDeviceObject)
     RtlZeroMemory(&m_CurrentMode, sizeof(m_CurrentMode));
     RtlZeroMemory(&m_SystemDisplayInfo, sizeof(m_SystemDisplayInfo));
     RtlZeroMemory(&m_PointerShape, sizeof(m_PointerShape));
+    m_PersistentDispMode0Width = 0;
+    m_PersistentDispMode0Height = 0;
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
@@ -2188,11 +2190,59 @@ NTSTATUS VioGpuDod::SetRegisterInfo(_In_ ULONG Id, _In_ DWORD MemSize)
     return Status;
 }
 
+NTSTATUS VioGpuDod::SetRegisterConfigInfo()
+{
+    PAGED_CODE();
+
+    NTSTATUS Status = STATUS_SUCCESS;
+    DWORD value = 0;
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
+
+    HANDLE DevInstRegKeyHandle;
+    Status = IoOpenDeviceRegistryKey(m_pPhysicalDevice, PLUGPLAY_REGKEY_DRIVER, KEY_SET_VALUE, &DevInstRegKeyHandle);
+    if (!NT_SUCCESS(Status))
+    {
+        DbgPrint(TRACE_LEVEL_ERROR,
+                 ("IoOpenDeviceRegistryKey failed for PDO: 0x%p, Status: 0x%X", m_pPhysicalDevice, Status));
+        return Status;
+    }
+
+    do
+    {
+        if (IsPersistentDispMode0Set())
+        {
+            value = GetPersistentDispMode0Width();
+            Status = WriteRegistryDWORD(DevInstRegKeyHandle, L"PersistentDispMode0Width", &value);
+            if (!NT_SUCCESS(Status))
+            {
+                DbgPrint(TRACE_LEVEL_ERROR,
+                         ("WriteRegistryDWORD failed for PersistentDispMode0Width with Status: 0x%X", Status));
+                break;
+            }
+
+            value = GetPersistentDispMode0Height();
+            Status = WriteRegistryDWORD(DevInstRegKeyHandle, L"PersistentDispMode0Height", &value);
+            if (!NT_SUCCESS(Status))
+            {
+                DbgPrint(TRACE_LEVEL_ERROR,
+                         ("WriteRegistryDWORD failed for PersistentDispMode0Height with Status: 0x%X", Status));
+                break;
+            }
+        }
+    } while (0);
+
+    ZwClose(DevInstRegKeyHandle);
+
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+    return Status;
+}
+
 NTSTATUS VioGpuDod::GetRegisterInfo(void)
 {
     PAGED_CODE();
 
     NTSTATUS Status = STATUS_SUCCESS;
+    NTSTATUS StatusOptional = STATUS_SUCCESS;
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
     HANDLE DevInstRegKeyHandle;
     Status = IoOpenDeviceRegistryKey(m_pPhysicalDevice, PLUGPLAY_REGKEY_DRIVER, KEY_READ, &DevInstRegKeyHandle);
@@ -2229,6 +2279,21 @@ NTSTATUS VioGpuDod::GetRegisterInfo(void)
     if (NT_SUCCESS(Status))
     {
         SetUsePresentProgress(!!value);
+    }
+
+    // The following keys are optional and no need to report error if them are missing
+    value = 0;
+    StatusOptional = ReadRegistryDWORD(DevInstRegKeyHandle, L"PersistentDispMode0Width", &value);
+    if (NT_SUCCESS(StatusOptional))
+    {
+        SetPersistentDispMode0Width((USHORT)value);
+    }
+
+    value = 0;
+    StatusOptional = ReadRegistryDWORD(DevInstRegKeyHandle, L"PersistentDispMode0Height", &value);
+    if (NT_SUCCESS(StatusOptional))
+    {
+        SetPersistentDispMode0Height((USHORT)value);
     }
 
     ZwClose(DevInstRegKeyHandle);
@@ -3043,6 +3108,41 @@ NTSTATUS VioGpuAdapter::Escape(_In_ CONST DXGKARG_ESCAPE *pEscape)
                 pVioGpuEscape->Resolution.YResolution = (USHORT)m_ModeInfo[m_CustomModeIndex].VisScreenHeight;
                 break;
             }
+        case VIOGPU_SET_CUSTOM_RESOLUTION:
+            {
+                size = sizeof(VIOGPU_DISP_MODE);
+                if (pVioGpuEscape->DataLength < size)
+                {
+                    DbgPrint(TRACE_LEVEL_ERROR,
+                             ("%s buffer too small %d, should be at least %d\n",
+                              __FUNCTION__,
+                              pVioGpuEscape->DataLength,
+                              size));
+                    return STATUS_INVALID_BUFFER_SIZE;
+                }
+                if (pVioGpuEscape->Resolution.XResolution <= 0 || pVioGpuEscape->Resolution.YResolution <= 0)
+                {
+                    DbgPrint(TRACE_LEVEL_ERROR,
+                             ("%s PersistentDispMode0 width %d and height %d should be > 0\n",
+                              __FUNCTION__,
+                              pVioGpuEscape->Resolution.XResolution,
+                              pVioGpuEscape->Resolution.YResolution));
+                    return STATUS_INVALID_PARAMETER;
+                }
+
+                DbgPrint(TRACE_LEVEL_INFORMATION,
+                         ("%s PersistentDispMode0 width %d, height %d\n",
+                          __FUNCTION__,
+                          pVioGpuEscape->Resolution.XResolution,
+                          pVioGpuEscape->Resolution.YResolution));
+
+                m_pVioGpuDod->SetPersistentDispMode0Width(pVioGpuEscape->Resolution.XResolution);
+                m_pVioGpuDod->SetPersistentDispMode0Height(pVioGpuEscape->Resolution.YResolution);
+                m_pVioGpuDod->SetRegisterConfigInfo();
+                SetCustomDisplay(pVioGpuEscape->Resolution.XResolution, pVioGpuEscape->Resolution.YResolution);
+                SetCurrentModeIndex(m_CurrentModeIndex);
+                break;
+            }
         default:
             DbgPrint(TRACE_LEVEL_ERROR, ("%s: invalid Escape type 0x%x\n", __FUNCTION__, pVioGpuEscape->Type));
             status = STATUS_INVALID_PARAMETER;
@@ -3481,6 +3581,12 @@ NTSTATUS VioGpuAdapter::BuildModeList(DXGK_DISPLAY_INFORMATION *pDispInfo)
     DbgPrint(TRACE_LEVEL_INFORMATION, ("ModeCount filtered %d\n", m_ModeCount));
 
     GetDisplayInfo();
+
+    if (m_pVioGpuDod->IsPersistentDispMode0Set())
+    {
+        SetCustomDisplay(m_pVioGpuDod->GetPersistentDispMode0Width(), m_pVioGpuDod->GetPersistentDispMode0Height());
+        SetCurrentModeIndex(m_CurrentModeIndex);
+    }
 
     for (UINT idx = 0; idx < m_ModeCount; idx++)
     {

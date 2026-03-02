@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019-2020 Red Hat, Inc.
+ * Copyright (C) 2021-2022 Red Hat, Inc.
  *
  * Written By: Vadim Rozenfeld <vrozenfe@redhat.com>
  *
@@ -27,32 +27,27 @@
  * SUCH DAMAGE.
  */
 
-#pragma once
+#include "pch.h"
+#include <iostream>
 
-#define VIOGPU_GET_DEVICE_ID         0x00
-#define VIOGPU_GET_CUSTOM_RESOLUTION 0x01
-#define VIOGPU_SET_CUSTOM_RESOLUTION 0x02
+extern const char *LogFilePath = "viogpures.log";
 
-#pragma pack(1)
-typedef struct _VIOGPU_DISP_MODE
+int _cdecl wmain(__in ULONG argc, __in_ecount(argc) PWCHAR argv[])
 {
-    USHORT XResolution;
-    USHORT YResolution;
-} VIOGPU_DISP_MODE, *PVIOGPU_DISP_MODE;
-#pragma pack()
+    PrintMessage(L"viogpures.exe built on %ws %ws\n", _CRT_WIDE(__DATE__), _CRT_WIDE(__TIME__));
 
-#pragma pack(1)
-typedef struct _VIOGPU_ESCAPE
-{
-    USHORT Type;
-    USHORT DataLength;
-    union {
-        ULONG Id;
-        VIOGPU_DISP_MODE Resolution;
-    } DUMMYUNIONNAME;
-} VIOGPU_ESCAPE, *PVIOGPU_ESCAPE;
-#pragma pack()
+    if (argc != 3)
+    {
+        ErrorHandler("Please use: viogpures.exe <width> <height>", 1);
+    }
 
-#define BASE_NAMED_OBJECTS    L"\\BaseNamedObjects\\"
-#define GLOBAL_OBJECTS        L"Global\\"
-#define RESOLUTION_EVENT_NAME L"VioGpuResolutionEvent"
+    GpuAdaptersMgr *m_pMgr;
+    m_pMgr = new GpuAdaptersMgr();
+    m_pMgr->Init();
+    m_pMgr->SetCustomResolution((USHORT)_wtoi(argv[1]), (USHORT)_wtoi(argv[2]));
+    m_pMgr->Close();
+    delete m_pMgr;
+    m_pMgr = NULL;
+
+    return 0;
+}
