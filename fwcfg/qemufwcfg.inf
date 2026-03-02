@@ -24,12 +24,15 @@ CatalogFile=qemufwcfg.cat
 PnpLockdown=1
 
 [Manufacturer]
-%QEMU%=QEMU,NTx86,NTAMD64
+%QEMU%=QEMU,NTx86,NTAMD64,NTARM64
 
 [QEMU.NTx86]
 %FWCfg.DeviceDesc% = FWCfg_Device, ACPI\QEMU0002
 
 [QEMU.NTAMD64]
+%FWCfg.DeviceDesc% = FWCfg_Device, ACPI\QEMU0002
+
+[QEMU.NTARM64]
 %FWCfg.DeviceDesc% = FWCfg_Device, ACPI\QEMU0002
 
 [FWCfg_Device.NT]
