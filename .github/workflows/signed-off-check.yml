@@ -1,0 +1,19 @@
+name: Signed-off-by check
+on: [pull_request]
+
+jobs:
+  check-signoff:
+    name: Check commits have Signed-off-by
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Check for Signed-off-by in all commits
+        run: |
+          bash Tools/check-signed-off.sh
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
