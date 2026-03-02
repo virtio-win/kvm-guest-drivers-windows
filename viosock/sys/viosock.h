@@ -184,6 +184,11 @@ typedef struct _DEVICE_CONTEXT
 
     _Interlocked_ volatile LONG SocketId; // for debug
 
+    _Interlocked_ volatile LONG DeviceReady;
+
+    WDFWORKITEM TransportResetWorkitem;
+    _Interlocked_ volatile LONG TransportResetPending;
+
     VIRTIO_VSOCK_CONFIG Config;
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
@@ -314,6 +319,13 @@ WDFFILEOBJECT
 VIOSockGetSocketFromHandle(IN PDEVICE_CONTEXT pContext, IN ULONGLONG uSocket, IN BOOLEAN bIs32BitProcess);
 
 VOID VIOSockHandleTransportReset(IN PDEVICE_CONTEXT pContext);
+
+_IRQL_requires_max_(PASSIVE_LEVEL) VOID VIOSockTransportResetWorkitemCallback(IN WDFWORKITEM WorkItem);
+
+NTSTATUS
+VIOSockQueuesInit(IN WDFDEVICE hDevice);
+
+VOID VIOSockQueuesCleanup(IN WDFDEVICE hDevice);
 
 NTSTATUS
 VIOSockBoundListInit(IN WDFDEVICE hDevice);
@@ -531,6 +543,7 @@ NTSTATUS
 VIOSockRxVqInit(IN PDEVICE_CONTEXT pContext);
 
 _Requires_lock_not_held_(pContext->RxLock) VOID VIOSockRxVqCleanup(IN PDEVICE_CONTEXT pContext);
+VOID VIOSockRxVqDrainAllPackets(IN PDEVICE_CONTEXT pContext);
 
 _Requires_lock_not_held_(pSocket->StateLock) __inline VOID VIOSockRxIncTxPkt(IN PSOCKET_CONTEXT pSocket,
                                                                              IN OUT PVIRTIO_VSOCK_HDR pPkt)
