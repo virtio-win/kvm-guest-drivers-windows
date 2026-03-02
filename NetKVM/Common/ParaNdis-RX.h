@@ -68,12 +68,9 @@ class CParaNdisRX : public CParaNdisTemplatePath<CVirtQueue>, public CNdisAlloca
 
 // Maximum mergeable packet size per VirtIO spec: 65562 bytes (including 12-byte header)
 // Required buffers: ceil(65562 / 4096) = 17 PAGE-sized buffers maximum
-#define VIRTIO_NET_MAX_MRG_BUFS   17
+#define VIRTIO_NET_MAX_MRG_BUFS 17
 
-// Merge buffer context structure - pre-allocated to avoid hot-path allocation
-// Maximum PhysicalPages needed: First buffer (2 pages) + additional buffers (16 * 1 page) = 18 pages
-// Note: First buffer has 2 logical pages (PhysicalPages[0] and [1] alias to same physical page)
-#define MAX_MERGED_PHYSICAL_PAGES 18
+    // Merge buffer context structure - pre-allocated to avoid hot-path allocation
     struct _MergeBufferContext
     {
         pRxNetDescriptor BufferSequence[VIRTIO_NET_MAX_MRG_BUFS];
@@ -83,7 +80,7 @@ class CParaNdisRX : public CParaNdisTemplatePath<CVirtQueue>, public CNdisAlloca
         UINT32 TotalPacketLength;
 
         // Pre-allocated array for merged packet assembly (eliminates allocate/copy/free in hot path)
-        tCompletePhysicalAddress PhysicalPages[MAX_MERGED_PHYSICAL_PAGES];
+        tCompletePhysicalAddress PhysicalPages[VIRTIO_NET_MAX_MRG_BUFS];
     } m_MergeContext;
 
     void ReuseReceiveBufferNoLock(pRxNetDescriptor pBuffersDescriptor);
