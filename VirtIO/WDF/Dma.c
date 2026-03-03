@@ -274,7 +274,9 @@ VOID OnDmaTransactionDestroy(WDFOBJECT Object)
 {
     PVIRTIO_WDF_DMA_TRANSACTION_CONTEXT ctx = GetDmaTransactionContext(Object);
     DPrintf(1, "%s %p\n", __FUNCTION__, Object);
-    if (ctx->mdl) {
+    // the MDL is one we allocated for the buffer
+    // if there is no buffer - this is the MDL provided by the caller
+    if (ctx->mdl && ctx->buffer) {
         IoFreeMdl(ctx->mdl);
     }
     if (ctx->buffer) {
@@ -330,9 +332,12 @@ static BOOLEAN VirtIOWdfDeviceDmaAsync(VirtIODevice *vdev, PVIRTIO_DMA_TRANSACTI
     ctx->callback = callback;
     ctx->refCount = 1;
     ctx->direction = Direction;
-    if (params->req) {
+    if (params->req && params->req != (WDFREQUEST)WDF_INVALID_HANDLE) {
         status = WdfDmaTransactionInitializeUsingRequest(tr, params->req,
                                                          OnDmaTransactionProgramDma, Direction);
+    } else if (params->req == (WDFREQUEST)WDF_INVALID_HANDLE) {
+        status = WdfDmaTransactionInitializeUsingOffset(tr, OnDmaTransactionProgramDma, Direction,
+                                                        (PMDL)params->buffer, 0, params->size);
     } else {
         ctx->buffer = ExAllocatePoolUninitialized(NonPagedPool, ctx->parameters.size,
                                                   ctx->parameters.allocationTag);
@@ -398,7 +403,7 @@ void VirtIOWdfDeviceDmaRxComplete(VirtIODevice *vdev, WDFDMATRANSACTION transact
     NTSTATUS status;
     DPrintf(1, "%s %p, len %d\n", __FUNCTION__, transaction, length);
     WdfDmaTransactionDmaCompletedFinal(transaction, length, &status);
-    if (length && ctx->buffer && ctx->parameters.buffer) {
+    if (length && ctx->buffer) {
         RtlCopyMemory(ctx->parameters.buffer, ctx->buffer, length);
     }
     DerefTransaction(ctx);
@@ -424,9 +429,11 @@ NTSTATUS VirtIOWdfDeviceCheckIOMMUActive(PVIRTIO_WDF_DRIVER pWdfDriver, WDFDEVIC
     NTSTATUS status =
         WdfDeviceQueryPropertyEx(wdfDev, &propData, sizeof(value), &value, &reqSize, &propType);
     DPrintf(0, "%s: status %X, dma remap=%d\n", __FUNCTION__, status, value);
+    pWdfDriver->IsIoMmuActive = bHasFeature && value == 2;
     if (!NT_SUCCESS(status) || value != 2 || bHasFeature) {
         return STATUS_SUCCESS;
     }
+    pWdfDriver->IsIoMmuActive = FALSE;
 
     // the VIRTIO_F_ACCESS_PLATFORM is not set and there is
     // a possibility of DMA remapping

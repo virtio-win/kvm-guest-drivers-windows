@@ -62,6 +62,8 @@ typedef struct virtio_wdf_driver {
     WDFCOLLECTION MemoryBlockCollection;
     WDFSPINLOCK DmaSpinlock;
 
+    BOOLEAN IsIoMmuActive;
+
 } VIRTIO_WDF_DRIVER, *PVIRTIO_WDF_DRIVER;
 
 /* Queue discovery callbacks used by VirtIOWdfInitQueuesCB. */
@@ -171,6 +173,8 @@ typedef BOOLEAN (*VirtIOWdfDmaTransactionCallback)(PVIRTIO_DMA_TRANSACTION_PARAM
  *    The request should be non-cancellable all the way
  * 2. req = NULL, buffer and size provided, the buffer will be reallocated and the callback
  *    will receive SG of copied data (originally provided buffer is not used for DMA)
+ * 3. req = (WDFREQUEST)WDF_INVALID_HANDLE, then the buffer is PMDL describing MDL chain
+ *    provided by the caller, the size describes used MDL area, offset in the MDL is 0
  * If the callback wants to return FALSE (too many elements in SG or whatever), call
  *    VirtIOWdfDeviceDmaTxComplete, then complete the request (if req != NULL), then return FALSE
  * If the callback returns TRUE, call VirtIOWdfDeviceDmaTxComplete later from InterruptDpc
