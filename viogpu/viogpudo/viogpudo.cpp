@@ -3974,6 +3974,8 @@ BOOLEAN VioGpuAdapter::CreateFrameBufferObjSync(PVIDEO_MODE_INFORMATION pModeInf
     if (!obj->Init(size, &m_FrameSegment))
     {
         DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s Failed to init obj size = %d\n", __FUNCTION__, size));
+        m_CtrlQueue.DestroyResourceSync(resid);
+        m_Idr.PutId(resid);
         delete obj;
         return FALSE;
     }
