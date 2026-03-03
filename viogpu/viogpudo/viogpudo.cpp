@@ -41,6 +41,9 @@
 
 static UINT g_InstanceId = 0;
 
+// Threshold for shrinking framebuffer segment: only shrink if we can save more than 128MB
+#define SHRINK_THRESHOLD_BYTES (128 * 1024 * 1024)
+
 PAGED_CODE_SEG_BEGIN
 VioGpuDod::VioGpuDod(_In_ DEVICE_OBJECT *pPhysicalDeviceObject)
     : m_pPhysicalDevice(pPhysicalDeviceObject), m_MonitorPowerState(PowerDeviceD0), m_AdapterPowerState(PowerDeviceD0),
@@ -2261,6 +2264,7 @@ VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod)
     m_u64GuestFeatures = 0;
     m_u32NumCapsets = 0;
     m_u32NumScanouts = 0;
+    m_InitialFrameSegmentSize = 0;
 
     KeInitializeEvent(&m_ConfigUpdateEvent, SynchronizationEvent, FALSE);
 }
@@ -2291,13 +2295,18 @@ NTSTATUS VioGpuAdapter::SetCurrentMode(ULONG Mode, CURRENT_MODE *pCurrentMode)
         if (Mode == m_ModeInfo[idx].ModeIndex /*m_ModeNumbers[idx]*/)
         {
             // Calculate required segment size
-            UINT size = m_ModeInfo[idx].ScreenStride * m_ModeInfo[idx].VisScreenHeight;
-            BOOLEAN needResize = (size > m_FrameSegment.GetSize());
+            UINT requiredSize = m_ModeInfo[idx].ScreenStride * m_ModeInfo[idx].VisScreenHeight;
+            SIZE_T currentSize = m_FrameSegment.GetSize();
+            BOOLEAN needExpand = (requiredSize > currentSize);
 
-            // Destroy old framebuffer (sync to ensure QEMU finished before reusing segment)
+            // Shrink condition: current > initial AND (current - required) > 128MB
+            BOOLEAN needShrink = (currentSize > m_InitialFrameSegmentSize) &&
+                                 ((currentSize - requiredSize) > SHRINK_THRESHOLD_BYTES);
+
+            // Destroy old framebuffer (sync when resizing to ensure QEMU finished)
             if (pCurrentMode->Flags.FrameBufferIsActive)
             {
-                if (needResize)
+                if (needExpand || needShrink)
                 {
                     DestroyFrameBufferObjSync(FALSE, FALSE);
                 }
@@ -2309,18 +2318,34 @@ NTSTATUS VioGpuAdapter::SetCurrentMode(ULONG Mode, CURRENT_MODE *pCurrentMode)
                 pCurrentMode->FrameBuffer = NULL;
             }
 
-            // If resize needed, allocate new segment first then release old
-            if (needResize)
+            // Resize segment if needed
+            if (needExpand || needShrink)
             {
-                DbgPrint(TRACE_LEVEL_WARNING,
-                         ("%s: Resizing m_FrameSegment from %Iu to %u bytes\n",
-                          __FUNCTION__,
-                          m_FrameSegment.GetSize(),
-                          size));
-
-                if (!AllocateFrameSegment(size))
+                UINT newSize;
+                if (needExpand)
                 {
-                    DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s: Failed to allocate larger segment\n", __FUNCTION__));
+                    newSize = requiredSize;
+                    DbgPrint(TRACE_LEVEL_WARNING,
+                             ("%s: Expanding m_FrameSegment from %Iu to %u bytes\n",
+                              __FUNCTION__,
+                              currentSize,
+                              newSize));
+                }
+                else // needShrink
+                {
+                    // Shrink to: required + 128MB, but not below initial size
+                    newSize = requiredSize + SHRINK_THRESHOLD_BYTES;
+                    newSize = max(newSize, (UINT)m_InitialFrameSegmentSize);
+                    DbgPrint(TRACE_LEVEL_WARNING,
+                             ("%s: Shrinking m_FrameSegment from %Iu to %u bytes\n",
+                              __FUNCTION__,
+                              currentSize,
+                              newSize));
+                }
+
+                if (!AllocateFrameSegment(newSize))
+                {
+                    DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s: Failed to resize segment\n", __FUNCTION__));
                     return STATUS_INSUFFICIENT_RESOURCES;
                 }
 
@@ -2331,8 +2356,8 @@ NTSTATUS VioGpuAdapter::SetCurrentMode(ULONG Mode, CURRENT_MODE *pCurrentMode)
             }
 
             // Create new framebuffer (sync when resizing to ensure proper ordering)
-            BOOLEAN created = needResize ? CreateFrameBufferObjSync(&m_ModeInfo[idx], pCurrentMode)
-                                         : CreateFrameBufferObj(&m_ModeInfo[idx], pCurrentMode);
+            BOOLEAN created = (needExpand || needShrink) ? CreateFrameBufferObjSync(&m_ModeInfo[idx], pCurrentMode)
+                                                         : CreateFrameBufferObj(&m_ModeInfo[idx], pCurrentMode);
             if (created)
             {
                 DbgPrint(TRACE_LEVEL_INFORMATION,
@@ -2710,6 +2735,7 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
         VioGpuDbgBreak();
         return status;
     }
+    m_InitialFrameSegmentSize = m_FrameSegment.GetSize();
 
     if (!m_CursorSegment.Init(POINTER_SIZE * POINTER_SIZE * 4, NULL, TRUE))
     {

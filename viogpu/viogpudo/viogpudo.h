@@ -204,6 +204,7 @@ class VioGpuAdapter : IVioGpuPCI
     VioGpuObj *m_pCursorBuf;
     VioGpuMemSegment m_CursorSegment;
     VioGpuMemSegment m_FrameSegment;
+    SIZE_T m_InitialFrameSegmentSize;
     volatile ULONG m_PendingWorks;
     KEVENT m_ConfigUpdateEvent;
     PETHREAD m_pWorkThread;
