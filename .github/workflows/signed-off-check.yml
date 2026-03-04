@@ -1,0 +1,20 @@
+name: Signoff and Red Hat Jira check
+on: [pull_request]
+
+jobs:
+  check-signoff:
+    name: Signed-off-by and Red Hat Jira ref
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for Signed-off-by and Jira ref (when Red Hat signs off)
+        run: |
+          bash Tools/check-signed-off.sh
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
