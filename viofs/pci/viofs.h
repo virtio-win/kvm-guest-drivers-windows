@@ -91,7 +91,9 @@ typedef struct _VIRTIO_FS_REQUEST
     struct virtqueue *VQ;
     WDFSPINLOCK VQ_Lock;
     BOOLEAN Use_Indirect;
+    BOOLEAN Cancellable;
     struct VirtIOBufferDescriptor SGTable[VIRT_FS_MAX_QUEUE_SIZE];
+    PMDL Mdl;
 #endif
 } VIRTIO_FS_REQUEST, *PVIRTIO_FS_REQUEST;
 
