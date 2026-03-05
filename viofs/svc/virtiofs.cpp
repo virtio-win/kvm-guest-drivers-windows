@@ -1664,7 +1664,7 @@ static NTSTATUS Write(FSP_FILE_SYSTEM *FileSystem,
     VIRTFS *VirtFs = (VIRTFS *)FileSystem->UserContext;
     VIRTFS_FILE_CONTEXT *FileContext = (VIRTFS_FILE_CONTEXT *)FileContext0;
     ULONG WriteSize;
-    NTSTATUS Status;
+    NTSTATUS Status = 0;
     FUSE_WRITE_IN *write_in;
     FUSE_WRITE_OUT write_out;
 
