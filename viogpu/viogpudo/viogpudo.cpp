@@ -2410,6 +2410,11 @@ NTSTATUS VioGpuAdapter::VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION *pDispInfo)
 
         AckFeature(VIRTIO_F_ACCESS_PLATFORM);
 
+        // Enable indirect descriptors to support high-resolution modes.
+        // Large framebuffers (e.g., 4K) require thousands of memory page entries,
+        // which exceed the virtqueue's direct descriptor limit.
+        AckFeature(VIRTIO_RING_F_INDIRECT_DESC);
+
         status = virtio_set_features(&m_VioDev, m_u64GuestFeatures);
         if (!NT_SUCCESS(status))
         {
@@ -2692,6 +2697,12 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
     }
 
     req_size = max(req_size, (max_res_size * 4));
+
+    // NOTE: QEMU virtio-gpu has a host memory limit (max_hostmem, default 256MB)
+    // to prevent guests from consuming unlimited host memory.
+    // High resolutions (e.g., 4K+) may require increasing this limit.
+    // Workaround: -device virtio-gpu-pci,max_hostmem=512M (or larger)
+    // See: https://patchwork.kernel.org/patch/9451903/
 
     if (fb_pa.QuadPart != 0LL)
     {

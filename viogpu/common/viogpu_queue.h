@@ -57,6 +57,11 @@ typedef struct virtio_gpu_vbuffer
     void *complete_ctx;
 
     bool auto_release;
+    bool use_indirect;
+
+    // Indirect descriptor table (allocated by VioGpuBuf::AllocateIndirectDescriptors)
+    PVOID desc;
+    PHYSICAL_ADDRESS desc_pa;
 } GPU_VBUFFER, *PGPU_VBUFFER;
 // #pragma pack()
 
@@ -72,9 +77,11 @@ class VioGpuBuf
     PGPU_VBUFFER GetBuf(_In_ int size, _In_ int resp_size, _In_opt_ void *resp_buf);
     void FreeBuf(_In_ PGPU_VBUFFER pbuf);
     BOOLEAN Init(_In_ UINT cnt);
+    BOOLEAN AllocateIndirectDescriptors(_In_ PGPU_VBUFFER pbuf, _In_ SIZE_T dataSize);
 
   private:
     void Close(void);
+    void DeleteBuffer(_In_ PGPU_VBUFFER pbuf);
 
   private:
     LIST_ENTRY m_FreeBufs;
@@ -83,6 +90,10 @@ class VioGpuBuf
     UINT m_uCount;
     UINT m_uCountMin = 0;
 };
+
+// QEMU hard limit for nr_entries in virtio_gpu_create_mapping_iov()
+// Reference: https://github.com/qemu/qemu/blob/master/hw/display/virtio-gpu.c
+#define VIRTIO_GPU_MAX_BACKING_ENTRIES 16384
 
 class VioGpuMemSegment
 {
@@ -116,6 +127,10 @@ class VioGpuMemSegment
     PVOID m_pVAddr;
     PMDL m_pMdl;
     SIZE_T m_Size;
+    // Multi-block allocation support (for system memory path)
+    PVOID *m_pBlocks;      // Array of block virtual addresses
+    SIZE_T *m_pBlockSizes; // Array of block sizes (may vary due to fallback)
+    UINT m_nBlocks;        // Number of allocated blocks
 };
 
 class VioGpuObj
