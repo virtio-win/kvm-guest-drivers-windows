@@ -412,7 +412,6 @@ static VOID HandleSubmitFuseRequest(IN PDEVICE_CONTEXT Context,
                                     IN size_t OutputBufferLength,
                                     IN size_t InputBufferLength)
 {
-    WDFMEMORY handle;
     NTSTATUS status;
     PVIRTIO_FS_REQUEST fs_req;
     PVOID in_buf_va;
@@ -451,16 +450,13 @@ static VOID HandleSubmitFuseRequest(IN PDEVICE_CONTEXT Context,
         goto complete_wdf_req_no_fs_req;
     }
 
-    status = WdfMemoryCreateFromLookaside(Context->RequestsLookaside, &handle);
+    status = AllocateVirtFSRequest(Context, &fs_req, in_buf);
 
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "WdfMemoryCreateFromLookaside failed");
         goto complete_wdf_req_no_fs_req;
     }
 
-    fs_req = WdfMemoryGetBuffer(handle, NULL);
-    fs_req->Handle = handle;
     fs_req->Request = Request;
 #if !VIRT_FS_DMAR
     fs_req->InputBuffer = VirtFsAllocatePages(InputBufferLength);
