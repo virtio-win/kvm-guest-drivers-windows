@@ -642,8 +642,8 @@ void VioGpuQueue::ReleaseBuffer(PGPU_VBUFFER buf)
 BOOLEAN VioGpuBuf::AllocateIndirectDescriptors(_In_ PGPU_VBUFFER pbuf, _In_ SIZE_T dataSize)
 {
     // Calculate descriptor table size: data pages + 2 (cmd + resp)
-    UINT numPages = (UINT)((dataSize + PAGE_SIZE - 1) / PAGE_SIZE);
-    UINT numDescriptors = numPages + 2;
+    SIZE_T numPages = (dataSize + PAGE_SIZE - 1) / PAGE_SIZE;
+    SIZE_T numDescriptors = numPages + 2;
     SIZE_T descTableSize = numDescriptors * SIZE_OF_SINGLE_INDIRECT_DESC;
     descTableSize = (descTableSize + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
 
