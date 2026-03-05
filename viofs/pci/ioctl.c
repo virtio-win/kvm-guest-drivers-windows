@@ -513,17 +513,12 @@ static VOID HandleSubmitFuseRequest(IN PDEVICE_CONTEXT Context,
     hiprio = VirtFsOpcodeIsHighPrio(((struct fuse_in_header *)in_buf)->opcode);
 
     status = VirtFsEnqueueRequest(Context, fs_req, hiprio);
+
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "VirtFsEnqueueRequest failed: %!STATUS!", status);
-        status = WdfRequestUnmarkCancelable(Request);
-        __analysis_assume(status != STATUS_NOT_SUPPORTED);
-        if (status != STATUS_CANCELLED)
-        {
-            goto complete_wdf_req;
-        }
+        // this will take care also on cancellation flow
+        FailFsRequest(Context, fs_req);
     }
-
     return;
 
 complete_wdf_req:
