@@ -49,6 +49,8 @@ EVT_WDF_TIMER VIOSockSelectTimerFunc;
 
 VOID VIOSockQueuesCleanup(IN WDFDEVICE hDevice);
 
+static VOID VIOSockSafeClearCollection(WDFSPINLOCK Lock, WDFCOLLECTION Collection, const char *Name);
+
 NTSTATUS
 VIOSockQueuesInit(IN WDFDEVICE hDevice);
 
@@ -95,6 +97,8 @@ VIOSockSelectCopyFds(IN PDEVICE_CONTEXT pContext,
 NTSTATUS
 VIOSockSelect(IN WDFREQUEST Request, IN OUT size_t *pLength);
 
+static NTSTATUS VIOSockTransportResetInit(IN PDEVICE_CONTEXT pContext);
+
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, VIOSockEvtDeviceAdd)
 #pragma alloc_text(PAGE, VIOSockQueuesCleanup)
@@ -113,9 +117,11 @@ VIOSockSelect(IN WDFREQUEST Request, IN OUT size_t *pLength);
 #pragma alloc_text(PAGE, VIOSockSelectWorkitem)
 #pragma alloc_text(PAGE, VIOSockSelectCopyFds)
 #pragma alloc_text(PAGE, VIOSockSelect)
+#pragma alloc_text(PAGE, VIOSockTransportResetInit)
+#pragma alloc_text(PAGE, VIOSockTransportResetWorkitemCallback)
 #endif
 
-static VOID VIOSockQueuesCleanup(IN WDFDEVICE hDevice)
+VOID VIOSockQueuesCleanup(IN WDFDEVICE hDevice)
 {
     PDEVICE_CONTEXT pContext = GetDeviceContext(hDevice);
     NTSTATUS status = STATUS_SUCCESS;
@@ -144,7 +150,7 @@ static VOID VIOSockQueuesCleanup(IN WDFDEVICE hDevice)
     VirtIOWdfDestroyQueues(&pContext->VDevice);
 }
 
-static NTSTATUS VIOSockQueuesInit(IN WDFDEVICE hDevice)
+NTSTATUS VIOSockQueuesInit(IN WDFDEVICE hDevice)
 {
     PDEVICE_CONTEXT pContext = GetDeviceContext(hDevice);
     NTSTATUS status = STATUS_SUCCESS;
@@ -309,6 +315,7 @@ VIOSockEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
     pContext = GetDeviceContext(hDevice);
 
     pContext->ThisDevice = hDevice;
+    pContext->DeviceReady = 0;
 
     WDF_OBJECT_ATTRIBUTES_INIT(&Attributes);
     Attributes.ParentObject = hDevice;
@@ -370,6 +377,13 @@ VIOSockEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "VIOSockSelectInit failed: 0x%x\n", status);
+        return status;
+    }
+
+    status = VIOSockTransportResetInit(pContext);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "VIOSockTransportResetInit failed: 0x%x\n", status);
         return status;
     }
 
@@ -448,6 +462,8 @@ static NTSTATUS VIOSockEvtDeviceD0Entry(IN WDFDEVICE Device, IN WDF_POWER_DEVICE
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> %s\n", __FUNCTION__);
 
+    InterlockedExchange(&pContext->DeviceReady, 0);
+
     status = VIOSockQueuesInit(Device);
     if (!NT_SUCCESS(status))
     {
@@ -462,13 +478,58 @@ static NTSTATUS VIOSockEvtDeviceD0Entry(IN WDFDEVICE Device, IN WDF_POWER_DEVICE
     return status;
 }
 
+static VOID VIOSockSafeClearCollection(WDFSPINLOCK Lock, WDFCOLLECTION Collection, const char *Name)
+{
+    WdfSpinLockAcquire(Lock);
+    ULONG remaining = WdfCollectionGetCount(Collection);
+    if (remaining > 0)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "ERROR: %d sockets still in %s after reset\n", remaining, Name);
+
+        while (WdfCollectionGetCount(Collection) > 0)
+        {
+            WdfCollectionRemoveItem(Collection, 0);
+        }
+    }
+    WdfSpinLockRelease(Lock);
+}
+
 static NTSTATUS VIOSockEvtDeviceD0Exit(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE TargetState)
 {
     PDEVICE_CONTEXT pContext = GetDeviceContext(Device);
 
     PAGED_CODE();
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s TargetState: %d\n", __FUNCTION__, TargetState);
+    TraceEvents(TRACE_LEVEL_INFORMATION,
+                DBG_PNP,
+                "--> %s TargetState: %d, guest_cid: %d, ResetOccurred: %d\n",
+                __FUNCTION__,
+                TargetState,
+                (ULONG)pContext->Config.guest_cid,
+                pContext->EvtRstOccured);
+
+    InterlockedExchange(&pContext->DeviceReady, 0);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "Device marked as not ready\n");
+
+    if (pContext->TransportResetWorkitem)
+    {
+        WdfWorkItemFlush(pContext->TransportResetWorkitem);
+    }
+
+    if (pContext->EvtRstOccured > 0)
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_PNP, "Shutdown after migration detected\n");
+
+        VIOSockSafeClearCollection(pContext->ConnectedLock, pContext->ConnectedList, "ConnectedList");
+        VIOSockSafeClearCollection(pContext->BoundLock, pContext->BoundList, "BoundList");
+    }
+    if (pContext->WdfInterrupt)
+    {
+        WdfInterruptDisable(pContext->WdfInterrupt);
+
+        // Wait for any running DPCs to complete to prevent use-after-free
+        KeFlushQueuedDpcs();
+    }
 
     VIOSockQueuesCleanup(Device);
 
@@ -487,6 +548,9 @@ static NTSTATUS VIOSockEvtDeviceD0EntryPostInterruptsEnabled(IN WDFDEVICE WdfDev
     VirtIOWdfSetDriverOK(&pContext->VDevice);
 
     ASSERT(pContext->RxVq && pContext->EvtVq);
+
+    InterlockedExchange(&pContext->DeviceReady, 1);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "Device marked as ready\n");
 
     return STATUS_SUCCESS;
 }
@@ -657,6 +721,54 @@ static NTSTATUS VIOSockSelectInit(IN PDEVICE_CONTEXT pContext)
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "<-- %s\n", __FUNCTION__);
 
     return status;
+}
+
+static NTSTATUS VIOSockTransportResetInit(IN PDEVICE_CONTEXT pContext)
+{
+    NTSTATUS status;
+    WDF_OBJECT_ATTRIBUTES Attributes;
+    WDF_WORKITEM_CONFIG wrkConfig;
+
+    PAGED_CODE();
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
+
+    pContext->TransportResetPending = 0;
+
+    WDF_OBJECT_ATTRIBUTES_INIT(&Attributes);
+    Attributes.ParentObject = pContext->ThisDevice;
+
+    WDF_WORKITEM_CONFIG_INIT(&wrkConfig, VIOSockTransportResetWorkitemCallback);
+    status = WdfWorkItemCreate(&wrkConfig, &Attributes, &pContext->TransportResetWorkitem);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "WdfWorkItemCreate failed (TransportReset): 0x%x\n", status);
+        return status;
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
+
+    return status;
+}
+
+VOID VIOSockTransportResetWorkitemCallback(IN WDFWORKITEM WorkItem)
+{
+    WDFDEVICE Device = WdfWorkItemGetParentObject(WorkItem);
+    PDEVICE_CONTEXT pContext = GetDeviceContext(Device);
+
+    PAGED_CODE();
+
+    TraceEvents(TRACE_LEVEL_WARNING,
+                DBG_HW_ACCESS,
+                "--> %s: Processing transport reset at PASSIVE_LEVEL\n",
+                __FUNCTION__);
+
+    VIOSockHandleTransportReset(pContext);
+
+    InterlockedExchange(&pContext->TransportResetPending, 0);
+    InterlockedExchange(&pContext->DeviceReady, 1);
+
+    TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "<-- %s: Transport reset completed\n", __FUNCTION__);
 }
 
 static VOID VIOSockSelectCleanupFds(IN PVIOSOCK_SELECT_PKT pPkt, IN VIRTIO_VSOCK_FDSET_TYPE iFdSet, IN ULONG uStartIndex

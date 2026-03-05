@@ -525,7 +525,6 @@ VOID VIOSockPendedTimerFunc(WDFTIMER Timer)
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
     //     ASSERT(VIOSockStateGet(pSocket) == VIOSOCK_STATE_CONNECTING);
-
     if (NT_SUCCESS(VIOSockPendedRequestGetLocked(pSocket, &PendedRequest)) && PendedRequest != WDF_NO_HANDLE)
     {
         WdfRequestComplete(PendedRequest, STATUS_IO_TIMEOUT);
@@ -2560,20 +2559,122 @@ VIOSockGetSocketFromHandle(IN PDEVICE_CONTEXT pContext, IN ULONGLONG uSocket, IN
     return WDF_NO_HANDLE;
 }
 
-VOID VIOSockHandleTransportReset(IN PDEVICE_CONTEXT pContext)
+// Callback context for transport reset operations
+typedef struct _TRANSPORT_RESET_CONTEXT
 {
-    WDFFILEOBJECT Socket;
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
+    PDEVICE_CONTEXT pDeviceContext;
+    ULONG connectedSocketsProcessed;
+    ULONG listenSocketsUpdated;
+} TRANSPORT_RESET_CONTEXT, *PTRANSPORT_RESET_CONTEXT;
 
-    while (WDF_NO_HANDLE != (Socket = WdfCollectionGetFirstItem(pContext->ConnectedList)))
+// Callback to handle connected sockets during transport reset
+static BOOLEAN VIOSockTransportResetConnectedCallback(IN PSOCKET_CONTEXT pSocket, IN PVOID pCallbackContext)
+{
+    PTRANSPORT_RESET_CONTEXT pResetContext = (PTRANSPORT_RESET_CONTEXT)pCallbackContext;
+
+    WdfSpinLockAcquire(pSocket->StateLock);
+
+    if (VIOSockStateGet(pSocket) == VIOSOCK_STATE_CONNECTED)
     {
-        PSOCKET_CONTEXT pCurrentSocket = GetSocketContext(Socket);
+        VIOSockStateSet(pSocket, VIOSOCK_STATE_CLOSE);
+        VIOSockEventSetBit(pSocket, FD_CLOSE_BIT, STATUS_CONNECTION_RESET);
 
-        ASSERT(VIOSockStateGet(pCurrentSocket) == VIOSOCK_STATE_CONNECTED);
+        pResetContext->connectedSocketsProcessed++;
 
-        VIOSockStateSet(pCurrentSocket, VIOSOCK_STATE_CLOSE);
-        VIOSockEventSetBit(pCurrentSocket, FD_CLOSE_BIT, STATUS_CONNECTION_RESET);
+        TraceEvents(TRACE_LEVEL_INFORMATION,
+                    DBG_HW_ACCESS,
+                    "Transport reset: closed connected socket %d\n",
+                    pSocket->SocketId);
     }
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
+    WdfSpinLockRelease(pSocket->StateLock);
+
+    // Signal close event to unblock any waiters
+    KeSetEvent(&pSocket->CloseEvent, 0, FALSE);
+
+    return FALSE; // Continue enumeration for all sockets
+}
+
+// Callback to update listen sockets during transport reset
+static BOOLEAN VIOSockTransportResetBoundCallback(IN PSOCKET_CONTEXT pSocket, IN PVOID pCallbackContext)
+{
+    PTRANSPORT_RESET_CONTEXT pResetContext = (PTRANSPORT_RESET_CONTEXT)pCallbackContext;
+
+    WdfSpinLockAcquire(pSocket->StateLock);
+
+    if (VIOSockStateGet(pSocket) == VIOSOCK_STATE_LISTEN)
+    {
+        pResetContext->listenSocketsUpdated++;
+
+        TraceEvents(TRACE_LEVEL_INFORMATION,
+                    DBG_HW_ACCESS,
+                    "Transport reset: updated listen socket %d CID to %d\n",
+                    pSocket->SocketId,
+                    (ULONG)pResetContext->pDeviceContext->Config.guest_cid);
+    }
+
+    WdfSpinLockRelease(pSocket->StateLock);
+
+    return FALSE; // Continue enumeration for all sockets
+}
+
+static VOID VIOSockResetQueueStates(IN PDEVICE_CONTEXT pContext)
+{
+    LONG oldTxEnqueued, oldTxPktAllocated;
+
+    TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
+
+    WdfSpinLockAcquire(pContext->TxLock);
+
+    oldTxEnqueued = InterlockedExchange(&pContext->TxEnqueued, 0);
+    oldTxPktAllocated = InterlockedExchange(&pContext->TxPktAllocated, 0);
+
+    InitializeListHead(&pContext->TxList);
+
+    pContext->TxQueuedReply = 0;
+
+    WdfSpinLockRelease(pContext->TxLock);
+
+    TraceEvents(TRACE_LEVEL_WARNING,
+                DBG_HW_ACCESS,
+                "<-- %s: Reset queue state - TxEnqueued: %d->0, TxPktAllocated: %d->0\n",
+                __FUNCTION__,
+                oldTxEnqueued,
+                oldTxPktAllocated);
+}
+
+VOID VIOSockHandleTransportReset(IN PDEVICE_CONTEXT pContext)
+{
+    TRANSPORT_RESET_CONTEXT resetContext = {0};
+    NTSTATUS status;
+
+    TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
+
+    resetContext.pDeviceContext = pContext;
+
+    VIOSockResetQueueStates(pContext);
+
+    VIOSockConnectedEnum(pContext, VIOSockTransportResetConnectedCallback, &resetContext);
+    VIOSockBoundEnum(pContext, VIOSockTransportResetBoundCallback, &resetContext);
+
+    TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "Starting VirtIO queue rebuilding\n");
+
+    VIOSockQueuesCleanup(pContext->ThisDevice);
+
+    status = VIOSockQueuesInit(pContext->ThisDevice);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "Failed to rebuild queues after transport reset: 0x%x\n", status);
+        return;
+    }
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "Setting VIRTIO_CONFIG_S_DRIVER_OK flag\n");
+    VirtIOWdfSetDriverOK(&pContext->VDevice);
+
+    TraceEvents(TRACE_LEVEL_WARNING,
+                DBG_HW_ACCESS,
+                "<-- %s: Transport reset complete, %d connected sockets closed, %d listen sockets updated\n",
+                __FUNCTION__,
+                resetContext.connectedSocketsProcessed,
+                resetContext.listenSocketsUpdated);
 }
