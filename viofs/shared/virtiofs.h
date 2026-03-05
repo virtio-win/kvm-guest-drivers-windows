@@ -41,3 +41,13 @@ DEFINE_GUID(GUID_DEVINTERFACE_VIRT_FS, 0xa1b0cbf2, 0xf488, 0x4b29, 0xb8, 0x9f, 0
 
 #define IOCTL_VIRTFS_FUSE_REQUEST                                                                                      \
     CTL_CODE(FILE_DEVICE_UNKNOWN, 0x801, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS)
+
+#define IOCTL_VIRTFS_FUSE_REQUEST_READ                                                                                 \
+    CTL_CODE(FILE_DEVICE_UNKNOWN, 0x802, METHOD_OUT_DIRECT, FILE_READ_ACCESS | FILE_WRITE_ACCESS)
+
+// for OUT buffer of IOCTL_VIRTFS_FUSE_REQUEST_READ, see also FUSE_READ_OUT
+struct fuse_out_for_read
+{
+    struct fuse_out_header hdr;
+    uint64_t original_pointer;
+};

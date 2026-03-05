@@ -287,6 +287,10 @@ static VOID VirtFsReadFromQueue(PDEVICE_CONTEXT context, struct virtqueue *vq, W
                         status,
                         length);
 
+            if (fs_req->Mdl)
+            {
+                length = sizeof(struct fuse_out_header);
+            }
             WdfRequestCompleteWithInformation(fs_req->Request, status, (ULONG_PTR)length);
         }
 

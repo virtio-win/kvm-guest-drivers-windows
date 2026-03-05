@@ -409,6 +409,122 @@ static VOID HandleGetVolumeName(IN PDEVICE_CONTEXT Context, IN WDFREQUEST Reques
     WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, size);
 }
 
+static VOID HandleFuseRead(IN PDEVICE_CONTEXT Context,
+                           IN WDFREQUEST Request,
+                           IN size_t OutputBufferLength,
+                           IN size_t InputBufferLength)
+{
+    NTSTATUS status;
+    PVIRTIO_FS_REQUEST fs_req;
+    PVOID in_buf, out_buf;
+    BOOLEAN hiprio;
+
+    if (InputBufferLength < sizeof(struct fuse_in_header))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "Insufficient in buffer");
+        status = STATUS_BUFFER_TOO_SMALL;
+        goto complete_wdf_req_no_fs_req;
+    }
+
+    if (OutputBufferLength < sizeof(struct fuse_out_for_read))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "Insufficient out buffer");
+        status = STATUS_BUFFER_TOO_SMALL;
+        goto complete_wdf_req_no_fs_req;
+    }
+
+    status = WdfRequestRetrieveInputBuffer(Request, InputBufferLength, &in_buf, NULL);
+
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "WdfRequestRetrieveInputBuffer failed");
+        goto complete_wdf_req_no_fs_req;
+    }
+
+    status = WdfRequestRetrieveOutputBuffer(Request, OutputBufferLength, &out_buf, NULL);
+
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "WdfRequestRetrieveOutputBuffer failed");
+        goto complete_wdf_req_no_fs_req;
+    }
+
+    status = AllocateVirtFSRequest(Context, &fs_req, in_buf);
+
+    if (!NT_SUCCESS(status))
+    {
+        goto complete_wdf_req_no_fs_req;
+    }
+
+    PVOID originalBuffer = (PVOID)(ULONG_PTR)((struct fuse_out_for_read *)out_buf)->original_pointer;
+    ULONG originalBufferLen = ((struct fuse_out_for_read *)out_buf)->hdr.len;
+    ULONG outHeaderLength = sizeof(((struct fuse_out_for_read *)out_buf)->hdr);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "read length %d", originalBufferLen);
+
+    fs_req->Request = Request;
+    fs_req->Cancellable = FALSE;
+
+    WDFMEMORY userMem;
+    status = WdfRequestProbeAndLockUserBufferForWrite(Request, originalBuffer, originalBufferLen, &userMem);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "WdfRequestProbeAndLockUserBufferForWrite failed");
+        goto complete_wdf_req;
+    }
+
+    PMDL firstMdl = IoAllocateMdl(out_buf, outHeaderLength, FALSE, FALSE, NULL);
+    if (!firstMdl)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "Can't create MDL1");
+        status = STATUS_INSUFFICIENT_RESOURCES;
+        goto complete_wdf_req;
+    }
+    PMDL secondMdl = IoAllocateMdl(WdfMemoryGetBuffer(userMem, NULL), originalBufferLen, FALSE, FALSE, NULL);
+    if (!secondMdl)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "Can't create MDL2");
+        IoFreeMdl(firstMdl);
+        status = STATUS_INSUFFICIENT_RESOURCES;
+        goto complete_wdf_req;
+    }
+    MmBuildMdlForNonPagedPool(firstMdl);
+    MmBuildMdlForNonPagedPool(secondMdl);
+    firstMdl->Next = secondMdl;
+    fs_req->Mdl = firstMdl;
+
+    RtlZeroMemory(&fs_req->H2D_Params, sizeof(fs_req->H2D_Params));
+    RtlZeroMemory(&fs_req->D2H_Params, sizeof(fs_req->D2H_Params));
+
+    fs_req->H2D_Params.allocationTag = VIRT_FS_MEMORY_TAG;
+    fs_req->H2D_Params.buffer = in_buf;
+    fs_req->H2D_Params.size = (ULONG)InputBufferLength;
+    fs_req->H2D_Params.param1 = Context;
+    fs_req->H2D_Params.param2 = fs_req;
+
+    fs_req->D2H_Params.allocationTag = VIRT_FS_MEMORY_TAG;
+    fs_req->D2H_Params.buffer = firstMdl;
+    fs_req->D2H_Params.req = (WDFREQUEST)WDF_INVALID_HANDLE;
+    fs_req->D2H_Params.size = outHeaderLength + originalBufferLen;
+    fs_req->D2H_Params.param1 = Context;
+    fs_req->D2H_Params.param2 = fs_req;
+
+    hiprio = FALSE;
+
+    status = VirtFsEnqueueRequest(Context, fs_req, hiprio);
+    if (NT_SUCCESS(status))
+    {
+        return;
+    }
+
+complete_wdf_req:
+    FreeVirtFsRequest(fs_req);
+
+complete_wdf_req_no_fs_req:
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "Complete Request: %p Status: %!STATUS!", Request, status);
+    WdfRequestComplete(Request, status);
+}
+
 void CopyBuffer(void *_Dst, void const *_Src, size_t _Size)
 {
     RtlCopyMemory(_Dst, _Src, _Size);
@@ -571,6 +687,12 @@ VOID VirtFsEvtIoDeviceControl(IN WDFQUEUE Queue,
 
         case IOCTL_VIRTFS_FUSE_REQUEST:
             HandleSubmitFuseRequest(context, Request, OutputBufferLength, InputBufferLength);
+            break;
+
+        case IOCTL_VIRTFS_FUSE_REQUEST_READ:
+            // OutputBuffer - fuse_out_for_read
+            // InputBuffer  - usual
+            HandleFuseRead(context, Request, OutputBufferLength, InputBufferLength);
             break;
 
         default:
