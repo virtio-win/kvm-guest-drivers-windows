@@ -97,8 +97,6 @@ typedef struct _VIRTIO_FS_REQUEST
 #endif
 } VIRTIO_FS_REQUEST, *PVIRTIO_FS_REQUEST;
 
-void FreeVirtFsRequest(IN PVIRTIO_FS_REQUEST Request);
-
 typedef struct _DEVICE_CONTEXT
 {
 
@@ -154,3 +152,5 @@ EVT_WDF_IO_QUEUE_IO_STOP VirtFsEvtIoStop;
 
 BOOLEAN VirtFsDequeueRequest(PDEVICE_CONTEXT Context, PVIRTIO_FS_REQUEST Req);
 BOOLEAN VirtFsDequeueWdfRequest(PDEVICE_CONTEXT Context, WDFREQUEST WdfRequest);
+NTSTATUS AllocateVirtFSRequest(IN PDEVICE_CONTEXT Context, OUT PVIRTIO_FS_REQUEST *Request, PVOID InBuf);
+void FreeVirtFsRequest(IN PVIRTIO_FS_REQUEST Request);

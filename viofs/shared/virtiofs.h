@@ -30,6 +30,7 @@
 #pragma once
 
 #include <guiddef.h>
+#include "fuse.h"
 
 // {a1b0cbf2-f488-4b29-b89f-16c78e68c737}
 DEFINE_GUID(GUID_DEVINTERFACE_VIRT_FS, 0xa1b0cbf2, 0xf488, 0x4b29, 0xb8, 0x9f, 0x16, 0xc7, 0x8e, 0x68, 0xc7, 0x37);

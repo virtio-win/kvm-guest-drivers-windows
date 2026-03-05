@@ -218,6 +218,27 @@ VOID VirtFsEvtDriverContextCleanup(IN WDFOBJECT DriverObject)
     WPP_CLEANUP(WdfDriverWdmGetDriverObject(DriverObject));
 }
 
+NTSTATUS AllocateVirtFSRequest(IN PDEVICE_CONTEXT Context, OUT PVIRTIO_FS_REQUEST *Request, PVOID InBuf)
+{
+    WDFMEMORY handle;
+    UINT32 opcode;
+    NTSTATUS status = WdfMemoryCreateFromLookaside(Context->RequestsLookaside, &handle);
+    if (!NT_SUCCESS(status))
+    {
+        *Request = NULL;
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "WdfMemoryCreateFromLookaside failed");
+        return status;
+    }
+    *Request = WdfMemoryGetBuffer(handle, NULL);
+    (*Request)->Handle = handle;
+#if VIRT_FS_DMAR
+    (*Request)->Mdl = NULL;
+#endif
+    opcode = ((struct fuse_in_header *)InBuf)->opcode;
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_IOCTL, "new FS request for opcode %d", opcode);
+    return status;
+}
+
 void FreeVirtFsRequest(IN PVIRTIO_FS_REQUEST Request)
 {
 #if !VIRT_FS_DMAR
