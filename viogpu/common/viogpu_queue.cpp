@@ -413,7 +413,7 @@ void CtrlQueue::TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT hei
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
-void CtrlQueue::AttachBacking(UINT res_id, PGPU_MEM_ENTRY ents, UINT nents)
+BOOLEAN CtrlQueue::AttachBacking(UINT res_id, PGPU_MEM_ENTRY ents, UINT nents)
 {
     PAGED_CODE();
 
@@ -435,9 +435,14 @@ void CtrlQueue::AttachBacking(UINT res_id, PGPU_MEM_ENTRY ents, UINT nents)
     vbuf->data_size = sizeof(*ents) * nents;
     vbuf->use_indirect = true;
 
-    QueueBuffer(vbuf);
+    if (QueueBuffer(vbuf) < 0)
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s failed to queue buffer\n", __FUNCTION__));
+        return FALSE;
+    }
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+    return TRUE;
 }
 
 PAGED_CODE_SEG_END
@@ -532,7 +537,7 @@ void CtrlQueue::SetScanout(UINT scan_id, UINT res_id, UINT width, UINT height, U
 }
 
 #define SGLIST_SIZE 256
-UINT CtrlQueue::QueueBuffer(PGPU_VBUFFER buf)
+int CtrlQueue::QueueBuffer(PGPU_VBUFFER buf)
 {
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
@@ -542,20 +547,20 @@ UINT CtrlQueue::QueueBuffer(PGPU_VBUFFER buf)
         if (!m_pBuf->AllocateIndirectDescriptors(buf, buf->data_size))
         {
             DbgPrint(TRACE_LEVEL_ERROR, ("<--> %s failed to allocate indirect descriptors\n", __FUNCTION__));
-            return 0;
+            return -1;
         }
     }
 
     VirtIOBufferDescriptor sg[SGLIST_SIZE];
     UINT sgleft = SGLIST_SIZE;
     UINT outcnt = 0, incnt = 0;
-    UINT ret = 0;
+    int ret = 0;
     KIRQL SavedIrql;
 
     if (buf->size > PAGE_SIZE)
     {
         DbgPrint(TRACE_LEVEL_ERROR, ("<--> %s size is too big %d\n", __FUNCTION__, buf->size));
-        return 0;
+        return -1;
     }
 
     if (BuildSGElement(&sg[outcnt + incnt], (PVOID)buf->buf, buf->size))
@@ -579,7 +584,7 @@ UINT CtrlQueue::QueueBuffer(PGPU_VBUFFER buf)
                 if (sgleft == 0)
                 {
                     DbgPrint(TRACE_LEVEL_ERROR, ("<--> %s no more sgelenamt spots left %d\n", __FUNCTION__, outcnt));
-                    return 0;
+                    return -1;
                 }
             }
         }
@@ -588,7 +593,7 @@ UINT CtrlQueue::QueueBuffer(PGPU_VBUFFER buf)
     if (buf->resp_size > PAGE_SIZE)
     {
         DbgPrint(TRACE_LEVEL_ERROR, ("<--> %s resp_size is too big %d\n", __FUNCTION__, buf->resp_size));
-        return 0;
+        return -1;
     }
 
     if (buf->resp_size && (sgleft > 0))
