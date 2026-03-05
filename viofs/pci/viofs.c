@@ -236,6 +236,14 @@ void FreeVirtFsRequest(IN PVIRTIO_FS_REQUEST Request)
         Request->OutputBuffer = NULL;
         Request->OutputBufferLength = 0;
     }
+#else
+    PMDL mdlChain = Request->Mdl;
+    while (mdlChain)
+    {
+        PMDL mdl = mdlChain;
+        mdlChain = mdl->Next;
+        IoFreeMdl(mdl);
+    }
 #endif
     if (Request->Handle != NULL)
     {
