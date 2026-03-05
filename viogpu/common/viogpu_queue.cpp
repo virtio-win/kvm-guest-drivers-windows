@@ -970,10 +970,7 @@ BOOLEAN VioGpuMemSegment::Init(_In_ UINT size, _In_opt_ PPHYSICAL_ADDRESS pPAddr
         if (!m_pBlocks || !m_pBlockSizes)
         {
             DbgPrint(TRACE_LEVEL_FATAL, ("%s insufficient resources to allocate block arrays\n", __FUNCTION__));
-            delete[] reinterpret_cast<PBYTE>(m_pBlocks);
-            delete[] reinterpret_cast<PBYTE>(m_pBlockSizes);
-            m_pBlocks = NULL;
-            m_pBlockSizes = NULL;
+            Close();
             return FALSE;
         }
         RtlZeroMemory(m_pBlocks, maxBlocks * sizeof(PVOID));
@@ -994,16 +991,7 @@ BOOLEAN VioGpuMemSegment::Init(_In_ UINT size, _In_opt_ PPHYSICAL_ADDRESS pPAddr
             {
                 DbgPrint(TRACE_LEVEL_FATAL,
                          ("%s failed to allocate contiguous memory, remaining=%Iu\n", __FUNCTION__, remaining));
-                // Cleanup already allocated blocks
-                for (UINT i = 0; i < m_nBlocks; i++)
-                {
-                    MmFreeContiguousMemory(m_pBlocks[i]);
-                }
-                delete[] reinterpret_cast<PBYTE>(m_pBlocks);
-                delete[] reinterpret_cast<PBYTE>(m_pBlockSizes);
-                m_pBlocks = NULL;
-                m_pBlockSizes = NULL;
-                m_nBlocks = 0;
+                Close();
                 return FALSE;
             }
 
@@ -1022,15 +1010,7 @@ BOOLEAN VioGpuMemSegment::Init(_In_ UINT size, _In_opt_ PPHYSICAL_ADDRESS pPAddr
         if (!m_pMdl)
         {
             DbgPrint(TRACE_LEVEL_FATAL, ("%s insufficient resources to allocate MDL\n", __FUNCTION__));
-            for (UINT i = 0; i < m_nBlocks; i++)
-            {
-                MmFreeContiguousMemory(m_pBlocks[i]);
-            }
-            delete[] reinterpret_cast<PBYTE>(m_pBlocks);
-            delete[] reinterpret_cast<PBYTE>(m_pBlockSizes);
-            m_pBlocks = NULL;
-            m_pBlockSizes = NULL;
-            m_nBlocks = 0;
+            Close();
             return FALSE;
         }
 
@@ -1056,17 +1036,7 @@ BOOLEAN VioGpuMemSegment::Init(_In_ UINT size, _In_opt_ PPHYSICAL_ADDRESS pPAddr
         if (!m_pVAddr)
         {
             DbgPrint(TRACE_LEVEL_FATAL, ("%s MmMapLockedPagesSpecifyCache failed\n", __FUNCTION__));
-            IoFreeMdl(m_pMdl);
-            m_pMdl = NULL;
-            for (UINT i = 0; i < m_nBlocks; i++)
-            {
-                MmFreeContiguousMemory(m_pBlocks[i]);
-            }
-            delete[] reinterpret_cast<PBYTE>(m_pBlocks);
-            delete[] reinterpret_cast<PBYTE>(m_pBlockSizes);
-            m_pBlocks = NULL;
-            m_pBlockSizes = NULL;
-            m_nBlocks = 0;
+            Close();
             return FALSE;
         }
 
@@ -1077,19 +1047,7 @@ BOOLEAN VioGpuMemSegment::Init(_In_ UINT size, _In_opt_ PPHYSICAL_ADDRESS pPAddr
         if (!m_pSGList)
         {
             DbgPrint(TRACE_LEVEL_FATAL, ("%s insufficient resources to allocate SGL\n", __FUNCTION__));
-            MmUnmapLockedPages(m_pVAddr, m_pMdl);
-            m_pVAddr = NULL;
-            IoFreeMdl(m_pMdl);
-            m_pMdl = NULL;
-            for (UINT i = 0; i < m_nBlocks; i++)
-            {
-                MmFreeContiguousMemory(m_pBlocks[i]);
-            }
-            delete[] reinterpret_cast<PBYTE>(m_pBlocks);
-            delete[] reinterpret_cast<PBYTE>(m_pBlockSizes);
-            m_pBlocks = NULL;
-            m_pBlockSizes = NULL;
-            m_nBlocks = 0;
+            Close();
             return FALSE;
         }
 
