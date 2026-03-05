@@ -56,7 +56,6 @@ static SIZE_T GetRequiredScatterGatherSize(IN PVIRTIO_FS_REQUEST Request)
 
     return n;
 }
-#endif
 
 static PMDL VirtFsAllocatePages(IN SIZE_T TotalBytes)
 {
@@ -102,7 +101,6 @@ static int FillScatterGatherFromMdl(OUT struct scatterlist sg[], IN PMDL Mdl, IN
     return i;
 }
 
-#if !VIRT_FS_DMAR
 static NTSTATUS VirtFsEnqueueRequest(IN PDEVICE_CONTEXT Context, IN PVIRTIO_FS_REQUEST Request, IN BOOLEAN HighPrio)
 {
     WDFSPINLOCK vq_lock;
