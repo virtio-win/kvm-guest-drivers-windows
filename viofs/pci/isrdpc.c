@@ -211,18 +211,31 @@ static VOID VirtFsReadFromQueue(PDEVICE_CONTEXT context, struct virtqueue *vq, W
 
         WdfSpinLockRelease(vq_lock);
 
-        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "Got %p Request: %p", fs_req, fs_req->Request);
+        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "Got %p Request: %p, len %d", fs_req, fs_req->Request, length);
 
         VirtFsDequeueRequest(context, fs_req);
 
         if (fs_req->Request != NULL)
         {
-            // TODO: why are we sure the wdfReq is valid and not destroyed yet?
-            NTSTATUS status2 = WdfRequestUnmarkCancelable(fs_req->Request);
-            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "request %p -> uncancellable = %X", fs_req->Request, status2);
-            if (status2 == STATUS_CANCELLED)
+            if (fs_req->Cancellable)
             {
-                fs_req->Request = NULL;
+                NTSTATUS status2 = WdfRequestUnmarkCancelable(fs_req->Request);
+                TraceEvents(TRACE_LEVEL_INFORMATION,
+                            DBG_DPC,
+                            "request %p -> uncancellable = %X",
+                            fs_req->Request,
+                            status2);
+                if (status2 == STATUS_CANCELLED)
+                {
+                    fs_req->Request = NULL;
+                    VirtIOWdfDeviceDmaTxComplete(&context->VDevice.VIODevice, fs_req->H2D_Params.transaction);
+                    VirtIOWdfDeviceDmaRxComplete(&context->VDevice.VIODevice, fs_req->D2H_Params.transaction, 0);
+                }
+            }
+            else if (WdfRequestIsCanceled(fs_req->Request))
+            {
+                length = 0;
+                status = STATUS_CANCELLED;
             }
         }
 

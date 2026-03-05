@@ -193,17 +193,29 @@ void FailFsRequest(IN PDEVICE_CONTEXT Context, IN PVIRTIO_FS_REQUEST Request)
 
     if (wdfReq)
     {
-        // TODO: why are we sure the wdfReq is valid and not destroyed yet?
-        NTSTATUS status = WdfRequestUnmarkCancelable(wdfReq);
-        if (status != STATUS_CANCELLED)
+        NTSTATUS status = STATUS_UNSUCCESSFUL;
+        if (Request->Cancellable)
         {
-            status = STATUS_UNSUCCESSFUL;
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "%s: completing %p with %X", __FUNCTION__, wdfReq, status);
-            WdfRequestComplete(wdfReq, status);
+            status = WdfRequestUnmarkCancelable(wdfReq);
+            if (status != STATUS_CANCELLED)
+            {
+                status = STATUS_UNSUCCESSFUL;
+                TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "%s: completing %p with %X", __FUNCTION__, wdfReq, status);
+                WdfRequestComplete(wdfReq, status);
+            }
+            else
+            {
+                // cancellation flow already started and will complete the WDF request
+            }
         }
         else
         {
-            // cancellation flow already started and will complete the WDF request
+            if (WdfRequestIsCanceled(wdfReq))
+            {
+                status = STATUS_CANCELLED;
+            }
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "%s: completing %p with %X", __FUNCTION__, wdfReq, status);
+            WdfRequestComplete(wdfReq, status);
         }
     }
     FreeVirtFsRequest(Request);
@@ -458,6 +470,8 @@ static VOID HandleSubmitFuseRequest(IN PDEVICE_CONTEXT Context,
     }
 
     fs_req->Request = Request;
+    fs_req->Cancellable = TRUE;
+
 #if !VIRT_FS_DMAR
     fs_req->InputBuffer = VirtFsAllocatePages(InputBufferLength);
     fs_req->InputBufferLength = InputBufferLength;
@@ -503,11 +517,14 @@ static VOID HandleSubmitFuseRequest(IN PDEVICE_CONTEXT Context,
     fs_req->D2H_Params.param1 = Context;
     fs_req->D2H_Params.param2 = fs_req;
 #endif
-    status = WdfRequestMarkCancelableEx(Request, VirtFsEvtRequestCancel);
-    if (!NT_SUCCESS(status))
+    if (fs_req->Cancellable)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "WdfRequestMarkCancelableEx failed: %!STATUS!", status);
-        goto complete_wdf_req;
+        status = WdfRequestMarkCancelableEx(Request, VirtFsEvtRequestCancel);
+        if (!NT_SUCCESS(status))
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "WdfRequestMarkCancelableEx failed: %!STATUS!", status);
+            goto complete_wdf_req;
+        }
     }
 
     hiprio = VirtFsOpcodeIsHighPrio(((struct fuse_in_header *)in_buf)->opcode);
