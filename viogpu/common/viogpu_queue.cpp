@@ -1032,7 +1032,7 @@ BOOLEAN VioGpuMemSegment::Init(_In_ UINT size, _In_opt_ PPHYSICAL_ADDRESS pPAddr
 
         // Mark MDL as locked and map to contiguous virtual address
         m_pMdl->MdlFlags |= MDL_PAGES_LOCKED;
-        m_pVAddr = MmMapLockedPagesSpecifyCache(m_pMdl, KernelMode, MmNonCached, NULL, FALSE, NormalPagePriority);
+        m_pVAddr = MmMapLockedPagesSpecifyCache(m_pMdl, KernelMode, MmWriteCombined, NULL, FALSE, NormalPagePriority);
         if (!m_pVAddr)
         {
             DbgPrint(TRACE_LEVEL_FATAL, ("%s MmMapLockedPagesSpecifyCache failed\n", __FUNCTION__));
