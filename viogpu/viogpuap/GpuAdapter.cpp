@@ -248,12 +248,28 @@ bool GpuAdapter::SetResolution(PVIOGPU_DISP_MODE mode)
     return true;
 }
 
+void GpuAdapter::SyncResolution(void)
+{
+    PrintMessage(L"%ws\n", __FUNCTIONW__);
+
+    VIOGPU_DISP_MODE custom = {0};
+    UpdateDisplayConfig();
+    if (GetCustomResolution(&custom))
+    {
+        VIOGPU_DISP_MODE current = {0};
+        GetCurrentResolution(&current);
+        SetResolution(&custom);
+    }
+}
+
 void GpuAdapter::Run()
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
     if (m_hThread != NULL && m_hStopEvent != NULL && m_hResolutionEvent != NULL)
     {
+        SyncResolution();
+
         const HANDLE handles[] = {m_hStopEvent, m_hResolutionEvent};
         while (1)
         {
@@ -261,14 +277,7 @@ void GpuAdapter::Run()
             {
                 break;
             }
-            VIOGPU_DISP_MODE custom = {0};
-            UpdateDisplayConfig();
-            if (GetCustomResolution(&custom))
-            {
-                VIOGPU_DISP_MODE current = {0};
-                GetCurrentResolution(&current);
-                SetResolution(&custom);
-            }
+            SyncResolution();
         }
     }
 }
