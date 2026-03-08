@@ -541,14 +541,18 @@ int CtrlQueue::QueueBuffer(PGPU_VBUFFER buf)
 {
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
-    // Allocate indirect descriptors if requested
-    if (buf->use_indirect)
+    // Allocate indirect descriptors only if both requested and negotiated
+    if (buf->use_indirect && m_pBuf->GetUseIndirect())
     {
         if (!m_pBuf->AllocateIndirectDescriptors(buf, buf->data_size))
         {
             DbgPrint(TRACE_LEVEL_ERROR, ("<--> %s failed to allocate indirect descriptors\n", __FUNCTION__));
             return -1;
         }
+    }
+    else
+    {
+        buf->use_indirect = false;
     }
 
     VirtIOBufferDescriptor sg[SGLIST_SIZE];
@@ -909,6 +913,7 @@ VioGpuBuf::VioGpuBuf()
     InitializeListHead(&m_InUseBufs);
     KeInitializeSpinLock(&m_SpinLock);
     m_uCount = 0;
+    m_bUseIndirect = FALSE;
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }

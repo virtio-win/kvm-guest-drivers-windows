@@ -2413,7 +2413,7 @@ NTSTATUS VioGpuAdapter::VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION *pDispInfo)
         // Enable indirect descriptors to support high-resolution modes.
         // Large framebuffers (e.g., 4K) require thousands of memory page entries,
         // which exceed the virtqueue's direct descriptor limit.
-        AckFeature(VIRTIO_RING_F_INDIRECT_DESC);
+        m_GpuBuf.SetUseIndirect(AckFeature(VIRTIO_RING_F_INDIRECT_DESC));
 
         status = virtio_set_features(&m_VioDev, m_u64GuestFeatures);
         if (!NT_SUCCESS(status))

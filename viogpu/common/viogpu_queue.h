@@ -78,6 +78,14 @@ class VioGpuBuf
     void FreeBuf(_In_ PGPU_VBUFFER pbuf);
     BOOLEAN Init(_In_ UINT cnt);
     BOOLEAN AllocateIndirectDescriptors(_In_ PGPU_VBUFFER pbuf, _In_ SIZE_T dataSize);
+    void SetUseIndirect(_In_ BOOLEAN bUseIndirect)
+    {
+        m_bUseIndirect = bUseIndirect;
+    }
+    BOOLEAN GetUseIndirect(void)
+    {
+        return m_bUseIndirect;
+    }
 
   private:
     void Close(void);
@@ -89,6 +97,7 @@ class VioGpuBuf
     KSPIN_LOCK m_SpinLock;
     UINT m_uCount;
     UINT m_uCountMin = 0;
+    BOOLEAN m_bUseIndirect;
 };
 
 // QEMU hard limit for nr_entries in virtio_gpu_create_mapping_iov()
