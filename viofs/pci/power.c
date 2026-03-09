@@ -94,6 +94,12 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
 
     VirtIOWdfSetDriverFeatures(&context->VDevice, GuestFeatures, 0);
 
+    // There is an information from the first (2024) integration with WDF API that
+    // the transaction with the virtiofsd fails on large fragment (1M)
+    // I never saw such failures with latest interactions with modern (rust) virtiofsd
+    // TODO: recheck with old and new virtiofsd and decide whether we can disable the split
+    context->SplitToPages = TRUE;
+
     VirtIOWdfDeviceGet(&context->VDevice,
                        FIELD_OFFSET(VIRTIO_FS_CONFIG, RequestQueues),
                        &RequestQueues,
