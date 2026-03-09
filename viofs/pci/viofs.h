@@ -105,6 +105,7 @@ typedef struct _DEVICE_CONTEXT
     UINT32 QueueSize;
     struct virtqueue **VirtQueues;
     BOOLEAN UseIndirect;
+    BOOLEAN SplitToPages;
     PVOID IndirectVA;
     PHYSICAL_ADDRESS IndirectPA;
 

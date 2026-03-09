@@ -221,16 +221,20 @@ void FailFsRequest(IN PDEVICE_CONTEXT Context, IN PVIRTIO_FS_REQUEST Request)
     FreeVirtFsRequest(Request);
 }
 
-static FORCEINLINE ULONG FragmentSize(PHYSICAL_ADDRESS Addr, ULONG Length)
+static FORCEINLINE ULONG FragmentSize(PHYSICAL_ADDRESS Addr, ULONG Length, BOOLEAN DoSplit)
 {
+    if (!DoSplit)
+    {
+        return Length;
+    }
     ULONG offset = Addr.LowPart & (PAGE_SIZE - 1);
     return min(PAGE_SIZE - offset, Length);
 }
 
-// split SG elements to fragments <= PAGE_SIZE and inside the same page
-// with large SG elements the virtiofsd may fail to map the fragment (happens with 1M elements)
+// optionally split SG elements to fragments <= PAGE_SIZE and inside the same page
+// see SplitToPages in device context
 // DestSG = NULL for dry run (just calculate)
-static ULONG PopulateSG(struct VirtIOBufferDescriptor *DestSG, PSCATTER_GATHER_LIST SrcSG)
+static ULONG PopulateSG(struct VirtIOBufferDescriptor *DestSG, PSCATTER_GATHER_LIST SrcSG, BOOLEAN DoSplit)
 {
     ULONG i, n = 0;
     for (i = 0; i < SrcSG->NumberOfElements; ++i)
@@ -240,7 +244,7 @@ static ULONG PopulateSG(struct VirtIOBufferDescriptor *DestSG, PSCATTER_GATHER_L
         while (len)
         {
             ULONG current;
-            current = FragmentSize(pa, len);
+            current = FragmentSize(pa, len, DoSplit);
             if (DestSG)
             {
                 DestSG[n].physAddr = pa;
@@ -261,9 +265,9 @@ static ULONG PopulateSG(struct VirtIOBufferDescriptor *DestSG, PSCATTER_GATHER_L
     return n;
 }
 
-static ULONG CalculateFragments(PSCATTER_GATHER_LIST SGList)
+static ULONG CalculateFragments(PSCATTER_GATHER_LIST SGList, BOOLEAN DoSplit)
 {
-    return PopulateSG(NULL, SGList);
+    return PopulateSG(NULL, SGList, DoSplit);
 }
 
 static BOOLEAN VirtioFsRxTransactionCallback(PVIRTIO_DMA_TRANSACTION_PARAMS Params)
@@ -278,8 +282,8 @@ static BOOLEAN VirtioFsRxTransactionCallback(PVIRTIO_DMA_TRANSACTION_PARAMS Para
     fs_req->D2H_Params.sgList = Params->sgList;
     fs_req->D2H_Params.transaction = Params->transaction;
 
-    sgNumIn = CalculateFragments(fs_req->H2D_Params.sgList);
-    sgNumOut = CalculateFragments(fs_req->D2H_Params.sgList);
+    sgNumIn = CalculateFragments(fs_req->H2D_Params.sgList, context->SplitToPages);
+    sgNumOut = CalculateFragments(fs_req->D2H_Params.sgList, context->SplitToPages);
     sgNum = sgNumIn + sgNumOut;
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "--> %s: %d + %d fragments", __FUNCTION__, sgNumIn, sgNumOut);
     if (sgNum > VIRT_FS_MAX_QUEUE_SIZE)
@@ -303,8 +307,8 @@ static BOOLEAN VirtioFsRxTransactionCallback(PVIRTIO_DMA_TRANSACTION_PARAMS Para
         TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "%s: using indirect transfer", __FUNCTION__);
     }
     // populate fs_req->SGTable with SG elements
-    sgNumIn = PopulateSG(fs_req->SGTable, fs_req->H2D_Params.sgList);
-    sgNumOut = PopulateSG(fs_req->SGTable + sgNumIn, fs_req->D2H_Params.sgList);
+    sgNumIn = PopulateSG(fs_req->SGTable, fs_req->H2D_Params.sgList, context->SplitToPages);
+    sgNumOut = PopulateSG(fs_req->SGTable + sgNumIn, fs_req->D2H_Params.sgList, context->SplitToPages);
     // push buffers to virtqueue
     WdfSpinLockAcquire(fs_req->VQ_Lock);
     int ret = virtqueue_add_buf(fs_req->VQ, fs_req->SGTable, sgNumIn, sgNumOut, fs_req, indirect_va, indirect_pa);
