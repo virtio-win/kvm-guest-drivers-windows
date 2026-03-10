@@ -31,6 +31,16 @@
 
 #include "fuse.h"
 
+// this define limit the lenght of the file name
+// that we're able to pass to the host
+// the real limitation depends on the exact host file system
+// it might be slightly less (255). might be greater (1023)
+// if we increase this length we'll need to take care on
+// the situations in virtiofs.cpp when we do conversion from
+// multibyte to unicode and may face the limitation of MAX_PATH
+// unicode symbols
+#define MAX_NAME_LENGTH MAX_PATH
+
 typedef struct
 {
     struct fuse_in_header hdr;
@@ -48,7 +58,7 @@ typedef struct
 typedef struct
 {
     struct fuse_in_header hdr;
-    char name[MAX_PATH];
+    char name[MAX_NAME_LENGTH];
 
 } FUSE_LOOKUP_IN;
 
@@ -104,7 +114,7 @@ typedef struct
 {
     struct fuse_in_header hdr;
     struct fuse_create_in create;
-    char name[MAX_PATH];
+    char name[MAX_NAME_LENGTH];
 
 } FUSE_CREATE_IN, *PFUSE_CREATE_IN;
 
@@ -188,7 +198,7 @@ typedef struct
 typedef struct
 {
     struct fuse_in_header hdr;
-    char name[MAX_PATH];
+    char name[MAX_NAME_LENGTH];
 
 } FUSE_UNLINK_IN;
 
@@ -224,7 +234,7 @@ typedef struct
 {
     struct fuse_in_header hdr;
     struct fuse_mkdir_in mkdir;
-    char name[MAX_PATH];
+    char name[MAX_NAME_LENGTH];
 
 } FUSE_MKDIR_IN;
 
@@ -257,7 +267,7 @@ typedef struct
 typedef struct
 {
     struct fuse_out_header hdr;
-    char name[MAX_PATH];
+    char name[MAX_NAME_LENGTH];
 
 } FUSE_READLINK_OUT, *PFUSE_READLINK_OUT;
 
