@@ -255,6 +255,39 @@ static void FUSE_HEADER_INIT(struct fuse_in_header *hdr, uint32_t opcode, uint64
     hdr->pid = GetCurrentProcessId();
 }
 
+class CWideToMultibyteConverter
+{
+  public:
+    CWideToMultibyteConverter(PWSTR FileName, NTSTATUS &Status)
+    {
+        Status = FspPosixMapWindowsToPosixPath(FileName, &m_Multibyte);
+        if (!NT_SUCCESS(Status))
+        {
+            return;
+        }
+        size_t len = strlen(m_Multibyte);
+        if (len > (MAX_NAME_LENGTH - 1))
+        {
+            Status = STATUS_NAME_TOO_LONG;
+            DBG("filename is too long (len = %d)", (ULONG)len);
+        }
+    }
+    ~CWideToMultibyteConverter()
+    {
+        if (m_Multibyte)
+        {
+            FspPosixDeletePath(m_Multibyte);
+        }
+    }
+    char *FullPath()
+    {
+        return m_Multibyte;
+    }
+
+  protected:
+    char *m_Multibyte = NULL;
+};
+
 VOID VIRTFS::Stop()
 {
     if (FileSystem == NULL)
@@ -976,7 +1009,7 @@ static NTSTATUS PathWalkthough(VIRTFS *VirtFs, CHAR *FullPath, CHAR **FileName, 
 static NTSTATUS VirtFsLookupFileName(VIRTFS *VirtFs, PWSTR FileName, FUSE_LOOKUP_OUT *LookupOut)
 {
     NTSTATUS Status;
-    char *filename, *fullpath;
+    char *filename;
     uint64_t parent;
 
     if (lstrcmp(FileName, TEXT("\\")) == 0)
@@ -989,14 +1022,13 @@ static NTSTATUS VirtFsLookupFileName(VIRTFS *VirtFs, PWSTR FileName, FUSE_LOOKUP
         FileName += 1;
     }
 
-    Status = FspPosixMapWindowsToPosixPath(FileName, &fullpath);
+    CWideToMultibyteConverter conv(FileName, Status);
     if (!NT_SUCCESS(Status))
     {
         return Status;
     }
-    SCOPE_EXIT(fullpath, { FspPosixDeletePath(fullpath); });
 
-    Status = PathWalkthough(VirtFs, fullpath, &filename, &parent);
+    Status = PathWalkthough(VirtFs, conv.FullPath(), &filename, &parent);
     if (NT_SUCCESS(Status))
     {
         Status = VirtFs->NameAwareRequest(parent, filename, &VIRTFS::SubmitLookupRequest, LookupOut);
@@ -1360,7 +1392,7 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
     VIRTFS_FILE_CONTEXT *FileContext;
     NTSTATUS Status;
     UINT32 Mode = 0664 /* -rw-rw-r-- */;
-    char *filename, *fullpath;
+    char *filename;
     uint64_t parent;
 
     UNREFERENCED_PARAMETER(SecurityDescriptor);
@@ -1373,14 +1405,13 @@ static NTSTATUS Create(FSP_FILE_SYSTEM *FileSystem,
         FileAttributes,
         AllocationSize);
 
-    Status = FspPosixMapWindowsToPosixPath(FileName + 1, &fullpath);
+    CWideToMultibyteConverter conv(FileName + 1, Status);
     if (!NT_SUCCESS(Status))
     {
         return Status;
     }
-    SCOPE_EXIT(fullpath, { FspPosixDeletePath(fullpath); });
 
-    Status = PathWalkthough(VirtFs, fullpath, &filename, &parent);
+    Status = PathWalkthough(VirtFs, conv.FullPath(), &filename, &parent);
     if (!NT_SUCCESS(Status) && (Status != STATUS_OBJECT_NAME_NOT_FOUND))
     {
         return Status;
@@ -1873,7 +1904,7 @@ static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0, PWSTR FileN
     UINT64 LastAccessTime, LastWriteTime;
     FILETIME CurrentTime;
     NTSTATUS Status;
-    char *filename, *fullpath;
+    char *filename;
     uint64_t parent;
 
     DBG("\"%S\" Flags: 0x%02x", FileName, Flags);
@@ -1883,14 +1914,13 @@ static VOID Cleanup(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0, PWSTR FileN
         return;
     }
 
-    Status = FspPosixMapWindowsToPosixPath(FileName + 1, &fullpath);
+    CWideToMultibyteConverter conv(FileName + 1, Status);
     if (!NT_SUCCESS(Status))
     {
         return;
     }
-    SCOPE_EXIT(fullpath, { FspPosixDeletePath(fullpath); });
 
-    Status = PathWalkthough(VirtFs, fullpath, &filename, &parent);
+    Status = PathWalkthough(VirtFs, conv.FullPath(), &filename, &parent);
     if (!NT_SUCCESS(Status))
     {
         return;
@@ -2011,34 +2041,31 @@ static NTSTATUS Rename(FSP_FILE_SYSTEM *FileSystem,
     VIRTFS *VirtFs = (VIRTFS *)FileSystem->UserContext;
     VIRTFS_FILE_CONTEXT *FileContext = (VIRTFS_FILE_CONTEXT *)FileContext0;
     NTSTATUS Status;
-    char *oldname, *newname, *oldfullpath, *newfullpath;
+    char *oldname, *newname;
     uint64_t oldparent, newparent;
     uint32_t flags;
 
     DBG("\"%S\" -> \"%S\" ReplaceIfExist: %d", FileName, NewFileName, ReplaceIfExists);
     DBG("fh: %I64u nodeid: %I64u", FileContext->FileHandle, FileContext->NodeId);
 
-    Status = FspPosixMapWindowsToPosixPath(FileName + 1, &oldfullpath);
+    CWideToMultibyteConverter oldconv(FileName + 1, Status);
     if (!NT_SUCCESS(Status))
     {
         return Status;
     }
-    SCOPE_EXIT(oldfullpath, { FspPosixDeletePath(oldfullpath); });
-
-    Status = FspPosixMapWindowsToPosixPath(NewFileName + 1, &newfullpath);
-    if (!NT_SUCCESS(Status))
-    {
-        return Status;
-    }
-    SCOPE_EXIT(newfullpath, { FspPosixDeletePath(newfullpath); });
-
-    Status = PathWalkthough(VirtFs, oldfullpath, &oldname, &oldparent);
+    CWideToMultibyteConverter newconv(NewFileName + 1, Status);
     if (!NT_SUCCESS(Status))
     {
         return Status;
     }
 
-    Status = PathWalkthough(VirtFs, newfullpath, &newname, &newparent);
+    Status = PathWalkthough(VirtFs, oldconv.FullPath(), &oldname, &oldparent);
+    if (!NT_SUCCESS(Status))
+    {
+        return Status;
+    }
+
+    Status = PathWalkthough(VirtFs, newconv.FullPath(), &newname, &newparent);
     if (!NT_SUCCESS(Status))
     {
         return Status;
@@ -2477,7 +2504,7 @@ static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     WCHAR TargetName[MAX_PATH];
     USHORT TargetLength;
     NTSTATUS Status;
-    char *filename, *linkname, *targetname;
+    char *filename;
     int linkname_len, targetname_len;
     uint64_t parent;
 
@@ -2501,28 +2528,26 @@ static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
 
     TargetName[TargetLength] = TEXT('\0');
 
-    Status = FspPosixMapWindowsToPosixPath(TargetName, &targetname);
+    CWideToMultibyteConverter targetconv(TargetName, Status);
     if (!NT_SUCCESS(Status))
     {
         return Status;
     }
-    SCOPE_EXIT(targetname, { FspPosixDeletePath(targetname); });
 
-    Status = FspPosixMapWindowsToPosixPath(FileName + 1, &linkname);
+    CWideToMultibyteConverter linkconv(FileName + 1, Status);
     if (!NT_SUCCESS(Status))
     {
         return Status;
     }
-    SCOPE_EXIT(linkname, { FspPosixDeletePath(linkname); });
 
-    Status = PathWalkthough(VirtFs, linkname, &filename, &parent);
+    Status = PathWalkthough(VirtFs, linkconv.FullPath(), &filename, &parent);
     if (!NT_SUCCESS(Status))
     {
         return Status;
     }
 
     linkname_len = lstrlenA(filename) + 1;
-    targetname_len = lstrlenA(targetname) + 1;
+    targetname_len = lstrlenA(targetconv.FullPath()) + 1;
 
     symlink_in = (FUSE_SYMLINK_IN *)HeapAlloc(GetProcessHeap(), 0, sizeof(*symlink_in) + linkname_len + targetname_len);
 
@@ -2534,7 +2559,7 @@ static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
     FUSE_HEADER_INIT(&symlink_in->hdr, FUSE_SYMLINK, parent, linkname_len + targetname_len);
 
     CopyMemory(symlink_in->names, filename, linkname_len);
-    CopyMemory(symlink_in->names + linkname_len, targetname, targetname_len);
+    CopyMemory(symlink_in->names + linkname_len, targetconv.FullPath(), targetname_len);
 
     Status = VirtFsFuseRequest(VirtFs->Device, symlink_in, symlink_in->hdr.len, &symlink_out, sizeof(symlink_out));
 
@@ -2552,18 +2577,16 @@ static NTSTATUS GetDirInfoByName(FSP_FILE_SYSTEM *FileSystem,
     VIRTFS_FILE_CONTEXT *FileContext = (VIRTFS_FILE_CONTEXT *)FileContext0;
     FUSE_LOOKUP_OUT lookup_out;
     NTSTATUS Status;
-    char *filename;
 
     DBG("\"%S\"", FileName);
 
-    Status = FspPosixMapWindowsToPosixPath(FileName, &filename);
+    CWideToMultibyteConverter conv(FileName, Status);
     if (!NT_SUCCESS(Status))
     {
         return Status;
     }
-    SCOPE_EXIT(filename, { FspPosixDeletePath(filename); });
 
-    Status = VirtFs->NameAwareRequest(FileContext->NodeId, filename, &VIRTFS::SubmitLookupRequest, &lookup_out);
+    Status = VirtFs->NameAwareRequest(FileContext->NodeId, conv.FullPath(), &VIRTFS::SubmitLookupRequest, &lookup_out);
 
     if (NT_SUCCESS(Status))
     {
