@@ -1783,7 +1783,20 @@ VOID LogError(IN PVOID DeviceExtension, IN ULONG ErrorCode, IN ULONG UniqueId)
 VOID TransportReset(IN PVOID DeviceExtension, IN PVirtIOSCSIEvent evt)
 {
     UCHAR TargetId = evt->lun[1];
-    UCHAR Lun = (evt->lun[2] << 8) | evt->lun[3];
+    USHORT lun_candidate = (evt->lun[2] << 8) | evt->lun[3];
+    if (lun_candidate >= SCSI_MAXIMUM_LUNS_PER_TARGET)
+    {
+        RhelDbgPrint(TRACE_LEVEL_WARNING,
+                     " The LUN specified (%u) is out-of-bounds."
+                     " Storport can only address a maximum of %d LUNs."
+                     " The event reason was 0x%x."
+                     " Returning...\n",
+                     lun_candidate,
+                     SCSI_MAXIMUM_LUNS_PER_TARGET,
+                     evt->reason);
+        return;
+    }
+    UCHAR Lun = (UCHAR)lun_candidate;
     ENTER_FN();
 
     switch (evt->reason)
@@ -1803,7 +1816,20 @@ VOID TransportReset(IN PVOID DeviceExtension, IN PVirtIOSCSIEvent evt)
 VOID ParamChange(IN PVOID DeviceExtension, IN PVirtIOSCSIEvent evt)
 {
     UCHAR TargetId = evt->lun[1];
-    UCHAR Lun = (evt->lun[2] << 8) | evt->lun[3];
+    USHORT lun_candidate = (evt->lun[2] << 8) | evt->lun[3];
+    if (lun_candidate >= SCSI_MAXIMUM_LUNS_PER_TARGET)
+    {
+        RhelDbgPrint(TRACE_LEVEL_WARNING,
+                     " The LUN specified (%u) is out-of-bounds."
+                     " Storport can only address a maximum of %d LUNs."
+                     " The event reason was 0x%x."
+                     " Returning...\n",
+                     lun_candidate,
+                     SCSI_MAXIMUM_LUNS_PER_TARGET,
+                     evt->reason);
+        return;
+    }
+    UCHAR Lun = (UCHAR)lun_candidate;
     UCHAR AdditionalSenseCode = (UCHAR)(evt->reason & 255);
     UCHAR AdditionalSenseCodeQualifier = (UCHAR)(evt->reason >> 8);
     ENTER_FN();
