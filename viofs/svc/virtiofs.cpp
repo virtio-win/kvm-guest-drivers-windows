@@ -1220,7 +1220,6 @@ static NTSTATUS GetReparsePointByName(FSP_FILE_SYSTEM *FileSystem,
 
     UNREFERENCED_PARAMETER(Context);
     UNREFERENCED_PARAMETER(IsDirectory);
-    UNREFERENCED_PARAMETER(PSize);
 
     Status = VirtFsLookupFileName(VirtFs, FileName, &lookup_out);
     if (!NT_SUCCESS(Status))
@@ -1238,12 +1237,30 @@ static NTSTATUS GetReparsePointByName(FSP_FILE_SYSTEM *FileSystem,
     if (NT_SUCCESS(Status))
     {
         ReparseData->ReparseTag = IO_REPARSE_TAG_SYMLINK;
-        ReparseData->SymbolicLinkReparseBuffer.Flags = SYMLINK_FLAG_RELATIVE;
+        ReparseData->Reserved = 0;
+
+        size_t targetlen = SubstituteNameLength * sizeof(WCHAR) + sizeof(WCHAR);
+        size_t total = offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer) + targetlen * 2;
+
+        if (*PSize < total)
+        {
+            *PSize = total;
+            return STATUS_BUFFER_OVERFLOW;
+        }
+
         ReparseData->SymbolicLinkReparseBuffer.SubstituteNameOffset = 0;
-        ReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength = SubstituteNameLength * sizeof(WCHAR);
-        CopyMemory(ReparseData->SymbolicLinkReparseBuffer.PathBuffer,
+        ReparseData->SymbolicLinkReparseBuffer.SubstituteNameLength = targetlen - sizeof(WCHAR);
+        ReparseData->SymbolicLinkReparseBuffer.PrintNameOffset = targetlen;
+        ReparseData->SymbolicLinkReparseBuffer.PrintNameLength = targetlen - sizeof(WCHAR);
+        ReparseData->SymbolicLinkReparseBuffer.Flags = SYMLINK_FLAG_RELATIVE;
+
+        CopyMemory(&ReparseData->SymbolicLinkReparseBuffer.PathBuffer[0], SubstituteName, targetlen);
+        CopyMemory(&ReparseData->SymbolicLinkReparseBuffer.PathBuffer[SubstituteNameLength + 1],
                    SubstituteName,
-                   SubstituteNameLength * sizeof(WCHAR));
+                   targetlen);
+
+        ReparseData->ReparseDataLength = total - offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer);
+        *PSize = total;
     }
 
     return Status;
@@ -2481,6 +2498,15 @@ static NTSTATUS ResolveReparsePoints(FSP_FILE_SYSTEM *FileSystem,
                                              PSize);
 }
 
+static NTSTATUS GetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
+                                PVOID FileContext,
+                                PWSTR FileName,
+                                PVOID Buffer,
+                                PSIZE_T PSize)
+{
+    return GetReparsePointByName(FileSystem, FileContext, FileName, FALSE, Buffer, PSize);
+}
+
 static NTSTATUS SetReparsePoint(FSP_FILE_SYSTEM *FileSystem,
                                 PVOID FileContext,
                                 PWSTR FileName,
@@ -2612,6 +2638,7 @@ static FSP_FILE_SYSTEM_INTERFACE VirtFsInterface =
     .SetSecurity = SetSecurity,
     .ReadDirectory = ReadDirectory,
     .ResolveReparsePoints = ResolveReparsePoints,
+    .GetReparsePoint = GetReparsePoint,
     .SetReparsePoint = SetReparsePoint,
     .GetDirInfoByName = GetDirInfoByName
 };
