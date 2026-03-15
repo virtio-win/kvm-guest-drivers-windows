@@ -1,3 +1,24 @@
+Date    16 March 2026
+repo    https://github.com/virtio-win/kvm-guest-drivers-windows.git
+tag     mm318
+
+Fixed issues:
+vioscsi: limit the page length for processing VPD device identifiers
+RHEL-151328: CollectSystemInfo: Add gathering of the information for the phantom devices
+netkvm: Fix incorrect virtio header access in ProcessMergedBuffers
+RHEL-126210: viogpu: Add support for manual custom resolution
+RHEL-152467: viogpu: VM crashes with BSOD/black screen when setting invalid resolution values
+viogpu: BSOD during shutdown: DPC races with virtqueue teardown
+viostor: Resolve Coverity defects
+viogpu: Fix code style error
+Remove an oversight from the mergeable RX buffer PR.
+CI signoff check and Red Hat Jira ref
+RHEL-154517: viofs: Prevent service crash with long unicode file/directory names
+RHEL-152852: viofs: improve file read performance
+RHEL-152850: Wdf dma mdl
+viogpu: Sync resolution on viogpuap startup
+RHEL-118364: fwcfg: Extend null driver to ARM64 platform
+
 Date    18 Feb 2026
 repo    https://github.com/virtio-win/kvm-guest-drivers-windows.git
 tag     mm317
