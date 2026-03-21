@@ -272,8 +272,8 @@ SubmitTxPacketResult CTXVirtQueue::SubmitPacket(CNB &NB)
         case SubmitTxPacketResult::SUBMIT_NO_PLACE_IN_QUEUE:
             {
                 KickQueueOnOverflow();
-                // Fall-through
-                __fallthrough;
+                m_Descriptors.Push(TXDescriptor);
+                break;
             }
         case SubmitTxPacketResult::SUBMIT_PACKET_TOO_LARGE:
             __fallthrough;
