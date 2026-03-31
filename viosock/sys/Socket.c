@@ -745,8 +745,8 @@ _Requires_lock_not_held_(pListenSocket->RxLock) VOID VIOSockAcceptRemovePkt(IN P
     WdfSpinLockRelease(pListenSocket->RxLock);
 }
 
-NTSTATUS
-VIOSockAcceptInitSocket(PSOCKET_CONTEXT pAcceptSocket, PSOCKET_CONTEXT pListenSocket)
+_Requires_lock_not_held_(pListenSocket->StateLock) NTSTATUS VIOSockAcceptInitSocket(PSOCKET_CONTEXT pAcceptSocket,
+                                                                                    PSOCKET_CONTEXT pListenSocket)
 {
     NTSTATUS status = STATUS_SUCCESS;
 
@@ -762,9 +762,18 @@ VIOSockAcceptInitSocket(PSOCKET_CONTEXT pAcceptSocket, PSOCKET_CONTEXT pListenSo
 
     pAcceptSocket->buf_alloc = pListenSocket->buf_alloc;
 
-    VIOSockStateSetLocked(pAcceptSocket, VIOSOCK_STATE_CONNECTED);
+    WdfSpinLockAcquire(pListenSocket->StateLock);
+    pAcceptSocket->EventsMask = ~FD_ACCEPT & pListenSocket->EventsMask;
+    if (pAcceptSocket->EventsMask && pListenSocket->EventObject)
+    {
+        ObReferenceObject(pListenSocket->EventObject);
+        pAcceptSocket->EventObject = pListenSocket->EventObject;
+    }
+    WdfSpinLockRelease(pListenSocket->StateLock);
+
+    VIOSockStateSet(pAcceptSocket, VIOSOCK_STATE_CONNECTED);
     status = VIOSockSendResponse(pAcceptSocket);
-    VIOSockEventSetBit(pListenSocket, FD_ACCEPT_BIT, status);
+    VIOSockEventSetBit(pAcceptSocket, FD_WRITE_BIT, status);
 
     return status;
 }

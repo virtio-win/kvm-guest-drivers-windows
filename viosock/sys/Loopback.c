@@ -100,7 +100,7 @@ _Requires_lock_not_held_(pListenSocket->RxLock) static NTSTATUS VIOSockLoopbackA
         InsertTailList(&pListenSocket->AcceptList, &pAccept->ListEntry);
         WdfSpinLockRelease(pListenSocket->RxLock);
 
-        VIOSockEventSetBit(pListenSocket, FD_ACCEPT_BIT, STATUS_SUCCESS);
+        VIOSockEventSetBitLocked(pListenSocket, FD_ACCEPT_BIT, STATUS_SUCCESS);
         status = STATUS_PENDING;
     }
     else
@@ -220,6 +220,7 @@ _Requires_lock_not_held_(pDestSocket->StateLock) static NTSTATUS VIOSockLoopback
                     pDestSocket->LoopbackSocket = pSrcSocket->ThisSocket;
                     VioSockReference(pDestSocket->LoopbackSocket);
 
+                    ASSERT(bTxHasSpace);
                     WdfSpinLockAcquire(pDestSocket->StateLock);
                     VIOSockStateSet(pDestSocket, VIOSOCK_STATE_CONNECTED);
                     VIOSockEventSetBit(pDestSocket, FD_CONNECT_BIT, STATUS_SUCCESS);
