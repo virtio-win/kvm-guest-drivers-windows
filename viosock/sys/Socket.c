@@ -946,7 +946,7 @@ static NTSTATUS VIOSockAccept(IN HANDLE hListenSocket, IN WDFREQUEST Request)
                 VIOSockSetFlag(pAcceptSocket, SOCK_NON_BLOCK);
             }
 
-            VIOSockEventClearBit(pListenSocket, FD_ACCEPT_BIT);
+            VIOSockEventClearBitLocked(pListenSocket, FD_ACCEPT_BIT);
 
             if (!VIOSockAcceptDequeue(pListenSocket, pAcceptSocket, &bSetBit))
             {
@@ -1413,7 +1413,7 @@ static NTSTATUS VIOSockConnect(IN WDFREQUEST Request)
         }
     }
 
-    VIOSockEventClearBit(pSocket, FD_CONNECT_BIT);
+    VIOSockEventClearBitLocked(pSocket, FD_CONNECT_BIT);
 
     pSocket->dst_cid = pAddr->svm_cid;
     pSocket->dst_port = pAddr->svm_port;
@@ -1843,9 +1843,7 @@ static NTSTATUS VIOSockEventSelect(IN WDFREQUEST Request)
     return STATUS_SUCCESS;
 }
 
-_Requires_lock_not_held_(pSocket->StateLock) VOID VIOSockEventSetBit(IN PSOCKET_CONTEXT pSocket,
-                                                                     IN ULONG uSetBit,
-                                                                     IN NTSTATUS Status)
+BOOLEAN VIOSockEventMarkBit(IN PSOCKET_CONTEXT pSocket, IN ULONG uSetBit, IN NTSTATUS Status)
 {
     ULONG uEvent = (1 << uSetBit);
     BOOLEAN bSetEvent;
@@ -1857,12 +1855,25 @@ _Requires_lock_not_held_(pSocket->StateLock) VOID VIOSockEventSetBit(IN PSOCKET_
     pSocket->Events |= uEvent;
     pSocket->EventsStatus[uSetBit] = Status;
 
+    return bSetEvent;
+}
+
+_IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockEventNotify(IN PSOCKET_CONTEXT pSocket, IN BOOLEAN bSetEvent)
+{
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, bSetEvent: 0x%x\n", __FUNCTION__, bSetEvent);
+
     VIOSockSelectRun(pSocket);
 
     if (bSetEvent && pSocket->EventObject)
     {
         KeSetEvent(pSocket->EventObject, IO_NO_INCREMENT, FALSE);
     }
+}
+
+VOID VIOSockEventSetBit(IN PSOCKET_CONTEXT pSocket, IN ULONG uSetBit, IN NTSTATUS Status)
+{
+    BOOLEAN bSetEvent = VIOSockEventMarkBit(pSocket, uSetBit, Status);
+    VIOSockEventNotify(pSocket, bSetEvent);
 }
 
 _Requires_lock_not_held_(pSocket->StateLock) VOID VIOSockEventSetBitLocked(IN PSOCKET_CONTEXT pSocket,
@@ -1874,7 +1885,8 @@ _Requires_lock_not_held_(pSocket->StateLock) VOID VIOSockEventSetBitLocked(IN PS
     WdfSpinLockRelease(pSocket->StateLock);
 }
 
-_Requires_lock_not_held_(pSocket->StateLock) VOID VIOSockEventClearBit(IN PSOCKET_CONTEXT pSocket, IN ULONG uClearBit)
+_Requires_lock_not_held_(pSocket->StateLock) VOID VIOSockEventClearBitLocked(IN PSOCKET_CONTEXT pSocket,
+                                                                             IN ULONG uClearBit)
 {
     ULONG uEvent = (1 << uClearBit);
 

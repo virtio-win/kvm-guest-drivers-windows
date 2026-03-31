@@ -212,6 +212,8 @@ _Requires_lock_not_held_(pDestSocket->StateLock) static NTSTATUS VIOSockLoopback
         }
         else
         {
+            BOOLEAN bSetEvent = FALSE;
+
             switch (Op)
             {
                 case VIRTIO_VSOCK_OP_RESPONSE:
@@ -223,11 +225,12 @@ _Requires_lock_not_held_(pDestSocket->StateLock) static NTSTATUS VIOSockLoopback
                     ASSERT(bTxHasSpace);
                     WdfSpinLockAcquire(pDestSocket->StateLock);
                     VIOSockStateSet(pDestSocket, VIOSOCK_STATE_CONNECTED);
-                    VIOSockEventSetBit(pDestSocket, FD_CONNECT_BIT, STATUS_SUCCESS);
+                    bSetEvent = VIOSockEventMarkBit(pDestSocket, FD_CONNECT_BIT, STATUS_SUCCESS);
                     if (bTxHasSpace)
                     {
-                        VIOSockEventSetBit(pDestSocket, FD_WRITE_BIT, STATUS_SUCCESS);
+                        bSetEvent |= VIOSockEventMarkBit(pDestSocket, FD_WRITE_BIT, STATUS_SUCCESS);
                     }
+                    VIOSockEventNotify(pDestSocket, bSetEvent);
                     WdfSpinLockRelease(pDestSocket->StateLock);
                     status = STATUS_SUCCESS;
                     break;
