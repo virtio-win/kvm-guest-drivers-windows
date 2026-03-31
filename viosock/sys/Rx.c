@@ -594,16 +594,18 @@ _Requires_lock_not_held_(pSocket->StateLock) static VOID VIOSockRxPktHandleConne
         }
         else
         {
+            BOOLEAN bSetEvent = FALSE;
             switch (pPkt->Header.op)
             {
                 case VIRTIO_VSOCK_OP_RESPONSE:
                     WdfSpinLockAcquire(pSocket->StateLock);
                     VIOSockStateSet(pSocket, VIOSOCK_STATE_CONNECTED);
-                    VIOSockEventSetBit(pSocket, FD_CONNECT_BIT, STATUS_SUCCESS);
+                    bSetEvent = VIOSockEventMarkBit(pSocket, FD_CONNECT_BIT, STATUS_SUCCESS);
                     if (bTxHasSpace)
                     {
-                        VIOSockEventSetBit(pSocket, FD_WRITE_BIT, STATUS_SUCCESS);
+                        bSetEvent |= VIOSockEventMarkBit(pSocket, FD_WRITE_BIT, STATUS_SUCCESS);
                     }
+                    VIOSockEventNotify(pSocket, bSetEvent);
                     WdfSpinLockRelease(pSocket->StateLock);
                     status = STATUS_SUCCESS;
                     break;
@@ -1047,7 +1049,7 @@ _Requires_lock_not_held_(pSocket->RxLock) static NTSTATUS VIOSockReadForward(IN 
         bTimer = TRUE;
     }
 
-    VIOSockEventClearBit(pSocket, FD_READ_BIT);
+    VIOSockEventClearBitLocked(pSocket, FD_READ_BIT);
 
     status = WdfRequestForwardToIoQueue(Request, pSocket->ReadQueue);
     if (!NT_SUCCESS(status))
@@ -1445,11 +1447,11 @@ _Requires_lock_not_held_(pSocket->RxLock) BOOLEAN VIOSockReadDequeueCb(IN PSOCKE
 
     if (bSetBit)
     {
-        VIOSockEventSetBit(pSocket, FD_READ_BIT, STATUS_SUCCESS);
+        VIOSockEventSetBitLocked(pSocket, FD_READ_BIT, STATUS_SUCCESS);
     }
     else
     {
-        VIOSockEventClearBit(pSocket, FD_READ_BIT);
+        VIOSockEventClearBitLocked(pSocket, FD_READ_BIT);
     }
 
     if (FreeSpace < VIRTIO_VSOCK_MAX_PKT_BUF_SIZE)

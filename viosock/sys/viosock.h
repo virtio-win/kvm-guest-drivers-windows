@@ -412,15 +412,18 @@ _IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockSelectRun(IN PSOCKET_CONTEXT pSo
 #define FD_ADDRESS_LIST_CHANGE_BIT      9
 #define FD_ADDRESS_LIST_CHANGE          (1 << FD_ADDRESS_LIST_CHANGE_BIT)
 
-_Requires_lock_not_held_(pSocket->StateLock) VOID VIOSockEventSetBit(IN PSOCKET_CONTEXT pSocket,
-                                                                     IN ULONG uSetBit,
-                                                                     IN NTSTATUS Status);
+BOOLEAN VIOSockEventMarkBit(IN PSOCKET_CONTEXT pSocket, IN ULONG uSetBit, IN NTSTATUS Status);
+
+_IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockEventNotify(IN PSOCKET_CONTEXT pSocket, IN BOOLEAN bSetEvent);
+
+VOID VIOSockEventSetBit(IN PSOCKET_CONTEXT pSocket, IN ULONG uSetBit, IN NTSTATUS Status);
 
 _Requires_lock_not_held_(pSocket->StateLock) VOID VIOSockEventSetBitLocked(IN PSOCKET_CONTEXT pSocket,
                                                                            IN ULONG uSetBit,
                                                                            IN NTSTATUS Status);
 
-_Requires_lock_not_held_(pSocket->StateLock) VOID VIOSockEventClearBit(IN PSOCKET_CONTEXT pSocket, IN ULONG uClearBit);
+_Requires_lock_not_held_(pSocket->StateLock) VOID VIOSockEventClearBitLocked(IN PSOCKET_CONTEXT pSocket,
+                                                                             IN ULONG uClearBit);
 
 //////////////////////////////////////////////////////////////////////////
 // Tx functions
