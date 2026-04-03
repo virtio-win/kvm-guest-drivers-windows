@@ -158,9 +158,13 @@ _IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockEvtVqProcess(IN PDEVICE_CONTEXT 
         {
             /* Drop short/long events */
 
-            if (len != sizeof(pEvt))
+            if (len != sizeof(VIRTIO_VSOCK_EVENT))
             {
-                TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "Invalid event\n");
+                TraceEvents(TRACE_LEVEL_ERROR,
+                            DBG_HW_ACCESS,
+                            "Invalid event received, received %u bytes\n, expected %u bytes\n",
+                            len,
+                            sizeof(VIRTIO_VSOCK_EVENT));
             }
             else
             {
