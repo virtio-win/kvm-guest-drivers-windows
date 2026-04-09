@@ -944,12 +944,12 @@ _Requires_lock_not_held_(pContext->RxLock) VOID VIOSockRxVqProcess(IN PDEVICE_CO
         pPkt = CONTAINING_RECORD(RemoveHeadList(&CompletionList), VIOSOCK_RX_PKT, CompletionListEntry);
 
         // find socket
-        pSocket = VIOSockConnectedFindByRxPkt(pContext, &pPkt->Header);
+        pSocket = VIOSockConnectedFindByRxPktLocked(pContext, &pPkt->Header);
         if (!pSocket)
         {
             // no connected socket for incoming packet
             TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "No connected socket found\n");
-            pSocket = VIOSockBoundFindByPort(pContext, pPkt->Header.dst_port);
+            pSocket = VIOSockBoundFindByPortLocked(pContext, pPkt->Header.dst_port);
         }
 
         if (pSocket && pSocket->type != pPkt->Header.type)

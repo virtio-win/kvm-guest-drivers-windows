@@ -161,7 +161,7 @@ static NTSTATUS VIOSockLoopbackConnect(PSOCKET_CONTEXT pSocket)
 {
     NTSTATUS status;
     PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pSocket);
-    PSOCKET_CONTEXT pListenSocket = VIOSockBoundFindByPort(pContext, pSocket->dst_port);
+    PSOCKET_CONTEXT pListenSocket = VIOSockBoundFindByPortLocked(pContext, pSocket->dst_port);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
