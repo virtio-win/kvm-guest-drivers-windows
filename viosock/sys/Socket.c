@@ -215,7 +215,7 @@ VIOSockBoundAdd(IN PSOCKET_CONTEXT pSocket, IN ULONG32 svm_port)
             svm_port = uSvmPort++;
 
             WdfSpinLockAcquire(pContext->BoundLock);
-            if (!VIOSockBoundFindByPortUnlocked(pContext, svm_port))
+            if (!VIOSockBoundFindByPort(pContext, svm_port))
             {
                 bFound = TRUE;
                 pSocket->src_port = svm_port;
@@ -238,7 +238,7 @@ VIOSockBoundAdd(IN PSOCKET_CONTEXT pSocket, IN ULONG32 svm_port)
     else
     {
         WdfSpinLockAcquire(pContext->BoundLock);
-        if (VIOSockBoundFindByPortUnlocked(pContext, svm_port))
+        if (VIOSockBoundFindByPort(pContext, svm_port))
         {
             TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Local port %u is already in use\n", svm_port);
             status = STATUS_ADDRESS_ALREADY_ASSOCIATED;
@@ -275,8 +275,9 @@ __inline VOID VIOSockBoundRemove(IN PSOCKET_CONTEXT pSocket)
 
 typedef BOOLEAN (*PSOCKET_CALLBACK)(IN PSOCKET_CONTEXT pSocket, IN PVOID pCallbackContext);
 
-PSOCKET_CONTEXT
-VIOSockBoundEnumUnlocked(IN PDEVICE_CONTEXT pContext, IN PSOCKET_CALLBACK pEnumCallback, IN PVOID pCallbackContext)
+_Requires_lock_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundEnum(IN PDEVICE_CONTEXT pContext,
+                                                                           IN PSOCKET_CALLBACK pEnumCallback,
+                                                                           IN PVOID pCallbackContext)
 {
     PSOCKET_CONTEXT pSocket = NULL;
     ULONG i, ItemCount;
@@ -296,13 +297,14 @@ VIOSockBoundEnumUnlocked(IN PDEVICE_CONTEXT pContext, IN PSOCKET_CALLBACK pEnumC
     return pSocket;
 }
 
-PSOCKET_CONTEXT
-VIOSockBoundEnum(IN PDEVICE_CONTEXT pContext, IN PSOCKET_CALLBACK pEnumCallback, IN PVOID pCallbackContext)
+_Requires_lock_not_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundEnumLocked(IN PDEVICE_CONTEXT pContext,
+                                                                                     IN PSOCKET_CALLBACK pEnumCallback,
+                                                                                     IN PVOID pCallbackContext)
 {
     PSOCKET_CONTEXT pSocket;
 
     WdfSpinLockAcquire(pContext->BoundLock);
-    pSocket = VIOSockBoundEnumUnlocked(pContext, pEnumCallback, pCallbackContext);
+    pSocket = VIOSockBoundEnum(pContext, pEnumCallback, pCallbackContext);
     WdfSpinLockRelease(pContext->BoundLock);
 
     return pSocket;
@@ -313,16 +315,16 @@ static BOOLEAN VIOSockBoundFindByPortCallback(IN PSOCKET_CONTEXT pSocket, IN PVO
     return pSocket->src_port == (ULONG32)(ULONG_PTR)pCallbackContext;
 }
 
-PSOCKET_CONTEXT
-VIOSockBoundFindByPort(IN PDEVICE_CONTEXT pContext, IN ULONG32 ulSrcPort)
+_Requires_lock_not_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundFindByPortLocked(IN PDEVICE_CONTEXT pContext,
+                                                                                           IN ULONG32 ulSrcPort)
 {
-    return VIOSockBoundEnum(pContext, VIOSockBoundFindByPortCallback, (PVOID)ulSrcPort);
+    return VIOSockBoundEnumLocked(pContext, VIOSockBoundFindByPortCallback, (PVOID)ulSrcPort);
 }
 
-PSOCKET_CONTEXT
-VIOSockBoundFindByPortUnlocked(IN PDEVICE_CONTEXT pContext, IN ULONG32 ulSrcPort)
+_Requires_lock_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundFindByPort(IN PDEVICE_CONTEXT pContext,
+                                                                                 IN ULONG32 ulSrcPort)
 {
-    return VIOSockBoundEnumUnlocked(pContext, VIOSockBoundFindByPortCallback, (PVOID)ulSrcPort);
+    return VIOSockBoundEnum(pContext, VIOSockBoundFindByPortCallback, (PVOID)ulSrcPort);
 }
 
 static BOOLEAN VIOSockFindByFileCallback(IN PSOCKET_CONTEXT pSocket, IN PVOID pCallbackContext)
@@ -330,10 +332,10 @@ static BOOLEAN VIOSockFindByFileCallback(IN PSOCKET_CONTEXT pSocket, IN PVOID pC
     return WdfFileObjectWdmGetFileObject(pSocket->ThisSocket) == (PFILE_OBJECT)pCallbackContext;
 }
 
-PSOCKET_CONTEXT
-VIOSockBoundFindByFile(IN PDEVICE_CONTEXT pContext, IN PFILE_OBJECT pFileObject)
+_Requires_lock_not_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundFindByFileLocked(IN PDEVICE_CONTEXT pContext,
+                                                                                           IN PFILE_OBJECT pFileObject)
 {
-    return VIOSockBoundEnum(pContext, VIOSockFindByFileCallback, pFileObject);
+    return VIOSockBoundEnumLocked(pContext, VIOSockFindByFileCallback, pFileObject);
 }
 
 NTSTATUS
@@ -390,13 +392,13 @@ __inline VOID VIOSockConnectedRemove(IN PSOCKET_CONTEXT pSocket)
     WdfSpinLockRelease(pContext->ConnectedLock);
 }
 
-PSOCKET_CONTEXT
-VIOSockConnectedEnum(IN PDEVICE_CONTEXT pContext, IN PSOCKET_CALLBACK pEnumCallback, IN PVOID pCallbackContext)
+_Requires_lock_held_(pContext->ConnectedLock) PSOCKET_CONTEXT VIOSockConnectedEnum(IN PDEVICE_CONTEXT pContext,
+                                                                                   IN PSOCKET_CALLBACK pEnumCallback,
+                                                                                   IN PVOID pCallbackContext)
 {
     PSOCKET_CONTEXT pSocket = NULL;
     ULONG i, ItemCount;
 
-    WdfSpinLockAcquire(pContext->ConnectedLock);
     ItemCount = WdfCollectionGetCount(pContext->ConnectedList);
     for (i = 0; i < ItemCount; ++i)
     {
@@ -408,6 +410,18 @@ VIOSockConnectedEnum(IN PDEVICE_CONTEXT pContext, IN PSOCKET_CALLBACK pEnumCallb
             break;
         }
     }
+
+    return pSocket;
+}
+
+_Requires_lock_not_held_(pContext->ConnectedLock) PSOCKET_CONTEXT VIOSockConnectedEnumLocked(IN PDEVICE_CONTEXT pContext,
+                                                                                             IN PSOCKET_CALLBACK pEnumCallback,
+                                                                                             IN PVOID pCallbackContext)
+{
+    PSOCKET_CONTEXT pSocket;
+
+    WdfSpinLockAcquire(pContext->ConnectedLock);
+    pSocket = VIOSockConnectedEnum(pContext, pEnumCallback, pCallbackContext);
     WdfSpinLockRelease(pContext->ConnectedLock);
 
     return pSocket;
@@ -420,16 +434,16 @@ static BOOLEAN VIOSockConnectedFindByRxPktCallback(IN PSOCKET_CONTEXT pSocket, I
             pPkt->dst_port == pSocket->src_port);
 }
 
-PSOCKET_CONTEXT
-VIOSockConnectedFindByRxPkt(IN PDEVICE_CONTEXT pContext, IN PVIRTIO_VSOCK_HDR pPkt)
+_Requires_lock_not_held_(pContext->ConnectedLock) PSOCKET_CONTEXT VIOSockConnectedFindByRxPktLocked(IN PDEVICE_CONTEXT pContext,
+                                                                                                    IN PVIRTIO_VSOCK_HDR pPkt)
 {
-    return VIOSockConnectedEnum(pContext, VIOSockConnectedFindByRxPktCallback, pPkt);
+    return VIOSockConnectedEnumLocked(pContext, VIOSockConnectedFindByRxPktCallback, pPkt);
 }
 
-PSOCKET_CONTEXT
-VIOSockConnectedFindByFile(IN PDEVICE_CONTEXT pContext, IN PFILE_OBJECT pFileObject)
+_Requires_lock_not_held_(pContext->ConnectedLock) PSOCKET_CONTEXT VIOSockConnectedFindByFileLocked(IN PDEVICE_CONTEXT pContext,
+                                                                                                   IN PFILE_OBJECT pFileObject)
 {
-    return VIOSockConnectedEnum(pContext, VIOSockFindByFileCallback, pFileObject);
+    return VIOSockConnectedEnumLocked(pContext, VIOSockFindByFileCallback, pFileObject);
 }
 
 _Requires_lock_held_(pSocket->StateLock) VIOSOCK_STATE VIOSockStateSet(IN PSOCKET_CONTEXT pSocket,
@@ -878,7 +892,7 @@ static NTSTATUS VIOSockAccept(IN HANDLE hListenSocket, IN WDFREQUEST Request)
 
     if (NT_SUCCESS(status))
     {
-        PSOCKET_CONTEXT pListenSocket = VIOSockBoundFindByFile(pContext, pFileObj);
+        PSOCKET_CONTEXT pListenSocket = VIOSockBoundFindByFileLocked(pContext, pFileObj);
 
         ObDereferenceObject(pFileObj);
 
@@ -2551,10 +2565,10 @@ VIOSockGetSocketFromHandle(IN PDEVICE_CONTEXT pContext, IN ULONGLONG uSocket, IN
 
     if (NT_SUCCESS(status))
     {
-        PSOCKET_CONTEXT pSocket = VIOSockConnectedFindByFile(pContext, pFileObj);
+        PSOCKET_CONTEXT pSocket = VIOSockConnectedFindByFileLocked(pContext, pFileObj);
         if (!pSocket)
         {
-            pSocket = VIOSockBoundFindByFile(pContext, pFileObj);
+            pSocket = VIOSockBoundFindByFileLocked(pContext, pFileObj);
         }
 
         ObDereferenceObject(pFileObj);
