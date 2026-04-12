@@ -482,7 +482,6 @@ NTSTATUS VioGpuDod::QueryAdapterInfo(_In_ CONST DXGKARG_QUERYADAPTERINFO *pQuery
                     pDriverCaps->MaxPointerWidth = POINTER_SIZE;
                     pDriverCaps->MaxPointerHeight = POINTER_SIZE;
                     pDriverCaps->PointerCaps.Color = 1;
-                    pDriverCaps->PointerCaps.MaskedColor = 1;
                 }
                 pDriverCaps->SupportNonVGA = IsVgaDevice();
                 pDriverCaps->SupportSmoothRotation = TRUE;
@@ -3012,7 +3011,6 @@ NTSTATUS VioGpuAdapter::SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION
         RtlZeroMemory(crsr, sizeof(*crsr));
 
         crsr->hdr.type = VIRTIO_GPU_CMD_MOVE_CURSOR;
-        crsr->resource_id = m_pCursorBuf->GetId();
 
         if (!pSetPointerPosition->Flags.Visible || (UINT)pSetPointerPosition->X > pModeCur->SrcModeWidth ||
             (UINT)pSetPointerPosition->Y > pModeCur->SrcModeHeight || pSetPointerPosition->X < 0 ||
@@ -3026,6 +3024,7 @@ NTSTATUS VioGpuAdapter::SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION
                       pSetPointerPosition->Flags.Visible,
                       pSetPointerPosition->Flags.Value,
                       pSetPointerPosition->VidPnSourceId));
+            crsr->resource_id = 0;
             crsr->pos.x = 0;
             crsr->pos.y = 0;
         }
@@ -3041,6 +3040,7 @@ NTSTATUS VioGpuAdapter::SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION
                       pSetPointerPosition->VidPnSourceId,
                       pSetPointerPosition->X,
                       pSetPointerPosition->Y));
+            crsr->resource_id = m_pCursorBuf->GetId();
             crsr->pos.x = pSetPointerPosition->X;
             crsr->pos.y = pSetPointerPosition->Y;
         }
