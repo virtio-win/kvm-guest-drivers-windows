@@ -673,7 +673,7 @@ static VOID VIOSockSelectCleanupFds(IN PVIOSOCK_SELECT_PKT pPkt, IN VIRTIO_VSOCK
         ASSERT(pHandleSet[i].Socket);
 
         InterlockedDecrement(&GetSocketContext(pHandleSet[i].Socket)->SelectRefs[iFdSet]); // dereference socket
-        VioSockDereference(pHandleSet[i].Socket);
+        WdfObjectDereference(pHandleSet[i].Socket);
     }
 
     pPkt->FdCount[iFdSet] = 0;
