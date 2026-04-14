@@ -338,6 +338,23 @@ _Requires_lock_not_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundFindBy
     return VIOSockBoundEnumLocked(pContext, VIOSockFindByFileCallback, pFileObject);
 }
 
+_Requires_lock_not_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundFindByFileLockedReferenced(
+                                                                                                    IN PDEVICE_CONTEXT pContext,
+                                                                                                    IN PFILE_OBJECT pFileObject)
+{
+    PSOCKET_CONTEXT pSocket;
+
+    WdfSpinLockAcquire(pContext->BoundLock);
+    pSocket = VIOSockBoundEnum(pContext, VIOSockFindByFileCallback, pFileObject);
+    if (pSocket)
+    {
+        WdfObjectReference(pSocket->ThisSocket);
+    }
+    WdfSpinLockRelease(pContext->BoundLock);
+
+    return pSocket;
+}
+
 NTSTATUS
 VIOSockConnectedListInit(IN WDFDEVICE hDevice)
 {
@@ -444,6 +461,23 @@ _Requires_lock_not_held_(pContext->ConnectedLock) PSOCKET_CONTEXT VIOSockConnect
                                                                                                    IN PFILE_OBJECT pFileObject)
 {
     return VIOSockConnectedEnumLocked(pContext, VIOSockFindByFileCallback, pFileObject);
+}
+
+_Requires_lock_not_held_(pContext->ConnectedLock) PSOCKET_CONTEXT VIOSockConnectedFindByFileLockedReferenced(
+                                                                                                    IN PDEVICE_CONTEXT pContext,
+                                                                                                    IN PFILE_OBJECT pFileObject)
+{
+    PSOCKET_CONTEXT pSocket;
+
+    WdfSpinLockAcquire(pContext->ConnectedLock);
+    pSocket = VIOSockConnectedEnum(pContext, VIOSockFindByFileCallback, pFileObject);
+    if (pSocket)
+    {
+        WdfObjectReference(pSocket->ThisSocket);
+    }
+    WdfSpinLockRelease(pContext->ConnectedLock);
+
+    return pSocket;
 }
 
 _Requires_lock_held_(pSocket->StateLock) VIOSOCK_STATE VIOSockStateSet(IN PSOCKET_CONTEXT pSocket,
@@ -2565,17 +2599,16 @@ VIOSockGetSocketFromHandle(IN PDEVICE_CONTEXT pContext, IN ULONGLONG uSocket, IN
 
     if (NT_SUCCESS(status))
     {
-        PSOCKET_CONTEXT pSocket = VIOSockConnectedFindByFileLocked(pContext, pFileObj);
+        PSOCKET_CONTEXT pSocket = VIOSockConnectedFindByFileLockedReferenced(pContext, pFileObj);
         if (!pSocket)
         {
-            pSocket = VIOSockBoundFindByFileLocked(pContext, pFileObj);
+            pSocket = VIOSockBoundFindByFileLockedReferenced(pContext, pFileObj);
         }
 
         ObDereferenceObject(pFileObj);
 
         if (pSocket)
         {
-            VioSockReference(pSocket->ThisSocket);
             return pSocket->ThisSocket;
         }
     }
