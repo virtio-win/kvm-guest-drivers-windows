@@ -871,8 +871,15 @@ int WSPAPI VIOSockSelect(_In_ int nfds,
                                   &dwBytesReturned,
                                   lpErrno))
         {
-            TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
-            iRes = SOCKET_ERROR;
+            if (*lpErrno == WSAETIMEDOUT)
+            {
+                TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "VIOSockDeviceControl timed out\n");
+            }
+            else
+            {
+                iRes = SOCKET_ERROR;
+                TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
+            }
         }
         else if (dwBytesReturned == sizeof(Select))
         {
