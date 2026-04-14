@@ -111,7 +111,7 @@ _Must_inspect_result_ int WSPAPI WSPStartup(_In_ WORD wVersionRequested,
     lpProcTable->lpWSPSocket = VIOSockSocket;
     lpProcTable->lpWSPStringToAddress = VIOSockStringToAddress;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "<-- %s\n", __FUNCTION__);
 
     return ERROR_SUCCESS;
 }
@@ -189,7 +189,7 @@ int WSPAPI VIOSockAddressToString(_In_reads_bytes_(dwAddressLength) LPSOCKADDR l
     UNREFERENCED_PARAMETER(lpszAddressString);
     UNREFERENCED_PARAMETER(lpdwAddressStringLength);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
     *lpErrno = WSAEOPNOTSUPP;
     return SOCKET_ERROR;
@@ -202,7 +202,7 @@ VIOSockAsyncSelect(_In_ SOCKET s, _In_ HWND hWnd, _In_ unsigned int wMsg, _In_ l
     UNREFERENCED_PARAMETER(wMsg);
     UNREFERENCED_PARAMETER(lEvent);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
+    TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
     *lpErrno = WSAEOPNOTSUPP;
     return SOCKET_ERROR;
@@ -243,7 +243,7 @@ int WSPAPI VIOSockBind(_In_ SOCKET s,
 
 int WSPAPI VIOSockCancelBlockingCall(_Out_ LPINT lpErrno)
 {
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
     *lpErrno = WSAEOPNOTSUPP;
     return SOCKET_ERROR;
@@ -276,7 +276,7 @@ int WSPAPI VIOSockCloseSocket(_In_ SOCKET s, _Out_ LPINT lpErrno)
 
     *lpErrno = ERROR_SUCCESS;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
     if (!CloseHandle((HANDLE)s))
     {
@@ -285,7 +285,7 @@ int WSPAPI VIOSockCloseSocket(_In_ SOCKET s, _Out_ LPINT lpErrno)
         TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "CloseHandle failed, socket: %p, error: %d\n", (PVOID)s, *lpErrno);
     }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
     return iRes;
 }
 
@@ -323,7 +323,7 @@ int WSPAPI VIOSockConnect(_In_ SOCKET s,
 
     if (!VIOSockDeviceControl(s, IOCTL_SOCKET_CONNECT, (PVOID)name, (DWORD)namelen, NULL, 0, NULL, lpErrno))
     {
-        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
         iRes = SOCKET_ERROR;
     }
 
@@ -339,7 +339,7 @@ int WSPAPI VIOSockDuplicateSocket(_In_ SOCKET s,
     UNREFERENCED_PARAMETER(dwProcessId);
     UNREFERENCED_PARAMETER(lpProtocolInfo);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
+    TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
     *lpErrno = WSAEOPNOTSUPP;
     return SOCKET_ERROR;
@@ -355,7 +355,7 @@ int WSPAPI VIOSockEnumNetworkEvents(_In_ SOCKET s,
     ULONGLONG ulEvent = (ULONG_PTR)hEventObject;
     VIRTIO_VSOCK_NETWORK_EVENTS NetEvents = {0};
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
     if (!VIOSockDeviceControl(s,
                               IOCTL_SOCKET_ENUM_NET_EVENTS,
@@ -366,7 +366,7 @@ int WSPAPI VIOSockEnumNetworkEvents(_In_ SOCKET s,
                               &dwBytesReturned,
                               lpErrno))
     {
-        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
         iRes = SOCKET_ERROR;
     }
     else if (dwBytesReturned != sizeof(NetEvents))
@@ -394,7 +394,7 @@ int WSPAPI VIOSockEnumNetworkEvents(_In_ SOCKET s,
         }
     }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
     return iRes;
 }
 
@@ -406,7 +406,7 @@ int WSPAPI VIOSockEventSelect(_In_ SOCKET s,
     int iRes = ERROR_SUCCESS;
     VIRTIO_VSOCK_EVENT_SELECT EventSelect;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
     EventSelect.hEventObject = (ULONG_PTR)hEventObject;
     EventSelect.lNetworkEvents = lNetworkEvents;
@@ -420,11 +420,11 @@ int WSPAPI VIOSockEventSelect(_In_ SOCKET s,
                               NULL,
                               lpErrno))
     {
-        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
         iRes = SOCKET_ERROR;
     }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
     return iRes;
 }
 
@@ -440,7 +440,7 @@ BOOL WSPAPI VIOSockGetOverlappedResult(_In_ SOCKET s,
     UNREFERENCED_PARAMETER(fWait);
     UNREFERENCED_PARAMETER(lpdwFlags);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
+    TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
     *lpErrno = WSAEOPNOTSUPP;
     return FALSE;
@@ -471,7 +471,7 @@ int WSPAPI VIOSockGetPeerName(_In_ SOCKET s,
 
     if (!VIOSockDeviceControl(s, IOCTL_SOCKET_GET_PEER_NAME, NULL, 0, (PVOID)name, *namelen, (LPDWORD)namelen, lpErrno))
     {
-        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
         iRes = SOCKET_ERROR;
     }
 
@@ -504,7 +504,7 @@ int WSPAPI VIOSockGetSockName(_In_ SOCKET s,
 
     if (!VIOSockDeviceControl(s, IOCTL_SOCKET_GET_SOCK_NAME, NULL, 0, (PVOID)name, *namelen, (LPDWORD)namelen, lpErrno))
     {
-        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
         iRes = SOCKET_ERROR;
     }
 
@@ -553,7 +553,7 @@ int WSPAPI VIOSockGetSockOpt(_In_ SOCKET s,
                               &dwBytesReturned,
                               lpErrno))
     {
-        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
         iRes = SOCKET_ERROR;
     }
     else if (dwBytesReturned == sizeof(Opt))
@@ -576,7 +576,7 @@ BOOL WSPAPI VIOSockGetQOSByName(_In_ SOCKET s, _In_ LPWSABUF lpQOSName, _Out_ LP
     UNREFERENCED_PARAMETER(lpQOSName);
     UNREFERENCED_PARAMETER(lpQOS);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
+    TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
     *lpErrno = WSAEOPNOTSUPP;
     return FALSE;
@@ -659,7 +659,7 @@ int WSPAPI VIOSockIoctl(_In_ SOCKET s,
                               lpcbBytesReturned,
                               lpErrno))
     {
-        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
         iRes = SOCKET_ERROR;
     }
 
@@ -685,7 +685,7 @@ _Must_inspect_result_ SOCKET WSPAPI VIOSockJoinLeaf(_In_ SOCKET s,
     UNREFERENCED_PARAMETER(lpGQOS);
     UNREFERENCED_PARAMETER(dwFlags);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
+    TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
     *lpErrno = WSAEOPNOTSUPP;
     return INVALID_SOCKET;
@@ -695,15 +695,15 @@ int WSPAPI VIOSockListen(_In_ SOCKET s, _In_ int backlog, _Out_ LPINT lpErrno)
 {
     int iRes = ERROR_SUCCESS;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
     if (!VIOSockDeviceControl(s, IOCTL_SOCKET_LISTEN, &backlog, (DWORD)sizeof(backlog), NULL, 0, NULL, lpErrno))
     {
-        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
         iRes = SOCKET_ERROR;
     }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
     return iRes;
 }
 
@@ -723,7 +723,7 @@ int WSPAPI VIOSockRecv(_In_ SOCKET s,
     UNREFERENCED_PARAMETER(lpFlags);
     UNREFERENCED_PARAMETER(lpThreadId);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
     if (lpNumberOfBytesRecvd)
     {
@@ -761,14 +761,14 @@ int WSPAPI VIOSockRecv(_In_ SOCKET s,
                                       &dwNumberOfBytesRead,
                                       lpErrno))
             {
-                TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
+                TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
                 iRes = SOCKET_ERROR;
                 break;
             }
         }
         else if (!VIOSockReadFile(s, lpBuffers[i].buf, lpBuffers[i].len, &dwNumberOfBytesRead, lpErrno))
         {
-            TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "VIOSockReadFile failed: %d\n", *lpErrno);
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockReadFile failed: %d\n", *lpErrno);
             iRes = SOCKET_ERROR;
             break;
         }
@@ -785,7 +785,7 @@ int WSPAPI VIOSockRecv(_In_ SOCKET s,
         *lpNumberOfBytesRecvd = dwNumberOfBytesRecvd;
     }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
     return iRes;
 }
 
@@ -793,7 +793,7 @@ int WSPAPI VIOSockRecvDisconnect(_In_ SOCKET s, _In_opt_ LPWSABUF lpInboundDisco
 {
     UNREFERENCED_PARAMETER(lpInboundDisconnectData);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
+    TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
     *lpErrno = WSAEOPNOTSUPP;
     return SOCKET_ERROR;
@@ -811,14 +811,14 @@ int WSPAPI VIOSockRecvFrom(_In_ SOCKET s,
                            _In_opt_ LPWSATHREADID lpThreadId,
                            _Out_ LPINT lpErrno)
 {
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
     if (lpFromlen)
     {
         _Analysis_assume_(lpFrom != NULL);
         if (VIOSockGetPeerName(s, lpFrom, lpFromlen, lpErrno) == SOCKET_ERROR)
         {
-            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "VIOSockGetPeerName failed: %u\n", *lpErrno);
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockGetPeerName failed: %u\n", *lpErrno);
             return SOCKET_ERROR;
         }
     }
@@ -961,7 +961,7 @@ int WSPAPI VIOSockSelect(_In_ int nfds,
             else
             {
                 iRes = SOCKET_ERROR;
-                TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
+                TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
             }
         }
         else if (dwBytesReturned == sizeof(Select))
@@ -1004,7 +1004,7 @@ int WSPAPI VIOSockSend(_In_ SOCKET s,
     UNREFERENCED_PARAMETER(dwFlags);
     UNREFERENCED_PARAMETER(lpThreadId);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
     if (lpNumberOfBytesSent)
     {
@@ -1048,7 +1048,7 @@ int WSPAPI VIOSockSend(_In_ SOCKET s,
         *lpNumberOfBytesSent = dwNumberOfBytesSent;
     }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
     return iRes;
 }
 
@@ -1056,7 +1056,7 @@ int WSPAPI VIOSockSendDisconnect(_In_ SOCKET s, _In_opt_ LPWSABUF lpOutboundDisc
 {
     UNREFERENCED_PARAMETER(lpOutboundDisconnectData);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
+    TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
     *lpErrno = WSAEOPNOTSUPP;
     return SOCKET_ERROR;
@@ -1077,7 +1077,7 @@ int WSPAPI VIOSockSendTo(_In_ SOCKET s,
     UNREFERENCED_PARAMETER(lpTo);
     UNREFERENCED_PARAMETER(iTolen);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
     return VIOSockSend(s,
                        lpBuffers,
@@ -1135,7 +1135,7 @@ int WSPAPI VIOSockShutdown(_In_ SOCKET s, _In_ int how, _Out_ LPINT lpErrno)
 {
     int iRes = ERROR_SUCCESS;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
     if (!VIOSockDeviceControl(s, IOCTL_SOCKET_SHUTDOWN, &how, (DWORD)sizeof(how), NULL, 0, NULL, lpErrno))
     {
@@ -1143,7 +1143,7 @@ int WSPAPI VIOSockShutdown(_In_ SOCKET s, _In_ int how, _Out_ LPINT lpErrno)
         iRes = SOCKET_ERROR;
     }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
     return iRes;
 }
 
@@ -1163,7 +1163,7 @@ _Must_inspect_result_ SOCKET WSPAPI VIOSockSocket(_In_ int af,
     UNREFERENCED_PARAMETER(g);
     UNREFERENCED_PARAMETER(dwFlags);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
     if (af != AF_VSOCK)
     {
@@ -1204,7 +1204,7 @@ _Must_inspect_result_ SOCKET WSPAPI VIOSockSocket(_In_ int af,
         CloseHandle(hFile);
     }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
     return s;
 }
 
@@ -1221,7 +1221,7 @@ int WSPAPI VIOSockStringToAddress(_In_ LPWSTR AddressString,
     UNREFERENCED_PARAMETER(lpAddress);
     UNREFERENCED_PARAMETER(lpAddressLength);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
     *lpErrno = WSAEOPNOTSUPP;
     return SOCKET_ERROR;
