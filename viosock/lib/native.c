@@ -34,6 +34,15 @@
 #include "native.tmh"
 #endif
 
+/*
+ * We use Native API functions here because they expose parameters that have
+ * no Win32 equivalent: NtCreateFile allows passing extended attributes (EA)
+ * with socket parameters at file creation time, and NtReadFile/NtWriteFile
+ * allow specifying a ByteOffset required for socket I/O on the underlying
+ * device. NtDeviceIoControlFile returns NTSTATUS directly, which we map to
+ * WSA error codes via NtStatusToWsaError.
+ */
+
 NTSTATUS
 NTAPI
 NtWriteFile(_In_ HANDLE FileHandle,
@@ -72,7 +81,7 @@ NtReadFile(_In_ HANDLE FileHandle,
 #define STATUS_CONNECTION_RESET           ((NTSTATUS)0xC000020DL)
 #define STATUS_LOCAL_DISCONNECT           ((NTSTATUS)0xC000013BL)
 #define STATUS_HOST_UNREACHABLE           ((NTSTATUS)0xC000023DL)
-#define STATUS_IO_TIMEOUT                 ((NTSTATUS)0xc00000b5L)
+#define STATUS_IO_TIMEOUT                 ((NTSTATUS)0xC00000B5L)
 
 INT NtStatusToWsaError(_In_ NTSTATUS Status)
 {
@@ -82,7 +91,6 @@ INT NtStatusToWsaError(_In_ NTSTATUS Status)
         case STATUS_INVALID_PARAMETER:
             wsaError = WSAEINVAL;
             break;
-        case STATUS_TIMEOUT:
         case STATUS_IO_TIMEOUT:
             wsaError = WSAETIMEDOUT;
             break;
@@ -146,8 +154,7 @@ typedef struct _FILE_FULL_EA_INFORMATION
     CHAR EaName[1];
 } FILE_FULL_EA_INFORMATION, *PFILE_FULL_EA_INFORMATION;
 
-HANDLE
-VIOSockCreateFile(_In_opt_ PVIRTIO_VSOCK_PARAMS pSocketParams, _Out_ LPINT lpErrno)
+_Must_inspect_result_ HANDLE VIOSockCreateFile(_In_opt_ PVIRTIO_VSOCK_PARAMS pSocketParams, _Out_ LPINT lpErrno)
 {
     HANDLE hFile = INVALID_HANDLE_VALUE;
     NTSTATUS status;
@@ -157,6 +164,8 @@ VIOSockCreateFile(_In_opt_ PVIRTIO_VSOCK_PARAMS pSocketParams, _Out_ LPINT lpErr
 
     UCHAR EaBuffer[sizeof(FILE_FULL_EA_INFORMATION) + sizeof(*pSocketParams)] = {0};
     PFILE_FULL_EA_INFORMATION pEaBuffer = (PFILE_FULL_EA_INFORMATION)EaBuffer;
+
+    *lpErrno = ERROR_SUCCESS;
 
     if (pSocketParams)
     {
@@ -195,18 +204,21 @@ VIOSockCreateFile(_In_opt_ PVIRTIO_VSOCK_PARAMS pSocketParams, _Out_ LPINT lpErr
     return hFile;
 }
 
-BOOL VIOSockDeviceControl(_In_ SOCKET s,
-                          _In_ DWORD dwIoControlCode,
-                          _In_reads_bytes_opt_(nInBufferSize) LPVOID lpInBuffer,
-                          _In_ DWORD nInBufferSize,
-                          _Out_writes_bytes_to_opt_(nOutBufferSize, *lpBytesReturned) LPVOID lpOutBuffer,
-                          _In_ DWORD nOutBufferSize,
-                          _Out_opt_ LPDWORD lpBytesReturned,
-                          _Out_ LPINT lpErrno)
+_Must_inspect_result_ BOOL VIOSockDeviceControl(_In_ SOCKET s,
+                                                _In_ DWORD dwIoControlCode,
+                                                _In_reads_bytes_opt_(nInBufferSize) LPVOID lpInBuffer,
+                                                _In_ DWORD nInBufferSize,
+                                                _Out_writes_bytes_to_opt_(nOutBufferSize,
+                                                                          *lpBytesReturned) LPVOID lpOutBuffer,
+                                                _In_ DWORD nOutBufferSize,
+                                                _Out_opt_ LPDWORD lpBytesReturned,
+                                                _Out_ LPINT lpErrno)
 {
     BOOL bRes = TRUE;
     NTSTATUS status;
     IO_STATUS_BLOCK iosb = {0};
+
+    *lpErrno = ERROR_SUCCESS;
 
     if (lpBytesReturned)
     {
@@ -216,6 +228,7 @@ BOOL VIOSockDeviceControl(_In_ SOCKET s,
     HANDLE evt = CreateEvent(NULL, FALSE, FALSE, NULL);
     if (!evt)
     {
+        *lpErrno = ERROR_INTERNAL_ERROR;
         return FALSE;
     }
 
@@ -254,16 +267,18 @@ BOOL VIOSockDeviceControl(_In_ SOCKET s,
     return bRes;
 }
 
-BOOL VIOSockWriteFile(_In_ SOCKET s,
-                      _In_reads_bytes_(nNumberOfBytesToWrite) LPVOID lpBuffer,
-                      _In_ DWORD nNumberOfBytesToWrite,
-                      _Out_opt_ LPDWORD lpNumberOfBytesWritten,
-                      _Out_ LPINT lpErrno)
+_Must_inspect_result_ BOOL VIOSockWriteFile(_In_ SOCKET s,
+                                            _In_reads_bytes_(nNumberOfBytesToWrite) LPVOID lpBuffer,
+                                            _In_ DWORD nNumberOfBytesToWrite,
+                                            _Out_opt_ LPDWORD lpNumberOfBytesWritten,
+                                            _Out_ LPINT lpErrno)
 {
     BOOL bRes = TRUE;
     NTSTATUS status;
     IO_STATUS_BLOCK iosb = {0};
     LARGE_INTEGER liBytesOffset = {0};
+
+    *lpErrno = ERROR_SUCCESS;
 
     if (lpNumberOfBytesWritten)
     {
@@ -273,6 +288,7 @@ BOOL VIOSockWriteFile(_In_ SOCKET s,
     HANDLE evt = CreateEvent(NULL, FALSE, FALSE, NULL);
     if (!evt)
     {
+        *lpErrno = ERROR_INTERNAL_ERROR;
         return FALSE;
     }
 
@@ -301,16 +317,18 @@ BOOL VIOSockWriteFile(_In_ SOCKET s,
     return bRes;
 }
 
-BOOL VIOSockReadFile(_In_ SOCKET s,
-                     _Out_writes_bytes_(nNumberOfBytesToRead) LPVOID lpBuffer,
-                     _In_ DWORD nNumberOfBytesToRead,
-                     _Out_opt_ LPDWORD lpNumberOfBytesRead,
-                     _Out_ LPINT lpErrno)
+_Must_inspect_result_ BOOL VIOSockReadFile(_In_ SOCKET s,
+                                           _Out_writes_bytes_(nNumberOfBytesToRead) LPVOID lpBuffer,
+                                           _In_ DWORD nNumberOfBytesToRead,
+                                           _Out_opt_ LPDWORD lpNumberOfBytesRead,
+                                           _Out_ LPINT lpErrno)
 {
     BOOL bRes = TRUE;
     NTSTATUS status;
     IO_STATUS_BLOCK iosb = {0};
     LARGE_INTEGER liBytesOffset = {0};
+
+    *lpErrno = ERROR_SUCCESS;
 
     if (lpNumberOfBytesRead)
     {
@@ -320,6 +338,7 @@ BOOL VIOSockReadFile(_In_ SOCKET s,
     HANDLE evt = CreateEvent(NULL, FALSE, FALSE, NULL);
     if (!evt)
     {
+        *lpErrno = ERROR_INTERNAL_ERROR;
         return FALSE;
     }
 
