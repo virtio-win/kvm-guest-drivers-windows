@@ -175,7 +175,7 @@ _Must_inspect_result_ SOCKET WSPAPI VIOSockAccept(_In_ SOCKET s,
     return s;
 }
 
-INT WSPAPI VIOSockAddressToString(_In_reads_bytes_(dwAddressLength) LPSOCKADDR lpsaAddress,
+int WSPAPI VIOSockAddressToString(_In_reads_bytes_(dwAddressLength) LPSOCKADDR lpsaAddress,
                                   _In_ DWORD dwAddressLength,
                                   _In_opt_ LPWSAPROTOCOL_INFOW lpProtocolInfo,
                                   _Out_writes_to_(*lpdwAddressStringLength,
@@ -670,17 +670,15 @@ int WSPAPI VIOSockIoctl(_In_ SOCKET s,
     return iRes;
 }
 
-SOCKET
-WSPAPI
-VIOSockJoinLeaf(_In_ SOCKET s,
-                _In_reads_bytes_(namelen) const struct sockaddr FAR *name,
-                _In_ int namelen,
-                _In_opt_ LPWSABUF lpCallerData,
-                _Out_opt_ LPWSABUF lpCalleeData,
-                _In_opt_ LPQOS lpSQOS,
-                _In_opt_ LPQOS lpGQOS,
-                _In_ DWORD dwFlags,
-                _Out_ LPINT lpErrno)
+_Must_inspect_result_ SOCKET WSPAPI VIOSockJoinLeaf(_In_ SOCKET s,
+                                                    _In_reads_bytes_(namelen) const struct sockaddr FAR *name,
+                                                    _In_ int namelen,
+                                                    _In_opt_ LPWSABUF lpCallerData,
+                                                    _Out_opt_ LPWSABUF lpCalleeData,
+                                                    _In_opt_ LPQOS lpSQOS,
+                                                    _In_opt_ LPQOS lpGQOS,
+                                                    _In_ DWORD dwFlags,
+                                                    _Out_ LPINT lpErrno)
 {
     UNREFERENCED_PARAMETER(name);
     UNREFERENCED_PARAMETER(namelen);
@@ -720,7 +718,7 @@ int WSPAPI VIOSockRecv(_In_ SOCKET s,
                        _Inout_opt_ LPWSAOVERLAPPED lpOverlapped,
                        _In_opt_ LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine,
                        _In_opt_ LPWSATHREADID lpThreadId,
-                       _In_ LPINT lpErrno)
+                       _Out_ LPINT lpErrno)
 {
     int iRes = ERROR_SUCCESS;
     DWORD i, dwNumberOfBytesRecvd = 0;
@@ -843,6 +841,7 @@ static int CopyFromFdSet(_Out_ VIRTIO_VSOCK_FD_SET *Dst, _In_opt_ fd_set *Src)
 {
     UINT i;
 
+    Dst->fd_count = 0;
     if (!Src)
     {
         return 0;
@@ -1097,7 +1096,7 @@ int WSPAPI VIOSockSendTo(_In_ SOCKET s,
 int WSPAPI VIOSockSetSockOpt(_In_ SOCKET s,
                              _In_ int level,
                              _In_ int optname,
-                             _In_reads_bytes_opt_(optlen) const char FAR *optval,
+                             _In_reads_bytes_(optlen) const char FAR *optval,
                              _In_ int optlen,
                              _Out_ LPINT lpErrno)
 {
@@ -1212,7 +1211,7 @@ _Must_inspect_result_ SOCKET WSPAPI VIOSockSocket(_In_ int af,
     return s;
 }
 
-INT WSPAPI VIOSockStringToAddress(_In_ LPWSTR AddressString,
+int WSPAPI VIOSockStringToAddress(_In_ LPWSTR AddressString,
                                   _In_ INT AddressFamily,
                                   _In_opt_ LPWSAPROTOCOL_INFOW lpProtocolInfo,
                                   _Out_writes_bytes_to_(*lpAddressLength, *lpAddressLength) LPSOCKADDR lpAddress,
