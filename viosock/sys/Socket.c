@@ -1913,13 +1913,14 @@ static NTSTATUS VIOSockGetPeerName(IN WDFREQUEST Request, OUT size_t *pLength)
         pAddr->svm_cid = pSocket->dst_cid;
         pAddr->svm_port = pSocket->dst_port;
         *pLength = sizeof(*pAddr);
+        status = STATUS_SUCCESS;
     }
     else
     {
         status = STATUS_INVALID_DEVICE_STATE;
     }
 
-    return STATUS_SUCCESS;
+    return status;
 }
 
 static NTSTATUS VIOSockGetSockName(IN WDFREQUEST Request, OUT size_t *pLength)
@@ -1951,13 +1952,14 @@ static NTSTATUS VIOSockGetSockName(IN WDFREQUEST Request, OUT size_t *pLength)
         pAddr->svm_cid = (ULONG32)pContext->Config.guest_cid;
         pAddr->svm_port = pSocket->src_port;
         *pLength = sizeof(*pAddr);
+        status = STATUS_SUCCESS;
     }
     else
     {
         status = STATUS_INVALID_DEVICE_STATE;
     }
 
-    return STATUS_SUCCESS;
+    return status;
 }
 /*
  * Structure used for manipulating linger option.
