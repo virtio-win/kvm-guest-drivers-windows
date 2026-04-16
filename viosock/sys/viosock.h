@@ -306,6 +306,7 @@ VIOSockInterruptInit(IN WDFDEVICE hDevice);
 // Socket functions
 EVT_WDF_DEVICE_FILE_CREATE VIOSockCreateStub;
 EVT_WDF_FILE_CLEANUP VIOSockCleanup;
+EVT_WDF_OBJECT_CONTEXT_CLEANUP VIOSockObjectCleanup;
 
 NTSTATUS
 VIOSockDeviceControl(IN WDFREQUEST Request, IN ULONG IoControlCode, IN OUT size_t *pLength);

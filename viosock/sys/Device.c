@@ -264,6 +264,7 @@ VIOSockEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
     fileConfig.FileObjectClass = WdfFileObjectWdfCanUseFsContext;
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&Attributes, SOCKET_CONTEXT);
+    Attributes.EvtCleanupCallback = VIOSockObjectCleanup;
 
     WdfDeviceInitSetFileObjectConfig(DeviceInit, &fileConfig, &Attributes);
 
