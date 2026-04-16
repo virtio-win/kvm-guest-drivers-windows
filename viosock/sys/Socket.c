@@ -928,8 +928,6 @@ static NTSTATUS VIOSockAccept(IN HANDLE hListenSocket, IN WDFREQUEST Request)
     {
         PSOCKET_CONTEXT pListenSocket = VIOSockBoundFindByFileLocked(pContext, pFileObj);
 
-        ObDereferenceObject(pFileObj);
-
         if (!pListenSocket)
         {
             TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Listen socket not found\n");
@@ -974,6 +972,9 @@ static NTSTATUS VIOSockAccept(IN HANDLE hListenSocket, IN WDFREQUEST Request)
                 }
             }
         }
+
+        // Keep listen socket file object alive during accept
+        ObDereferenceObject(pFileObj);
     }
     else
     {
@@ -1238,12 +1239,6 @@ VOID VIOSockCleanup(IN WDFFILEOBJECT FileObject)
         WdfRequestComplete(Request, STATUS_CANCELLED);
     }
 
-    if (pSocket->EventObject)
-    {
-        ObDereferenceObject(pSocket->EventObject);
-        pSocket->EventObject = NULL;
-    }
-
     if (pSocket->LoopbackSocket != WDF_NO_HANDLE)
     {
         VioSockDereference(pSocket->LoopbackSocket);
@@ -1262,6 +1257,21 @@ VOID VIOSockCleanup(IN WDFFILEOBJECT FileObject)
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Socket %d closed\n", pSocket->SocketId);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_CREATE_CLOSE, "<-- %s\n", __FUNCTION__);
+}
+
+VOID VIOSockObjectCleanup(IN WDFOBJECT Object)
+{
+    PSOCKET_CONTEXT pSocket = GetSocketContext(Object);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+
+    if (pSocket->EventObject)
+    {
+        ObDereferenceObject(pSocket->EventObject);
+        pSocket->EventObject = NULL;
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
 }
 
 __inline BOOLEAN VIOSockIsGuestAddrValid(IN PSOCKADDR_VM pAddr)
