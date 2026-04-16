@@ -1,3 +1,13 @@
+Date    16 Apr 2026
+repo    https://github.com/virtio-win/kvm-guest-drivers-windows.git
+tag     mm319
+
+Fixed issues:
+RHEL-156065: viogpudo: Add viogpures to viogpudo project dependencies
+RHEL-159250: viomem: Remove commented out Balloon PNP ID
+RHEL-102572: viofs: Add missing VioFSCopyrightStrings to Driver.RHEL.props
+RHEL-137735: viosock: Fix critical event size validation bug
+
 Date    16 Mar 2026
 repo    https://github.com/virtio-win/kvm-guest-drivers-windows.git
 tag     mm318
