@@ -82,12 +82,14 @@ NtReadFile(_In_ HANDLE FileHandle,
 #define STATUS_LOCAL_DISCONNECT           ((NTSTATUS)0xC000013BL)
 #define STATUS_HOST_UNREACHABLE           ((NTSTATUS)0xC000023DL)
 #define STATUS_IO_TIMEOUT                 ((NTSTATUS)0xC00000B5L)
+#define STATUS_INVALID_DEVICE_STATE       ((NTSTATUS)0xC0000184L)
 
 INT NtStatusToWsaError(_In_ NTSTATUS Status)
 {
     INT wsaError = (NT_SUCCESS(Status)) ? ERROR_SUCCESS : ERROR_INTERNAL_ERROR;
     switch (Status)
     {
+        case STATUS_INVALID_DEVICE_STATE:
         case STATUS_INVALID_PARAMETER:
             wsaError = WSAEINVAL;
             break;
