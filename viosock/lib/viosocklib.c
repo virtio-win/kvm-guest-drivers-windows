@@ -532,6 +532,18 @@ int WSPAPI VIOSockGetSockOpt(_In_ SOCKET s,
         return WSP_ERROR(WSAEFAULT);
     }
 
+    if (level == SOL_SOCKET && optname == SO_PROTOCOL_INFOW)
+    {
+        if (*optlen < (int)sizeof(WSAPROTOCOL_INFOW))
+        {
+            *optlen = sizeof(WSAPROTOCOL_INFOW);
+            return WSP_ERROR(WSAEFAULT);
+        }
+        memcpy(optval, &g_ProtocolInfo, sizeof(WSAPROTOCOL_INFOW));
+        *optlen = sizeof(WSAPROTOCOL_INFOW);
+        return ERROR_SUCCESS;
+    }
+
     Opt.level = level;
     Opt.optname = optname;
     Opt.optval = (ULONGLONG)optval;
