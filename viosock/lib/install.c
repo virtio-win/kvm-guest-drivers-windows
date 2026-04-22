@@ -50,7 +50,7 @@ static WSAPROTOCOL_INFO g_ProtocolInfo = {.dwServiceFlags1 = XP1_GRACEFUL_CLOSE 
                                           .dwCatalogEntryId = 0,
                                           .ProtocolChain.ChainLen = BASE_PROTOCOL,
                                           .ProtocolChain.ChainEntries = {0},
-                                          .iVersion = 0,
+                                          .iVersion = 2,
                                           .iAddressFamily = AF_VSOCK,
                                           .iMaxSockAddr = sizeof(struct sockaddr_in),
                                           .iMinSockAddr = sizeof(struct sockaddr_vm),
