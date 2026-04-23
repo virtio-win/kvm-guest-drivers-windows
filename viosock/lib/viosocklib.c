@@ -930,7 +930,7 @@ int WSPAPI VIOSockSelect(_In_ int nfds,
     }
     else
     {
-        Select.Timeout = (LONGLONG)-1;
+        Select.Timeout = VSOCK_TIMEOUT_INFINITE;
     }
 
     hFile = VIOSockCreateFile(NULL, lpErrno);
