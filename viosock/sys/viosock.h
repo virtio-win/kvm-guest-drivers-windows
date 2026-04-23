@@ -377,8 +377,8 @@ _Requires_lock_not_held_(pSocket->RxLock) __declspec(noinline) NTSTATUS VIOSockP
                                                                                                     IN PSOCKET_CONTEXT pSocket,
                                                                                                     OUT WDFREQUEST *Request);
 
-NTSTATUS
-VIOSockAcceptInitSocket(PSOCKET_CONTEXT pAcceptSocket, PSOCKET_CONTEXT pListenSocket);
+_Requires_lock_not_held_(pListenSocket->StateLock) NTSTATUS VIOSockAcceptInitSocket(PSOCKET_CONTEXT pAcceptSocket,
+                                                                                    PSOCKET_CONTEXT pListenSocket);
 
 _Requires_lock_not_held_(pListenSocket->RxLock) NTSTATUS VIOSockAcceptEnqueuePkt(IN PSOCKET_CONTEXT pListenSocket,
                                                                                  IN PVIRTIO_VSOCK_HDR pPkt);
