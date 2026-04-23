@@ -98,6 +98,8 @@ VIOSockSelectCopyFds(IN PDEVICE_CONTEXT pContext,
                      IN VIRTIO_VSOCK_FDSET_TYPE iFdSet,
                      IN PVIOSOCK_SELECT_HANDLE pHandleSet);
 
+_IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockSelectEnqueueWorkItem(IN PDEVICE_CONTEXT pContext);
+
 NTSTATUS
 VIOSockSelect(IN WDFREQUEST Request, IN OUT size_t *pLength);
 
@@ -701,10 +703,7 @@ static VOID VIOSockSelectTimerFunc(IN WDFTIMER Timer)
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "--> %s\n", __FUNCTION__);
 
-    if (InterlockedIncrement(&pContext->SelectInProgress) == 1)
-    {
-        WdfWorkItemEnqueue(pContext->SelectWorkitem);
-    }
+    VIOSockSelectEnqueueWorkItem(pContext);
 }
 
 static BOOLEAN VIOSockSelectCheckPkt(IN PVIOSOCK_SELECT_PKT pPkt)
@@ -767,10 +766,7 @@ static VOID VIOSockSelectCancel(IN WDFREQUEST Request)
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "--> %s\n", __FUNCTION__);
 
-    if (InterlockedIncrement(&pContext->SelectInProgress) == 1)
-    {
-        WdfWorkItemEnqueue(pContext->SelectWorkitem);
-    }
+    VIOSockSelectEnqueueWorkItem(pContext);
 }
 
 static VOID VIOSockSelectWorkitem(IN WDFWORKITEM Workitem)
@@ -885,6 +881,15 @@ static VOID VIOSockSelectWorkitem(IN WDFWORKITEM Workitem)
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "<-- %s\n", __FUNCTION__);
 }
 
+_IRQL_requires_max_(DISPATCH_LEVEL) static VOID VIOSockSelectEnqueueWorkItem(IN PDEVICE_CONTEXT pContext)
+{
+    if (InterlockedIncrement(&pContext->SelectInProgress) == 1)
+    {
+        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "Enqueue workitem\n");
+        WdfWorkItemEnqueue(pContext->SelectWorkitem);
+    }
+}
+
 _IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockSelectRun(IN PSOCKET_CONTEXT pSocket)
 {
     BOOLEAN bRun = FALSE;
@@ -908,10 +913,9 @@ _IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockSelectRun(IN PSOCKET_CONTEXT pSo
         bRun |= (pSocket->Events & FD_CONNECT) && !NT_SUCCESS(pSocket->EventsStatus[FD_CONNECT_BIT]);
     }
 
-    if (bRun && InterlockedIncrement(&pContext->SelectInProgress) == 1)
+    if (bRun)
     {
-        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "Enqueue workitem\n");
-        WdfWorkItemEnqueue(pContext->SelectWorkitem);
+        VIOSockSelectEnqueueWorkItem(pContext);
     }
 }
 
