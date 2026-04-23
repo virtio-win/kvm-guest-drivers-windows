@@ -823,7 +823,8 @@ static VOID VIOSockSelectWorkitem(IN WDFWORKITEM Workitem)
                 if (pPkt->Timeout <= TimePassed + VIOSOCK_TIMER_TOLERANCE)
                 {
                     bRemove = TRUE;
-                    pPkt->Status = STATUS_IO_TIMEOUT;
+                    // It is a success value, just return empty fd sets
+                    pPkt->Status = STATUS_TIMEOUT;
                 }
                 else
                 {
@@ -877,7 +878,7 @@ static VOID VIOSockSelectWorkitem(IN WDFWORKITEM Workitem)
             VIOSockSelectCleanupPkt(pPkt);
             WdfRequestCompleteWithInformation(WdfObjectContextGetObject(pPkt),
                                               pPkt->Status,
-                                              pPkt->Status == STATUS_SUCCESS ? sizeof(VIRTIO_VSOCK_SELECT) : 0);
+                                              NT_SUCCESS(pPkt->Status) ? sizeof(VIRTIO_VSOCK_SELECT) : 0);
         }
 
     } while (InterlockedCompareExchange(&pContext->SelectInProgress, 0, 1) != 1);
