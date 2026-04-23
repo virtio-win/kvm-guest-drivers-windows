@@ -157,6 +157,9 @@ typedef struct _VIRTIO_VSOCK_FD_SET
     ULONGLONG fd_array[FD_SETSIZE]; /* an array of SOCKETs */
 } VIRTIO_VSOCK_FD_SET, *PVIRTIO_VSOCK_FD_SET;
 
+// Sentinel value for VIRTIO_VSOCK_SELECT.Timeout: wait indefinitely (no timer).
+#define VSOCK_TIMEOUT_INFINITE MAXLONGLONG
+
 typedef struct _VIRTIO_VSOCK_SELECT
 {
     VIRTIO_VSOCK_FD_SET Fdss[FDSET_MAX];
