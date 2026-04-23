@@ -708,7 +708,7 @@ static VOID VIOSockSelectTimerFunc(IN WDFTIMER Timer)
 
 static BOOLEAN VIOSockSelectCheckPkt(IN PVIOSOCK_SELECT_PKT pPkt)
 {
-    ULONG i;
+    ULONG i, uTotalFds = 0;
     PVIOSOCK_SELECT_HANDLE pHandleSet;
     PVIRTIO_VSOCK_FD_SET pFds;
 
@@ -728,6 +728,7 @@ static BOOLEAN VIOSockSelectCheckPkt(IN PVIOSOCK_SELECT_PKT pPkt)
             pFds->fd_array[pFds->fd_count++] = pHandleSet[i].hSocket;
         }
     }
+    uTotalFds += pFds->fd_count;
 
     pFds = &pPkt->pSelect->Fdss[FDSET_WRITE];
     pHandleSet = VIOSockSelectGetFdsWriteSet(pPkt);
@@ -742,6 +743,7 @@ static BOOLEAN VIOSockSelectCheckPkt(IN PVIOSOCK_SELECT_PKT pPkt)
             pFds->fd_array[pFds->fd_count++] = pHandleSet[i].hSocket;
         }
     }
+    uTotalFds += pFds->fd_count;
 
     pFds = &pPkt->pSelect->Fdss[FDSET_EXCPT];
     pHandleSet = VIOSockSelectGetFdsExcptSet(pPkt);
@@ -755,9 +757,9 @@ static BOOLEAN VIOSockSelectCheckPkt(IN PVIOSOCK_SELECT_PKT pPkt)
             pFds->fd_array[pFds->fd_count++] = pHandleSet[i].hSocket;
         }
     }
+    uTotalFds += pFds->fd_count;
 
-    return pPkt->pSelect->Fdss[FDSET_READ].fd_count || pPkt->pSelect->Fdss[FDSET_WRITE].fd_count ||
-           pPkt->pSelect->Fdss[FDSET_EXCPT].fd_count;
+    return !!uTotalFds;
 }
 
 static VOID VIOSockSelectCancel(IN WDFREQUEST Request)
@@ -961,6 +963,16 @@ static BOOLEAN VIOSockSelectCopyFds(IN PDEVICE_CONTEXT pContext,
     return i == pSelect->Fdss[iFdSet].fd_count;
 }
 
+static VOID VIOSockSelectClearFdss(IN PVIRTIO_VSOCK_SELECT pSelect)
+{
+    VIRTIO_VSOCK_FDSET_TYPE i;
+    for (i = FDSET_READ; i < FDSET_MAX; i++)
+    {
+        RtlZeroMemory(pSelect->Fdss[i].fd_array, pSelect->Fdss[i].fd_count * sizeof(pSelect->Fdss[i].fd_array[0]));
+        pSelect->Fdss[i].fd_count = 0;
+    }
+}
+
 static NTSTATUS VIOSockSelect(IN WDFREQUEST Request, IN OUT size_t *pLength)
 {
     PDEVICE_CONTEXT pContext = GetDeviceContextFromRequest(Request);
@@ -1045,6 +1057,8 @@ static NTSTATUS VIOSockSelect(IN WDFREQUEST Request, IN OUT size_t *pLength)
 
     if (NT_SUCCESS(status))
     {
+        VIOSockSelectClearFdss(pSelect);
+
         WdfWaitLockAcquire(pContext->SelectLock, NULL);
 
         pPkt->Status = status = VIOSockSelectCheckPkt(pPkt) ? STATUS_SUCCESS : STATUS_PENDING;
