@@ -1631,7 +1631,7 @@ VOID VIOSockReadTimerFunc(WDFTIMER Timer)
 {
     static LONG lCounter;
     PSOCKET_CONTEXT pSocket = GetSocketContext(WdfTimerGetParentObject(Timer));
-    LONGLONG Timeout = LONGLONG_MAX;
+    LONGLONG Timeout = MAXLONGLONG;
     WDFREQUEST PrevTagRequest = WDF_NO_HANDLE, TagRequest = WDF_NO_HANDLE, Request;
     NTSTATUS status;
     LIST_ENTRY CompletionList;
@@ -1715,7 +1715,7 @@ VOID VIOSockReadTimerFunc(WDFTIMER Timer)
         }
     } while (NT_SUCCESS(status));
 
-    if (Timeout != LONGLONG_MAX)
+    if (Timeout != MAXLONGLONG)
     {
         WdfSpinLockAcquire(pSocket->RxLock);
         VIOSockTimerSet(&pSocket->ReadTimer, Timeout);

@@ -1026,7 +1026,7 @@ VOID VIOSockTxTimerFunc(WDFTIMER Timer)
 {
     PDEVICE_CONTEXT pContext = GetDeviceContext(WdfTimerGetParentObject(Timer));
     PLIST_ENTRY CurrentEntry;
-    LONGLONG Timeout = LONGLONG_MAX;
+    LONGLONG Timeout = MAXLONGLONG;
     LIST_ENTRY CompletionList;
     BOOLEAN SetTimer = FALSE, bAlwaysTrue = TRUE;
 

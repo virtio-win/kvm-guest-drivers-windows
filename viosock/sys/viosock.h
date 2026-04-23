@@ -619,7 +619,7 @@ __inline VOID VIOSockTimerSet(IN PVIOSOCK_TIMER pTimer, IN LONGLONG Timeout)
 {
     LARGE_INTEGER liTicks;
 
-    if (!Timeout || Timeout == LONGLONG_MAX)
+    if (!Timeout || Timeout == MAXLONGLONG)
     {
         ASSERT(!pTimer->StartRefs);
         pTimer->StartTime = 0;

@@ -98,7 +98,7 @@ VOID VIOSockTimerStart(IN PVIOSOCK_TIMER pTimer, IN LONGLONG Timeout)
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
-    if (!Timeout || Timeout == LONGLONG_MAX)
+    if (!Timeout || Timeout == MAXLONGLONG)
     {
         return;
     }
