@@ -893,6 +893,24 @@ bool CParaNdisTX::SendMapped(bool IsInterrupt, CRawCNBLList &toWaitingList)
 
                 switch (result)
                 {
+                    case SubmitTxPacketResult::SUBMIT_SUCCESS:
+                        // if this NBL finished?
+                        if (!NBLHolder->HaveMappedBuffers())
+                        {
+                            /* We use PeekMappedNBL method to get the current NBL
+                             * that should be processed from the queue, when we finish
+                             * sending all it's NBs, we should pop it from the queue.
+                             */
+                            PopMappedNBL();
+                            toWaitingList.Push(NBLHolder);
+                        }
+                        else
+                        {
+                            // no, keep it in the queue
+                        }
+                        SentOutSomeBuffers = true;
+                        break;
+
                     case SubmitTxPacketResult::SUBMIT_NO_PLACE_IN_QUEUE:
                         NBLHolder->PushMappedNB(NBHolder);
                         HaveBuffers = false;
@@ -900,8 +918,6 @@ bool CParaNdisTX::SendMapped(bool IsInterrupt, CRawCNBLList &toWaitingList)
                         break;
 
                     case SubmitTxPacketResult::SUBMIT_FAILURE:
-                        __fallthrough;
-                    case SubmitTxPacketResult::SUBMIT_SUCCESS:
                         __fallthrough;
                     case SubmitTxPacketResult::SUBMIT_PACKET_TOO_LARGE:
                         // if this NBL finished?
@@ -918,16 +934,8 @@ bool CParaNdisTX::SendMapped(bool IsInterrupt, CRawCNBLList &toWaitingList)
                         {
                             // no, keep it in the queue
                         }
-
-                        if (result == SubmitTxPacketResult::SUBMIT_SUCCESS)
-                        {
-                            SentOutSomeBuffers = true;
-                        }
-                        else
-                        {
-                            CNB::Destroy(NBHolder);
-                            NBLHolder->NBComplete();
-                        }
+                        CNB::Destroy(NBHolder);
+                        NBLHolder->NBComplete();
                         break;
                     default:
                         NETKVM_ASSERT(false);
