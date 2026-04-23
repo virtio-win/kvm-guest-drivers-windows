@@ -76,10 +76,16 @@ typedef struct _VIOSOCK_SELECT_PKT
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIOSOCK_SELECT_PKT, GetSelectContext);
 
+#define VIOSockSelectGetFdsReadSet(p)  ((p)->Fds)
+#define VIOSockSelectGetFdsWriteSet(p) ((p)->Fds + (p)->FdCount[FDSET_READ])
+#define VIOSockSelectGetFdsExcptSet(p) ((p)->Fds + (p)->FdCount[FDSET_READ] + (p)->FdCount[FDSET_WRITE])
+
 NTSTATUS
 VIOSockSelectInit(IN PDEVICE_CONTEXT pContext);
 
-VOID VIOSockSelectCleanupFds(IN PVIOSOCK_SELECT_PKT pPkt, IN VIRTIO_VSOCK_FDSET_TYPE iFdSet, IN ULONG uStartIndex);
+VOID VIOSockSelectCleanupFds(IN PVIOSOCK_SELECT_PKT pPkt,
+                             IN VIRTIO_VSOCK_FDSET_TYPE iFdSet,
+                             IN PVIOSOCK_SELECT_HANDLE pHandleSet);
 
 BOOLEAN
 VIOSockSelectCheckPkt(IN PVIOSOCK_SELECT_PKT pPkt);
@@ -90,7 +96,7 @@ VIOSockSelectCopyFds(IN PDEVICE_CONTEXT pContext,
                      IN PVIRTIO_VSOCK_SELECT pSelect,
                      IN PVIOSOCK_SELECT_PKT pPkt,
                      IN VIRTIO_VSOCK_FDSET_TYPE iFdSet,
-                     IN ULONG uStartIndex);
+                     IN PVIOSOCK_SELECT_HANDLE pHandleSet);
 
 NTSTATUS
 VIOSockSelect(IN WDFREQUEST Request, IN OUT size_t *pLength);
@@ -660,12 +666,11 @@ static NTSTATUS VIOSockSelectInit(IN PDEVICE_CONTEXT pContext)
     return status;
 }
 
-static VOID VIOSockSelectCleanupFds(IN PVIOSOCK_SELECT_PKT pPkt, IN VIRTIO_VSOCK_FDSET_TYPE iFdSet, IN ULONG uStartIndex
-
-)
+static VOID VIOSockSelectCleanupFds(IN PVIOSOCK_SELECT_PKT pPkt,
+                                    IN VIRTIO_VSOCK_FDSET_TYPE iFdSet,
+                                    IN PVIOSOCK_SELECT_HANDLE pHandleSet)
 {
     ULONG i;
-    PVIOSOCK_SELECT_HANDLE pHandleSet = &pPkt->Fds[uStartIndex];
 
     PAGED_CODE();
 
@@ -675,6 +680,7 @@ static VOID VIOSockSelectCleanupFds(IN PVIOSOCK_SELECT_PKT pPkt, IN VIRTIO_VSOCK
 
         InterlockedDecrement(&GetSocketContext(pHandleSet[i].Socket)->SelectRefs[iFdSet]); // dereference socket
         WdfObjectDereference(pHandleSet[i].Socket);
+        pHandleSet[i].Socket = NULL;
     }
 
     pPkt->FdCount[iFdSet] = 0;
@@ -684,9 +690,9 @@ __inline VOID VIOSockSelectCleanupPkt(IN PVIOSOCK_SELECT_PKT pPkt)
 {
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "--> %s, status: 0x%08x\n", __FUNCTION__, pPkt->Status);
 
-    VIOSockSelectCleanupFds(pPkt, FDSET_READ, 0);
-    VIOSockSelectCleanupFds(pPkt, FDSET_WRITE, pPkt->FdCount[FDSET_READ]);
-    VIOSockSelectCleanupFds(pPkt, FDSET_EXCPT, pPkt->FdCount[FDSET_READ] + pPkt->FdCount[FDSET_WRITE]);
+    VIOSockSelectCleanupFds(pPkt, FDSET_READ, VIOSockSelectGetFdsReadSet(pPkt));
+    VIOSockSelectCleanupFds(pPkt, FDSET_WRITE, VIOSockSelectGetFdsWriteSet(pPkt));
+    VIOSockSelectCleanupFds(pPkt, FDSET_EXCPT, VIOSockSelectGetFdsExcptSet(pPkt));
 }
 
 static VOID VIOSockSelectTimerFunc(IN WDFTIMER Timer)
@@ -712,7 +718,7 @@ static BOOLEAN VIOSockSelectCheckPkt(IN PVIOSOCK_SELECT_PKT pPkt)
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "--> %s\n", __FUNCTION__);
 
     pFds = &pPkt->pSelect->Fdss[FDSET_READ];
-    pHandleSet = pPkt->Fds;
+    pHandleSet = VIOSockSelectGetFdsReadSet(pPkt);
 
     pFds->fd_count = 0;
     for (i = 0; i < pPkt->FdCount[FDSET_READ]; ++i)
@@ -725,7 +731,7 @@ static BOOLEAN VIOSockSelectCheckPkt(IN PVIOSOCK_SELECT_PKT pPkt)
     }
 
     pFds = &pPkt->pSelect->Fdss[FDSET_WRITE];
-    pHandleSet = &pPkt->Fds[pPkt->FdCount[FDSET_READ]];
+    pHandleSet = VIOSockSelectGetFdsWriteSet(pPkt);
 
     pFds->fd_count = 0;
     for (i = 0; i < pPkt->FdCount[FDSET_WRITE]; ++i)
@@ -739,7 +745,7 @@ static BOOLEAN VIOSockSelectCheckPkt(IN PVIOSOCK_SELECT_PKT pPkt)
     }
 
     pFds = &pPkt->pSelect->Fdss[FDSET_EXCPT];
-    pHandleSet = &pPkt->Fds[pPkt->FdCount[FDSET_READ] + pPkt->FdCount[FDSET_WRITE]];
+    pHandleSet = VIOSockSelectGetFdsExcptSet(pPkt);
 
     pFds->fd_count = 0;
     for (i = 0; i < pPkt->FdCount[FDSET_EXCPT]; ++i)
@@ -914,10 +920,9 @@ static BOOLEAN VIOSockSelectCopyFds(IN PDEVICE_CONTEXT pContext,
                                     IN PVIRTIO_VSOCK_SELECT pSelect,
                                     IN PVIOSOCK_SELECT_PKT pPkt,
                                     IN VIRTIO_VSOCK_FDSET_TYPE iFdSet,
-                                    IN ULONG uStartIndex)
+                                    IN PVIOSOCK_SELECT_HANDLE pHandleSet)
 {
     ULONG i;
-    PVIOSOCK_SELECT_HANDLE pHandleSet = &pPkt->Fds[uStartIndex];
 
     PAGED_CODE();
 
@@ -1021,14 +1026,14 @@ static NTSTATUS VIOSockSelect(IN WDFREQUEST Request, IN OUT size_t *pLength)
 
     pPkt->pSelect = pSelect;
 
-    if (!VIOSockSelectCopyFds(pContext, bIs32BitProcess, pSelect, pPkt, FDSET_READ, 0) ||
-        !VIOSockSelectCopyFds(pContext, bIs32BitProcess, pSelect, pPkt, FDSET_WRITE, pPkt->FdCount[FDSET_READ]) ||
+    if (!VIOSockSelectCopyFds(pContext, bIs32BitProcess, pSelect, pPkt, FDSET_READ, VIOSockSelectGetFdsReadSet(pPkt)) ||
         !VIOSockSelectCopyFds(pContext,
                               bIs32BitProcess,
                               pSelect,
                               pPkt,
-                              FDSET_EXCPT,
-                              pPkt->FdCount[FDSET_READ] + pPkt->FdCount[FDSET_WRITE]))
+                              FDSET_WRITE,
+                              VIOSockSelectGetFdsWriteSet(pPkt)) ||
+        !VIOSockSelectCopyFds(pContext, bIs32BitProcess, pSelect, pPkt, FDSET_EXCPT, VIOSockSelectGetFdsExcptSet(pPkt)))
     {
         TraceEvents(TRACE_LEVEL_WARNING, DBG_SELECT, "VIOSockSelectCopyFds failed\n");
         status = STATUS_INVALID_HANDLE;
