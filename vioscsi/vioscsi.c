@@ -439,7 +439,7 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
     }
     else
     {
-        adaptExt->num_queues = min(adaptExt->num_queues, (USHORT)num_cpus);
+        adaptExt->num_queues = min(adaptExt->num_queues, num_cpus);
     }
 
     adaptExt->action_on_reset = VioscsiResetCompleteRequests;
@@ -665,7 +665,7 @@ VioScsiHwInitialize(IN PVOID DeviceExtension)
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Queues %d msix_vectors %d\n", adaptExt->num_queues, adaptExt->msix_vectors);
     if (adaptExt->num_queues > 1 && ((adaptExt->num_queues + 3) > adaptExt->msix_vectors))
     {
-        adaptExt->num_queues = (USHORT)adaptExt->msix_vectors;
+        adaptExt->num_queues = adaptExt->msix_vectors;
     }
 
     if (!adaptExt->dump_mode && adaptExt->msix_vectors > 0)
