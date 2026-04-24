@@ -1,25 +1,25 @@
 # the default owners
-*                   @YanVugenfirer
+*                   @YanVugenfirer @kostyanf14
 
 # Driver custom owners
-/Balloon/           @vrozenfe @ybendito
+/Balloon/           @vrozenfe @ybendito @kostyanf14
 # /Documentation/
 # /fwcfg/
-/fwcfg64/           @viktor-prutyanov @YanVugenfirer
+/fwcfg64/           @kostyanf14 @YanVugenfirer
 # /ivshmem/
 /NetKVM/            @ybendito @YanVugenfirer
 # /packaging/
 # /pciserial/
-/pvpanic/           @viktor-prutyanov @YanVugenfirer
+/pvpanic/           @kostyanf14 @YanVugenfirer
 # /Q35/
-/Tools/             @kostyanf14 @YanVugenfirer
+/Tools/             @kostyanf14 @YanVugenfirer @ybendito
 # /viocrypt/
-/viofs/             @viktor-prutyanov @YanVugenfirer
+/viofs/             @kostyanf14 @YanVugenfirer @ybendito
 /viogpu/            @vrozenfe @YanVugenfirer
 # /vioinput/
 # /viorng/
 /vioscsi/           @vrozenfe @YanVugenfirer
 /vioserial/         @vrozenfe @ybendito
-/viosock/           @irudakov77 @YanVugenfirer
-/viostor/           @vrozenfe @YanVugenfirer
+/viosock/           @kostyanf14 @YanVugenfirer
+/viostor/           @vrozenfe @YanVugenfirer @kostyanf14
 # /VirtIO/
