@@ -247,6 +247,8 @@ VIOSockEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
 
     // Set DirectIO mode
     WdfDeviceInitSetIoType(DeviceInit, WdfDeviceIoDirect);
+    // Valid file type is required for _open_osfhandle
+    WdfDeviceInitSetDeviceType(DeviceInit, FILE_DEVICE_NAMED_PIPE);
 
     // Set device name (for kernel mode clients)
     status = WdfDeviceInitAssignName(DeviceInit, &usDeviceName);
