@@ -653,7 +653,7 @@ _Requires_lock_held_(pSocket->RxLock) NTSTATUS VIOSockPendedRequestSetEx(IN PSOC
     }
     else if (Timeout)
     {
-        VIOSockTimerSet(&pSocket->PendedTimer, Timeout);
+        VIOSockTimerSetTimeout(&pSocket->PendedTimer, Timeout);
     }
 
     return status;
@@ -1115,8 +1115,8 @@ static NTSTATUS VIOSockCreate(IN WDFDEVICE WdfDevice, IN WDFREQUEST Request, IN 
                     pSocket->ConnectTimeout = VSOCK_DEFAULT_CONNECT_TIMEOUT;
                     pSocket->BufferMinSize = VSOCK_DEFAULT_BUFFER_MIN_SIZE;
                     pSocket->BufferMaxSize = VSOCK_DEFAULT_BUFFER_MAX_SIZE;
-                    pSocket->SendTimeout = LONG_MAX;
-                    pSocket->RecvTimeout = LONG_MAX;
+                    pSocket->SendTimeout = MAXLONGLONG;
+                    pSocket->RecvTimeout = MAXLONGLONG;
 
                     pSocket->buf_alloc = VSOCK_DEFAULT_BUFFER_SIZE;
                 }
@@ -2109,7 +2109,8 @@ static NTSTATUS VIOSockGetSockOpt(IN WDFREQUEST Request, OUT size_t *pLength)
                 break;
             }
 
-            *(PULONG)pOptVal = pSocket->SendTimeout;
+            *(PULONG)pOptVal = pSocket->SendTimeout == MAXULONGLONG ? 0
+                                                                    : (ULONG)(pSocket->SendTimeout / WDF_TIMEOUT_TO_MS);
             pOpt->optlen = sizeof(ULONG);
             break;
 
@@ -2120,7 +2121,8 @@ static NTSTATUS VIOSockGetSockOpt(IN WDFREQUEST Request, OUT size_t *pLength)
                 break;
             }
 
-            *(PULONG)pOptVal = pSocket->RecvTimeout;
+            *(PULONG)pOptVal = pSocket->RecvTimeout == MAXULONGLONG ? 0
+                                                                    : (ULONG)(pSocket->RecvTimeout / WDF_TIMEOUT_TO_MS);
             pOpt->optlen = sizeof(ULONG);
             break;
 
@@ -2295,7 +2297,7 @@ static NTSTATUS VIOSockSetSockOpt(IN WDFREQUEST Request)
                 break;
             }
 
-            pSocket->SendTimeout = *(PULONG)pOptVal;
+            pSocket->SendTimeout = *(PULONG)pOptVal ? WDF_ABS_TIMEOUT_IN_MS(*(PULONG)pOptVal) : MAXLONGLONG;
             break;
 
         case SO_RCVTIMEO:
@@ -2305,7 +2307,7 @@ static NTSTATUS VIOSockSetSockOpt(IN WDFREQUEST Request)
                 break;
             }
 
-            pSocket->RecvTimeout = *(PULONG)pOptVal;
+            pSocket->RecvTimeout = *(PULONG)pOptVal ? WDF_ABS_TIMEOUT_IN_MS(*(PULONG)pOptVal) : MAXLONGLONG;
             break;
 
         case SO_VM_SOCKETS_BUFFER_SIZE:
