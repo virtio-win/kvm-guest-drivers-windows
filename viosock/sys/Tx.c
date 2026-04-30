@@ -87,7 +87,7 @@ typedef struct _VIOSOCK_TX_ENTRY
     ULONG32 flags;
     USHORT type;
 
-    LONGLONG Timeout; // 100ns
+    VIOSOCK_TIMER_ENTRY TimerEntry; // 100ns
 } VIOSOCK_TX_ENTRY, *PVIOSOCK_TX_ENTRY;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIOSOCK_TX_ENTRY, GetRequestTxContext);
@@ -462,7 +462,7 @@ _Requires_lock_not_held_(pContext->TxLock) static VOID VIOSockTxDequeue(PDEVICE_
                 PSOCKET_CONTEXT pSocket = GetSocketContext(pTxEntry->Socket);
                 VIRTIO_DMA_TRANSACTION_PARAMS params = {0};
 
-                if (pTxEntry->Timeout)
+                if (VIOSockTimerEntryIsSet(&pTxEntry->TimerEntry))
                 {
                     VIOSockTimerDeref(&pContext->TxTimer, TRUE);
                 }
@@ -595,7 +595,7 @@ _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxCleanup(PDEVICE_CONTEXT
 
             InsertTailList(&CompletionList, &pTxEntry->ListEntry); // complete later
 
-            if (pTxEntry->Timeout)
+            if (VIOSockTimerEntryIsSet(&pTxEntry->TimerEntry))
             {
                 VIOSockTimerDeref(&pContext->TxTimer, TRUE);
             }
@@ -663,7 +663,7 @@ static VOID VIOSockTxEnqueueCancel(IN WDFREQUEST Request)
     RemoveEntryList(&pTxEntry->ListEntry);
     VIOSockTxPutCredit(pSocket, pTxEntry->len);
 
-    if (pTxEntry->Timeout)
+    if (VIOSockTimerEntryIsSet(&pTxEntry->TimerEntry))
     {
         VIOSockTimerDeref(&pContext->TxTimer, TRUE);
     }
@@ -743,7 +743,6 @@ VIOSockTxEnqueue(IN PSOCKET_CONTEXT pSocket,
     pTxEntry->op = Op;
     pTxEntry->reply = Reply;
     pTxEntry->flags = Flags;
-    pTxEntry->Timeout = 0;
 
     uLen = VIOSockTxGetCredit(pSocket, pTxEntry->len);
     if (pTxEntry->len && !uLen)
@@ -753,6 +752,8 @@ VIOSockTxEnqueue(IN PSOCKET_CONTEXT pSocket,
 
         return STATUS_BUFFER_TOO_SMALL;
     }
+
+    VIOSockTimerEntryInit(&pTxEntry->TimerEntry);
 
     WdfSpinLockAcquire(pContext->TxLock);
 
@@ -776,10 +777,9 @@ VIOSockTxEnqueue(IN PSOCKET_CONTEXT pSocket,
             return status; // caller completes failed requests
         }
 
-        if (pSocket->SendTimeout != LONG_MAX)
+        if (pSocket->SendTimeout != MAXLONGLONG)
         {
-            pTxEntry->Timeout = WDF_ABS_TIMEOUT_IN_MS(pSocket->SendTimeout);
-            VIOSockTimerStart(&pContext->TxTimer, pTxEntry->Timeout);
+            VIOSockTimerStart(&pContext->TxTimer, &pTxEntry->TimerEntry, pSocket->SendTimeout);
         }
     }
 
@@ -1026,7 +1026,7 @@ VOID VIOSockTxTimerFunc(WDFTIMER Timer)
 {
     PDEVICE_CONTEXT pContext = GetDeviceContext(WdfTimerGetParentObject(Timer));
     PLIST_ENTRY CurrentEntry;
-    LONGLONG Timeout = MAXLONGLONG;
+    LONGLONG MinRemainingTicks = MAXLONGLONG;
     LIST_ENTRY CompletionList;
     BOOLEAN SetTimer = FALSE, bAlwaysTrue = TRUE;
 
@@ -1040,9 +1040,10 @@ VOID VIOSockTxTimerFunc(WDFTIMER Timer)
     {
         PVIOSOCK_TX_ENTRY pTxEntry = CONTAINING_RECORD(CurrentEntry, VIOSOCK_TX_ENTRY, ListEntry);
 
-        if (pTxEntry->Timeout)
+        if (VIOSockTimerEntryIsSet(&pTxEntry->TimerEntry))
         {
-            if (pTxEntry->Timeout <= pContext->TxTimer.Timeout + VIOSOCK_TIMER_TOLERANCE)
+            LONGLONG llRemainingTicks = VIOSockTimerEntryRemainingTicks(&pTxEntry->TimerEntry);
+            if (llRemainingTicks <= VIOSOCK_TIMER_TOLERANCE_TICKS)
             {
                 CurrentEntry = CurrentEntry->Blink;
                 RemoveEntryList(&pTxEntry->ListEntry);
@@ -1072,23 +1073,16 @@ VOID VIOSockTxTimerFunc(WDFTIMER Timer)
                     VIOSockTimerDeref(&pContext->TxTimer, FALSE);
                 }
             }
-            else
+            else if (llRemainingTicks < MinRemainingTicks)
             {
-                SetTimer = TRUE;
-
-                pTxEntry->Timeout -= pContext->TxTimer.Timeout;
-
-                if (pTxEntry->Timeout < Timeout)
-                {
-                    Timeout = pTxEntry->Timeout;
-                }
+                MinRemainingTicks = llRemainingTicks;
             }
         }
     }
 
-    if (SetTimer)
+    if (MinRemainingTicks != MAXLONGLONG)
     {
-        VIOSockTimerSet(&pContext->TxTimer, Timeout);
+        VIOSockTimerSetDeadline(&pContext->TxTimer, VIOSockTimerTicksToDeadline(MinRemainingTicks));
     }
 
     WdfSpinLockRelease(pContext->TxLock);

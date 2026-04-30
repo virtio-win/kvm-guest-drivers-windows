@@ -67,7 +67,7 @@ typedef struct _VIOSOCK_SELECT_HANDLE
 typedef struct _VIOSOCK_SELECT_PKT
 {
     LIST_ENTRY ListEntry;
-    LONGLONG Timeout;
+    VIOSOCK_TIMER_ENTRY TimerEntry;
     PVIRTIO_VSOCK_SELECT pSelect;
     ULONG FdCount[FDSET_MAX];
     NTSTATUS Status;
@@ -785,7 +785,7 @@ static VOID VIOSockSelectWorkitem(IN WDFWORKITEM Workitem)
     {
         LIST_ENTRY CompletionList;
         WDFREQUEST Request;
-        LONGLONG TimePassed, Timeout = MAXLONGLONG;
+        LONGLONG MinRemainingTicks = MAXLONGLONG;
         PLIST_ENTRY CurrentItem;
         BOOLEAN bRemove;
 
@@ -794,8 +794,6 @@ static VOID VIOSockSelectWorkitem(IN WDFWORKITEM Workitem)
         InitializeListHead(&CompletionList);
 
         WdfWaitLockAcquire(pContext->SelectLock, NULL);
-
-        TimePassed = VIOSockTimerPassed(&pContext->SelectTimer);
 
         for (CurrentItem = pContext->SelectList.Flink; CurrentItem != &pContext->SelectList;
              CurrentItem = CurrentItem->Flink)
@@ -818,22 +816,19 @@ static VOID VIOSockSelectWorkitem(IN WDFWORKITEM Workitem)
                 bRemove = TRUE;
                 pPkt->Status = STATUS_SUCCESS;
             }
-            else if (pPkt->Timeout)
+            else if (VIOSockTimerEntryIsSet(&pPkt->TimerEntry))
             {
-                if (pPkt->Timeout <= TimePassed + VIOSOCK_TIMER_TOLERANCE)
+                LONGLONG llRemainingTicks = VIOSockTimerEntryRemainingTicks(&pPkt->TimerEntry);
+
+                if (llRemainingTicks <= VIOSOCK_TIMER_TOLERANCE_TICKS)
                 {
                     bRemove = TRUE;
                     // It is a success value, just return empty fd sets
                     pPkt->Status = STATUS_TIMEOUT;
                 }
-                else
+                else if (llRemainingTicks < MinRemainingTicks)
                 {
-                    pPkt->Timeout -= TimePassed;
-
-                    if (pPkt->Timeout < Timeout)
-                    {
-                        Timeout = pPkt->Timeout;
-                    }
+                    MinRemainingTicks = llRemainingTicks;
                 }
             }
 
@@ -855,16 +850,16 @@ static VOID VIOSockSelectWorkitem(IN WDFWORKITEM Workitem)
                 CurrentItem = pPkt->ListEntry.Blink;
                 RemoveEntryList(&pPkt->ListEntry);
                 InsertTailList(&CompletionList, &pPkt->ListEntry);
-                if (pPkt->Timeout)
+                if (VIOSockTimerEntryIsSet(&pPkt->TimerEntry))
                 {
                     VIOSockTimerDeref(&pContext->SelectTimer, TRUE);
                 }
             }
         }
 
-        if (Timeout != MAXLONGLONG)
+        if (MinRemainingTicks != MAXLONGLONG)
         {
-            VIOSockTimerSet(&pContext->SelectTimer, Timeout);
+            VIOSockTimerSetDeadline(&pContext->SelectTimer, VIOSockTimerTicksToDeadline(MinRemainingTicks));
         }
 
         WdfWaitLockRelease(pContext->SelectLock);
@@ -1048,6 +1043,7 @@ static NTSTATUS VIOSockSelect(IN WDFREQUEST Request, IN OUT size_t *pLength)
         return status;
     }
 
+    VIOSockTimerEntryInit(&pPkt->TimerEntry);
     pPkt->pSelect = pSelect;
 
     if (!VIOSockSelectCopyFds(pContext, bIs32BitProcess, pSelect, pPkt, FDSET_READ, VIOSockSelectGetFdsReadSet(pPkt)) ||
@@ -1085,28 +1081,20 @@ static NTSTATUS VIOSockSelect(IN WDFREQUEST Request, IN OUT size_t *pLength)
 
         if (status == STATUS_PENDING)
         {
-            if (pSelect->Timeout)
+            status = WdfRequestMarkCancelableEx(Request, VIOSockSelectCancel);
+
+            ASSERT(NT_SUCCESS(status) || status == STATUS_CANCELLED);
+
+            if (NT_SUCCESS(status))
             {
-                status = WdfRequestMarkCancelableEx(Request, VIOSockSelectCancel);
+                pPkt->Status = status = STATUS_PENDING;
 
-                ASSERT(NT_SUCCESS(status) || status == STATUS_CANCELLED);
-
-                if (NT_SUCCESS(status))
+                if (pSelect->Timeout != VSOCK_TIMEOUT_INFINITE)
                 {
-                    pPkt->Status = status = STATUS_PENDING;
-                    pPkt->Timeout = (pSelect->Timeout == VSOCK_TIMEOUT_INFINITE) ? 0 : pSelect->Timeout;
-
-                    InsertTailList(&pContext->SelectList, &pPkt->ListEntry);
-
-                    if (pPkt->Timeout)
-                    {
-                        VIOSockTimerStart(&pContext->SelectTimer, pPkt->Timeout);
-                    }
+                    VIOSockTimerStart(&pContext->SelectTimer, &pPkt->TimerEntry, pSelect->Timeout);
                 }
-            }
-            else
-            {
-                status = STATUS_TIMEOUT;
+
+                InsertTailList(&pContext->SelectList, &pPkt->ListEntry);
             }
         }
         else

@@ -114,13 +114,30 @@ typedef struct VirtIOBufferDescriptor VIOSOCK_SG_DESC, *PVIOSOCK_SG_DESC;
 #define INVALID_THREAD_ID                LONG64_ERROR
 //////////////////////////////////////////////////////////////////////////
 #define VIOSOCK_TIMER_TOLERANCE          MSEC_TO_NANO(50)
+#define VIOSOCK_TIMER_TOLERANCE_TICKS    llTimerToleranceTicks
+#define VIOSOCK_TIMER_TIME_INCREMENT     ulTimeIncrement
+
+extern ULONG ulTimeIncrement;
+extern LONGLONG llTimerToleranceTicks;
+
+// All fields of VIOSOCK_TIMER must be read and written under the caller's lock
+// (e.g. WdfWaitLock or WdfSpinLock that guards the associated request list).
 typedef struct _VIOSOCK_TIMER
 {
     WDFTIMER Timer;
+    LONGLONG Deadline;  // absolute tick count of expiry
     LONGLONG StartTime; // ticks when timer started
     LONGLONG Timeout;   // timeout in 100ns
-    ULONG StartRefs;
+    ULONG StartRefs;    // stop timer if refs = 0
 } VIOSOCK_TIMER, *PVIOSOCK_TIMER;
+
+// Per-request deadline tracking; must be accessed under the same lock as VIOSOCK_TIMER.
+// Deadline == MAXLONGLONG means no expiry. Always initialize with VIOSockTimerEntryInit
+// because WDF zero-initializes object contexts (Deadline=0 would look like tick 0 = expired).
+typedef struct _VIOSOCK_TIMER_ENTRY
+{
+    LONGLONG Deadline; // absolute tick count of expiry (MAXLONGLONG = no deadline, 0 = not initialized)
+} VIOSOCK_TIMER_ENTRY, *PVIOSOCK_TIMER_ENTRY;
 
 #define VIOSOCK_DEVICE_NAME L"\\Device\\Viosock"
 
@@ -232,8 +249,8 @@ typedef struct _SOCKET_CONTEXT
     WDFSPINLOCK StateLock;
     _Interlocked_ volatile VIOSOCK_STATE State;
     LONGLONG ConnectTimeout;
-    ULONG SendTimeout;
-    ULONG RecvTimeout;
+    LONGLONG SendTimeout;
+    LONGLONG RecvTimeout;
     ULONG32 BufferMinSize;
     ULONG32 BufferMaxSize;
     ULONG32 PeerShutdown;
@@ -596,34 +613,104 @@ VIOSockLoopbackTxEnqueue(IN PSOCKET_CONTEXT pSocket,
                          IN ULONG Length OPTIONAL);
 
 //////////////////////////////////////////////////////////////////////////
-__inline NTSTATUS VIOSockTimerCreate(IN PVIOSOCK_TIMER pTimer, IN WDFOBJECT ParentObject, IN PFN_WDF_TIMER EvtTimerFunc)
+__inline LONGLONG VIOSockTimerTimeoutToTicks(IN LONGLONG Timeout)
 {
-    WDF_OBJECT_ATTRIBUTES Attributes;
-    WDF_TIMER_CONFIG timerConfig;
-
-    pTimer->Timeout = 0;
-    pTimer->StartTime = 0;
-    pTimer->StartRefs = 0;
-
-    WDF_TIMER_CONFIG_INIT(&timerConfig, EvtTimerFunc);
-
-    WDF_OBJECT_ATTRIBUTES_INIT(&Attributes);
-    Attributes.ParentObject = ParentObject;
-
-    return WdfTimerCreate(&timerConfig, &Attributes, &pTimer->Timer);
+    return Timeout / VIOSOCK_TIMER_TIME_INCREMENT;
 }
 
-VOID VIOSockTimerStart(IN PVIOSOCK_TIMER pTimer, IN LONGLONG Timeout);
+__inline LONGLONG VIOSockTimerTicksToTimeout(IN LONGLONG Ticks)
+{
+    return Ticks * VIOSOCK_TIMER_TIME_INCREMENT;
+}
 
-__inline VOID VIOSockTimerSet(IN PVIOSOCK_TIMER pTimer, IN LONGLONG Timeout)
+__inline LONGLONG VIOSockTimerTicksToDeadline(IN LONGLONG Ticks)
 {
     LARGE_INTEGER liTicks;
 
+    KeQueryTickCount(&liTicks);
+    return liTicks.QuadPart + Ticks;
+}
+
+__inline LONGLONG VIOSockTimerDeadlineRemainingTicks(IN LONGLONG Deadline)
+{
+    LARGE_INTEGER liNow;
+    LONGLONG llRemaining;
+
+    KeQueryTickCount(&liNow);
+    llRemaining = (Deadline - liNow.QuadPart);
+    return llRemaining > 0 ? llRemaining : 0;
+}
+
+__inline BOOLEAN VIOSockTimerDeadlineIsExpired(IN LONGLONG Deadline)
+{
+    return VIOSockTimerDeadlineRemainingTicks(Deadline) <= VIOSOCK_TIMER_TOLERANCE_TICKS;
+}
+
+__inline LONGLONG VIOSockTimerTimeoutToDeadline(IN LONGLONG Timeout)
+{
+    return VIOSockTimerTicksToDeadline(VIOSockTimerTimeoutToTicks(Timeout));
+}
+
+// Caller must ensure Deadline != MAXLONGLONG; passing MAXLONGLONG overflows on multiply.
+__inline LONGLONG VIOSockTimerDeadlineToTimeout(IN LONGLONG Deadline)
+{
+    return VIOSockTimerTicksToTimeout(VIOSockTimerDeadlineRemainingTicks(Deadline));
+}
+
+__inline BOOLEAN VIOSockTimerEntryIsSet(IN PVIOSOCK_TIMER_ENTRY pEntry)
+{
+    return pEntry->Deadline != MAXLONGLONG;
+}
+
+__inline VOID VIOSockTimerEntryInit(IN PVIOSOCK_TIMER_ENTRY pEntry)
+{
+    pEntry->Deadline = MAXLONGLONG;
+}
+
+__inline LONGLONG VIOSockTimerEntryRemainingTicks(IN PVIOSOCK_TIMER_ENTRY pEntry)
+{
+    if (!VIOSockTimerEntryIsSet(pEntry))
+    {
+        return MAXLONGLONG;
+    }
+
+    return VIOSockTimerDeadlineRemainingTicks(pEntry->Deadline);
+}
+
+// Safe to call without a prior IsSet check: MAXLONGLONG - now is always a large positive
+// value, so RemainingTicks > TOLERANCE_TICKS and the function returns FALSE for unset entries.
+__inline BOOLEAN VIOSockTimerEntryIsExpired(IN PVIOSOCK_TIMER_ENTRY pEntry)
+{
+    return VIOSockTimerDeadlineIsExpired(pEntry->Deadline);
+}
+
+NTSTATUS VIOSockTimerCreate(IN PVIOSOCK_TIMER pTimer, IN WDFOBJECT ParentObject, IN PFN_WDF_TIMER EvtTimerFunc);
+
+VOID VIOSockTimerStart(IN PVIOSOCK_TIMER pTimer, IN PVIOSOCK_TIMER_ENTRY pEntry OPTIONAL, IN LONGLONG Timeout);
+
+__inline VOID VIOSockTimerSetDeadline(IN PVIOSOCK_TIMER pTimer, IN LONGLONG Deadline)
+{
+    LONGLONG Timeout;
+
+    ASSERT(Deadline && Deadline > 0);
+    if (!Deadline || Deadline == MAXLONGLONG)
+    {
+        ASSERT(!pTimer->StartRefs);
+        pTimer->Deadline = MAXLONGLONG;
+        return;
+    }
+
+    pTimer->Deadline = Deadline;
+    Timeout = VIOSockTimerDeadlineToTimeout(Deadline);
+    WdfTimerStart(pTimer->Timer, -Timeout);
+}
+
+__inline VOID VIOSockTimerSetTimeout(IN PVIOSOCK_TIMER pTimer, IN LONGLONG Timeout)
+{
     if (!Timeout || Timeout == MAXLONGLONG)
     {
         ASSERT(!pTimer->StartRefs);
-        pTimer->StartTime = 0;
-        pTimer->Timeout = 0;
+        pTimer->Deadline = MAXLONGLONG;
         return;
     }
 
@@ -633,18 +720,14 @@ __inline VOID VIOSockTimerSet(IN PVIOSOCK_TIMER pTimer, IN LONGLONG Timeout)
         Timeout = VIOSOCK_TIMER_TOLERANCE + 1;
     }
 
-    KeQueryTickCount(&liTicks);
-
-    pTimer->StartTime = liTicks.QuadPart;
-    pTimer->Timeout = Timeout;
+    pTimer->Deadline = VIOSockTimerTimeoutToDeadline(Timeout);
     WdfTimerStart(pTimer->Timer, -Timeout);
 }
 
 __inline VOID VIOSockTimerCancel(IN PVIOSOCK_TIMER pTimer)
 {
     WdfTimerStop(pTimer->Timer, FALSE);
-    pTimer->Timeout = 0;
-    pTimer->StartTime = 0;
+    pTimer->Deadline = MAXLONGLONG;
 }
 
 __inline VOID VIOSockTimerDeref(IN PVIOSOCK_TIMER pTimer, IN BOOLEAN bStop)
@@ -656,31 +739,20 @@ __inline VOID VIOSockTimerDeref(IN PVIOSOCK_TIMER pTimer, IN BOOLEAN bStop)
     }
 }
 
-__inline LONGLONG VIOSockTimerPassed(IN PVIOSOCK_TIMER pTimer)
-{
-    LARGE_INTEGER liTicks;
-
-    KeQueryTickCount(&liTicks);
-
-    return (liTicks.QuadPart - pTimer->StartTime) * KeQueryTimeIncrement();
-}
-
 __inline BOOLEAN VIOSockTimerSuspend(IN PVIOSOCK_TIMER pTimer)
 {
     if (WdfTimerStop(pTimer->Timer, FALSE))
     {
-        return pTimer->Timeout > VIOSockTimerPassed(pTimer) + VIOSOCK_TIMER_TOLERANCE;
+        return !VIOSockTimerDeadlineIsExpired(pTimer->Deadline);
     }
     return TRUE;
 }
 
 __inline BOOLEAN VIOSockTimerResume(IN PVIOSOCK_TIMER pTimer)
 {
-    LONGLONG llTimeout = VIOSockTimerPassed(pTimer);
-
-    if (pTimer->Timeout > llTimeout + VIOSOCK_TIMER_TOLERANCE)
+    if (!VIOSockTimerDeadlineIsExpired(pTimer->Deadline))
     {
-        VIOSockTimerSet(pTimer, pTimer->Timeout - llTimeout);
+        VIOSockTimerSetDeadline(pTimer, pTimer->Deadline);
         return TRUE;
     }
     return FALSE;
