@@ -404,7 +404,7 @@ static bool ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
                                      CheckOSNdisVersion(6, bPollModeTestOnWin11 ? 85 : 89);
 #endif
             // Allow fallback to non-mergeable buffers via registry.
-            // Setting MergeableBuffers=0 disables the feature even if device supports it.
+            // Setting MergeableBuffers=0 prevents negotiating the mergeable RX buffers feature.
             pContext->bMergeableBuffersConfigured = pConfiguration->MergeableBuffers.ulValue != 0;
 
             if (!pContext->bDoSupportPriority)
@@ -898,14 +898,12 @@ NDIS_STATUS ParaNdis_InitializeContext(PARANDIS_ADAPTER *pContext, PNDIS_RESOURC
         InitializeMAC(pContext, CurrentMAC);
         InitializeMaxMTUConfig(pContext);
 
-        // Always ACK VIRTIO_NET_F_MRG_RXBUF if suggested by the device for compatibility.
-        // Registry setting bMergeableBuffersConfigured controls whether we use small 4KB buffers
-        // or traditional large buffers.
-        pContext->bUseMergedBuffers = AckFeature(pContext, VIRTIO_NET_F_MRG_RXBUF);
-        if (!pContext->bMergeableBuffersConfigured && pContext->bUseMergedBuffers)
+        // ACK VIRTIO_NET_F_MRG_RXBUF conditionally to align with VirtIO spec.
+        pContext->bUseMergedBuffers = pContext->bMergeableBuffersConfigured &&
+                                      AckFeature(pContext, VIRTIO_NET_F_MRG_RXBUF);
+        if (!pContext->bMergeableBuffersConfigured)
         {
-            DPrintf(0,
-                    "Mergeable buffers feature ACKed, but disabled by configuration (using traditional large buffers)");
+            DPrintf(0, "Mergeable buffers disabled by configuration");
         }
         pContext->nVirtioHeaderSize = (pContext->bUseMergedBuffers) ? sizeof(virtio_net_hdr_mrg_rxbuf)
                                                                     : sizeof(virtio_net_hdr);

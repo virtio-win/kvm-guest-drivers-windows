@@ -289,8 +289,7 @@ error_exit:
 
 pRxNetDescriptor CParaNdisRX::CreateRxDescriptorOnInit()
 {
-    if (m_Context->bUseMergedBuffers && m_Context->bMergeableBuffersConfigured && m_Context->bAnyLayout &&
-        m_Context->RxLayout.TotalAllocationsPerBuffer > 1)
+    if (m_Context->bUseMergedBuffers && m_Context->bAnyLayout && m_Context->RxLayout.TotalAllocationsPerBuffer > 1)
     {
         DPrintf(5, "Using mergeable buffer allocation");
         return CreateMergeableRxDescriptorOnInit();
@@ -973,20 +972,6 @@ pRxNetDescriptor CParaNdisRX::ProcessMergedBuffers(pRxNetDescriptor pFirstBuffer
     m_MergeContext.CollectedBuffers = 1;
     m_MergeContext.TotalPacketLength = nFullLength - m_Context->nVirtioHeaderSize;
 
-    if (!m_Context->bMergeableBuffersConfigured)
-    {
-        // Unexpected multi-buffer packet in traditional mode (ACKed for compatibility but no 4KB pool).
-        // Even if the packet is dropped, we MUST drain all remaining descriptors (fragments)
-        // belonging to this packet from the VirtQueue. If we don't, the next GetBuf call would
-        // retrieve a data-only fragment (which has no VirtIO header) and misinterpret it as
-        // the start of a new packet, causing VirtIO protocol desynchronization
-        DPrintf(0, "ERROR: Received merged packet (%u buffers) in traditional mode. Dropping.", numBuffers);
-
-        CollectRemainingMergeBuffers();
-        ReuseCollectedBuffers();
-
-        return NULL;
-    }
 
     DPrintf(5,
             "Multi-buffer packet: expecting %u total buffers, first buffer payload=%u",
