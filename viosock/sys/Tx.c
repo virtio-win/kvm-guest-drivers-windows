@@ -771,7 +771,7 @@ VIOSockTxEnqueue(IN PSOCKET_CONTEXT pSocket,
 
         if (pSocket->SendTimeout != MAXLONGLONG)
         {
-            VIOSockTimerStart(&pContext->TxTimer, &pTxEntry->TimerEntry, pSocket->SendTimeout);
+            VIOSockTimerStartTimeout(&pContext->TxTimer, &pTxEntry->TimerEntry, pSocket->SendTimeout);
         }
     }
 
