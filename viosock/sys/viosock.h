@@ -273,7 +273,7 @@ typedef struct _SOCKET_CONTEXT
     _Guarded_by_(RxLock) VIOSOCK_TIMER ReadTimer;
 
     _Guarded_by_(RxLock) WDFREQUEST PendedRequest;
-    VIOSOCK_TIMER PendedTimer;
+    _Guarded_by_(RxLock) VIOSOCK_TIMER PendedTimer;
 
     _Guarded_by_(RxLock) LIST_ENTRY AcceptList;
     LONG Backlog;
@@ -371,18 +371,15 @@ __inline BOOLEAN VIOSockIsDone(PSOCKET_CONTEXT pSocket)
     return !!KeReadStateEvent(&pSocket->CloseEvent);
 }
 
-_Requires_lock_held_(pSocket->RxLock) NTSTATUS VIOSockPendedRequestSetEx(IN PSOCKET_CONTEXT pSocket,
-                                                                         IN WDFREQUEST Request,
-                                                                         IN LONGLONG Timeout,
-                                                                         IN BOOLEAN Resume);
-
-#define VIOSockPendedRequestSet(s, r, t) VIOSockPendedRequestSetEx(s, r, t, FALSE)
+_Requires_lock_held_(pSocket->RxLock) NTSTATUS VIOSockPendedRequestSet(IN PSOCKET_CONTEXT pSocket,
+                                                                       IN WDFREQUEST Request,
+                                                                       IN LONGLONG Deadline);
 
 _Requires_lock_not_held_(pSocket->RxLock) NTSTATUS VIOSockPendedRequestSetLocked(IN PSOCKET_CONTEXT pSocket,
                                                                                  IN WDFREQUEST Request,
-                                                                                 IN LONGLONG Timeout);
+                                                                                 IN LONGLONG Deadline);
 
-#define VIOSockPendedRequestSetResume(s, r) VIOSockPendedRequestSetEx(s, r, 0, TRUE)
+#define VIOSockPendedRequestSetResume(s, r) VIOSockPendedRequestSet(s, r, 0)
 
 _Requires_lock_not_held_(pSocket->RxLock) NTSTATUS VIOSockPendedRequestSetResumeLocked(IN PSOCKET_CONTEXT pSocket,
                                                                                        IN WDFREQUEST Request);
@@ -692,7 +689,7 @@ __inline VOID VIOSockTimerSetDeadline(IN PVIOSOCK_TIMER pTimer, IN LONGLONG Dead
 {
     LONGLONG Timeout;
 
-    ASSERT(Deadline && Deadline > 0);
+    ASSERT(Deadline > 0);
     if (!Deadline || Deadline == MAXLONGLONG)
     {
         ASSERT(!pTimer->StartRefs);
@@ -707,17 +704,12 @@ __inline VOID VIOSockTimerSetDeadline(IN PVIOSOCK_TIMER pTimer, IN LONGLONG Dead
 
 __inline VOID VIOSockTimerSetTimeout(IN PVIOSOCK_TIMER pTimer, IN LONGLONG Timeout)
 {
+    ASSERT(Timeout > 0);
     if (!Timeout || Timeout == MAXLONGLONG)
     {
         ASSERT(!pTimer->StartRefs);
         pTimer->Deadline = MAXLONGLONG;
         return;
-    }
-
-    ASSERT(Timeout > VIOSOCK_TIMER_TOLERANCE);
-    if (Timeout <= VIOSOCK_TIMER_TOLERANCE)
-    {
-        Timeout = VIOSOCK_TIMER_TOLERANCE + 1;
     }
 
     pTimer->Deadline = VIOSockTimerTimeoutToDeadline(Timeout);
@@ -733,29 +725,14 @@ __inline VOID VIOSockTimerCancel(IN PVIOSOCK_TIMER pTimer)
 __inline VOID VIOSockTimerDeref(IN PVIOSOCK_TIMER pTimer, IN BOOLEAN bStop)
 {
     ASSERT(pTimer->StartRefs);
-    if (--pTimer->StartRefs == 0 && bStop)
+    if (--pTimer->StartRefs == 0)
     {
-        VIOSockTimerCancel(pTimer);
+        pTimer->Deadline = MAXLONGLONG;
+        if (bStop)
+        {
+            WdfTimerStop(pTimer->Timer, FALSE);
+        }
     }
-}
-
-__inline BOOLEAN VIOSockTimerSuspend(IN PVIOSOCK_TIMER pTimer)
-{
-    if (WdfTimerStop(pTimer->Timer, FALSE))
-    {
-        return !VIOSockTimerDeadlineIsExpired(pTimer->Deadline);
-    }
-    return TRUE;
-}
-
-__inline BOOLEAN VIOSockTimerResume(IN PVIOSOCK_TIMER pTimer)
-{
-    if (!VIOSockTimerDeadlineIsExpired(pTimer->Deadline))
-    {
-        VIOSockTimerSetDeadline(pTimer, pTimer->Deadline);
-        return TRUE;
-    }
-    return FALSE;
 }
 
 //////////////////////////////////////////////////////////////////////////
