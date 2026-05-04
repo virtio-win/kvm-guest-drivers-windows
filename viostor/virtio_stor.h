@@ -92,7 +92,7 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
 #define BLOCK_SERIAL_STRLEN                20
 
-#define MAX_PHYS_SEGMENTS                  512
+#define MAX_PHYS_SEGMENTS                  1024
 #define VIRTIO_MAX_SG                      (3 + MAX_PHYS_SEGMENTS)
 
 #define VIOBLK_POOL_TAG                    'BoiV'
