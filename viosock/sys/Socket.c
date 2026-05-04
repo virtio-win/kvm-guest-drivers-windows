@@ -656,7 +656,7 @@ _Requires_lock_held_(pSocket->RxLock) NTSTATUS VIOSockPendedRequestSet(IN PSOCKE
 
         if (Deadline != MAXLONGLONG)
         {
-            VIOSockTimerStart(&pSocket->PendedTimer, &pRequest->TimerEntry, VIOSockTimerDeadlineToTimeout(Deadline));
+            VIOSockTimerStartDeadline(&pSocket->PendedTimer, &pRequest->TimerEntry, Deadline);
         }
     }
     return status;
@@ -2117,8 +2117,8 @@ static NTSTATUS VIOSockGetSockOpt(IN WDFREQUEST Request, OUT size_t *pLength)
                 break;
             }
 
-            *(PULONG)pOptVal = pSocket->SendTimeout == MAXULONGLONG ? 0
-                                                                    : (ULONG)(pSocket->SendTimeout / WDF_TIMEOUT_TO_MS);
+            *(PULONG)pOptVal = pSocket->SendTimeout == MAXLONGLONG ? 0
+                                                                   : (ULONG)(pSocket->SendTimeout / WDF_TIMEOUT_TO_MS);
             pOpt->optlen = sizeof(ULONG);
             break;
 
@@ -2129,8 +2129,8 @@ static NTSTATUS VIOSockGetSockOpt(IN WDFREQUEST Request, OUT size_t *pLength)
                 break;
             }
 
-            *(PULONG)pOptVal = pSocket->RecvTimeout == MAXULONGLONG ? 0
-                                                                    : (ULONG)(pSocket->RecvTimeout / WDF_TIMEOUT_TO_MS);
+            *(PULONG)pOptVal = pSocket->RecvTimeout == MAXLONGLONG ? 0
+                                                                   : (ULONG)(pSocket->RecvTimeout / WDF_TIMEOUT_TO_MS);
             pOpt->optlen = sizeof(ULONG);
             break;
 
