@@ -1032,7 +1032,7 @@ _Requires_lock_not_held_(pSocket->RxLock) static NTSTATUS VIOSockReadForward(IN 
         pRequest->Counter = 0;
 
         WdfSpinLockAcquire(pSocket->RxLock);
-        VIOSockTimerStart(&pSocket->ReadTimer, &pRequest->TimerEntry, pSocket->RecvTimeout);
+        VIOSockTimerStartTimeout(&pSocket->ReadTimer, &pRequest->TimerEntry, pSocket->RecvTimeout);
         WdfSpinLockRelease(pSocket->RxLock);
     }
 
@@ -1293,9 +1293,7 @@ _Requires_lock_not_held_(pSocket->RxLock) BOOLEAN VIOSockReadDequeueCb(IN PSOCKE
                 // continue timer
                 if (VIOSockTimerEntryIsSet(&pRequest->TimerEntry))
                 {
-                    VIOSockTimerStart(&pSocket->ReadTimer,
-                                      NULL,
-                                      VIOSockTimerDeadlineToTimeout(pRequest->TimerEntry.Deadline));
+                    VIOSockTimerStartDeadline(&pSocket->ReadTimer, NULL, pRequest->TimerEntry.Deadline);
                 }
                 ReadRequest = WDF_NO_HANDLE;
                 status = STATUS_SUCCESS;
@@ -1410,9 +1408,7 @@ _Requires_lock_not_held_(pSocket->RxLock) BOOLEAN VIOSockReadDequeueCb(IN PSOCKE
                 // continue timer
                 if (VIOSockTimerEntryIsSet(&pRequest->TimerEntry))
                 {
-                    VIOSockTimerStart(&pSocket->ReadTimer,
-                                      NULL,
-                                      VIOSockTimerDeadlineToTimeout(pRequest->TimerEntry.Deadline));
+                    VIOSockTimerStartDeadline(&pSocket->ReadTimer, NULL, pRequest->TimerEntry.Deadline);
                 }
                 ReadRequest = WDF_NO_HANDLE;
                 status = STATUS_SUCCESS;
