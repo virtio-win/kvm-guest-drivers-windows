@@ -125,10 +125,8 @@ extern LONGLONG llTimerToleranceTicks;
 typedef struct _VIOSOCK_TIMER
 {
     WDFTIMER Timer;
-    LONGLONG Deadline;  // absolute tick count of expiry
-    LONGLONG StartTime; // ticks when timer started
-    LONGLONG Timeout;   // timeout in 100ns
-    ULONG StartRefs;    // stop timer if refs = 0
+    LONGLONG Deadline; // absolute tick count of expiry
+    ULONG StartRefs;   // stop timer if refs = 0
 } VIOSOCK_TIMER, *PVIOSOCK_TIMER;
 
 // Per-request deadline tracking; must be accessed under the same lock as VIOSOCK_TIMER.
