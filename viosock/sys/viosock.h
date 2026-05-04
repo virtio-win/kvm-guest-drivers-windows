@@ -645,13 +645,14 @@ __inline BOOLEAN VIOSockTimerDeadlineIsExpired(IN LONGLONG Deadline)
 
 __inline LONGLONG VIOSockTimerTimeoutToDeadline(IN LONGLONG Timeout)
 {
-    return VIOSockTimerTicksToDeadline(VIOSockTimerTimeoutToTicks(Timeout));
+    return Timeout == MAXLONGLONG ? MAXLONGLONG : VIOSockTimerTicksToDeadline(VIOSockTimerTimeoutToTicks(Timeout));
 }
 
 // Caller must ensure Deadline != MAXLONGLONG; passing MAXLONGLONG overflows on multiply.
 __inline LONGLONG VIOSockTimerDeadlineToTimeout(IN LONGLONG Deadline)
 {
-    return VIOSockTimerTicksToTimeout(VIOSockTimerDeadlineRemainingTicks(Deadline));
+    return Deadline == MAXLONGLONG ? MAXLONGLONG
+                                   : VIOSockTimerTicksToTimeout(VIOSockTimerDeadlineRemainingTicks(Deadline));
 }
 
 __inline BOOLEAN VIOSockTimerEntryIsSet(IN PVIOSOCK_TIMER_ENTRY pEntry)
@@ -683,7 +684,14 @@ __inline BOOLEAN VIOSockTimerEntryIsExpired(IN PVIOSOCK_TIMER_ENTRY pEntry)
 
 NTSTATUS VIOSockTimerCreate(IN PVIOSOCK_TIMER pTimer, IN WDFOBJECT ParentObject, IN PFN_WDF_TIMER EvtTimerFunc);
 
-VOID VIOSockTimerStart(IN PVIOSOCK_TIMER pTimer, IN PVIOSOCK_TIMER_ENTRY pEntry OPTIONAL, IN LONGLONG Timeout);
+VOID VIOSockTimerStartDeadline(IN PVIOSOCK_TIMER pTimer, IN PVIOSOCK_TIMER_ENTRY pEntry OPTIONAL, IN LONGLONG Deadline);
+
+__inline VOID VIOSockTimerStartTimeout(IN PVIOSOCK_TIMER pTimer,
+                                       IN PVIOSOCK_TIMER_ENTRY pEntry OPTIONAL,
+                                       IN LONGLONG Timeout)
+{
+    VIOSockTimerStartDeadline(pTimer, pEntry, VIOSockTimerTimeoutToDeadline(Timeout));
+}
 
 __inline VOID VIOSockTimerSetDeadline(IN PVIOSOCK_TIMER pTimer, IN LONGLONG Deadline)
 {
@@ -705,15 +713,7 @@ __inline VOID VIOSockTimerSetDeadline(IN PVIOSOCK_TIMER pTimer, IN LONGLONG Dead
 __inline VOID VIOSockTimerSetTimeout(IN PVIOSOCK_TIMER pTimer, IN LONGLONG Timeout)
 {
     ASSERT(Timeout > 0);
-    if (!Timeout || Timeout == MAXLONGLONG)
-    {
-        ASSERT(!pTimer->StartRefs);
-        pTimer->Deadline = MAXLONGLONG;
-        return;
-    }
-
-    pTimer->Deadline = VIOSockTimerTimeoutToDeadline(Timeout);
-    WdfTimerStart(pTimer->Timer, -Timeout);
+    VIOSockTimerSetDeadline(pTimer, VIOSockTimerTimeoutToDeadline(Timeout));
 }
 
 __inline VOID VIOSockTimerCancel(IN PVIOSOCK_TIMER pTimer)

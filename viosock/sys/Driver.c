@@ -123,32 +123,25 @@ NTSTATUS VIOSockTimerCreate(IN PVIOSOCK_TIMER pTimer, IN WDFOBJECT ParentObject,
     return WdfTimerCreate(&timerConfig, &Attributes, &pTimer->Timer);
 }
 
-VOID VIOSockTimerStart(IN PVIOSOCK_TIMER pTimer, IN PVIOSOCK_TIMER_ENTRY pEntry OPTIONAL, IN LONGLONG Timeout)
+VOID VIOSockTimerStartDeadline(IN PVIOSOCK_TIMER pTimer, IN PVIOSOCK_TIMER_ENTRY pEntry OPTIONAL, IN LONGLONG Deadline)
 {
-    LONGLONG Deadline;
     BOOLEAN bSetTimer = FALSE;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
-    ASSERT(Timeout > 0 && Timeout != MAXLONGLONG);
-    if (!Timeout || Timeout == MAXLONGLONG)
+    ASSERT(Deadline > 0 && Deadline != MAXLONGLONG);
+    if (!Deadline || Deadline == MAXLONGLONG)
     {
         return;
     }
 
-    ASSERT(Timeout > VIOSOCK_TIMER_TOLERANCE);
-    if (Timeout <= VIOSOCK_TIMER_TOLERANCE)
-    {
-        Timeout = VIOSOCK_TIMER_TOLERANCE + 1;
-    }
-
     ++pTimer->StartRefs;
-    Deadline = VIOSockTimerTimeoutToDeadline(Timeout);
     if (pEntry)
     {
         pEntry->Deadline = Deadline;
     }
 
+    ASSERT(!VIOSockTimerDeadlineIsExpired(Deadline));
     // pTimer->Deadline is MAXLONGLONG when the timer is not running (after Create or Cancel).
     // The else branch for 0 is unreachable: VIOSockTimerCreate initializes to MAXLONGLONG.
     if (pTimer->Deadline != MAXLONGLONG)
@@ -166,6 +159,6 @@ VOID VIOSockTimerStart(IN PVIOSOCK_TIMER pTimer, IN PVIOSOCK_TIMER_ENTRY pEntry 
     if (bSetTimer)
     {
         pTimer->Deadline = Deadline;
-        WdfTimerStart(pTimer->Timer, -Timeout);
+        WdfTimerStart(pTimer->Timer, -VIOSockTimerDeadlineToTimeout(Deadline));
     }
 }

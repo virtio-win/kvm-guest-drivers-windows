@@ -1091,7 +1091,7 @@ static NTSTATUS VIOSockSelect(IN WDFREQUEST Request, IN OUT size_t *pLength)
 
                 if (pSelect->Timeout != VSOCK_TIMEOUT_INFINITE)
                 {
-                    VIOSockTimerStart(&pContext->SelectTimer, &pPkt->TimerEntry, pSelect->Timeout);
+                    VIOSockTimerStartTimeout(&pContext->SelectTimer, &pPkt->TimerEntry, pSelect->Timeout);
                 }
 
                 InsertTailList(&pContext->SelectList, &pPkt->ListEntry);
