@@ -610,7 +610,7 @@ _Requires_lock_not_held_(pSocket->StateLock) static VOID VIOSockRxPktHandleConne
                     }
                     break;
                 case VIRTIO_VSOCK_OP_RST:
-                    status = STATUS_CONNECTION_REFUSED;
+                    status = STATUS_CONNECTION_RESET;
                     break;
                 default:
                     status = STATUS_CONNECTION_INVALID;
