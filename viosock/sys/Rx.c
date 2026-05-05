@@ -799,15 +799,25 @@ static VOID VIOSockRxPktHandleConnected(IN PSOCKET_CONTEXT pSocket, IN PVIOSOCK_
             break;
         case VIRTIO_VSOCK_OP_SHUTDOWN:
             if (VIOSockShutdownFromPeer(pSocket, pPkt->Header.flags & VIRTIO_VSOCK_SHUTDOWN_MASK) &&
-                !VIOSockRxHasData(pSocket) && !VIOSockIsDone(pSocket))
+                !VIOSockIsDone(pSocket))
             {
-                VIOSockSendReset(pSocket, FALSE);
-                VIOSockDoClose(pSocket);
+                if (!VIOSockRxHasData(pSocket))
+                {
+                    VIOSockSendReset(pSocket, FALSE);
+                    VIOSockDoClose(pSocket);
+                }
+                VIOSockEventSetBitLocked(pSocket, FD_CLOSE_BIT, STATUS_SUCCESS);
             }
             break;
         case VIRTIO_VSOCK_OP_RST:
-            VIOSockDoClose(pSocket);
-            VIOSockEventSetBitLocked(pSocket, FD_CLOSE_BIT, STATUS_CONNECTION_RESET);
+            {
+                /* If peer already sent a graceful SHUTDOWN (full mask), the RST
+                 * is just socket cleanup — not an unexpected connection reset. */
+                NTSTATUS closeStatus = ((pSocket->PeerShutdown & VIRTIO_VSOCK_SHUTDOWN_MASK) == VIRTIO_VSOCK_SHUTDOWN_MASK) ? STATUS_SUCCESS
+                                                                                                                            : STATUS_CONNECTION_RESET;
+                VIOSockDoClose(pSocket);
+                VIOSockEventSetBitLocked(pSocket, FD_CLOSE_BIT, closeStatus);
+            }
             break;
     }
 
