@@ -1,0 +1,5 @@
+x64/
+build.log
+build_out.txt
+_build_test.bat
+_build_test.ps1
