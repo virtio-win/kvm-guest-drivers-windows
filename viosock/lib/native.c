@@ -102,6 +102,11 @@ NTSTATUS NTAPI NtQueryInformationFile(_In_ HANDLE FileHandle,
 #define STATUS_HOST_UNREACHABLE           ((NTSTATUS)0xC000023DL)
 #define STATUS_IO_TIMEOUT                 ((NTSTATUS)0xC00000B5L)
 #define STATUS_INVALID_DEVICE_STATE       ((NTSTATUS)0xC0000184L)
+#define STATUS_INVALID_DEVICE_REQUEST     ((NTSTATUS)0xC0000010L)
+#define STATUS_BUFFER_TOO_SMALL           ((NTSTATUS)0xC0000023L)
+#define STATUS_CANCELLED                  ((NTSTATUS)0xC0000120L)
+#define STATUS_CONNECTION_INVALID         ((NTSTATUS)0xC000023AL)
+#define STATUS_DEVICE_BUSY                ((NTSTATUS)0x80000011L)
 
 #ifndef STATUS_INVALID_HANDLE
 #define STATUS_INVALID_HANDLE ((NTSTATUS)0xC0000008L)
@@ -126,13 +131,15 @@ INT NtStatusToWsaError(_In_ NTSTATUS Status)
             wsaError = WSAECONNRESET;
             break;
         case STATUS_INVALID_CONNECTION:
+        case STATUS_CONNECTION_INVALID:
             wsaError = WSAENOTCONN;
             break;
         case STATUS_ACCESS_DENIED:
             wsaError = WSAEACCES;
             break;
+        case STATUS_INVALID_DEVICE_REQUEST:
         case STATUS_NOT_SUPPORTED:
-            wsaError = WSAEPROTONOSUPPORT;
+            wsaError = WSAEOPNOTSUPP;
             break;
         case STATUS_NOT_SOCKET:
         case STATUS_INVALID_HANDLE:
@@ -148,6 +155,7 @@ INT NtStatusToWsaError(_In_ NTSTATUS Status)
             wsaError = WSAEISCONN;
             break;
         case STATUS_CONNECTION_ESTABLISHING:
+        case STATUS_DEVICE_BUSY:
             wsaError = WSAEALREADY;
             break;
         case STATUS_LOCAL_DISCONNECT:
@@ -161,6 +169,15 @@ INT NtStatusToWsaError(_In_ NTSTATUS Status)
             break;
         case STATUS_HOST_UNREACHABLE:
             wsaError = WSAEHOSTUNREACH;
+            break;
+        case STATUS_BUFFER_TOO_SMALL:
+            wsaError = WSAEFAULT;
+            break;
+        case STATUS_CANCELLED:
+            wsaError = WSAEINTR;
+            break;
+        case STATUS_UNSUCCESSFUL:
+            wsaError = WSAENETDOWN;
             break;
 
         // TODO: remove default later
