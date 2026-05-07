@@ -94,6 +94,8 @@ RhelScsiGetInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb);
 
 UCHAR
 RhelScsiGetModeSense(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb);
+UCHAR
+RhelScsiModeSelect(PVOID DeviceExtension, PSRB_TYPE Srb);
 
 UCHAR
 RhelScsiGetCapacity(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb);
@@ -1145,6 +1147,12 @@ VirtIoStartIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
                 CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SrbStatus);
                 return TRUE;
             }
+        case SCSIOP_MODE_SELECT:
+            {
+                UCHAR SrbStatus = RhelScsiModeSelect(DeviceExtension, (PSRB_TYPE)Srb);
+                CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SrbStatus);
+                return TRUE;
+            }
         case SCSIOP_INQUIRY:
             {
                 UCHAR SrbStatus = RhelScsiGetInquiryData(DeviceExtension, (PSRB_TYPE)Srb);
@@ -1879,13 +1887,22 @@ RhelScsiGetModeSense(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
     PMODE_PARAMETER_BLOCK blockDescriptor;
     PADAPTER_EXTENSION adaptExt;
 
+    NT_ASSERT(cdb != NULL);
+
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
     ModeSenseDataLen = SRB_DATA_TRANSFER_LENGTH(Srb);
 
     SrbStatus = SRB_STATUS_INVALID_REQUEST;
 
-    if (!cdb)
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                 " MODE SENSE page = 0x%x, subpage = 0x%x, Pc = %d\n",
+                 cdb->MODE_SENSE.PageCode,
+                 cdb->MODE_SENSE.SubPageCode,
+                 cdb->MODE_SENSE.Pc);
+
+    /* We don't support saved values */
+    if (cdb->MODE_SENSE.Pc == 3)
     {
         return SRB_STATUS_ERROR;
     }
@@ -1925,7 +1942,18 @@ RhelScsiGetModeSense(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
             memset(cachePage, 0, sizeof(MODE_CACHING_PAGE));
             cachePage->PageCode = MODE_PAGE_CACHING;
             cachePage->PageLength = 10;
-            cachePage->WriteCacheEnable = adaptExt->writeback_cache ? 1 : 0;
+
+            if (cdb->MODE_SENSE.Pc == 1)
+            {
+                /* Changeable bits requested */
+                cachePage->WriteCacheEnable = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_CONFIG_WCE);
+            }
+            else
+            {
+                /* Current status; use it for default status, too */
+                cachePage->WriteCacheEnable = adaptExt->writeback_cache ? 1 : 0;
+            }
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " WriteCacheEnable = %d\n", cachePage->WriteCacheEnable);
 
             SRB_SET_DATA_TRANSFER_LENGTH(Srb, (sizeof(MODE_PARAMETER_HEADER) + sizeof(MODE_CACHING_PAGE)));
         }
@@ -1946,6 +1974,10 @@ RhelScsiGetModeSense(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
             blockDescriptor = (PMODE_PARAMETER_BLOCK)((unsigned char *)(blockDescriptor) +
                                                       (ULONG)sizeof(MODE_PARAMETER_HEADER));
 
+            /*
+             * cdb->MODE_SENSE.Pc can be ignored because the result is all zeros
+             * both for current values and changable bits.
+             */
             memset(blockDescriptor, 0, sizeof(MODE_PARAMETER_BLOCK));
 
             SRB_SET_DATA_TRANSFER_LENGTH(Srb, (sizeof(MODE_PARAMETER_HEADER) + sizeof(MODE_PARAMETER_BLOCK)));
@@ -1962,6 +1994,53 @@ RhelScsiGetModeSense(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
     }
 
     return SrbStatus;
+}
+
+UCHAR
+RhelScsiModeSelect(PVOID DeviceExtension, PSRB_TYPE Srb)
+{
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    ULONG srbdatalen = SRB_DATA_TRANSFER_LENGTH(Srb);
+    PMODE_PARAMETER_HEADER header;
+    PMODE_CACHING_PAGE page;
+    UCHAR wce;
+
+    if (!CHECKBIT(adaptExt->features, VIRTIO_BLK_F_CONFIG_WCE))
+    {
+        return SRB_STATUS_INVALID_REQUEST;
+    }
+
+    if (srbdatalen < sizeof(*header))
+    {
+        return SRB_STATUS_INVALID_REQUEST;
+    }
+
+    header = (PMODE_PARAMETER_HEADER)SRB_DATA_BUFFER(Srb);
+
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                 " MODE SELECT BDLen = %d, srbdatalen = %ld\n",
+                 header->BlockDescriptorLength,
+                 srbdatalen);
+
+    if (srbdatalen < sizeof(*header) + header->BlockDescriptorLength + sizeof(*page))
+    {
+        return SRB_STATUS_INVALID_REQUEST;
+    }
+
+    page = (PMODE_CACHING_PAGE)((PUCHAR)(header + 1) + header->BlockDescriptorLength);
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " MODE SELECT Page = 0x%x\n", page->PageCode);
+
+    if (page->PageCode != MODE_PAGE_CACHING)
+    {
+        return SRB_STATUS_INVALID_REQUEST;
+    }
+
+    wce = !!page->WriteCacheEnable;
+    virtio_set_config(&adaptExt->vdev, FIELD_OFFSET(blk_config, wce), &wce, sizeof(wce));
+    adaptExt->writeback_cache = wce;
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Set writeback cache = %d\n", wce);
+
+    return SRB_STATUS_SUCCESS;
 }
 
 UCHAR
