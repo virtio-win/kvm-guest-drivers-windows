@@ -238,6 +238,7 @@ typedef struct _ADAPTER_EXTENSION
     BOOLEAN sn_ok;
     blk_req vbr;
     BOOLEAN indirect;
+    BOOLEAN writeback_cache;
     ULONGLONG lastLBA;
 
     union {

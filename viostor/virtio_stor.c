@@ -229,6 +229,18 @@ static ULONG InitVirtIODevice(PVOID DeviceExtension)
     return SP_RETURN_FOUND;
 }
 
+static BOOLEAN HasWritebackCache(PADAPTER_EXTENSION adaptExt)
+{
+    if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_CONFIG_WCE))
+    {
+        UCHAR v;
+        virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(blk_config, wce), &v, sizeof(v));
+        return !!v;
+    }
+
+    return CHECKBIT(adaptExt->features, VIRTIO_BLK_F_FLUSH);
+}
+
 ULONG
 VirtIoFindAdapter(IN PVOID DeviceExtension,
                   IN PVOID HwContext,
@@ -388,8 +400,16 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
     ConfigInfo->MaximumNumberOfTargets = 1;
     ConfigInfo->MaximumNumberOfLogicalUnits = 1;
 
-    ConfigInfo->CachesData = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_FLUSH) ? TRUE : FALSE;
-    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " VIRTIO_BLK_F_WCACHE = %d\n", ConfigInfo->CachesData);
+    /*
+     * With VIRTIO_BLK_F_CONFIG_WCE, CachesData must be TRUE even if the write
+     * cache is currently disabled, because it could be enabled at a later
+     * point.
+     */
+    ConfigInfo->CachesData = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_FLUSH);
+    adaptExt->writeback_cache = HasWritebackCache(adaptExt);
+
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Writeback cache enabled = %d\n", adaptExt->writeback_cache);
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Writeback cache supported = %d\n", ConfigInfo->CachesData);
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " VIRTIO_BLK_F_MQ = %d\n", CHECKBIT(adaptExt->features, VIRTIO_BLK_F_MQ));
 
     virtio_query_queue_allocation(&adaptExt->vdev,
@@ -608,6 +628,11 @@ VOID RhelSetGuestFeatures(IN PVOID DeviceExtension)
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_FLUSH))
     {
         guestFeatures |= (1ULL << VIRTIO_BLK_F_FLUSH);
+    }
+
+    if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_CONFIG_WCE))
+    {
+        guestFeatures |= (1ULL << VIRTIO_BLK_F_CONFIG_WCE);
     }
 
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_BARRIER))
@@ -1603,7 +1628,7 @@ VirtIoBuildIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
     srbExt->vbr.out_hdr.sector = lba;
     srbExt->vbr.out_hdr.ioprio = 0;
     srbExt->vbr.req = (PVOID)Srb;
-    srbExt->fua = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_FLUSH) ? (cdb->CDB10.ForceUnitAccess == 1) : FALSE;
+    srbExt->fua = adaptExt->writeback_cache ? (cdb->CDB10.ForceUnitAccess == 1) : FALSE;
 
     if (SRB_FLAGS(Srb) & SRB_FLAGS_DATA_OUT)
     {
@@ -1894,7 +1919,7 @@ RhelScsiGetModeSense(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
             memset(cachePage, 0, sizeof(MODE_CACHING_PAGE));
             cachePage->PageCode = MODE_PAGE_CACHING;
             cachePage->PageLength = 10;
-            cachePage->WriteCacheEnable = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_FLUSH) ? 1 : 0;
+            cachePage->WriteCacheEnable = adaptExt->writeback_cache ? 1 : 0;
 
             SRB_SET_DATA_TRANSFER_LENGTH(Srb, (sizeof(MODE_PARAMETER_HEADER) + sizeof(MODE_CACHING_PAGE)));
         }
