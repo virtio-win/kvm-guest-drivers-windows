@@ -1890,26 +1890,26 @@ RhelScsiGetModeSense(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
         return SRB_STATUS_ERROR;
     }
 
+    if (sizeof(MODE_PARAMETER_HEADER) > ModeSenseDataLen)
+    {
+        SrbStatus = SRB_STATUS_ERROR;
+        return SrbStatus;
+    }
+
+    header = (PMODE_PARAMETER_HEADER)SRB_DATA_BUFFER(Srb);
+
+    memset(header, 0, sizeof(MODE_PARAMETER_HEADER));
+    header->DeviceSpecificParameter = MODE_DSP_FUA_SUPPORTED;
+
+    if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_RO))
+    {
+        header->DeviceSpecificParameter |= MODE_DSP_WRITE_PROTECT;
+    }
+
+    ModeSenseDataLen -= sizeof(MODE_PARAMETER_HEADER);
+
     if ((cdb->MODE_SENSE.PageCode == MODE_PAGE_CACHING) || (cdb->MODE_SENSE.PageCode == MODE_SENSE_RETURN_ALL))
     {
-
-        if (sizeof(MODE_PARAMETER_HEADER) > ModeSenseDataLen)
-        {
-            SrbStatus = SRB_STATUS_ERROR;
-            return SrbStatus;
-        }
-
-        header = (PMODE_PARAMETER_HEADER)SRB_DATA_BUFFER(Srb);
-
-        memset(header, 0, sizeof(MODE_PARAMETER_HEADER));
-        header->DeviceSpecificParameter = MODE_DSP_FUA_SUPPORTED;
-
-        if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_RO))
-        {
-            header->DeviceSpecificParameter |= MODE_DSP_WRITE_PROTECT;
-        }
-
-        ModeSenseDataLen -= sizeof(MODE_PARAMETER_HEADER);
         if (ModeSenseDataLen >= sizeof(MODE_CACHING_PAGE))
         {
 
@@ -1932,23 +1932,6 @@ RhelScsiGetModeSense(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
     }
     else if (cdb->MODE_SENSE.PageCode == MODE_PAGE_VENDOR_SPECIFIC)
     {
-
-        if (sizeof(MODE_PARAMETER_HEADER) > ModeSenseDataLen)
-        {
-            SrbStatus = SRB_STATUS_ERROR;
-            return SrbStatus;
-        }
-
-        header = (PMODE_PARAMETER_HEADER)SRB_DATA_BUFFER(Srb);
-        memset(header, 0, sizeof(MODE_PARAMETER_HEADER));
-        header->DeviceSpecificParameter = MODE_DSP_FUA_SUPPORTED;
-
-        if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_RO))
-        {
-            header->DeviceSpecificParameter |= MODE_DSP_WRITE_PROTECT;
-        }
-
-        ModeSenseDataLen -= sizeof(MODE_PARAMETER_HEADER);
         if (ModeSenseDataLen >= sizeof(MODE_PARAMETER_BLOCK))
         {
 
