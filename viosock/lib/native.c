@@ -206,15 +206,17 @@ _Must_inspect_result_ HANDLE VIOSockCreateFile(_In_opt_ PVIRTIO_VSOCK_PARAMS pSo
     return hFile;
 }
 
-_Must_inspect_result_ BOOL VIOSockDeviceControl(_In_ SOCKET s,
-                                                _In_ DWORD dwIoControlCode,
-                                                _In_reads_bytes_opt_(nInBufferSize) LPVOID lpInBuffer,
-                                                _In_ DWORD nInBufferSize,
-                                                _Out_writes_bytes_to_opt_(nOutBufferSize,
-                                                                          *lpBytesReturned) LPVOID lpOutBuffer,
-                                                _In_ DWORD nOutBufferSize,
-                                                _Out_opt_ LPDWORD lpBytesReturned,
-                                                _Out_ LPINT lpErrno)
+_Must_inspect_result_ BOOL VIOSockDeviceControlEx(_In_ SOCKET s,
+                                                  _In_ DWORD dwIoControlCode,
+                                                  _In_reads_bytes_opt_(nInBufferSize) LPVOID lpInBuffer,
+                                                  _In_ DWORD nInBufferSize,
+                                                  _Out_writes_bytes_to_opt_(nOutBufferSize,
+                                                                            *lpBytesReturned) LPVOID lpOutBuffer,
+                                                  _In_ DWORD nOutBufferSize,
+                                                  _Out_opt_ LPDWORD lpBytesReturned,
+                                                  _Inout_opt_ LPWSAOVERLAPPED lpOverlapped,
+                                                  _In_opt_ LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine,
+                                                  _Out_ LPINT lpErrno)
 {
     BOOL bRes = TRUE;
     NTSTATUS status;
@@ -225,6 +227,13 @@ _Must_inspect_result_ BOOL VIOSockDeviceControl(_In_ SOCKET s,
     if (lpBytesReturned)
     {
         *lpBytesReturned = 0;
+    }
+
+    if (lpOverlapped || lpCompletionRoutine)
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Overlapped sockets not supported\n");
+        *lpErrno = WSAEOPNOTSUPP;
+        return FALSE;
     }
 
     HANDLE evt = CreateEvent(NULL, FALSE, FALSE, NULL);
@@ -273,6 +282,8 @@ _Must_inspect_result_ BOOL VIOSockWriteFile(_In_ SOCKET s,
                                             _In_reads_bytes_(nNumberOfBytesToWrite) LPVOID lpBuffer,
                                             _In_ DWORD nNumberOfBytesToWrite,
                                             _Out_opt_ LPDWORD lpNumberOfBytesWritten,
+                                            _Inout_opt_ LPWSAOVERLAPPED lpOverlapped,
+                                            _In_opt_ LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine,
                                             _Out_ LPINT lpErrno)
 {
     BOOL bRes = TRUE;
@@ -285,6 +296,13 @@ _Must_inspect_result_ BOOL VIOSockWriteFile(_In_ SOCKET s,
     if (lpNumberOfBytesWritten)
     {
         *lpNumberOfBytesWritten = 0;
+    }
+
+    if (lpOverlapped || lpCompletionRoutine)
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Overlapped sockets not supported\n");
+        *lpErrno = WSAEOPNOTSUPP;
+        return FALSE;
     }
 
     HANDLE evt = CreateEvent(NULL, FALSE, FALSE, NULL);
@@ -323,6 +341,8 @@ _Must_inspect_result_ BOOL VIOSockReadFile(_In_ SOCKET s,
                                            _Out_writes_bytes_(nNumberOfBytesToRead) LPVOID lpBuffer,
                                            _In_ DWORD nNumberOfBytesToRead,
                                            _Out_opt_ LPDWORD lpNumberOfBytesRead,
+                                           _Inout_opt_ LPWSAOVERLAPPED lpOverlapped,
+                                           _In_opt_ LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine,
                                            _Out_ LPINT lpErrno)
 {
     BOOL bRes = TRUE;
@@ -335,6 +355,13 @@ _Must_inspect_result_ BOOL VIOSockReadFile(_In_ SOCKET s,
     if (lpNumberOfBytesRead)
     {
         *lpNumberOfBytesRead = 0;
+    }
+
+    if (lpOverlapped || lpCompletionRoutine)
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Overlapped sockets not supported\n");
+        *lpErrno = WSAEOPNOTSUPP;
+        return FALSE;
     }
 
     HANDLE evt = CreateEvent(NULL, FALSE, FALSE, NULL);
