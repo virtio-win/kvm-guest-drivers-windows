@@ -1899,12 +1899,18 @@ RhelScsiGetModeSense(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
     header = (PMODE_PARAMETER_HEADER)SRB_DATA_BUFFER(Srb);
 
     memset(header, 0, sizeof(MODE_PARAMETER_HEADER));
-    header->DeviceSpecificParameter = MODE_DSP_FUA_SUPPORTED;
+
+    if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_FLUSH))
+    {
+        header->DeviceSpecificParameter = MODE_DSP_FUA_SUPPORTED;
+    }
 
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_RO))
     {
         header->DeviceSpecificParameter |= MODE_DSP_WRITE_PROTECT;
     }
+
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION, " DeviceSpecificParameter = 0x%x\n", header->DeviceSpecificParameter);
 
     ModeSenseDataLen -= sizeof(MODE_PARAMETER_HEADER);
 
