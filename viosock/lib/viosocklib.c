@@ -427,6 +427,11 @@ int WSPAPI VIOSockEventSelect(_In_ SOCKET s,
     return iRes;
 }
 
+// ntstatus.h is not pulled into precomp.h; define locally.
+#ifndef STATUS_CANCELLED
+#define STATUS_CANCELLED ((NTSTATUS)0xC0000120L)
+#endif
+
 BOOL WSPAPI VIOSockGetOverlappedResult(_In_ SOCKET s,
                                        _In_ LPWSAOVERLAPPED lpOverlapped,
                                        _Out_ LPDWORD lpcbTransfer,
@@ -434,14 +439,43 @@ BOOL WSPAPI VIOSockGetOverlappedResult(_In_ SOCKET s,
                                        _Out_ LPDWORD lpdwFlags,
                                        _Out_ LPINT lpErrno)
 {
-    UNREFERENCED_PARAMETER(lpOverlapped);
-    UNREFERENCED_PARAMETER(lpcbTransfer);
-    UNREFERENCED_PARAMETER(fWait);
-    UNREFERENCED_PARAMETER(lpdwFlags);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
-    TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
+    *lpErrno = ERROR_SUCCESS;
 
-    *lpErrno = WSAEOPNOTSUPP;
+    if (!lpOverlapped || !lpcbTransfer || !lpdwFlags)
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Invalid argument\n");
+        *lpErrno = WSAEFAULT;
+        return FALSE;
+    }
+
+    *lpdwFlags = 0;
+
+    if (GetOverlappedResult((HANDLE)s, (LPOVERLAPPED)lpOverlapped, lpcbTransfer, fWait))
+    {
+        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s, transferred: %u\n", __FUNCTION__, *lpcbTransfer);
+        return TRUE;
+    }
+
+    // Mirrors mswsock!WSPGetOverlappedResult: re-map the NTSTATUS in
+    // lpOverlapped->Internal via NtStatusToWsaError to keep WSA-compatible
+    // codes (RtlNtStatusToDosError used inside GetOverlappedResult would yield
+    // Win32 codes like ERROR_NETNAME_DELETED instead of WSAECONNRESET).
+    if ((NTSTATUS)lpOverlapped->Internal == STATUS_CANCELLED)
+    {
+        *lpErrno = ERROR_OPERATION_ABORTED;
+    }
+    else if (fWait || GetLastError() != ERROR_IO_INCOMPLETE)
+    {
+        *lpErrno = NtStatusToWsaError((NTSTATUS)lpOverlapped->Internal);
+    }
+    else
+    {
+        *lpErrno = ERROR_IO_INCOMPLETE;
+    }
+
+    TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "<-- %s, err: %d\n", __FUNCTION__, *lpErrno);
     return FALSE;
 }
 
