@@ -623,12 +623,6 @@ int WSPAPI VIOSockIoctl(_In_ SOCKET s,
         return WSP_ERROR(WSAEFAULT);
     }
 
-    if (lpOverlapped || lpCompletionRoutine)
-    {
-        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Overlapped sockets not supported\n");
-        return WSP_ERROR(WSAEOPNOTSUPP);
-    }
-
     if (dwIoControlCode == SIO_BSP_HANDLE ||
         //        dwIoControlCode == SIO_BSP_HANDLE_POLL ||
         dwIoControlCode == SIO_BSP_HANDLE_SELECT)
@@ -649,14 +643,16 @@ int WSPAPI VIOSockIoctl(_In_ SOCKET s,
     InParams.lpvInBuffer = (ULONGLONG)lpvInBuffer;
     InParams.cbInBuffer = cbInBuffer;
 
-    if (!VIOSockDeviceControl(s,
-                              IOCTL_SOCKET_IOCTL,
-                              &InParams,
-                              sizeof(InParams),
-                              lpvOutBuffer,
-                              cbOutBuffer,
-                              lpcbBytesReturned,
-                              lpErrno))
+    if (!VIOSockDeviceControlEx(s,
+                                IOCTL_SOCKET_IOCTL,
+                                &InParams,
+                                sizeof(InParams),
+                                lpvOutBuffer,
+                                cbOutBuffer,
+                                lpcbBytesReturned,
+                                lpOverlapped,
+                                lpCompletionRoutine,
+                                lpErrno))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
         iRes = SOCKET_ERROR;
@@ -729,12 +725,6 @@ int WSPAPI VIOSockRecv(_In_ SOCKET s,
         *lpNumberOfBytesRecvd = 0;
     }
 
-    if (lpOverlapped || lpCompletionRoutine)
-    {
-        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Overlapped sockets not supported\n");
-        return WSP_ERROR(WSAEOPNOTSUPP);
-    }
-
     if (!lpBuffers)
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Invalid lpBuffers\n");
@@ -749,21 +739,29 @@ int WSPAPI VIOSockRecv(_In_ SOCKET s,
             VIRTIO_VSOCK_READ_PARAMS ReadParams;
             ReadParams.Flags = *lpFlags;
 
-            if (!VIOSockDeviceControl(s,
-                                      IOCTL_SOCKET_READ,
-                                      &ReadParams,
-                                      (DWORD)sizeof(ReadParams),
-                                      lpBuffers[i].buf,
-                                      lpBuffers[i].len,
-                                      &dwNumberOfBytesRead,
-                                      lpErrno))
+            if (!VIOSockDeviceControlEx(s,
+                                        IOCTL_SOCKET_READ,
+                                        &ReadParams,
+                                        (DWORD)sizeof(ReadParams),
+                                        lpBuffers[i].buf,
+                                        lpBuffers[i].len,
+                                        &dwNumberOfBytesRead,
+                                        lpOverlapped,
+                                        lpCompletionRoutine,
+                                        lpErrno))
             {
                 TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
                 iRes = SOCKET_ERROR;
                 break;
             }
         }
-        else if (!VIOSockReadFile(s, lpBuffers[i].buf, lpBuffers[i].len, &dwNumberOfBytesRead, lpErrno))
+        else if (!VIOSockReadFile(s,
+                                  lpBuffers[i].buf,
+                                  lpBuffers[i].len,
+                                  &dwNumberOfBytesRead,
+                                  lpOverlapped,
+                                  lpCompletionRoutine,
+                                  lpErrno))
         {
             TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockReadFile failed: %d\n", *lpErrno);
             iRes = SOCKET_ERROR;
@@ -995,12 +993,6 @@ int WSPAPI VIOSockSend(_In_ SOCKET s,
         *lpNumberOfBytesSent = 0;
     }
 
-    if (lpOverlapped || lpCompletionRoutine)
-    {
-        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Overlapped sockets not supported\n");
-        return WSP_ERROR(WSAEOPNOTSUPP);
-    }
-
     if (!lpBuffers)
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Invalid lpBuffers\n");
@@ -1011,7 +1003,13 @@ int WSPAPI VIOSockSend(_In_ SOCKET s,
     {
         DWORD dwNumberOfBytesWritten;
 
-        if (!VIOSockWriteFile(s, lpBuffers[i].buf, lpBuffers[i].len, &dwNumberOfBytesWritten, lpErrno))
+        if (!VIOSockWriteFile(s,
+                              lpBuffers[i].buf,
+                              lpBuffers[i].len,
+                              &dwNumberOfBytesWritten,
+                              lpOverlapped,
+                              lpCompletionRoutine,
+                              lpErrno))
         {
             TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockWriteFile failed: %d\n", *lpErrno);
             iRes = SOCKET_ERROR;
