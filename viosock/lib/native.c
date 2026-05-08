@@ -206,6 +206,139 @@ _Must_inspect_result_ HANDLE VIOSockCreateFile(_In_opt_ PVIRTIO_VSOCK_PARAMS pSo
     return hFile;
 }
 
+typedef struct _VIOSOCK_APC_CONTEXT
+{
+    LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine;
+    LPWSAOVERLAPPED lpOverlapped;
+    IO_STATUS_BLOCK iosb;
+    DWORD dwFlags;
+} VIOSOCK_APC_CONTEXT, *PVIOSOCK_APC_CONTEXT;
+
+static VOID NTAPI VIOSockApcRoutine(_In_ PVOID ApcContext, _In_ PIO_STATUS_BLOCK IoStatusBlock, _In_ ULONG Reserved)
+{
+    PVIOSOCK_APC_CONTEXT pContext = (PVIOSOCK_APC_CONTEXT)ApcContext;
+    DWORD dwError;
+    DWORD cbTransferred;
+
+    UNREFERENCED_PARAMETER(Reserved);
+
+    if (!pContext)
+    {
+        return;
+    }
+
+    if (NT_SUCCESS(IoStatusBlock->Status))
+    {
+        dwError = ERROR_SUCCESS;
+        cbTransferred = (DWORD)IoStatusBlock->Information;
+    }
+    else
+    {
+        dwError = NtStatusToWsaError(IoStatusBlock->Status);
+        cbTransferred = 0;
+    }
+
+    if (pContext->lpCompletionRoutine)
+    {
+        pContext->lpCompletionRoutine(dwError, cbTransferred, pContext->lpOverlapped, pContext->dwFlags);
+    }
+
+    HeapFree(GetProcessHeap(), 0, pContext);
+}
+
+typedef struct _VIOSOCK_OVERLAPPED_CONTEXT
+{
+    HANDLE hEvent;
+    PVIOSOCK_APC_CONTEXT ApcContext;
+    PIO_APC_ROUTINE ApcRoutine;
+    PIO_STATUS_BLOCK pIosb;
+    IO_STATUS_BLOCK iosb;
+    BOOL bInternalEvent;
+} VIOSOCK_OVERLAPPED_CONTEXT, *PVIOSOCK_OVERLAPPED_CONTEXT;
+
+static INT VIOSockInitOverlappedContext(_Out_ PVIOSOCK_OVERLAPPED_CONTEXT pContext,
+                                        _In_opt_ LPWSAOVERLAPPED lpOverlapped,
+                                        _In_opt_ LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine,
+                                        _In_opt_ DWORD dwFlags)
+{
+    memset(pContext, 0, sizeof(VIOSOCK_OVERLAPPED_CONTEXT));
+
+    if (lpCompletionRoutine)
+    {
+        pContext->ApcContext = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(VIOSOCK_APC_CONTEXT));
+        if (!pContext->ApcContext)
+        {
+            return WSA_NOT_ENOUGH_MEMORY;
+        }
+        pContext->ApcRoutine = VIOSockApcRoutine;
+        pContext->ApcContext->lpCompletionRoutine = lpCompletionRoutine;
+        pContext->ApcContext->lpOverlapped = lpOverlapped;
+        pContext->ApcContext->dwFlags = dwFlags;
+        pContext->pIosb = lpOverlapped ? (PIO_STATUS_BLOCK)lpOverlapped : &pContext->ApcContext->iosb;
+    }
+    else if (lpOverlapped)
+    {
+        pContext->pIosb = (PIO_STATUS_BLOCK)lpOverlapped;
+        pContext->hEvent = lpOverlapped->hEvent;
+    }
+    else // sync call
+    {
+        pContext->pIosb = &pContext->iosb;
+        pContext->hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+        if (!pContext->hEvent)
+        {
+            return WSA_NOT_ENOUGH_MEMORY;
+        }
+        pContext->bInternalEvent = TRUE;
+    }
+
+    return ERROR_SUCCESS;
+}
+
+static INT VIOSockCompleteOverlappedContext(_In_ PVIOSOCK_OVERLAPPED_CONTEXT pContext,
+                                            _In_ NTSTATUS Status,
+                                            _Out_opt_ LPDWORD lpBytesReturned)
+{
+    INT iRes = ERROR_SUCCESS;
+    if (Status == STATUS_PENDING)
+    {
+        if (pContext->hEvent && pContext->bInternalEvent)
+        {
+            // sync call
+            WaitForSingleObject(pContext->hEvent, INFINITE);
+            Status = pContext->pIosb->Status;
+        }
+        else
+        {
+            return WSA_IO_PENDING;
+        }
+    }
+
+    if (pContext->hEvent && pContext->bInternalEvent)
+    {
+        CloseHandle(pContext->hEvent);
+    }
+
+    if (NT_SUCCESS(Status))
+    {
+        if (lpBytesReturned)
+        {
+            *lpBytesReturned = (ULONG)pContext->pIosb->Information;
+        }
+    }
+    else
+    {
+        if (pContext->ApcContext)
+        {
+            HeapFree(GetProcessHeap(), 0, pContext->ApcContext);
+        }
+
+        iRes = NtStatusToWsaError(Status);
+    }
+
+    return iRes;
+}
+
 _Must_inspect_result_ BOOL VIOSockDeviceControlEx(_In_ SOCKET s,
                                                   _In_ DWORD dwIoControlCode,
                                                   _In_reads_bytes_opt_(nInBufferSize) LPVOID lpInBuffer,
@@ -220,7 +353,7 @@ _Must_inspect_result_ BOOL VIOSockDeviceControlEx(_In_ SOCKET s,
 {
     BOOL bRes = TRUE;
     NTSTATUS status;
-    IO_STATUS_BLOCK iosb = {0};
+    VIOSOCK_OVERLAPPED_CONTEXT OverlappedContext;
 
     *lpErrno = ERROR_SUCCESS;
 
@@ -229,49 +362,31 @@ _Must_inspect_result_ BOOL VIOSockDeviceControlEx(_In_ SOCKET s,
         *lpBytesReturned = 0;
     }
 
-    if (lpOverlapped || lpCompletionRoutine)
+    *lpErrno = VIOSockInitOverlappedContext(&OverlappedContext, lpOverlapped, lpCompletionRoutine, 0);
+    if (*lpErrno != ERROR_SUCCESS)
     {
-        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Overlapped sockets not supported\n");
-        *lpErrno = WSAEOPNOTSUPP;
-        return FALSE;
-    }
-
-    HANDLE evt = CreateEvent(NULL, FALSE, FALSE, NULL);
-    if (!evt)
-    {
-        *lpErrno = ERROR_INTERNAL_ERROR;
         return FALSE;
     }
 
     status = NtDeviceIoControlFile((HANDLE)s,
-                                   evt,
-                                   NULL,
-                                   NULL,
-                                   &iosb,
+                                   OverlappedContext.hEvent,
+                                   OverlappedContext.ApcRoutine,
+                                   OverlappedContext.ApcContext,
+                                   OverlappedContext.pIosb,
                                    dwIoControlCode,
                                    lpInBuffer,
                                    nInBufferSize,
                                    lpOutBuffer,
                                    nOutBufferSize);
 
-    if (status == STATUS_PENDING)
-    {
-        WaitForSingleObject(evt, INFINITE);
-        status = iosb.Status;
-    }
-    CloseHandle(evt);
+    *lpErrno = VIOSockCompleteOverlappedContext(&OverlappedContext, status, lpBytesReturned);
 
-    if (NT_SUCCESS(status))
+    if (*lpErrno != ERROR_SUCCESS)
     {
-        if (lpBytesReturned)
+        if (*lpErrno != WSA_IO_PENDING)
         {
-            *lpBytesReturned = (ULONG)iosb.Information;
+            TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "NtDeviceIoControlFile failed: %d\n", *lpErrno);
         }
-    }
-    else
-    {
-        *lpErrno = NtStatusToWsaError(status);
-        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "NtDeviceIoControlFile failed: %d\n", *lpErrno);
         bRes = FALSE;
     }
 
@@ -288,8 +403,8 @@ _Must_inspect_result_ BOOL VIOSockWriteFile(_In_ SOCKET s,
 {
     BOOL bRes = TRUE;
     NTSTATUS status;
-    IO_STATUS_BLOCK iosb = {0};
     LARGE_INTEGER liBytesOffset = {0};
+    VIOSOCK_OVERLAPPED_CONTEXT OverlappedContext;
 
     *lpErrno = ERROR_SUCCESS;
 
@@ -298,39 +413,30 @@ _Must_inspect_result_ BOOL VIOSockWriteFile(_In_ SOCKET s,
         *lpNumberOfBytesWritten = 0;
     }
 
-    if (lpOverlapped || lpCompletionRoutine)
+    *lpErrno = VIOSockInitOverlappedContext(&OverlappedContext, lpOverlapped, lpCompletionRoutine, 0);
+    if (*lpErrno != ERROR_SUCCESS)
     {
-        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Overlapped sockets not supported\n");
-        *lpErrno = WSAEOPNOTSUPP;
         return FALSE;
     }
 
-    HANDLE evt = CreateEvent(NULL, FALSE, FALSE, NULL);
-    if (!evt)
-    {
-        *lpErrno = ERROR_INTERNAL_ERROR;
-        return FALSE;
-    }
+    status = NtWriteFile((HANDLE)s,
+                         OverlappedContext.hEvent,
+                         OverlappedContext.ApcRoutine,
+                         OverlappedContext.ApcContext,
+                         OverlappedContext.pIosb,
+                         lpBuffer,
+                         nNumberOfBytesToWrite,
+                         &liBytesOffset,
+                         NULL);
 
-    status = NtWriteFile((HANDLE)s, evt, NULL, NULL, &iosb, lpBuffer, nNumberOfBytesToWrite, &liBytesOffset, NULL);
+    *lpErrno = VIOSockCompleteOverlappedContext(&OverlappedContext, status, lpNumberOfBytesWritten);
 
-    if (status == STATUS_PENDING)
+    if (*lpErrno != ERROR_SUCCESS)
     {
-        WaitForSingleObject(evt, INFINITE);
-        status = iosb.Status;
-    }
-    CloseHandle(evt);
-
-    if (NT_SUCCESS(status))
-    {
-        if (lpNumberOfBytesWritten)
+        if (*lpErrno != WSA_IO_PENDING)
         {
-            *lpNumberOfBytesWritten = (DWORD)iosb.Information;
+            TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "NtWriteFile failed: %d\n", *lpErrno);
         }
-    }
-    else
-    {
-        *lpErrno = NtStatusToWsaError(status);
         bRes = FALSE;
     }
 
@@ -347,8 +453,8 @@ _Must_inspect_result_ BOOL VIOSockReadFile(_In_ SOCKET s,
 {
     BOOL bRes = TRUE;
     NTSTATUS status;
-    IO_STATUS_BLOCK iosb = {0};
     LARGE_INTEGER liBytesOffset = {0};
+    VIOSOCK_OVERLAPPED_CONTEXT OverlappedContext;
 
     *lpErrno = ERROR_SUCCESS;
 
@@ -357,39 +463,30 @@ _Must_inspect_result_ BOOL VIOSockReadFile(_In_ SOCKET s,
         *lpNumberOfBytesRead = 0;
     }
 
-    if (lpOverlapped || lpCompletionRoutine)
+    *lpErrno = VIOSockInitOverlappedContext(&OverlappedContext, lpOverlapped, lpCompletionRoutine, 0);
+    if (*lpErrno != ERROR_SUCCESS)
     {
-        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Overlapped sockets not supported\n");
-        *lpErrno = WSAEOPNOTSUPP;
         return FALSE;
     }
 
-    HANDLE evt = CreateEvent(NULL, FALSE, FALSE, NULL);
-    if (!evt)
-    {
-        *lpErrno = ERROR_INTERNAL_ERROR;
-        return FALSE;
-    }
+    status = NtReadFile((HANDLE)s,
+                        OverlappedContext.hEvent,
+                        OverlappedContext.ApcRoutine,
+                        OverlappedContext.ApcContext,
+                        OverlappedContext.pIosb,
+                        lpBuffer,
+                        nNumberOfBytesToRead,
+                        &liBytesOffset,
+                        NULL);
 
-    status = NtReadFile((HANDLE)s, evt, NULL, NULL, &iosb, lpBuffer, nNumberOfBytesToRead, &liBytesOffset, NULL);
+    *lpErrno = VIOSockCompleteOverlappedContext(&OverlappedContext, status, lpNumberOfBytesRead);
 
-    if (status == STATUS_PENDING)
+    if (*lpErrno != ERROR_SUCCESS)
     {
-        WaitForSingleObject(evt, INFINITE);
-        status = iosb.Status;
-    }
-    CloseHandle(evt);
-
-    if (NT_SUCCESS(status))
-    {
-        if (lpNumberOfBytesRead)
+        if (*lpErrno != WSA_IO_PENDING)
         {
-            *lpNumberOfBytesRead = (DWORD)iosb.Information;
+            TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "NtReadFile failed: %d\n", *lpErrno);
         }
-    }
-    else
-    {
-        *lpErrno = NtStatusToWsaError(status);
         bRes = FALSE;
     }
 
