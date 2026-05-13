@@ -9,4 +9,4 @@ call ..\build\build.bat lib\viosocklib.vcxproj "Win11_SDV" %*
 if errorlevel 1 goto :eof
 call ..\build\build.bat wsk\wsk.vcxproj "Win11_SDV" %*
 if errorlevel 1 goto :eof
-call ..\build\build.bat viosock-wsk-test\viosock-wsk-test.vcxproj "Win11_SDV" %*
+call ..\build\build.bat tests\viosock-wsk-test\viosock-wsk-test.vcxproj "Win11_SDV" %*

@@ -19,7 +19,7 @@
 #include <winternl.h>
 #include <crtdbg.h>
 
-#include "..\sys\public.h"
-#include "..\inc\vio_sockets.h"
+#include "..\..\sys\public.h"
+#include "..\..\inc\vio_sockets.h"
 
 #endif // PCH_H
