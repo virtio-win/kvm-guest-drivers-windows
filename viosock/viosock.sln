@@ -19,7 +19,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "viosocklib", "lib\viosockli
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "VirtIO", "VirtIO", "{AD388774-98AF-4788-B0AE-121577BACFFB}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "viosock-test", "viosock-test\viosock-test.vcxproj", "{5E68CCE9-F95D-4A6C-A5AD-DBA7CE0CA63A}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "viosock-test", "tests\viosock-test\viosock-test.vcxproj", "{5E68CCE9-F95D-4A6C-A5AD-DBA7CE0CA63A}"
 	ProjectSection(ProjectDependencies) = postProject
 		{C65DA065-5828-45CF-89DB-FC4F21BC9E05} = {C65DA065-5828-45CF-89DB-FC4F21BC9E05}
 	EndProjectSection
@@ -31,12 +31,12 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		inc\vio_wsk.h = inc\vio_wsk.h
 	EndProjectSection
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "viosocklib-test", "viosocklib-test\viosocklib-test.vcxproj", "{2CFBBF52-9646-4E42-9E43-9CEE50735254}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "viosocklib-test", "tests\viosocklib-test\viosocklib-test.vcxproj", "{2CFBBF52-9646-4E42-9E43-9CEE50735254}"
 	ProjectSection(ProjectDependencies) = postProject
 		{315D93F9-0F5C-4ACD-AFB1-96B1E62559BC} = {315D93F9-0F5C-4ACD-AFB1-96B1E62559BC}
 	EndProjectSection
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "vsock_test", "vsock_test\vsock_test.vcxproj", "{7A3F9B2C-1234-4E42-9E43-A1B2C3D4E5F6}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "vsock_test", "tests\vsock_test\vsock_test.vcxproj", "{7A3F9B2C-1234-4E42-9E43-A1B2C3D4E5F6}"
 	ProjectSection(ProjectDependencies) = postProject
 		{315D93F9-0F5C-4ACD-AFB1-96B1E62559BC} = {315D93F9-0F5C-4ACD-AFB1-96B1E62559BC}
 	EndProjectSection
@@ -51,7 +51,7 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ViosockPackage", "ViosockPa
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "viosockwsk", "wsk\wsk.vcxproj", "{96FDD976-0035-4E24-A61B-E93BED675101}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "viosockwsk-test", "viosock-wsk-test\viosock-wsk-test.vcxproj", "{A2A7AFFC-BEFE-4066-A1DD-23242FAFAD70}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "viosockwsk-test", "tests\viosock-wsk-test\viosock-wsk-test.vcxproj", "{A2A7AFFC-BEFE-4066-A1DD-23242FAFAD70}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "viosockwspsvc", "wspsvc\viosockwspsvc.vcxproj", "{B8C784B3-7914-4539-B728-F2EAE5C9795E}"
 EndProject

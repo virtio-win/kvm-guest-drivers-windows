@@ -28,7 +28,7 @@
 #include <ntifs.h>
 #include <wsk.h>
 #include <bcrypt.h>
-#include "..\inc\debug-utils.h"
+#include "..\..\inc\debug-utils.h"
 #include "test-messages.h"
 #ifdef EVENT_TRACING
 #include "test-messages.tmh"

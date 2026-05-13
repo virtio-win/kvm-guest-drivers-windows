@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Win10 Release|Win32">
@@ -214,7 +214,7 @@
     <ClCompile Include="viosockwsk-test.c" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\wsk\wsk.vcxproj">
+    <ProjectReference Include="..\..\wsk\wsk.vcxproj">
       <Project>{96fdd976-0035-4e24-a61b-e93bed675101}</Project>
     </ProjectReference>
   </ItemGroup>

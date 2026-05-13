@@ -18,6 +18,6 @@
 #include <stdlib.h>
 #include <ws2spi.h>
 
-#include "..\inc\vio_sockets.h"
+#include "..\..\inc\vio_sockets.h"
 
 #endif // PCH_H

@@ -34,7 +34,7 @@
 #include <signal.h>  /* sig_atomic_t, SIG_DFL, SIG_IGN */
 #include <process.h> /* _getpid() */
 
-#include "..\\inc\\vio_sockets.h"
+#include "..\\..\\inc\\vio_sockets.h"
 
 /* ------------------------------------------------------------------ */
 /* Type compatibility                                                   */
