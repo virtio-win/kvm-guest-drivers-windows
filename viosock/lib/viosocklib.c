@@ -191,15 +191,45 @@ int WSPAPI VIOSockAddressToString(_In_reads_bytes_(dwAddressLength) LPSOCKADDR l
                                   _Inout_ LPDWORD lpdwAddressStringLength,
                                   _Out_ LPINT lpErrno)
 {
-    UNREFERENCED_PARAMETER(lpsaAddress);
-    UNREFERENCED_PARAMETER(dwAddressLength);
+    // Max: "<UINT>:<UINT>\0" = 10 + 1 + 10 + 1 = 22 WCHAR
+    WCHAR buf[_MAX_ULTOSTR_BASE10_COUNT + _MAX_ULTOSTR_BASE10_COUNT];
+    PSOCKADDR_VM pAddr;
+    size_t len;
+    DWORD required;
+
     UNREFERENCED_PARAMETER(lpProtocolInfo);
-    UNREFERENCED_PARAMETER(lpszAddressString);
-    UNREFERENCED_PARAMETER(lpdwAddressStringLength);
 
-    TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
-    return WSP_ERROR(WSAEOPNOTSUPP);
+    if (!lpsaAddress || dwAddressLength < sizeof(SOCKADDR_VM) || !lpdwAddressStringLength)
+    {
+        return WSP_ERROR(WSAEINVAL);
+    }
+
+    pAddr = (PSOCKADDR_VM)lpsaAddress;
+    if (pAddr->svm_family != AF_VSOCK)
+    {
+        return WSP_ERROR(WSAEINVAL);
+    }
+
+    if (FAILED(StringCchPrintfW(buf, ARRAYSIZE(buf), L"%u:%u", pAddr->svm_cid, pAddr->svm_port)))
+    {
+        return WSP_ERROR(WSAEINVAL);
+    }
+    StringCchLengthW(buf, ARRAYSIZE(buf), &len);
+    required = (DWORD)len + 1;
+
+    if (!lpszAddressString || *lpdwAddressStringLength < required)
+    {
+        *lpdwAddressStringLength = required;
+        return WSP_ERROR(WSAEFAULT);
+    }
+
+    memcpy(lpszAddressString, buf, required * sizeof(WCHAR));
+    *lpdwAddressStringLength = required;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s: %ws\n", __FUNCTION__, buf);
+    return ERROR_SUCCESS;
 }
 
 int WSPAPI
@@ -337,12 +367,52 @@ int WSPAPI VIOSockDuplicateSocket(_In_ SOCKET s,
                                   _Out_ LPWSAPROTOCOL_INFOW lpProtocolInfo,
                                   _Out_ LPINT lpErrno)
 {
-    UNREFERENCED_PARAMETER(dwProcessId);
-    UNREFERENCED_PARAMETER(lpProtocolInfo);
+    HANDLE hTarget;
+    HANDLE hDup = NULL;
+    BOOL bRes;
+    INT infoLen = sizeof(*lpProtocolInfo);
 
-    TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, socket: %p, pid: %u\n", __FUNCTION__, (PVOID)s, dwProcessId);
 
-    return WSP_ERROR(WSAEOPNOTSUPP);
+    if (!lpProtocolInfo)
+    {
+        return WSP_ERROR(WSAEINVAL);
+    }
+
+    // Route through SO_PROTOCOL_INFOW so that this stays a single source of truth
+    // for per-socket protocol info. When SOCK_DGRAM/SOCK_MSG support is added,
+    // VIOSockGetSockOpt will resolve the right protocol per socket.
+    if (VIOSockGetSockOpt(s, SOL_SOCKET, SO_PROTOCOL_INFOW, (char *)lpProtocolInfo, &infoLen, lpErrno) != ERROR_SUCCESS)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockGetSockOpt(SO_PROTOCOL_INFOW) failed: %d\n", *lpErrno);
+        return SOCKET_ERROR;
+    }
+
+    hTarget = OpenProcess(PROCESS_DUP_HANDLE, FALSE, dwProcessId);
+    if (!hTarget)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "OpenProcess failed: %u\n", GetLastError());
+        return WSP_ERROR(WSAEINVAL);
+    }
+
+    bRes = DuplicateHandle(GetCurrentProcess(), (HANDLE)s, hTarget, &hDup, 0, FALSE, DUPLICATE_SAME_ACCESS);
+    CloseHandle(hTarget);
+    if (!bRes)
+    {
+        DWORD err = GetLastError();
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "DuplicateHandle failed: %u\n", err);
+        return WSP_ERROR(err == ERROR_INVALID_HANDLE ? WSAENOTSOCK : WSAEINVAL);
+    }
+
+    // Per MSDN, 64-bit Windows guarantees handles fit in 32 bits across processes.
+    // The duplicated handle now lives in the target's handle table. If the target
+    // never calls WSASocket(&info,...) the handle leaks until the target exits.
+    // This matches AFD/MS LSP-sample behavior and is required by the MSDN guarantee
+    // that the duplicate stays valid even after the source process terminates.
+    lpProtocolInfo->dwProviderReserved = (DWORD)(ULONG_PTR)hDup;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s: hDup=%p in pid %u\n", __FUNCTION__, hDup, dwProcessId);
+    return ERROR_SUCCESS;
 }
 
 int WSPAPI VIOSockEnumNetworkEvents(_In_ SOCKET s,
@@ -1170,11 +1240,25 @@ _Must_inspect_result_ SOCKET WSPAPI VIOSockSocket(_In_ int af,
     HANDLE hFile;
     VIRTIO_VSOCK_PARAMS SocketParams = {0};
 
-    UNREFERENCED_PARAMETER(lpProtocolInfo);
     UNREFERENCED_PARAMETER(g);
     UNREFERENCED_PARAMETER(dwFlags);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+
+    // Duplicate-socket recovery path: source process called VIOSockDuplicateSocket and
+    // shipped the protocol info to us; the duplicated handle is stashed in dwProviderReserved.
+    if (lpProtocolInfo && lpProtocolInfo->dwProviderReserved != 0)
+    {
+        hFile = (HANDLE)(ULONG_PTR)lpProtocolInfo->dwProviderReserved;
+        s = g_UpcallTable.lpWPUModifyIFSHandle(g_ProtocolInfo.dwCatalogEntryId, (SOCKET)hFile, lpErrno);
+        if (INVALID_SOCKET == s)
+        {
+            CloseHandle(hFile);
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "WPUModifyIFSHandle failed: %u\n", *lpErrno);
+        }
+        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s (from dup): %p\n", __FUNCTION__, (PVOID)s);
+        return s;
+    }
 
     if (af != AF_VSOCK)
     {
@@ -1226,13 +1310,50 @@ int WSPAPI VIOSockStringToAddress(_In_ LPWSTR AddressString,
                                   _Inout_ LPINT lpAddressLength,
                                   _Out_ LPINT lpErrno)
 {
-    UNREFERENCED_PARAMETER(AddressString);
-    UNREFERENCED_PARAMETER(AddressFamily);
+    PSOCKADDR_VM pAddr;
+    LPWSTR endptr;
+    unsigned long cid, port;
+
     UNREFERENCED_PARAMETER(lpProtocolInfo);
-    UNREFERENCED_PARAMETER(lpAddress);
-    UNREFERENCED_PARAMETER(lpAddressLength);
 
-    TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
-    return WSP_ERROR(WSAEOPNOTSUPP);
+    if (!AddressString || !lpAddress || !lpAddressLength)
+    {
+        return WSP_ERROR(WSAEINVAL);
+    }
+
+    if (AddressFamily != AF_VSOCK && AddressFamily != AF_UNSPEC)
+    {
+        return WSP_ERROR(WSAEINVAL);
+    }
+
+    if (*lpAddressLength < (INT)sizeof(SOCKADDR_VM))
+    {
+        *lpAddressLength = sizeof(SOCKADDR_VM);
+        return WSP_ERROR(WSAEFAULT);
+    }
+
+    cid = wcstoul(AddressString, &endptr, 10);
+    if (endptr == AddressString || *endptr != L':')
+    {
+        return WSP_ERROR(WSAEINVAL);
+    }
+
+    AddressString = endptr + 1;
+    port = wcstoul(AddressString, &endptr, 10);
+    if (endptr == AddressString || *endptr != L'\0')
+    {
+        return WSP_ERROR(WSAEINVAL);
+    }
+
+    pAddr = (PSOCKADDR_VM)lpAddress;
+    RtlZeroMemory(pAddr, sizeof(*pAddr));
+    pAddr->svm_family = AF_VSOCK;
+    pAddr->svm_cid = (UINT)cid;
+    pAddr->svm_port = (UINT)port;
+    *lpAddressLength = sizeof(SOCKADDR_VM);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s: %u:%u\n", __FUNCTION__, (UINT)cid, (UINT)port);
+    return ERROR_SUCCESS;
 }
