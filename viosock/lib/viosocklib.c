@@ -277,9 +277,13 @@ int WSPAPI VIOSockBind(_In_ SOCKET s,
 
 int WSPAPI VIOSockCancelBlockingCall(_Out_ LPINT lpErrno)
 {
-    TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
-    return WSP_ERROR(WSAEOPNOTSUPP);
+    // WSPCancelBlockingCall is a leftover from Winsock 1.1 hooks. Winsock 2.2 uses
+    // overlapped/event-driven I/O instead. The LSP has no blocking calls to cancel,
+    // so just acknowledge.
+    *lpErrno = ERROR_SUCCESS;
+    return ERROR_SUCCESS;
 }
 
 int WSPAPI VIOSockCleanup(_Out_ LPINT lpErrno)
@@ -678,6 +682,8 @@ int WSPAPI VIOSockGetSockOpt(_In_ SOCKET s,
     return iRes;
 }
 
+// QoS is not part of the vsock protocol — there is no template to look up. WSAEOPNOTSUPP
+// is the correct, permanent return value.
 BOOL WSPAPI VIOSockGetQOSByName(_In_ SOCKET s, _In_ LPWSABUF lpQOSName, _Out_ LPQOS lpQOS, _Out_ LPINT lpErrno)
 {
     UNREFERENCED_PARAMETER(s);
@@ -766,6 +772,8 @@ int WSPAPI VIOSockIoctl(_In_ SOCKET s,
     return iRes;
 }
 
+// Multipoint sessions are not supported by vsock (it is point-to-point only). WSAEOPNOTSUPP
+// is the correct, permanent return value.
 _Must_inspect_result_ SOCKET WSPAPI VIOSockJoinLeaf(_In_ SOCKET s,
                                                     _In_reads_bytes_(namelen) const struct sockaddr FAR *name,
                                                     _In_ int namelen,
@@ -890,11 +898,15 @@ int WSPAPI VIOSockRecv(_In_ SOCKET s,
 
 int WSPAPI VIOSockRecvDisconnect(_In_ SOCKET s, _In_opt_ LPWSABUF lpInboundDisconnectData, _Out_ LPINT lpErrno)
 {
-    UNREFERENCED_PARAMETER(lpInboundDisconnectData);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
-    TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
+    // vsock has no protocol-level disconnect data — signal "none" if caller passed a buffer.
+    if (lpInboundDisconnectData)
+    {
+        lpInboundDisconnectData->len = 0;
+    }
 
-    return WSP_ERROR(WSAEOPNOTSUPP);
+    return VIOSockShutdown(s, SD_RECEIVE, lpErrno);
 }
 
 int WSPAPI VIOSockRecvFrom(_In_ SOCKET s,
@@ -1138,11 +1150,12 @@ int WSPAPI VIOSockSend(_In_ SOCKET s,
 
 int WSPAPI VIOSockSendDisconnect(_In_ SOCKET s, _In_opt_ LPWSABUF lpOutboundDisconnectData, _Out_ LPINT lpErrno)
 {
+    // vsock has no protocol-level disconnect data — silently drop anything the caller passed.
     UNREFERENCED_PARAMETER(lpOutboundDisconnectData);
 
-    TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
-    return WSP_ERROR(WSAEOPNOTSUPP);
+    return VIOSockShutdown(s, SD_SEND, lpErrno);
 }
 
 int WSPAPI VIOSockSendTo(_In_ SOCKET s,
