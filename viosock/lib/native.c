@@ -67,8 +67,11 @@ NtReadFile(_In_ HANDLE FileHandle,
            _In_opt_ PLARGE_INTEGER ByteOffset,
            _In_opt_ PULONG Key);
 
-#define STATUS_SUCCESS                    ((NTSTATUS)0x00000000L)
-#define STATUS_UNSUCCESSFUL               ((NTSTATUS)0xC0000001L)
+#define STATUS_SUCCESS      ((NTSTATUS)0x00000000L)
+#define STATUS_UNSUCCESSFUL ((NTSTATUS)0xC0000001L)
+#ifndef STATUS_INVALID_HANDLE
+#define STATUS_INVALID_HANDLE ((NTSTATUS)0xC0000008L)
+#endif
 #define STATUS_ACCESS_DENIED              ((NTSTATUS)0xC0000022L)
 #define STATUS_INSUFFICIENT_RESOURCES     ((NTSTATUS)0xC000009AL)
 #define STATUS_NOT_SUPPORTED              ((NTSTATUS)0xC00000BBL)
@@ -112,6 +115,7 @@ INT NtStatusToWsaError(_In_ NTSTATUS Status)
             wsaError = WSAEPROTONOSUPPORT;
             break;
         case STATUS_NOT_SOCKET:
+        case STATUS_INVALID_HANDLE:
             wsaError = WSAENOTSOCK;
             break;
         case STATUS_ADDRESS_ALREADY_ASSOCIATED:
