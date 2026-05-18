@@ -960,6 +960,7 @@ static NTSTATUS VIOSockSelect(IN WDFREQUEST Request, IN OUT size_t *pLength)
     BOOLEAN bIs32BitProcess = FALSE;
     WDF_OBJECT_ATTRIBUTES Attributes;
     PVIOSOCK_SELECT_PKT pPkt = NULL;
+    ULONG fdRead, fdWrite, fdExcpt, uTotalFdCount;
 
     PAGED_CODE();
 
@@ -987,8 +988,19 @@ static NTSTATUS VIOSockSelect(IN WDFREQUEST Request, IN OUT size_t *pLength)
     // minimum length guaranteed by WdfRequestRetrieveInputBuffer above
     _Analysis_assume_(stSelectLen >= sizeof(*pSelect));
 
-    if (FD_SETSIZE <
-        pSelect->Fdss[FDSET_READ].fd_count + pSelect->Fdss[FDSET_WRITE].fd_count + pSelect->Fdss[FDSET_EXCPT].fd_count)
+    fdRead = pSelect->Fdss[FDSET_READ].fd_count;
+    fdWrite = pSelect->Fdss[FDSET_WRITE].fd_count;
+    fdExcpt = pSelect->Fdss[FDSET_EXCPT].fd_count;
+
+    // Validate each fd_count before summing to prevent integer overflow
+    // when these untrusted values are attacker-controlled.
+    if (fdRead > FD_SETSIZE || fdWrite > FD_SETSIZE || fdExcpt > FD_SETSIZE)
+    {
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    uTotalFdCount = fdRead + fdWrite + fdExcpt;
+    if (uTotalFdCount == 0 || uTotalFdCount > FD_SETSIZE)
     {
         return STATUS_INVALID_PARAMETER;
     }
