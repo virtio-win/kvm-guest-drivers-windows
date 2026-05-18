@@ -98,8 +98,6 @@ VIOSockSelectCopyFds(IN PDEVICE_CONTEXT pContext,
                      IN VIRTIO_VSOCK_FDSET_TYPE iFdSet,
                      IN PVIOSOCK_SELECT_HANDLE pHandleSet);
 
-_IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockSelectEnqueueWorkItem(IN PDEVICE_CONTEXT pContext);
-
 NTSTATUS
 VIOSockSelect(IN WDFREQUEST Request, IN OUT size_t *pLength);
 
@@ -710,9 +708,10 @@ static VOID VIOSockSelectTimerFunc(IN WDFTIMER Timer)
 
 static BOOLEAN VIOSockSelectCheckPkt(IN PVIOSOCK_SELECT_PKT pPkt)
 {
-    ULONG i, uTotalFds = 0;
+    ULONG i, uTotalFds = 0, uClosedFds = 0;
     PVIOSOCK_SELECT_HANDLE pHandleSet;
     PVIRTIO_VSOCK_FD_SET pFds;
+    BOOLEAN bRes = FALSE;
 
     PAGED_CODE();
 
@@ -729,6 +728,10 @@ static BOOLEAN VIOSockSelectCheckPkt(IN PVIOSOCK_SELECT_PKT pPkt)
         {
             pFds->fd_array[pFds->fd_count++] = pHandleSet[i].hSocket;
         }
+        else if (VIOSockIsFlag(pSocket, SOCK_CLEANUP))
+        {
+            ++uClosedFds;
+        }
     }
     uTotalFds += pFds->fd_count;
 
@@ -744,6 +747,10 @@ static BOOLEAN VIOSockSelectCheckPkt(IN PVIOSOCK_SELECT_PKT pPkt)
         {
             pFds->fd_array[pFds->fd_count++] = pHandleSet[i].hSocket;
         }
+        else if (VIOSockIsFlag(pSocket, SOCK_CLEANUP))
+        {
+            ++uClosedFds;
+        }
     }
     uTotalFds += pFds->fd_count;
 
@@ -754,14 +761,26 @@ static BOOLEAN VIOSockSelectCheckPkt(IN PVIOSOCK_SELECT_PKT pPkt)
     for (i = 0; i < pPkt->FdCount[FDSET_EXCPT]; ++i)
     {
         PSOCKET_CONTEXT pSocket = GetSocketContext(pHandleSet[i].Socket);
-        if ((pSocket->Events & FD_CONNECT) && !NT_SUCCESS(pSocket->EventsStatus[FD_CONNECT_BIT]))
+        if (((pSocket->Events & FD_CONNECT) && !NT_SUCCESS(pSocket->EventsStatus[FD_CONNECT_BIT])) ||
+            VIOSockIsFlag(pSocket, SOCK_CLEANUP))
         {
             pFds->fd_array[pFds->fd_count++] = pHandleSet[i].hSocket;
         }
     }
     uTotalFds += pFds->fd_count;
 
-    return !!uTotalFds;
+    if (uTotalFds)
+    {
+        pPkt->Status = STATUS_SUCCESS;
+        bRes = TRUE;
+    }
+    else if (uClosedFds == pPkt->FdCount[FDSET_READ] + pPkt->FdCount[FDSET_WRITE] + pPkt->FdCount[FDSET_EXCPT])
+    {
+        pPkt->Status = STATUS_INVALID_HANDLE;
+        bRes = TRUE;
+    }
+
+    return bRes;
 }
 
 static VOID VIOSockSelectCancel(IN WDFREQUEST Request)
@@ -813,8 +832,9 @@ static VOID VIOSockSelectWorkitem(IN WDFWORKITEM Workitem)
             }
             else if (VIOSockSelectCheckPkt(pPkt))
             {
+                // pPkt->Status is already set by VIOSockSelectCheckPkt
+                ASSERT(pPkt->Status != STATUS_PENDING);
                 bRemove = TRUE;
-                pPkt->Status = STATUS_SUCCESS;
             }
             else if (VIOSockTimerEntryIsSet(&pPkt->TimerEntry))
             {
@@ -881,7 +901,7 @@ static VOID VIOSockSelectWorkitem(IN WDFWORKITEM Workitem)
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "<-- %s\n", __FUNCTION__);
 }
 
-_IRQL_requires_max_(DISPATCH_LEVEL) static VOID VIOSockSelectEnqueueWorkItem(IN PDEVICE_CONTEXT pContext)
+_IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockSelectEnqueueWorkItem(IN PDEVICE_CONTEXT pContext)
 {
     if (InterlockedIncrement(&pContext->SelectInProgress) == 1)
     {
@@ -941,6 +961,11 @@ static BOOLEAN VIOSockSelectCopyFds(IN PDEVICE_CONTEXT pContext,
             {
                 PSOCKET_CONTEXT pSocket = GetSocketContext(Socket);
 
+                if (VIOSockIsFlag(pSocket, SOCK_CLEANUP))
+                {
+                    WdfObjectDereference(pSocket->ThisSocket);
+                    break;
+                }
                 pHandleSet[i].hSocket = hSocket;
                 pHandleSet[i].Socket = Socket;
                 InterlockedIncrement(&pSocket->SelectRefs[iFdSet]); // reference socket
@@ -1067,7 +1092,7 @@ static NTSTATUS VIOSockSelect(IN WDFREQUEST Request, IN OUT size_t *pLength)
 
         if (VIOSockSelectCheckPkt(pPkt))
         {
-            status = STATUS_SUCCESS;
+            status = pPkt->Status;
         }
         else if (!pSelect->Timeout)
         {
@@ -1097,7 +1122,7 @@ static NTSTATUS VIOSockSelect(IN WDFREQUEST Request, IN OUT size_t *pLength)
                 InsertTailList(&pContext->SelectList, &pPkt->ListEntry);
             }
         }
-        else
+        else if (NT_SUCCESS(status))
         {
             *pLength = sizeof(*pSelect);
         }

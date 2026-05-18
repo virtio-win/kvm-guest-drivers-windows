@@ -1263,6 +1263,12 @@ VOID VIOSockCleanup(IN WDFFILEOBJECT FileObject)
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Socket %d closed\n", pSocket->SocketId);
 
+    VIOSockSetFlag(pSocket, SOCK_CLEANUP);
+    if (pSocket->SelectRefs[FDSET_READ] || pSocket->SelectRefs[FDSET_WRITE] || pSocket->SelectRefs[FDSET_EXCPT])
+    {
+        VIOSockSelectEnqueueWorkItem(GetDeviceContextFromSocket(pSocket));
+    }
+
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_CREATE_CLOSE, "<-- %s\n", __FUNCTION__);
 }
 
