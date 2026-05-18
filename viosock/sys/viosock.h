@@ -218,6 +218,7 @@ typedef enum _VIOSOCK_STATE
 #define SOCK_LINGER    0x04
 #define SOCK_NON_BLOCK 0x08
 #define SOCK_LOOPBACK  0x10
+#define SOCK_CLEANUP   0x20
 
 typedef struct _VIOSOCK_ACCEPT_ENTRY
 {
@@ -399,6 +400,7 @@ _Requires_lock_not_held_(pListenSocket->RxLock) VOID VIOSockAcceptRemovePkt(IN P
                                                                             IN PVIRTIO_VSOCK_HDR pPkt);
 
 _IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockSelectRun(IN PSOCKET_CONTEXT pSocket);
+_IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockSelectEnqueueWorkItem(IN PDEVICE_CONTEXT pContext);
 
 /*
  * WinSock 2 extension -- bit values and indices for FD_XXX network events
