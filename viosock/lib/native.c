@@ -67,11 +67,27 @@ NtReadFile(_In_ HANDLE FileHandle,
            _In_opt_ PLARGE_INTEGER ByteOffset,
            _In_opt_ PULONG Key);
 
-#define STATUS_SUCCESS      ((NTSTATUS)0x00000000L)
-#define STATUS_UNSUCCESSFUL ((NTSTATUS)0xC0000001L)
-#ifndef STATUS_INVALID_HANDLE
-#define STATUS_INVALID_HANDLE ((NTSTATUS)0xC0000008L)
+#ifndef FILE_SYNCHRONOUS_IO_NONALERT
+#define FILE_SYNCHRONOUS_IO_NONALERT 0x00000020
 #endif
+
+#ifndef FileModeInformation
+#define FileModeInformation ((FILE_INFORMATION_CLASS)16)
+#endif
+
+typedef struct _FILE_MODE_INFORMATION
+{
+    ULONG Mode;
+} FILE_MODE_INFORMATION, *PFILE_MODE_INFORMATION;
+
+NTSTATUS NTAPI NtQueryInformationFile(_In_ HANDLE FileHandle,
+                                      _Out_ PIO_STATUS_BLOCK IoStatusBlock,
+                                      _Out_writes_bytes_(Length) PVOID FileInformation,
+                                      _In_ ULONG Length,
+                                      _In_ FILE_INFORMATION_CLASS FileInformationClass);
+
+#define STATUS_SUCCESS                    ((NTSTATUS)0x00000000L)
+#define STATUS_UNSUCCESSFUL               ((NTSTATUS)0xC0000001L)
 #define STATUS_ACCESS_DENIED              ((NTSTATUS)0xC0000022L)
 #define STATUS_INSUFFICIENT_RESOURCES     ((NTSTATUS)0xC000009AL)
 #define STATUS_NOT_SUPPORTED              ((NTSTATUS)0xC00000BBL)
@@ -86,6 +102,10 @@ NtReadFile(_In_ HANDLE FileHandle,
 #define STATUS_HOST_UNREACHABLE           ((NTSTATUS)0xC000023DL)
 #define STATUS_IO_TIMEOUT                 ((NTSTATUS)0xC00000B5L)
 #define STATUS_INVALID_DEVICE_STATE       ((NTSTATUS)0xC0000184L)
+
+#ifndef STATUS_INVALID_HANDLE
+#define STATUS_INVALID_HANDLE ((NTSTATUS)0xC0000008L)
+#endif
 
 INT NtStatusToWsaError(_In_ NTSTATUS Status)
 {
@@ -160,13 +180,16 @@ typedef struct _FILE_FULL_EA_INFORMATION
     CHAR EaName[1];
 } FILE_FULL_EA_INFORMATION, *PFILE_FULL_EA_INFORMATION;
 
-_Must_inspect_result_ HANDLE VIOSockCreateFile(_In_opt_ PVIRTIO_VSOCK_PARAMS pSocketParams, _Out_ LPINT lpErrno)
+_Must_inspect_result_ HANDLE VIOSockCreateFile(_In_opt_ PVIRTIO_VSOCK_PARAMS pSocketParams,
+                                               _In_ BOOL bSyncIo,
+                                               _Out_ LPINT lpErrno)
 {
     HANDLE hFile = INVALID_HANDLE_VALUE;
     NTSTATUS status;
     OBJECT_ATTRIBUTES oa;
     IO_STATUS_BLOCK iosb = {0};
     UNICODE_STRING usDeviceName = RTL_CONSTANT_STRING(VIOSOCK_NAME);
+    ULONG createOptions = FILE_NON_DIRECTORY_FILE;
 
     UCHAR EaBuffer[sizeof(FILE_FULL_EA_INFORMATION) + sizeof(*pSocketParams)] = {0};
     PFILE_FULL_EA_INFORMATION pEaBuffer = (PFILE_FULL_EA_INFORMATION)EaBuffer;
@@ -187,6 +210,11 @@ _Must_inspect_result_ HANDLE VIOSockCreateFile(_In_opt_ PVIRTIO_VSOCK_PARAMS pSo
 
     InitializeObjectAttributes(&oa, &usDeviceName, OBJ_CASE_INSENSITIVE, NULL, NULL);
 
+    if (bSyncIo)
+    {
+        createOptions |= FILE_SYNCHRONOUS_IO_NONALERT;
+    }
+
     status = NtCreateFile(&hFile,
                           FILE_GENERIC_READ | FILE_GENERIC_WRITE,
                           &oa,
@@ -195,7 +223,7 @@ _Must_inspect_result_ HANDLE VIOSockCreateFile(_In_opt_ PVIRTIO_VSOCK_PARAMS pSo
                           0,
                           FILE_SHARE_READ | FILE_SHARE_WRITE,
                           FILE_OPEN,
-                          FILE_NON_DIRECTORY_FILE,
+                          createOptions,
                           pEaBuffer,
                           pEaBuffer ? sizeof(EaBuffer) : 0);
 
@@ -495,4 +523,19 @@ _Must_inspect_result_ BOOL VIOSockReadFile(_In_ SOCKET s,
     }
 
     return bRes;
+}
+
+BOOL VIOSockIsSyncHandle(_In_ HANDLE h)
+{
+    NTSTATUS status;
+    FILE_MODE_INFORMATION modeInfo = {0};
+    IO_STATUS_BLOCK iosb = {0};
+
+    status = NtQueryInformationFile(h, &iosb, &modeInfo, sizeof(modeInfo), FileModeInformation);
+    if (NT_SUCCESS(status))
+    {
+        return (modeInfo.Mode & FILE_SYNCHRONOUS_IO_NONALERT) != 0;
+    }
+
+    return FALSE;
 }

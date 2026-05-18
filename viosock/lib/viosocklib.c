@@ -156,7 +156,7 @@ _Must_inspect_result_ SOCKET WSPAPI VIOSockAccept(_In_ SOCKET s,
 
     SocketParams.Socket = s;
 
-    hFile = VIOSockCreateFile(&SocketParams, lpErrno);
+    hFile = VIOSockCreateFile(&SocketParams, VIOSockIsSyncHandle((HANDLE)s), lpErrno);
     if (INVALID_HANDLE_VALUE == hFile)
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockOpenFile failed: %u\n", *lpErrno);
@@ -1047,7 +1047,7 @@ int WSPAPI VIOSockSelect(_In_ int nfds,
         Select.Timeout = VSOCK_TIMEOUT_INFINITE;
     }
 
-    hFile = VIOSockCreateFile(NULL, lpErrno);
+    hFile = VIOSockCreateFile(NULL, FALSE, lpErrno);
     if (hFile != INVALID_HANDLE_VALUE)
     {
         if (!VIOSockDeviceControl((SOCKET)hFile,
@@ -1254,9 +1254,8 @@ _Must_inspect_result_ SOCKET WSPAPI VIOSockSocket(_In_ int af,
     VIRTIO_VSOCK_PARAMS SocketParams = {0};
 
     UNREFERENCED_PARAMETER(g);
-    UNREFERENCED_PARAMETER(dwFlags);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, dwFlags: 0x%08x\n", __FUNCTION__, dwFlags);
 
     // Duplicate-socket recovery path: source process called VIOSockDuplicateSocket and
     // shipped the protocol info to us; the duplicated handle is stashed in dwProviderReserved.
@@ -1298,7 +1297,7 @@ _Must_inspect_result_ SOCKET WSPAPI VIOSockSocket(_In_ int af,
         return INVALID_SOCKET;
     }
 
-    hFile = VIOSockCreateFile(&SocketParams, lpErrno);
+    hFile = VIOSockCreateFile(&SocketParams, !(dwFlags & WSA_FLAG_OVERLAPPED), lpErrno);
     if (INVALID_HANDLE_VALUE == hFile)
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockCreateFile failed: %u\n", *lpErrno);
