@@ -39,7 +39,9 @@
     }
 #endif
 
-_Must_inspect_result_ HANDLE VIOSockCreateFile(_In_opt_ PVIRTIO_VSOCK_PARAMS pSocketParams, _Out_ LPINT lpErrno);
+_Must_inspect_result_ HANDLE VIOSockCreateFile(_In_opt_ PVIRTIO_VSOCK_PARAMS pSocketParams,
+                                               _In_ BOOL bSyncIo,
+                                               _Out_ LPINT lpErrno);
 
 _Must_inspect_result_ BOOL VIOSockDeviceControlEx(_In_ SOCKET s,
                                                   _In_ DWORD dwIoControlCode,
@@ -90,6 +92,8 @@ _Must_inspect_result_ BOOL VIOSockReadFile(_In_ SOCKET s,
                                            _Inout_opt_ LPWSAOVERLAPPED lpOverlapped,
                                            _In_opt_ LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine,
                                            _Out_ LPINT lpErrno);
+
+BOOL VIOSockIsSyncHandle(_In_ HANDLE h);
 
 INT NtStatusToWsaError(_In_ NTSTATUS Status);
 
