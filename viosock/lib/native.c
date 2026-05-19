@@ -289,11 +289,17 @@ typedef struct _VIOSOCK_OVERLAPPED_CONTEXT
 } VIOSOCK_OVERLAPPED_CONTEXT, *PVIOSOCK_OVERLAPPED_CONTEXT;
 
 static INT VIOSockInitOverlappedContext(_Out_ PVIOSOCK_OVERLAPPED_CONTEXT pContext,
+                                        _In_ BOOL bSyncIo, // io type hint
                                         _In_opt_ LPWSAOVERLAPPED lpOverlapped,
                                         _In_opt_ LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine,
-                                        _In_opt_ DWORD dwFlags)
+                                        _In_ DWORD dwFlags)
 {
     memset(pContext, 0, sizeof(VIOSOCK_OVERLAPPED_CONTEXT));
+
+    if (bSyncIo && lpCompletionRoutine)
+    {
+        lpCompletionRoutine = NULL;
+    }
 
     if (lpCompletionRoutine)
     {
@@ -313,15 +319,18 @@ static INT VIOSockInitOverlappedContext(_Out_ PVIOSOCK_OVERLAPPED_CONTEXT pConte
         pContext->pIosb = (PIO_STATUS_BLOCK)lpOverlapped;
         pContext->hEvent = lpOverlapped->hEvent;
     }
-    else // sync call
+    else // do sync call
     {
         pContext->pIosb = &pContext->iosb;
-        pContext->hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-        if (!pContext->hEvent)
+        if (!bSyncIo)
         {
-            return WSA_NOT_ENOUGH_MEMORY;
+            pContext->hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+            if (!pContext->hEvent)
+            {
+                return WSA_NOT_ENOUGH_MEMORY;
+            }
+            pContext->bInternalEvent = TRUE;
         }
-        pContext->bInternalEvent = TRUE;
     }
 
     return ERROR_SUCCESS;
@@ -372,6 +381,7 @@ static INT VIOSockCompleteOverlappedContext(_In_ PVIOSOCK_OVERLAPPED_CONTEXT pCo
 }
 
 _Must_inspect_result_ BOOL VIOSockDeviceControlEx(_In_ SOCKET s,
+                                                  _In_ BOOL bSyncIo,
                                                   _In_ DWORD dwIoControlCode,
                                                   _In_reads_bytes_opt_(nInBufferSize) LPVOID lpInBuffer,
                                                   _In_ DWORD nInBufferSize,
@@ -381,6 +391,7 @@ _Must_inspect_result_ BOOL VIOSockDeviceControlEx(_In_ SOCKET s,
                                                   _Out_opt_ LPDWORD lpBytesReturned,
                                                   _Inout_opt_ LPWSAOVERLAPPED lpOverlapped,
                                                   _In_opt_ LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine,
+                                                  _In_ DWORD dwFlags,
                                                   _Out_ LPINT lpErrno)
 {
     BOOL bRes = TRUE;
@@ -394,7 +405,7 @@ _Must_inspect_result_ BOOL VIOSockDeviceControlEx(_In_ SOCKET s,
         *lpBytesReturned = 0;
     }
 
-    *lpErrno = VIOSockInitOverlappedContext(&OverlappedContext, lpOverlapped, lpCompletionRoutine, 0);
+    *lpErrno = VIOSockInitOverlappedContext(&OverlappedContext, bSyncIo, lpOverlapped, lpCompletionRoutine, dwFlags);
     if (*lpErrno != ERROR_SUCCESS)
     {
         return FALSE;
@@ -431,6 +442,7 @@ _Must_inspect_result_ BOOL VIOSockWriteFile(_In_ SOCKET s,
                                             _Out_opt_ LPDWORD lpNumberOfBytesWritten,
                                             _Inout_opt_ LPWSAOVERLAPPED lpOverlapped,
                                             _In_opt_ LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine,
+                                            _In_ DWORD dwFlags,
                                             _Out_ LPINT lpErrno)
 {
     BOOL bRes = TRUE;
@@ -445,7 +457,7 @@ _Must_inspect_result_ BOOL VIOSockWriteFile(_In_ SOCKET s,
         *lpNumberOfBytesWritten = 0;
     }
 
-    *lpErrno = VIOSockInitOverlappedContext(&OverlappedContext, lpOverlapped, lpCompletionRoutine, 0);
+    *lpErrno = VIOSockInitOverlappedContext(&OverlappedContext, FALSE, lpOverlapped, lpCompletionRoutine, dwFlags);
     if (*lpErrno != ERROR_SUCCESS)
     {
         return FALSE;
@@ -481,6 +493,7 @@ _Must_inspect_result_ BOOL VIOSockReadFile(_In_ SOCKET s,
                                            _Out_opt_ LPDWORD lpNumberOfBytesRead,
                                            _Inout_opt_ LPWSAOVERLAPPED lpOverlapped,
                                            _In_opt_ LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine,
+                                           _In_ DWORD dwFlags,
                                            _Out_ LPINT lpErrno)
 {
     BOOL bRes = TRUE;
@@ -495,7 +508,7 @@ _Must_inspect_result_ BOOL VIOSockReadFile(_In_ SOCKET s,
         *lpNumberOfBytesRead = 0;
     }
 
-    *lpErrno = VIOSockInitOverlappedContext(&OverlappedContext, lpOverlapped, lpCompletionRoutine, 0);
+    *lpErrno = VIOSockInitOverlappedContext(&OverlappedContext, FALSE, lpOverlapped, lpCompletionRoutine, dwFlags);
     if (*lpErrno != ERROR_SUCCESS)
     {
         return FALSE;
@@ -525,13 +538,13 @@ _Must_inspect_result_ BOOL VIOSockReadFile(_In_ SOCKET s,
     return bRes;
 }
 
-BOOL VIOSockIsSyncHandle(_In_ HANDLE h)
+BOOL VIOSockIsSyncSocket(_In_ SOCKET s)
 {
     NTSTATUS status;
     FILE_MODE_INFORMATION modeInfo = {0};
     IO_STATUS_BLOCK iosb = {0};
 
-    status = NtQueryInformationFile(h, &iosb, &modeInfo, sizeof(modeInfo), FileModeInformation);
+    status = NtQueryInformationFile((HANDLE)s, &iosb, &modeInfo, sizeof(modeInfo), FileModeInformation);
     if (NT_SUCCESS(status))
     {
         return (modeInfo.Mode & FILE_SYNCHRONOUS_IO_NONALERT) != 0;
