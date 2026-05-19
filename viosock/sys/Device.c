@@ -690,11 +690,20 @@ static VOID VIOSockSelectCleanupFds(IN PVIOSOCK_SELECT_PKT pPkt,
 
 __inline VOID VIOSockSelectCleanupPkt(IN PVIOSOCK_SELECT_PKT pPkt)
 {
+    // VIOSockSelectGetFds*Set() derives its offset from pPkt->FdCount, and
+    // VIOSockSelectCleanupFds() zeroes pPkt->FdCount[iFdSet] before returning.
+    // Recomputing the WRITE/EXCPT pointers between calls would collapse the
+    // offsets and the next cleanup would walk over the slots just cleared.
+    // Snapshot all three pointers up front.
+    PVIOSOCK_SELECT_HANDLE pReadSet = VIOSockSelectGetFdsReadSet(pPkt);
+    PVIOSOCK_SELECT_HANDLE pWriteSet = VIOSockSelectGetFdsWriteSet(pPkt);
+    PVIOSOCK_SELECT_HANDLE pExcptSet = VIOSockSelectGetFdsExcptSet(pPkt);
+
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "--> %s, status: 0x%08x\n", __FUNCTION__, pPkt->Status);
 
-    VIOSockSelectCleanupFds(pPkt, FDSET_READ, VIOSockSelectGetFdsReadSet(pPkt));
-    VIOSockSelectCleanupFds(pPkt, FDSET_WRITE, VIOSockSelectGetFdsWriteSet(pPkt));
-    VIOSockSelectCleanupFds(pPkt, FDSET_EXCPT, VIOSockSelectGetFdsExcptSet(pPkt));
+    VIOSockSelectCleanupFds(pPkt, FDSET_READ, pReadSet);
+    VIOSockSelectCleanupFds(pPkt, FDSET_WRITE, pWriteSet);
+    VIOSockSelectCleanupFds(pPkt, FDSET_EXCPT, pExcptSet);
 }
 
 static VOID VIOSockSelectTimerFunc(IN WDFTIMER Timer)
@@ -989,10 +998,11 @@ static BOOLEAN VIOSockSelectCopyFds(IN PDEVICE_CONTEXT pContext,
 static VOID VIOSockSelectClearFdss(IN PVIRTIO_VSOCK_SELECT pSelect)
 {
     VIRTIO_VSOCK_FDSET_TYPE i;
-    for (i = FDSET_READ; i < FDSET_MAX; i++)
+    for (i = 0; i < FDSET_MAX; i++)
     {
-        RtlZeroMemory(pSelect->Fdss[i].fd_array, pSelect->Fdss[i].fd_count * sizeof(pSelect->Fdss[i].fd_array[0]));
-        pSelect->Fdss[i].fd_count = 0;
+        PVIRTIO_VSOCK_FD_SET pFds = &pSelect->Fdss[i];
+        RtlZeroMemory(pFds->fd_array, pFds->fd_count * sizeof(pFds->fd_array[0]));
+        pFds->fd_count = 0;
     }
 }
 
