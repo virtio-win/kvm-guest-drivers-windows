@@ -156,7 +156,7 @@ _Must_inspect_result_ SOCKET WSPAPI VIOSockAccept(_In_ SOCKET s,
 
     SocketParams.Socket = s;
 
-    hFile = VIOSockCreateFile(&SocketParams, VIOSockIsSyncHandle((HANDLE)s), lpErrno);
+    hFile = VIOSockCreateFile(&SocketParams, VIOSockIsSyncSocket(s), lpErrno);
     if (INVALID_HANDLE_VALUE == hFile)
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockOpenFile failed: %u\n", *lpErrno);
@@ -754,6 +754,7 @@ int WSPAPI VIOSockIoctl(_In_ SOCKET s,
     InParams.cbInBuffer = cbInBuffer;
 
     if (!VIOSockDeviceControlEx(s,
+                                VIOSockIsSyncSocket(s),
                                 IOCTL_SOCKET_IOCTL,
                                 &InParams,
                                 sizeof(InParams),
@@ -762,6 +763,7 @@ int WSPAPI VIOSockIoctl(_In_ SOCKET s,
                                 lpcbBytesReturned,
                                 lpOverlapped,
                                 lpCompletionRoutine,
+                                0,
                                 lpErrno))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
@@ -827,7 +829,6 @@ int WSPAPI VIOSockRecv(_In_ SOCKET s,
     int iRes = ERROR_SUCCESS;
     DWORD i, dwNumberOfBytesRecvd = 0;
 
-    UNREFERENCED_PARAMETER(lpFlags);
     UNREFERENCED_PARAMETER(lpThreadId);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
@@ -843,6 +844,15 @@ int WSPAPI VIOSockRecv(_In_ SOCKET s,
         return WSP_ERROR(WSAEFAULT);
     }
 
+    // If the caller didn't assert sync but the handle is actually sync, drop
+    // the completion routine — kernel ignores ApcRoutine on sync handles, which
+    // would otherwise leak ApcContext.
+    if (lpCompletionRoutine && VIOSockIsSyncSocket(s))
+    {
+        lpCompletionRoutine = NULL;
+    }
+
+    // TODO: Send buffers to driver to make scatter-gather list
     for (i = 0; i < dwBufferCount; ++i)
     {
         DWORD dwNumberOfBytesRead;
@@ -852,6 +862,7 @@ int WSPAPI VIOSockRecv(_In_ SOCKET s,
             ReadParams.Flags = *lpFlags;
 
             if (!VIOSockDeviceControlEx(s,
+                                        FALSE,
                                         IOCTL_SOCKET_READ,
                                         &ReadParams,
                                         (DWORD)sizeof(ReadParams),
@@ -860,6 +871,7 @@ int WSPAPI VIOSockRecv(_In_ SOCKET s,
                                         &dwNumberOfBytesRead,
                                         lpOverlapped,
                                         lpCompletionRoutine,
+                                        *lpFlags,
                                         lpErrno))
             {
                 TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
@@ -873,6 +885,7 @@ int WSPAPI VIOSockRecv(_In_ SOCKET s,
                                   &dwNumberOfBytesRead,
                                   lpOverlapped,
                                   lpCompletionRoutine,
+                                  *lpFlags,
                                   lpErrno))
         {
             TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockReadFile failed: %d\n", *lpErrno);
@@ -1047,17 +1060,21 @@ int WSPAPI VIOSockSelect(_In_ int nfds,
         Select.Timeout = VSOCK_TIMEOUT_INFINITE;
     }
 
-    hFile = VIOSockCreateFile(NULL, FALSE, lpErrno);
+    hFile = VIOSockCreateFile(NULL, TRUE, lpErrno);
     if (hFile != INVALID_HANDLE_VALUE)
     {
-        if (!VIOSockDeviceControl((SOCKET)hFile,
-                                  IOCTL_SELECT,
-                                  &Select,
-                                  sizeof(Select),
-                                  &Select,
-                                  sizeof(Select),
-                                  &dwBytesReturned,
-                                  lpErrno))
+        if (!VIOSockDeviceControlEx((SOCKET)hFile,
+                                    TRUE,
+                                    IOCTL_SELECT,
+                                    &Select,
+                                    sizeof(Select),
+                                    &Select,
+                                    sizeof(Select),
+                                    &dwBytesReturned,
+                                    NULL,
+                                    NULL,
+                                    0,
+                                    lpErrno))
         {
             iRes = SOCKET_ERROR;
             TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
@@ -1099,7 +1116,6 @@ int WSPAPI VIOSockSend(_In_ SOCKET s,
     int iRes = ERROR_SUCCESS;
     DWORD i, dwNumberOfBytesSent = 0;
 
-    UNREFERENCED_PARAMETER(dwFlags);
     UNREFERENCED_PARAMETER(lpThreadId);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
@@ -1115,6 +1131,14 @@ int WSPAPI VIOSockSend(_In_ SOCKET s,
         return WSP_ERROR(WSAEFAULT);
     }
 
+    // If the caller didn't assert sync but the handle is actually sync, drop
+    // the completion routine — kernel ignores ApcRoutine on sync handles, which
+    // would otherwise leak ApcContext.
+    if (lpCompletionRoutine && VIOSockIsSyncSocket(s))
+    {
+        lpCompletionRoutine = NULL;
+    }
+
     for (i = 0; i < dwBufferCount; ++i)
     {
         DWORD dwNumberOfBytesWritten;
@@ -1125,6 +1149,7 @@ int WSPAPI VIOSockSend(_In_ SOCKET s,
                               &dwNumberOfBytesWritten,
                               lpOverlapped,
                               lpCompletionRoutine,
+                              dwFlags,
                               lpErrno))
         {
             TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockWriteFile failed: %d\n", *lpErrno);
