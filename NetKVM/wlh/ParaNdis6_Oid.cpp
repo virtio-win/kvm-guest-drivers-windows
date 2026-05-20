@@ -417,6 +417,7 @@ static NDIS_STATUS OnSetVendorSpecific4(PARANDIS_ADAPTER *pContext, tOidDesc *pO
     {
         // reset Tx stats
         pContext->extraStatistics.framesLSO = 0;
+        pContext->extraStatistics.framesUSO = 0;
         pContext->extraStatistics.framesCSOffload = 0;
         pContext->extraStatistics.droppedTxPackets = 0;
         pContext->extraStatistics.copiedTxPackets = 0;
@@ -509,6 +510,8 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
             u.WmiConfig.MemoryKB = pContext->extraStatistics.allocatedSharedMemory / 1024;
             u.WmiConfig.InitTimeMs = pContext->extraStatistics.fastInitTime;
             u.WmiConfig.LazyAllocTimeMs = pContext->extraStatistics.lazyAllocTime;
+            u.WmiConfig.UsoEnabledv4 = pContext->Offload.flags.fUsov4;
+            u.WmiConfig.UsoEnabledv6 = pContext->Offload.flags.fUsov6;
             break;
         case OID_VENDOR_3:
             pInfo = &u.WmiDiag;
@@ -523,6 +526,7 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
             u.WmiDiag.rss.Errors = pContext->extraStatistics.framesRSSError;
             //----------------- TX ------------------------------------------
             u.WmiDiag.tx.LargeOffload = pContext->extraStatistics.framesLSO;
+            u.WmiDiag.tx.UdpOffload = pContext->extraStatistics.framesUSO;
             u.WmiDiag.tx.ChecksumOffload = pContext->extraStatistics.framesCSOffload;
             u.WmiDiag.tx.MinFreeBuffers = pContext->extraStatistics.minFreeTxBuffers;
             u.WmiDiag.tx.Dropped = pContext->extraStatistics.droppedTxPackets;
