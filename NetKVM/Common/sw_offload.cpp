@@ -696,6 +696,11 @@ static __inline tTcpIpPacketParsingResult VerifyUdpChecksum(tCompletePhysicalAdd
             if (ulDataLength >= (ULONG)(res.ipHeaderSize + sizeof(UDPHeader)))
             {
                 pUdpHeader->udp_xsum = phcs;
+                if (pUdpHeader->udp_length == 0)
+                {
+                    pUdpHeader->udp_length = swap_short(xxpHeaderAndPayloadLen);
+                    DPrintf(2, "Fixed length field in the UDP header to %d", xxpHeaderAndPayloadLen);
+                }
                 res.fixedXxpCS = res.xxpCheckSum != ppResult::ppresPCSOK;
             }
             else
