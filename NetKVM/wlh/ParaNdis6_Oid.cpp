@@ -879,6 +879,14 @@ static void FillOffloadStructure(NDIS_OFFLOAD *po, tOffloadSettingsFlags f)
         po->Header.Size = NDIS_SIZEOF_NDIS_OFFLOAD_REVISION_6;
     }
 #endif
+#if (NDIS_SUPPORT_NDIS685)
+    // for completeness, in fact this is the same as for 683
+    if (CheckNdisVersion(6, 85))
+    {
+        po->Header.Revision = NDIS_OFFLOAD_REVISION_7;
+        po->Header.Size = NDIS_SIZEOF_NDIS_OFFLOAD_REVISION_7;
+    }
+#endif
 #else
     po->Header.Revision = NDIS_OFFLOAD_REVISION_1;
     po->Header.Size = NDIS_SIZEOF_NDIS_OFFLOAD_REVISION_1;
