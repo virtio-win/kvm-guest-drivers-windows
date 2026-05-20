@@ -569,6 +569,7 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
     {
         ULONG framesCSOffload;
         ULONG framesLSO;
+        ULONG framesUSO;
         ULONG framesRxPriority;
         ULONG framesRxCSHwOK;
         ULONG framesFilteredOut;

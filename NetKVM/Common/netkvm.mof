@@ -46,6 +46,8 @@ class NetKvm_Config : MSNdis
     [WmiDataId(7), read] uint32 MemoryKB;
     [WmiDataId(8), read] sint32 InitTimeMs;
     [WmiDataId(9), read] sint32 LazyAllocTimeMs;
+    [WmiDataId(10), read] sint32 UsoEnabledv4;
+    [WmiDataId(11), read] sint32 UsoEnabledv6;
 };
 
 [WMI,
@@ -53,10 +55,11 @@ guid("{09880234-BCB9-4D9D-BCE6-135640671630}")]
 class NetKvm_Tx
 {
     [WmiDataId(1), read] uint32 LargeOffload;
-    [WmiDataId(2), read] uint32 ChecksumOffload;
-    [WmiDataId(3), read] uint32 MinFreeBuffers;
-    [WmiDataId(4), read] uint32 Copied;
-    [WmiDataId(5), read] uint32 Dropped;
+    [WmiDataId(2), read] uint32 UdpOffload;
+    [WmiDataId(3), read] uint32 ChecksumOffload;
+    [WmiDataId(4), read] uint32 MinFreeBuffers;
+    [WmiDataId(5), read] uint32 Copied;
+    [WmiDataId(6), read] uint32 Dropped;
 };
 
 [WMI,

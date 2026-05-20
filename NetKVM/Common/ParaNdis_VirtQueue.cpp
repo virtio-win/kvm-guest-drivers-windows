@@ -223,6 +223,10 @@ void CTXVirtQueue::UpdateTXStats(const CNB &NB, CTXDescriptor &Descriptor)
 
         NBL->UpdateLSOTxStats(NB.GetDataLength() - NBL->TCPHeaderOffset() - TCP_HEADER_LENGTH(TCPHdr));
     }
+    else if (NBL->IsUSO())
+    {
+        m_Context->extraStatistics.framesUSO++;
+    }
     else if (NBL->IsTcpCSO() || NBL->IsUdpCSO())
     {
         m_Context->extraStatistics.framesCSOffload++;
