@@ -536,6 +536,17 @@ __inline BOOLEAN VIOSockIsBound(IN PSOCKET_CONTEXT pSocket)
 }
 
 //////////////////////////////////////////////////////////////////////////
+_Requires_lock_held_(pSocket->RxLock) static VOID VIOSockPendedRequestCleanup(PSOCKET_CONTEXT pSocket,
+                                                                              PVIOSOCK_PENDED_CONTEXT pRequest)
+{
+    if (VIOSockTimerEntryIsSet(&pRequest->TimerEntry))
+    {
+        VIOSockTimerDeref(&pSocket->PendedTimer, TRUE);
+    }
+    pSocket->PendedRequest = WDF_NO_HANDLE;
+    WdfObjectDereference(pSocket->ThisSocket);
+}
+
 static VOID VIOSockPendedRequestCancel(IN WDFREQUEST Request)
 {
     PSOCKET_CONTEXT pSocket;
@@ -550,19 +561,12 @@ static VOID VIOSockPendedRequestCancel(IN WDFREQUEST Request)
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "Socket %d\n", pSocket->SocketId);
 
     WdfSpinLockAcquire(pSocket->RxLock);
-    if (VIOSockTimerEntryIsSet(&pRequest->TimerEntry))
-    {
-        VIOSockTimerDeref(&pSocket->PendedTimer, TRUE);
-    }
-    pSocket->PendedRequest = WDF_NO_HANDLE;
+    VIOSockPendedRequestCleanup(pSocket, pRequest);
     WdfSpinLockRelease(pSocket->RxLock);
-
-    WdfObjectDereference(pRequest->ParentSocket);
 
     WdfRequestComplete(Request, STATUS_CANCELLED);
 }
 
-//////////////////////////////////////////////////////////////////////////
 VOID VIOSockPendedTimerFunc(WDFTIMER Timer)
 {
     PSOCKET_CONTEXT pSocket = GetSocketContext(WdfTimerGetParentObject(Timer));
@@ -614,6 +618,17 @@ _Requires_lock_held_(pSocket->RxLock) NTSTATUS VIOSockPendedRequestSet(IN PSOCKE
         VIOSockTimerEntryInit(&pRequest->TimerEntry);
     }
 
+    if (!Deadline)
+    {
+        ASSERT(VIOSockTimerEntryIsSet(&pRequest->TimerEntry));
+        Deadline = pRequest->TimerEntry.Deadline;
+    }
+
+    if (VIOSockTimerDeadlineIsExpired(Deadline))
+    {
+        return STATUS_IO_TIMEOUT;
+    }
+
     WdfObjectReference(pSocket->ThisSocket);
     pRequest->ParentSocket = pSocket->ThisSocket;
     pSocket->PendedRequest = Request;
@@ -622,43 +637,15 @@ _Requires_lock_held_(pSocket->RxLock) NTSTATUS VIOSockPendedRequestSet(IN PSOCKE
     if (!NT_SUCCESS(status))
     {
         ASSERT(status == STATUS_CANCELLED);
-        pSocket->PendedRequest = WDF_NO_HANDLE;
-        WdfObjectDereference(pSocket->ThisSocket);
+        VIOSockPendedRequestCleanup(pSocket, pRequest);
 
         TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Pended request canceled: 0x%x\n", status);
     }
-    else
+    else if (Deadline != MAXLONGLONG)
     {
-        // Use pended request deadline (resume timer) if Deadline parameter is zero
-        if (!Deadline)
-        {
-            ASSERT(VIOSockTimerEntryIsSet(&pRequest->TimerEntry));
-            Deadline = pRequest->TimerEntry.Deadline;
-
-            if (VIOSockTimerDeadlineIsExpired(Deadline))
-            {
-                // rollback request pending
-                if (!NT_SUCCESS(WdfRequestUnmarkCancelable(Request)))
-                {
-                    status = STATUS_CANCELLED;
-                }
-                else
-                {
-                    status = STATUS_IO_TIMEOUT;
-                }
-
-                pSocket->PendedRequest = WDF_NO_HANDLE;
-                WdfObjectDereference(pSocket->ThisSocket);
-
-                return status;
-            }
-        }
-
-        if (Deadline != MAXLONGLONG)
-        {
-            VIOSockTimerStartDeadline(&pSocket->PendedTimer, &pRequest->TimerEntry, Deadline);
-        }
+        VIOSockTimerStartDeadline(&pSocket->PendedTimer, &pRequest->TimerEntry, Deadline);
     }
+
     return status;
 }
 
@@ -673,7 +660,6 @@ _Requires_lock_held_(pSocket->RxLock) NTSTATUS VIOSockPendedRequestGet(IN PSOCKE
     if (*Request != WDF_NO_HANDLE)
     {
         status = WdfRequestUnmarkCancelable(*Request);
-        ASSERT(NT_SUCCESS(status));
         if (!NT_SUCCESS(status))
         {
             ASSERT(status == STATUS_CANCELLED && pSocket->PendedRequest == WDF_NO_HANDLE);
@@ -686,12 +672,7 @@ _Requires_lock_held_(pSocket->RxLock) NTSTATUS VIOSockPendedRequestGet(IN PSOCKE
             PVIOSOCK_PENDED_CONTEXT pRequest = GetRequestPendedContext(*Request);
 
             ASSERT(pRequest->ParentSocket == pSocket->ThisSocket);
-            if (VIOSockTimerEntryIsSet(&pRequest->TimerEntry))
-            {
-                VIOSockTimerDeref(&pSocket->PendedTimer, TRUE);
-            }
-            WdfObjectDereference(pSocket->ThisSocket);
-            pSocket->PendedRequest = WDF_NO_HANDLE;
+            VIOSockPendedRequestCleanup(pSocket, pRequest);
         }
     }
 
