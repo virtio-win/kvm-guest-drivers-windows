@@ -1496,6 +1496,13 @@ void CNB::ReturnPages()
 
 NBMappingStatus CNB::AllocateAndFillCopySGL(ULONG ParsedHeadersLength)
 {
+    // If we have already borrowed extra pages,
+    // just return SUCCESS otherwise we will leak these pages.
+    if (m_ExtraNBStorage)
+    {
+        return NBMappingStatus::SUCCESS;
+    }
+
     // Calculate the number of pages needed for data, excluding protocol header length.
     ULONG DataLength = GetDataLength() - ParsedHeadersLength;
     ULONG Pages = (DataLength + PAGE_SIZE - 1) / PAGE_SIZE;
