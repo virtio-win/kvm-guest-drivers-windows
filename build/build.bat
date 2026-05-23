@@ -42,6 +42,14 @@ set BUILD_ARCH=
 set BUILD_INFO=
 set BUILD_FAILED=
 
+rem We have version 24H2 epoch buildtime conditions
+rem VSCMD_VER version splits:
+set VSCMD_VER_MAJOR=
+set VSCMD_VER_MINOR=
+set VSCMD_VER_BUILD=
+rem VSCMD_VER version specific buildtime vars
+set VSCMD_WHCP_LEVEL=
+
 rem Analysis Build specific variables
 set CODEQL_FAILED=
 set SDV_FAILED=
@@ -63,6 +71,9 @@ if /I "%ARG%"=="x64" set BUILD_ARCH=amd64& goto :argloop
 if /I "%ARG%"=="32" set BUILD_ARCH=x86& goto :argloop
 if /I "%ARG%"=="x86" set BUILD_ARCH=x86& goto :argloop
 if /I "%ARG%"=="ARM64" set BUILD_ARCH=ARM64& goto :argloop
+
+rem Enable ANSI palette support
+call :prepare_palette
 
 rem Assume that this is target OS version and split off the tag
 call :split_target_tag "%ARG%"
@@ -176,8 +187,32 @@ set TARGET_VS_CONFIG="%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%|%BUILD_ARCH%"
 
 rem We set up the Build Environment and get started...
 echo.
+call :clr_print %_c_Cyn% "Building : %BUILD_FILE%..."
+echo.
 pushd %BUILD_DIR%
 call "%~dp0SetVsEnv.bat" %TARGET_PROJ_CONFIG%
+
+rem Split MSBuild version... and check if we are Windows 11, 21H2 [22000] EWDK or Windows 11, 24H2 [26100] EWDK...
+for /f "tokens=1,2,3 usebackq delims=." %%i in (`echo %%VSCMD_VER%%`) do @(
+  set VSCMD_VER_MAJOR=%%i
+  set VSCMD_VER_MINOR=%%j
+  set VSCMD_VER_BUILD=%%k
+)
+rem MSBuild v17.8 and above are at least Windows 11, 24H2 [26100] EWDK, so WHCP_24H2, everything below v17.8 is WHCP_LEGACY
+if %VSCMD_VER_MAJOR% GTR 16 (
+  if %VSCMD_VER_MAJOR% EQU 17 (
+    if not %VSCMD_VER_MINOR% LSS 8 (
+      set VSCMD_WHCP_LEVEL=WHCP_24H2
+    ) else (
+      set VSCMD_WHCP_LEVEL=WHCP_LEGACY
+    )
+  )
+  if %VSCMD_VER_MAJOR% GTR 17 (
+    set VSCMD_WHCP_LEVEL=WHCP_24H2
+  )
+) else (
+  set VSCMD_WHCP_LEVEL=WHCP_LEGACY
+)
 
 rem Check for any prerequisite x86 libraries and build them if needed...
 call "%~dp0prebuild_x86_libs.bat" %BUILD_FILE% %BUILD_ARCH% "%BUILD_DIR%" %TARGET% %BUILD_FLAVOUR%
@@ -191,54 +226,80 @@ if /I "!TAG!"=="SDV" (
   echo.
   rem SDV is deprecated from Windows 11 24H2, both in the EWDK and WHCP. Making some allowances...
   rem We only do SDV for Win10 targets.
-  if "%TARGET%"=="Win10" (  
-    echo Running SDV for %BUILD_FILE%, configuration %TARGET_VS_CONFIG%
+  if "%TARGET%"=="Win10" (
+    rem Permit the Build Environment to be reconfigured if we have been called from Windows 11, 24H2 [26100] EWDK and above
+    if not "%VSCMD_WHCP_LEVEL%"=="WHCP_LEGACY" (
+      call :clr_print %_c_Cyn% "Reconfiguring Build Environment to use Windows 11, 21H2 [22000] EWDK Build Tools for a working Static Driver Verifier..."
+      echo.
+      setlocal
+      if not "%EWDK11_DIR%"=="" (
+        call "%~dp0adhoc_21h2_bootstrap.bat" 
+        call %EWDK11_DIR%\BuildEnv\SetupBuildEnv.cmd
+        call "%~dp0SetVsEnv.bat" %TARGET_PROJ_CONFIG%
+        echo.
+      ) else (
+        call :clr_print %_c_Yel% "The EWDK11_DIR environment variable is not set. Set this variable and try again."
+        set BUILD_FAILED=1
+        goto :build_arch_done
+      )
+    )
+    call :clr_print %_c_Cyn% "Running Static Driver Verifier build for %BUILD_FILE%."
+    echo Configuration ^: %TARGET_VS_CONFIG%
     call :run_sdv "%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%" %BUILD_ARCH%
     if "%BUILD_FAILED%" EQU "1" (
-      echo Static Driver Verifier BUILD FAILED - Resolve problem and try again.
+      call :clr_print %_c_Red% "Static Driver Verifier BUILD FAILED - Resolve problem and try again."
       goto :build_arch_done
     )
-    echo Static Driver Verifier build for %BUILD_FILE% succeeded.
+    call :clr_print %_c_Grn% "Static Driver Verifier build for %BUILD_FILE% succeeded."
+    if not "%VSCMD_WHCP_LEVEL%"=="WHCP_LEGACY" (
+      rem Return to calling EWDK...
+      endlocal
+    )
   ) else (
-    echo Skipping SDV for %BUILD_FILE%, configuration %TARGET_VS_CONFIG%. SDV is for WHCP_LEGACY targets ONLY.
+    call :clr_print %_c_Yel% "Skipping Static Driver Verifier for %BUILD_FILE%. SDV if for WHCP_LEGACY targets ONLY."
+    echo Configuration ^: %TARGET_VS_CONFIG%
     echo.
   )
   if exist "%CODEQL_BIN%" (
-    echo Running CodeQL for %BUILD_FILE%, configuration %TARGET_VS_CONFIG%
+    call :clr_print %_c_Cyn% "CodeQL : Performing CodeQL build for %BUILD_FILE%."
+    echo CodeQL ^: Configuration ^= %TARGET_VS_CONFIG%
     call :run_ql "%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%" %BUILD_ARCH%
     if "!CODEQL_FAILED!" EQU "1" (
       set BUILD_FAILED=1
-      echo CodeQL - BUILD FAILED - Resolve problem and try again.
+      call :clr_print %_c_Red% "CodeQL : BUILD FAILED" %_c_Wht% " - Resolve problem and try again."
       goto :build_arch_done
     )
-    echo CodeQL build for %BUILD_FILE% succeeded.
+    call :clr_print %_c_Grn% "CodeQL build for %BUILD_FILE% succeeded."
   ) else (
-      echo CodeQL binary is missing!
+      call :clr_print %_c_Yel% "CodeQL binary is missing!"
       @echo.
   )
   call :run_ca "%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%" %BUILD_ARCH%
   if "!BUILD_FAILED!" EQU "1" (
-    echo Code Analysis BUILD FAILED.
+    call :clr_print %_c_Red% "Code Analysis BUILD FAILED."
     goto :build_arch_done
   )
-  echo Code Analysis build for %BUILD_FILE% succeeded.
+  call :clr_print %_c_Grn% "Code Analysis build for %BUILD_FILE% succeeded."
   echo.
   call :run_dvl "%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%" %BUILD_ARCH%
   if "!BUILD_FAILED!" EQU "1" (
-    echo Driver Verifier Log BUILD FAILED.
+    call :clr_print %_c_Red% "Driver Verifier Log BUILD FAILED."
     goto :build_arch_done
   )
-  echo Driver Verifier Log build for %BUILD_FILE% succeeded.
+  call :clr_print %_c_Grn% "Driver Verifier Log build for %BUILD_FILE% succeeded."
   echo.
 ) else (
   rem Do a build without analysis.
-  echo Building %BUILD_FILE%, configuration %TARGET_VS_CONFIG%, command %BUILD_COMMAND%
+  call :clr_print %_c_Cyn% "Performing No-Analysis build for %BUILD_FILE%."
+  @echo Configuration ^= %TARGET_VS_CONFIG%
+  @echo Command       ^= %BUILD_COMMAND%
+  @echo.
   call :run_build "%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%" %BUILD_ARCH%
   if "!BUILD_FAILED!" EQU "1" (
-    echo NO-ANALYSIS BUILD FAILED.
+    call :clr_print %_c_Red% "NO-ANALYSIS BUILD FAILED."
     goto :build_arch_done
   )
-  echo No-Analysis build for %BUILD_FILE% succeeded.
+  call :clr_print %_c_Grn% "No-Analysis build for %BUILD_FILE% succeeded."
   echo.
 )
 :build_arch_done
@@ -266,13 +327,13 @@ goto :eof
 
 :run_sdv
 if exist sdv (
-  echo "Removing previously created SDV artifacts"
+  call :clr_print %_c_Cyn% "Removing previously created SDV artifacts..."
   rmdir /s /q sdv
   echo.
 )
 
 if "!SDV_FAILED!" NEQ "1" (
-  echo Build - Cleaning for %BUILD_FILE%...
+  call :clr_print %_c_Cyn% "Build: Cleaning for %BUILD_FILE%..."
   msbuild.exe -maxCpuCount %~dp1%BUILD_FILE% /t:clean /p:Configuration="%~1" /P:Platform=%2
   if ERRORLEVEL 1 (
     set SDV_FAILED=1
@@ -280,7 +341,7 @@ if "!SDV_FAILED!" NEQ "1" (
   echo.
 )
 if "!SDV_FAILED!" NEQ "1" (
-  echo Build - Cleaning SDV for %BUILD_FILE%...
+  call :clr_print %_c_Cyn% "Build: Cleaning SDV for %BUILD_FILE%..."
   msbuild.exe -maxCpuCount %~dp1%BUILD_FILE% /t:sdv /p:inputs="/clean" /p:Configuration="%~1" /P:platform=%2
   if ERRORLEVEL 1 (
     set SDV_FAILED=1
@@ -288,7 +349,7 @@ if "!SDV_FAILED!" NEQ "1" (
   echo.
 )
 if "!SDV_FAILED!" NEQ "1" (
-  echo Build - Performing SDV checks for %BUILD_FILE%...
+  call :clr_print %_c_Cyn% "Build: Performing SDV checks for %BUILD_FILE%..."
   msbuild.exe -maxCpuCount %~dp1%BUILD_FILE% /t:sdv /p:inputs="/check /devenv" /p:Configuration="%~1" /P:platform=%2
   if ERRORLEVEL 1 (
     set SDV_FAILED=1
@@ -303,7 +364,7 @@ goto :eof
 :run_ql
 
 if exist %~dp1codeql_db (
-  echo CodeQL ^: Removing previously created rules database...
+  call :clr_print %_c_Cyn% "CodeQL : Removing previously created rules database..."
   rmdir /s /q %~dp1codeql_db
 )
 
@@ -326,7 +387,7 @@ IF "%CODEQL_FAILED%" NEQ "1" (
 goto :eof
 
 :run_ca
-echo Performing Code Analysis build of %BUILD_FILE%.
+call :clr_print %_c_Cyn% "Performing Code Analysis build of %BUILD_FILE%."
 msbuild.exe -maxCpuCount %~dp1%BUILD_FILE% /p:Configuration="%~1" /P:Platform=%2 /P:RunCodeAnalysisOnce=True -fileLoggerParameters:LogFile=%~dp1%BUILD_NAME%.CodeAnalysis.log
 if ERRORLEVEL 1 (
   set BUILD_FAILED=1
@@ -334,7 +395,7 @@ if ERRORLEVEL 1 (
 goto :eof
 
 :run_dvl
-echo Performing Driver Verfier Log build of %BUILD_FILE%.
+call :clr_print %_c_Cyn% "Performing Driver Verfier Log build of %BUILD_FILE%."
 msbuild.exe -maxCpuCount %~dp1%BUILD_FILE% /t:dvl /p:Configuration="%~1" /P:platform=%2
 IF ERRORLEVEL 1 (
   set BUILD_FAILED=1
@@ -351,6 +412,22 @@ for /f "tokens=1,2 delims=_" %%i in (%BUILD_INFO%) do @(
     set TAG=_%%j
   )
 )
+goto :eof
+
+:clr_print
+@echo %z_esc%[%~1%~2%z_esc%[%~3%~4%z_esc%[%~5%~6%z_esc%[%~7%~8%z_esc%[0m
+goto :eof
+
+:prepare_palette
+rem Colour mods should work from WIN10_TH2
+rem Get the ANSI ESC character [0x27]
+for /f "tokens=2 usebackq delims=#" %%i in (`"prompt #$H#$E# & echo on & for %%i in (1) do rem"`) do @set z_esc=%%i
+rem Prepare pallette
+set "_c_Red="40;91m""
+set "_c_Grn="40;92m""
+set "_c_Yel="40;93m""
+set "_c_Cyn="40;96m""
+set "_c_Wht="40;37m""
 goto :eof
 
 :fail
