@@ -127,7 +127,7 @@ VOID VIOSockTimerStartDeadline(IN PVIOSOCK_TIMER pTimer, IN PVIOSOCK_TIMER_ENTRY
 {
     BOOLEAN bSetTimer = FALSE;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, Deadline: %lld\n", __FUNCTION__, Deadline);
 
     ASSERT(Deadline > 0 && Deadline != MAXLONGLONG);
     if (!Deadline || Deadline == MAXLONGLONG)
