@@ -812,6 +812,8 @@ _Requires_lock_not_held_(pListenSocket->StateLock) NTSTATUS VIOSockAcceptInitSoc
     pAcceptSocket->ConnectTimeout = pListenSocket->ConnectTimeout;
     pAcceptSocket->BufferMinSize = pListenSocket->BufferMinSize;
     pAcceptSocket->BufferMaxSize = pListenSocket->BufferMaxSize;
+    pAcceptSocket->SendTimeout = MAXLONGLONG;
+    pAcceptSocket->RecvTimeout = MAXLONGLONG;
 
     pAcceptSocket->buf_alloc = pListenSocket->buf_alloc;
 

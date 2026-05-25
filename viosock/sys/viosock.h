@@ -688,7 +688,11 @@ __inline VOID VIOSockTimerStartTimeout(IN PVIOSOCK_TIMER pTimer,
                                        IN PVIOSOCK_TIMER_ENTRY pEntry OPTIONAL,
                                        IN LONGLONG Timeout)
 {
-    VIOSockTimerStartDeadline(pTimer, pEntry, VIOSockTimerTimeoutToDeadline(Timeout));
+    ASSERT(Timeout > 0);
+    if (Timeout > 0)
+    {
+        VIOSockTimerStartDeadline(pTimer, pEntry, VIOSockTimerTimeoutToDeadline(Timeout));
+    }
 }
 
 __inline VOID VIOSockTimerSetDeadline(IN PVIOSOCK_TIMER pTimer, IN LONGLONG Deadline)
