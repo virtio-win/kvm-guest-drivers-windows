@@ -54,6 +54,25 @@ static void PrintF(LPCSTR s)
 class CNetCfg
 {
   public:
+    class CoMemString
+    {
+      public:
+        ~CoMemString()
+        {
+            CoTaskMemFree(m_Str);
+        }
+        operator LPWSTR *()
+        {
+            return &m_Str;
+        }
+        bool Empty() const
+        {
+            return m_Str == NULL;
+        }
+
+      protected:
+        LPWSTR m_Str = NULL;
+    };
     CNetCfg()
     {
         hr = CoCreateInstance(CLSID_CNetCfg, NULL, CLSCTX_SERVER, IID_INetCfg, (LPVOID *)&m_NetCfg);
@@ -132,14 +151,13 @@ class CNetCfg
             {
                 break;
             }
-            LPWSTR id = NULL;
-            hr = adapter->GetDisplayName(&id);
+            CoMemString id;
+            hr = adapter->GetDisplayName(id);
             if (hr != S_OK)
             {
                 continue;
             }
-            bool found = !Name.CompareNoCase(id);
-            CoTaskMemFree(id);
+            bool found = !Name.CompareNoCase(*id);
             if (found)
             {
                 Log("found %S", Name.GetString());
