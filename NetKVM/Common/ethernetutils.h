@@ -232,11 +232,16 @@ typedef struct _EthernetNSMFrame
 
 #include <poppack.h>
 
-#define TCP_CHECKSUM_OFFSET   16
-#define UDP_CHECKSUM_OFFSET   6
-#define MAX_IPV4_HEADER_SIZE  60
-#define MAX_TCP_HEADER_SIZE   60
-#define MAX_IP4_DATAGRAM_SIZE 65535
+#define TCP_CHECKSUM_OFFSET        16
+#define UDP_CHECKSUM_OFFSET        6
+#define MAX_IPV4_HEADER_SIZE       60
+#define MAX_TCP_HEADER_SIZE        60
+#define MAX_IP4_DATAGRAM_SIZE      65535
+// till IP header size is 8 bit
+#define MAX_SUPPORTED_IPV6_HEADERS (256 - 4)
+// ETH_HEADER_SIZE(14) + MAX_SUPPORTED_IPV6_HEADERS(252) + sizeof(UDPHeader)(8) = 274
+// Use 288 for 32-byte alignment
+#define MAX_HEADERS_SIZE_FOR_CSO   288
 
 static __inline USHORT swap_short(USHORT us)
 {
