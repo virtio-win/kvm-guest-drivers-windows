@@ -33,9 +33,6 @@
 #include "sw_offload.tmh"
 #endif
 
-// till IP header size is 8 bit
-#define MAX_SUPPORTED_IPV6_HEADERS (256 - 4)
-
 // IPv6 Header RFC 2460 (n*8 bytes)
 typedef struct _tagIPv6ExtHeader
 {
