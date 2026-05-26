@@ -44,6 +44,13 @@
 #define SERVICE_EXEFILE L"netkvmps.exe"
 #define SERVICE_ORGFILE L"netkvmp.exe"
 
+void (*LogFn)(LPCSTR) = OutputDebugStringA;
+
+static void PrintF(LPCSTR s)
+{
+    printf(s);
+}
+
 class CNetCfg
 {
   public:
@@ -1213,6 +1220,7 @@ int __cdecl main(int argc, char **argv)
     {
         return 0;
     }
+    LogFn = PrintF;
     if (!s.IsEmpty())
     {
         CoInitialize(NULL);
@@ -1251,7 +1259,7 @@ int __cdecl main(int argc, char **argv)
         }
         else if (!s.CompareNoCase("e"))
         {
-            puts("Dumping interface table to debug output");
+            puts("Dumping interface table");
             CInterfaceTable t;
             t.Dump();
         }
