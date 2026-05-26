@@ -232,6 +232,29 @@ class CNetCfg
         bool bIsVioProt = !sVioProt.CompareNoCase(upperId);
         bool bIsTcpip = !sTcpip.CompareNoCase(upperId);
         bool bShouldBeEnabled;
+        CStringA type;
+        ULONG characteristics = 0;
+        upper->GetCharacteristics(&characteristics);
+        if (characteristics & NCF_FILTER)
+        {
+            type += "*Filter";
+        }
+        if (characteristics & NCF_NDIS_PROTOCOL)
+        {
+            type += "*Protocol";
+        }
+        if (characteristics & NCF_LW_FILTER)
+        {
+            type += "*LWF";
+        }
+        if (characteristics & NCF_HIDDEN)
+        {
+            type += "*Hidden";
+        }
+        if (characteristics & NCF_HIDE_BINDING)
+        {
+            type += "*HideBinding";
+        }
         // vioprot should be enabled always, all the rest - if 'Enable{OnlyVioProt}==false'
         switch (State)
         {
