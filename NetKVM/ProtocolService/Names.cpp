@@ -34,7 +34,7 @@ typedef struct _tNamedEntry
 } tNamedEntry;
 
 #define MAKE_ENTRY(e)        {e, #e},
-#define GET_NAME(table, val) GetName(table, ELEMENTS_IN(table), val)
+#define GET_NAME(table, val) GetName(table, ARRAYSIZE(table), val)
 
 static LPCSTR GetName(const tNamedEntry *table, UINT size, ULONG val)
 {

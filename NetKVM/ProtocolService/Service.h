@@ -176,7 +176,7 @@ class CService
                           "Continue Pending",
                           "Pause Pending",
                           "Paused"};
-        if (state >= ELEMENTS_IN(names))
+        if (state >= ARRAYSIZE(names))
         {
             state = 0;
         }
