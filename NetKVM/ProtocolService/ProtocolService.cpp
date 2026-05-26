@@ -211,26 +211,25 @@ class CNetCfg
         {
             return;
         }
-        LPWSTR upperId = NULL, lowerId = NULL;
+        CoMemString upperId, lowerId, name;
         CComPtr<INetCfgComponent> upper, lower;
         bindingIf->GetUpperComponent(&upper);
         bindingIf->GetLowerComponent(&lower);
         if (upper)
         {
-            upper->GetId(&upperId);
+            upper->GetId(upperId);
+            upper->GetDisplayName(name);
         }
         if (lower)
         {
-            lower->GetId(&lowerId);
+            lower->GetId(lowerId);
         }
-        if (!upperId || !lowerId || lower != Adapter)
+        if (upperId.Empty() || lowerId.Empty() || lower != Adapter)
         {
-            CoTaskMemFree(upperId);
-            CoTaskMemFree(lowerId);
             return;
         }
-        bool bIsVioProt = !sVioProt.CompareNoCase(upperId);
-        bool bIsTcpip = !sTcpip.CompareNoCase(upperId);
+        bool bIsVioProt = !sVioProt.CompareNoCase(*upperId);
+        bool bIsTcpip = !sTcpip.CompareNoCase(*upperId);
         bool bShouldBeEnabled;
         CStringA type;
         ULONG characteristics = 0;
@@ -281,11 +280,14 @@ class CNetCfg
                 bShouldBeEnabled = true;
                 break;
         }
-        Log("%sabled U:%S L:%S (should be %sabled)",
+        Log("%sabled U:%S L:%S (should be %sabled) %s(%X) %S",
             enabled ? "en" : "dis",
-            upperId,
-            lowerId,
-            bShouldBeEnabled ? "en" : "dis");
+            *upperId,
+            *lowerId,
+            bShouldBeEnabled ? "en" : "dis",
+            type.GetString(),
+            characteristics,
+            name.Empty() ? _T("unnamed") : *name);
         if (bShouldBeEnabled != enabled)
         {
             hr = path->Enable(bShouldBeEnabled);
@@ -298,8 +300,6 @@ class CNetCfg
                 m_Modified = true;
             }
         }
-        CoTaskMemFree(upperId);
-        CoTaskMemFree(lowerId);
     }
 };
 
