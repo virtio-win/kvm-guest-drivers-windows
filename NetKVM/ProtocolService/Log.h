@@ -1,6 +1,5 @@
 #pragma once
 
-#define ELEMENTS_IN(a) sizeof(a) / sizeof(a[0])
 extern void (*LogFn)(LPCSTR);
 #define Log(fmt, ...)                                                                                                  \
     {                                                                                                                  \
