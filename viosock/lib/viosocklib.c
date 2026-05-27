@@ -713,7 +713,14 @@ int WSPAPI VIOSockIoctl(_In_ SOCKET s,
 
     UNREFERENCED_PARAMETER(lpThreadId);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
+    TraceEvents(TRACE_LEVEL_VERBOSE,
+                DBG_SOCKET,
+                "--> %s, socket: %p, dwIoControlCode: 0x%08x, cbInBuffer: %u, cbOutBuffer: %u\n",
+                __FUNCTION__,
+                (PVOID)s,
+                dwIoControlCode,
+                cbInBuffer,
+                cbOutBuffer);
 
     if (cbInBuffer && !lpvInBuffer)
     {
@@ -733,8 +740,7 @@ int WSPAPI VIOSockIoctl(_In_ SOCKET s,
         return WSP_ERROR(WSAEFAULT);
     }
 
-    if (dwIoControlCode == SIO_BSP_HANDLE ||
-        //        dwIoControlCode == SIO_BSP_HANDLE_POLL ||
+    if (dwIoControlCode == SIO_BSP_HANDLE || dwIoControlCode == SIO_BSP_HANDLE_POLL ||
         dwIoControlCode == SIO_BSP_HANDLE_SELECT)
     {
         if (cbOutBuffer >= sizeof(s))
@@ -747,6 +753,29 @@ int WSPAPI VIOSockIoctl(_In_ SOCKET s,
         {
             return WSP_ERROR(WSAEFAULT);
         }
+    }
+
+    //
+    // SIO_EXT_POLL is the documented LSP entry point for WSAPoll: ws2_32!WSAPoll
+    // packs the caller's WSAPOLLFD array into a WSAPOLLDATA structure and dispatches
+    // it through WSPIoctl. There is no WSPPoll in WSPPROC_TABLE, so without this
+    // branch WSAPoll fails with WSAEOPNOTSUPP.
+    //
+    if (dwIoControlCode == SIO_EXT_POLL)
+    {
+        if (!lpvInBuffer || !lpvOutBuffer)
+        {
+            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "SIO_EXT_POLL: NULL buffer\n");
+            return WSP_ERROR(WSAEFAULT);
+        }
+
+        TraceEvents(TRACE_LEVEL_VERBOSE,
+                    DBG_SOCKET,
+                    "SIO_EXT_POLL forward: cbIn=%u, cbOut=%u\n",
+                    cbInBuffer,
+                    cbOutBuffer);
+        // Fall through to the default IOCTL_SOCKET_IOCTL forward path; the
+        // kernel-side VIOSockIoctl parses WSAPOLLDATA and validates layout.
     }
 
     InParams.dwIoControlCode = dwIoControlCode;
