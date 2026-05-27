@@ -1834,12 +1834,15 @@ static BOOLEAN RxDPCWorkBody(PARANDIS_ADAPTER *pContext, CPUPathBundle *pathBund
 #ifdef PARANDIS_SUPPORT_RSS
     if (CurrCpuReceiveQueue != PARANDIS_RECEIVE_NO_QUEUE)
     {
-        isRxBufferShortage = ProcessReceiveQueue(pContext,
-                                                 &nPacketsToIndicate,
-                                                 &pContext->ReceiveQueues[CurrCpuReceiveQueue],
-                                                 &indicate,
-                                                 &indicateTail,
-                                                 &nIndicate);
+        if (ProcessReceiveQueue(pContext,
+                                &nPacketsToIndicate,
+                                &pContext->ReceiveQueues[CurrCpuReceiveQueue],
+                                &indicate,
+                                &indicateTail,
+                                &nIndicate))
+        {
+            isRxBufferShortage = TRUE;
+        }
         res |= ReceiveQueueHasBuffers(&pContext->ReceiveQueues[CurrCpuReceiveQueue]);
     }
 #endif
