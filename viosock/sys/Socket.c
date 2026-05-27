@@ -2376,6 +2376,7 @@ static NTSTATUS VIOSockIoctl(IN WDFREQUEST Request, OUT size_t *pLength)
 {
     PSOCKET_CONTEXT pSocket = GetSocketContextFromRequest(Request);
     PVIRTIO_VSOCK_IOCTL_IN pInParams;
+    BOOLEAN bIs32BitProcess = FALSE;
     SIZE_T stInParamsLen;
     PVOID lpvOutBuffer = NULL;
     SIZE_T stOutBufferLen = 0;
@@ -2396,7 +2397,7 @@ static NTSTATUS VIOSockIoctl(IN WDFREQUEST Request, OUT size_t *pLength)
     // minimum length guaranteed by WdfRequestRetrieveInputBuffer above
     _Analysis_assume_(stInParamsLen >= sizeof(*pInParams));
 
-    if (pInParams->dwIoControlCode == FIONREAD || pInParams->dwIoControlCode == SIO_ADDRESS_LIST_QUERY)
+    if (pInParams->dwIoControlCode & IOC_OUT)
     {
         status = WdfRequestRetrieveOutputBuffer(Request, 0, &lpvOutBuffer, &stOutBufferLen);
         if (!NT_SUCCESS(status))
@@ -2411,6 +2412,7 @@ static NTSTATUS VIOSockIoctl(IN WDFREQUEST Request, OUT size_t *pLength)
 #ifdef _WIN64
         if (WdfRequestIsFrom32BitProcess(Request))
         {
+            bIs32BitProcess = TRUE;
             lpvInBuffer = Ptr32ToPtr((void *POINTER_32)(ULONG)pInParams->lpvInBuffer);
         }
         else
@@ -2473,7 +2475,17 @@ static NTSTATUS VIOSockIoctl(IN WDFREQUEST Request, OUT size_t *pLength)
                 }
                 break;
 
-                // TODO: implement address list change
+            case SIO_EXT_POLL:
+                status = VIOSockPoll(Request,
+                                     bIs32BitProcess,
+                                     (PVIOSOCK_POLL_DATA)lpvInBuffer,
+                                     pInParams->cbInBuffer,
+                                     (PVIOSOCK_POLL_DATA)lpvOutBuffer,
+                                     stOutBufferLen,
+                                     pLength);
+                break;
+
+            // TODO: implement address list change
             case SIO_ADDRESS_LIST_QUERY:
             case SIO_ADDRESS_LIST_CHANGE:
             default:
