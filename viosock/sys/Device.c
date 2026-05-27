@@ -64,14 +64,43 @@ typedef struct _VIOSOCK_SELECT_HANDLE
     WDFFILEOBJECT Socket;
 } VIOSOCK_SELECT_HANDLE, *PVIOSOCK_SELECT_HANDLE;
 
+typedef struct _VIOSOCK_POLL_HANDLE
+{
+    ULONGLONG hSocket;    // user-mode handle (echoed back to user buffer)
+    WDFFILEOBJECT Socket; // WDF_NO_HANDLE => bad fd; Revents pre-tagged with POLLNVAL or 0
+    USHORT Events;        // requested mask snapshot
+    USHORT Revents;       // current output (sticky for POLLNVAL)
+} VIOSOCK_POLL_HANDLE, *PVIOSOCK_POLL_HANDLE;
+
+typedef enum _VIOSOCK_PKT_TYPE
+{
+    VIOSOCK_PKT_TYPE_SELECT = 0,
+    VIOSOCK_PKT_TYPE_POLL = 1,
+} VIOSOCK_PKT_TYPE;
+
 typedef struct _VIOSOCK_SELECT_PKT
 {
     LIST_ENTRY ListEntry;
     VIOSOCK_TIMER_ENTRY TimerEntry;
-    PVIRTIO_VSOCK_SELECT pSelect;
-    ULONG FdCount[FDSET_MAX];
     NTSTATUS Status;
-    VIOSOCK_SELECT_HANDLE Fds[FD_SETSIZE];
+    VIOSOCK_PKT_TYPE Type;
+    union {
+        // Select-arm (Type == VIOSOCK_PKT_TYPE_SELECT)
+        struct
+        {
+            PVIRTIO_VSOCK_SELECT pSelect;
+            ULONG FdCount[FDSET_MAX];
+            VIOSOCK_SELECT_HANDLE Fds[FD_SETSIZE];
+        };
+        // Poll-arm (Type == VIOSOCK_PKT_TYPE_POLL)
+        struct
+        {
+            PVIOSOCK_POLL_DATA pPollData; // points into the request output buffer
+            ULONG PollFdCount;
+            BOOLEAN Is32BitRequest;
+            VIOSOCK_POLL_HANDLE PollFds[FD_SETSIZE];
+        };
+    };
 } VIOSOCK_SELECT_PKT, *PVIOSOCK_SELECT_PKT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIOSOCK_SELECT_PKT, GetSelectContext);
@@ -87,8 +116,15 @@ VOID VIOSockSelectCleanupFds(IN PVIOSOCK_SELECT_PKT pPkt,
                              IN VIRTIO_VSOCK_FDSET_TYPE iFdSet,
                              IN PVIOSOCK_SELECT_HANDLE pHandleSet);
 
+VOID VIOSockPollCleanupPkt(IN PVIOSOCK_SELECT_PKT pPkt);
+
 BOOLEAN
 VIOSockSelectCheckPkt(IN PVIOSOCK_SELECT_PKT pPkt);
+
+BOOLEAN
+VIOSockPollCheckPkt(IN PVIOSOCK_SELECT_PKT pPkt);
+
+USHORT VIOSockMapEventsToPollRevents(IN PSOCKET_CONTEXT pSocket, IN USHORT eventsRequested);
 
 BOOLEAN
 VIOSockSelectCopyFds(IN PDEVICE_CONTEXT pContext,
@@ -98,8 +134,22 @@ VIOSockSelectCopyFds(IN PDEVICE_CONTEXT pContext,
                      IN VIRTIO_VSOCK_FDSET_TYPE iFdSet,
                      IN PVIOSOCK_SELECT_HANDLE pHandleSet);
 
+NTSTATUS VIOSockPollCopyFds(IN PDEVICE_CONTEXT pContext,
+                            IN BOOLEAN bIs32BitProcess,
+                            IN PVIOSOCK_POLL_DATA pPollData,
+                            IN PVIOSOCK_SELECT_PKT pPkt);
+
 NTSTATUS
 VIOSockSelect(IN WDFREQUEST Request, IN OUT size_t *pLength);
+
+NTSTATUS
+VIOSockPoll(IN WDFREQUEST Request,
+            IN BOOLEAN bIs32BitProcess,
+            IN PVIOSOCK_POLL_DATA pPollDataIn,
+            IN size_t stPollDataInLen,
+            IN PVIOSOCK_POLL_DATA pPollDataOut,
+            IN size_t stPollDataOutLen,
+            IN OUT size_t *pLength);
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, VIOSockEvtDeviceAdd)
@@ -115,10 +165,15 @@ VIOSockSelect(IN WDFREQUEST Request, IN OUT size_t *pLength);
 #pragma alloc_text(PAGE, VIOSockEvtIoDeviceControl)
 #pragma alloc_text(PAGE, VIOSockSelectInit)
 #pragma alloc_text(PAGE, VIOSockSelectCleanupFds)
+#pragma alloc_text(PAGE, VIOSockPollCleanupPkt)
 #pragma alloc_text(PAGE, VIOSockSelectCheckPkt)
+#pragma alloc_text(PAGE, VIOSockPollCheckPkt)
+#pragma alloc_text(PAGE, VIOSockMapEventsToPollRevents)
 #pragma alloc_text(PAGE, VIOSockSelectWorkitem)
 #pragma alloc_text(PAGE, VIOSockSelectCopyFds)
+#pragma alloc_text(PAGE, VIOSockPollCopyFds)
 #pragma alloc_text(PAGE, VIOSockSelect)
+#pragma alloc_text(PAGE, VIOSockPoll)
 #endif
 
 static VOID VIOSockQueuesCleanup(IN WDFDEVICE hDevice)
@@ -699,11 +754,43 @@ __inline VOID VIOSockSelectCleanupPkt(IN PVIOSOCK_SELECT_PKT pPkt)
     PVIOSOCK_SELECT_HANDLE pWriteSet = VIOSockSelectGetFdsWriteSet(pPkt);
     PVIOSOCK_SELECT_HANDLE pExcptSet = VIOSockSelectGetFdsExcptSet(pPkt);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "--> %s, status: 0x%08x\n", __FUNCTION__, pPkt->Status);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "--> %s, packet status: 0x%08x\n", __FUNCTION__, pPkt->Status);
 
     VIOSockSelectCleanupFds(pPkt, FDSET_READ, pReadSet);
     VIOSockSelectCleanupFds(pPkt, FDSET_WRITE, pWriteSet);
     VIOSockSelectCleanupFds(pPkt, FDSET_EXCPT, pExcptSet);
+}
+
+static VOID VIOSockPollCleanupPkt(IN PVIOSOCK_SELECT_PKT pPkt)
+{
+    ULONG i;
+
+    PAGED_CODE();
+
+    for (i = 0; i < pPkt->PollFdCount; ++i)
+    {
+        PVIOSOCK_POLL_HANDLE pPollFd = &pPkt->PollFds[i];
+
+        if (pPollFd->Socket != WDF_NO_HANDLE)
+        {
+            PSOCKET_CONTEXT pSocket = GetSocketContext(pPollFd->Socket);
+
+            if (pPollFd->Events & (POLLRDNORM | POLLHUP | POLLERR))
+            {
+                InterlockedDecrement(&pSocket->SelectRefs[FDSET_READ]);
+            }
+            if (pPollFd->Events & POLLWRNORM)
+            {
+                InterlockedDecrement(&pSocket->SelectRefs[FDSET_WRITE]);
+            }
+            InterlockedDecrement(&pSocket->SelectRefs[FDSET_EXCPT]);
+
+            WdfObjectDereference(pPollFd->Socket);
+            pPollFd->Socket = WDF_NO_HANDLE;
+        }
+    }
+
+    pPkt->PollFdCount = 0;
 }
 
 static VOID VIOSockSelectTimerFunc(IN WDFTIMER Timer)
@@ -713,6 +800,52 @@ static VOID VIOSockSelectTimerFunc(IN WDFTIMER Timer)
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "--> %s\n", __FUNCTION__);
 
     VIOSockSelectEnqueueWorkItem(pContext);
+}
+
+static USHORT VIOSockMapEventsToPollRevents(IN PSOCKET_CONTEXT pSocket, IN USHORT eventsRequested)
+{
+    // Lockless by design — same model as VIOSockSelectCheckPkt: writers update
+    // Events / EventsStatus under StateLock, but readers from the workitem
+    // accept a one-tick stale snapshot. VIOSockSelectRun is invoked under the
+    // writer's lock on every EventSetBit, so any inconsistency we observe here
+    // is re-checked on the next workitem pass. Natural-sized aligned reads on
+    // x64 don't tear.
+    ULONG events = pSocket->Events;
+    NTSTATUS closeStatus = pSocket->EventsStatus[FD_CLOSE_BIT];
+    NTSTATUS connectStatus = pSocket->EventsStatus[FD_CONNECT_BIT];
+    USHORT revents = 0;
+
+    PAGED_CODE();
+
+    // Read side: accept ready, bytes available, or peer-closed (next recv unblocks)
+    if (events & (FD_ACCEPT | FD_READ))
+    {
+        revents |= POLLRDNORM;
+    }
+    if (events & FD_CLOSE)
+    {
+        revents |= POLLRDNORM;
+        revents |= NT_SUCCESS(closeStatus) ? POLLHUP : POLLERR;
+    }
+
+    // Write side: TX credits available, or connect just completed
+    if (events & FD_WRITE)
+    {
+        revents |= POLLWRNORM;
+    }
+    if (events & FD_CONNECT)
+    {
+        revents |= NT_SUCCESS(connectStatus) ? POLLWRNORM : POLLERR;
+    }
+
+    if (!revents && VIOSockIsFlag(pSocket, SOCK_CLEANUP))
+    {
+        revents = POLLNVAL;
+    }
+
+    // MSDN: revents filtered to events_requested for the in/out bits;
+    // POLLERR/POLLHUP/POLLNVAL are output-only and reported unconditionally
+    return (USHORT)(revents & (eventsRequested | POLLERR | POLLHUP | POLLNVAL));
 }
 
 static BOOLEAN VIOSockSelectCheckPkt(IN PVIOSOCK_SELECT_PKT pPkt)
@@ -792,6 +925,92 @@ static BOOLEAN VIOSockSelectCheckPkt(IN PVIOSOCK_SELECT_PKT pPkt)
     return bRes;
 }
 
+__inline ULONG_PTR VIOSockPollGetHeaderSize(IN BOOLEAN bIs32BitRequest)
+{
+    return bIs32BitRequest ? FIELD_OFFSET(VIOSOCK_POLL_DATA32, FdArray) : FIELD_OFFSET(VIOSOCK_POLL_DATA, FdArray);
+}
+
+__inline ULONG_PTR VIOSockPollGetFdSize(IN BOOLEAN bIs32BitRequest)
+{
+    return bIs32BitRequest ? sizeof(VIOSOCK_POLL_FD32) : sizeof(VIOSOCK_POLL_FD);
+}
+
+__inline ULONG_PTR VIOSockPollGetSize(IN ULONG FdCount, IN BOOLEAN bIs32BitRequest)
+{
+    return VIOSockPollGetHeaderSize(bIs32BitRequest) + FdCount * VIOSockPollGetFdSize(bIs32BitRequest);
+}
+
+__inline ULONGLONG VIOSockPollGetSocketHandle(IN PVIOSOCK_POLL_DATA pData, IN BOOLEAN bIs32BitRequest, IN ULONG i)
+{
+    if (bIs32BitRequest)
+    {
+        PVIOSOCK_POLL_DATA32 pPollData = (PVIOSOCK_POLL_DATA32)pData;
+        if (pPollData->FdArray[i].Fd == INVALID_HANDLE_32)
+        {
+            return INVALID_HANDLE;
+        }
+        return (ULONGLONG)pPollData->FdArray[i].Fd;
+    }
+    return pData->FdArray[i].Fd;
+}
+
+__inline SHORT VIOSockPollGetEvents(IN PVIOSOCK_POLL_DATA pData, IN BOOLEAN bIs32BitRequest, IN ULONG i)
+{
+    return bIs32BitRequest ? ((PVIOSOCK_POLL_DATA32)pData)->FdArray[i].Events : pData->FdArray[i].Events;
+}
+
+__inline VOID VIOSockPollSetRevents(IN PVIOSOCK_POLL_DATA pData,
+                                    IN BOOLEAN bIs32BitRequest,
+                                    IN ULONG i,
+                                    IN SHORT revents)
+{
+    if (bIs32BitRequest)
+    {
+        ((PVIOSOCK_POLL_DATA32)pData)->FdArray[i].Revents = revents;
+    }
+    else
+    {
+        pData->FdArray[i].Revents = revents;
+    }
+}
+
+static BOOLEAN VIOSockPollCheckPkt(IN PVIOSOCK_SELECT_PKT pPkt)
+{
+    ULONG i, count = 0;
+    PVIOSOCK_POLL_DATA pPollData = pPkt->pPollData;
+
+    PAGED_CODE();
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "--> %s, fds=%u\n", __FUNCTION__, pPkt->PollFdCount);
+
+    for (i = 0; i < pPkt->PollFdCount; ++i)
+    {
+        PVIOSOCK_POLL_HANDLE pPollFd = &pPkt->PollFds[i];
+
+        if (pPollFd->Socket != WDF_NO_HANDLE)
+        {
+            pPollFd->Revents = VIOSockMapEventsToPollRevents(GetSocketContext(pPollFd->Socket), pPollFd->Events);
+        }
+        if (pPollFd->Revents)
+        {
+            ++count;
+        }
+
+        VIOSockPollSetRevents(pPollData, pPkt->Is32BitRequest, i, (SHORT)pPollFd->Revents);
+    }
+
+    pPollData->Result = (int)count;
+    if (count)
+    {
+        // Match VIOSockSelectCheckPkt's contract: set pkt status here so the
+        // workitem can assert pPkt->Status != STATUS_PENDING on TRUE return.
+        pPkt->Status = STATUS_SUCCESS;
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
 static VOID VIOSockSelectCancel(IN WDFREQUEST Request)
 {
     PDEVICE_CONTEXT pContext = GetDeviceContextFromRequest(Request);
@@ -839,7 +1058,7 @@ static VOID VIOSockSelectWorkitem(IN WDFWORKITEM Workitem)
                 bRemove = TRUE;
                 pPkt->Status = STATUS_CANCELLED;
             }
-            else if (VIOSockSelectCheckPkt(pPkt))
+            else if ((pPkt->Type == VIOSOCK_PKT_TYPE_SELECT) ? VIOSockSelectCheckPkt(pPkt) : VIOSockPollCheckPkt(pPkt))
             {
                 // pPkt->Status is already set by VIOSockSelectCheckPkt
                 ASSERT(pPkt->Status != STATUS_PENDING);
@@ -895,14 +1114,29 @@ static VOID VIOSockSelectWorkitem(IN WDFWORKITEM Workitem)
 
         while (!IsListEmpty(&CompletionList))
         {
+            ULONG_PTR infoSize = 0;
             PVIOSOCK_SELECT_PKT pPkt = CONTAINING_RECORD(RemoveHeadList(&CompletionList),
                                                          VIOSOCK_SELECT_PKT,
                                                          ListEntry);
 
-            VIOSockSelectCleanupPkt(pPkt);
+            if (pPkt->Type == VIOSOCK_PKT_TYPE_SELECT)
+            {
+                infoSize = sizeof(VIRTIO_VSOCK_SELECT);
+                VIOSockSelectCleanupPkt(pPkt);
+            }
+            else
+            {
+                infoSize = VIOSockPollGetSize(pPkt->PollFdCount, pPkt->Is32BitRequest);
+                VIOSockPollCleanupPkt(pPkt);
+            }
+
+            // NT_SUCCESS — not just STATUS_SUCCESS — must propagate infoSize:
+            // STATUS_TIMEOUT is success-class but != STATUS_SUCCESS, and the
+            // user-mode lib's WSPSelect treats dwBytesReturned != sizeof(...)
+            // as an error (WSAEINVAL).
             WdfRequestCompleteWithInformation(WdfObjectContextGetObject(pPkt),
                                               pPkt->Status,
-                                              NT_SUCCESS(pPkt->Status) ? sizeof(VIRTIO_VSOCK_SELECT) : 0);
+                                              NT_SUCCESS(pPkt->Status) ? infoSize : 0);
         }
 
     } while (InterlockedCompareExchange(&pContext->SelectInProgress, 0, 1) != 1);
@@ -1006,6 +1240,72 @@ static VOID VIOSockSelectClearFdss(IN PVIRTIO_VSOCK_SELECT pSelect)
     }
 }
 
+static NTSTATUS VIOSockPollCopyFds(IN PDEVICE_CONTEXT pContext,
+                                   IN BOOLEAN bIs32BitProcess,
+                                   IN PVIOSOCK_POLL_DATA pPollData,
+                                   IN PVIOSOCK_SELECT_PKT pPkt)
+{
+    ULONG i;
+    NTSTATUS status = STATUS_SUCCESS;
+
+    PAGED_CODE();
+
+    pPkt->pPollData = pPollData;
+    pPkt->Is32BitRequest = bIs32BitProcess;
+
+    for (i = 0; i < pPollData->Fds; ++i)
+    {
+        ULONGLONG hSocket = VIOSockPollGetSocketHandle(pPollData, bIs32BitProcess, i);
+        USHORT events = (USHORT)VIOSockPollGetEvents(pPollData, bIs32BitProcess, i);
+        WDFFILEOBJECT Socket = WDF_NO_HANDLE;
+        USHORT initialRevents = POLLNVAL;
+
+        if (!events || (events & ~(POLLIN | POLLOUT | POLLHUP | POLLERR)))
+        {
+            status = STATUS_INVALID_PARAMETER;
+            break;
+        }
+
+        if (hSocket != 0 && hSocket != INVALID_HANDLE)
+        {
+            Socket = VIOSockGetSocketFromHandle(pContext, hSocket, bIs32BitProcess);
+            if (Socket != WDF_NO_HANDLE)
+            {
+                PSOCKET_CONTEXT pSocket = GetSocketContext(Socket);
+
+                // FDSET_READ predicate in VIOSockSelectRun fires on
+                // FD_ACCEPT | FD_READ | FD_CLOSE — i.e. it carries the wake for
+                // POLLHUP / POLLERR (peer close, RST) as well as POLLRDNORM.
+                if (events & (POLLRDNORM | POLLHUP | POLLERR))
+                {
+                    InterlockedIncrement(&pSocket->SelectRefs[FDSET_READ]);
+                }
+                if (events & POLLWRNORM)
+                {
+                    InterlockedIncrement(&pSocket->SelectRefs[FDSET_WRITE]);
+                }
+                // FDSET_EXCPT predicate fires on FD_CONNECT-failure; that's how
+                // a failed outbound connect reaches POLLERR. Always-bumped.
+                InterlockedIncrement(&pSocket->SelectRefs[FDSET_EXCPT]);
+                initialRevents = 0;
+            }
+        }
+
+        pPkt->PollFds[i].hSocket = hSocket;
+        pPkt->PollFds[i].Socket = Socket;
+        pPkt->PollFds[i].Events = events;
+        pPkt->PollFds[i].Revents = initialRevents;
+    }
+
+    pPkt->PollFdCount = i;
+
+    if (!NT_SUCCESS(status))
+    {
+        VIOSockPollCleanupPkt(pPkt);
+    }
+    return status;
+}
+
 static NTSTATUS VIOSockSelect(IN WDFREQUEST Request, IN OUT size_t *pLength)
 {
     PDEVICE_CONTEXT pContext = GetDeviceContextFromRequest(Request);
@@ -1078,6 +1378,7 @@ static NTSTATUS VIOSockSelect(IN WDFREQUEST Request, IN OUT size_t *pLength)
         return status;
     }
 
+    pPkt->Type = VIOSOCK_PKT_TYPE_SELECT;
     VIOSockTimerEntryInit(&pPkt->TimerEntry);
     pPkt->pSelect = pSelect;
 
@@ -1146,6 +1447,130 @@ static NTSTATUS VIOSockSelect(IN WDFREQUEST Request, IN OUT size_t *pLength)
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "<-- %s\n", __FUNCTION__);
+
+    return status;
+}
+
+NTSTATUS
+VIOSockPoll(IN WDFREQUEST Request,
+            IN BOOLEAN bIs32BitProcess,
+            IN PVIOSOCK_POLL_DATA pPollDataIn,
+            IN size_t stPollDataInLen,
+            IN PVIOSOCK_POLL_DATA pPollDataOut,
+            IN size_t stPollDataOutLen,
+            IN OUT size_t *pLength)
+{
+    PDEVICE_CONTEXT pContext = GetDeviceContextFromRequest(Request);
+    WDF_OBJECT_ATTRIBUTES Attributes;
+    PVIOSOCK_SELECT_PKT pPkt = NULL;
+    NTSTATUS status;
+    ULONG_PTR cbExpected;
+
+    PAGED_CODE();
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "--> %s\n", __FUNCTION__);
+
+    *pLength = 0;
+
+    if (!pPollDataIn || !pPollDataOut || stPollDataInLen < VIOSockPollGetHeaderSize(bIs32BitProcess) ||
+        stPollDataOutLen < VIOSockPollGetHeaderSize(bIs32BitProcess))
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION,
+                    DBG_SELECT,
+                    "SIO_EXT_POLL: invalid parameters (in=%Iu, out=%Iu)\n",
+                    stPollDataInLen,
+                    stPollDataOutLen);
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    cbExpected = VIOSockPollGetSize(pPollDataIn->Fds, bIs32BitProcess);
+    if (!pPollDataIn->Fds || pPollDataIn->Fds > FD_SETSIZE || cbExpected > stPollDataInLen ||
+        cbExpected > stPollDataOutLen)
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION,
+                    DBG_SELECT,
+                    "SIO_EXT_POLL: invalid parameters (fds=%u, in=%Iu, out=%Iu)\n",
+                    pPollDataIn->Fds,
+                    stPollDataInLen,
+                    stPollDataOutLen);
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    // Copy WSAPOLLDATA from the locked user input buffer into the
+    // METHOD_BUFFERED system buffer (pPollDataOut). VIOSockPoll
+    // operates on lpvOutBuffer, which will be copied back to the
+    // user output buffer on request completion.
+    RtlMoveMemory(pPollDataOut, pPollDataIn, cbExpected);
+
+    WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&Attributes, VIOSOCK_SELECT_PKT);
+
+    status = WdfObjectAllocateContext(Request, &Attributes, &pPkt);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SELECT, "WdfObjectAllocateContext failed: 0x%x\n", status);
+        return status;
+    }
+
+    pPkt->Type = VIOSOCK_PKT_TYPE_POLL;
+    VIOSockTimerEntryInit(&pPkt->TimerEntry);
+
+    status = VIOSockPollCopyFds(pContext, bIs32BitProcess, pPollDataOut, pPkt);
+    if (!NT_SUCCESS(status))
+    {
+        return status;
+    }
+
+    WdfWaitLockAcquire(pContext->SelectLock, NULL);
+
+    if (VIOSockPollCheckPkt(pPkt))
+    {
+        // At least one fd is immediately ready (real ready or POLLNVAL-tagged).
+        status = STATUS_SUCCESS;
+    }
+    else if (pPollDataOut->Timeout == 0)
+    {
+        // Non-blocking poll: return immediately. Result is already 0 from CheckPollPkt.
+        status = STATUS_SUCCESS;
+    }
+    else
+    {
+        status = STATUS_PENDING;
+    }
+
+    if (status == STATUS_PENDING)
+    {
+        status = WdfRequestMarkCancelableEx(Request, VIOSockSelectCancel);
+
+        ASSERT(NT_SUCCESS(status) || status == STATUS_CANCELLED);
+
+        if (NT_SUCCESS(status))
+        {
+            pPkt->Status = status = STATUS_PENDING;
+
+            // Timeout > 0: start deadline timer; -1 (infinite) leaves timer unarmed.
+            if (pPollDataOut->Timeout > 0)
+            {
+                VIOSockTimerStartTimeout(&pContext->SelectTimer,
+                                         &pPkt->TimerEntry,
+                                         MSEC_TO_NANO(pPollDataOut->Timeout));
+            }
+
+            InsertTailList(&pContext->SelectList, &pPkt->ListEntry);
+        }
+    }
+    else
+    {
+        *pLength = cbExpected;
+    }
+
+    WdfWaitLockRelease(pContext->SelectLock);
+
+    if (status != STATUS_PENDING)
+    {
+        VIOSockPollCleanupPkt(pPkt);
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "<-- %s, status: 0x%08x\n", __FUNCTION__, status);
 
     return status;
 }

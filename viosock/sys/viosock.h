@@ -220,6 +220,76 @@ typedef enum _VIOSOCK_STATE
 #define SOCK_LOOPBACK  0x10
 #define SOCK_CLEANUP   0x20
 
+//
+// WSAPoll entry point on the LSP path: ws2_32!WSAPoll packs the caller's
+// WSAPOLLFD array into a single WSAPOLLDATA and dispatches via WSPIoctl.
+// Kernel cannot include winsock2.h / mswsock.h, so mirror the layouts here.
+//
+#define SIO_EXT_POLL   _WSAIORW(IOC_WS2, 31)
+
+#ifndef POLLRDNORM
+#define POLLRDNORM 0x0100
+#define POLLRDBAND 0x0200
+#define POLLIN     (POLLRDNORM | POLLRDBAND)
+#define POLLPRI    0x0400
+
+#define POLLWRNORM 0x0010
+#define POLLOUT    (POLLWRNORM)
+#define POLLWRBAND 0x0020
+
+#define POLLERR    0x0001
+#define POLLHUP    0x0002
+#define POLLNVAL   0x0004
+#endif
+
+#define INVALID_HANDLE    ((ULONGLONG)(-1))
+#define INVALID_HANDLE_32 ((ULONG)(-1))
+
+//
+// VIOSOCK_POLL_FD / VIOSOCK_POLL_DATA mirror WSAPOLLFD / WSAPOLLDATA for native
+// (64-bit-process) callers; VIOSOCK_POLL_FD32 / VIOSOCK_POLL_DATA32 mirror the
+// WOW64 (32-bit-process) layout where SOCKET shrinks to 4 bytes and the
+// header carries no 8-byte-alignment padding.
+//
+//   Native x64: FD = 16 bytes (8 + 2 + 2 + 4 pad),
+//               DATA header = 16 bytes (4 + 4 + 4 + 4 pad before 8-aligned array).
+//   WOW64    :  FD32 = 8 bytes (4 + 2 + 2),
+//               DATA32 header = 12 bytes (4 + 4 + 4, no trailing pad).
+//
+typedef struct _VIOSOCK_POLL_FD
+{
+    ULONGLONG Fd;
+    SHORT Events;
+    SHORT Revents;
+} VIOSOCK_POLL_FD, *PVIOSOCK_POLL_FD;
+
+typedef struct _VIOSOCK_POLL_DATA
+{
+    INT Result;
+    ULONG Fds;
+    INT Timeout;
+    VIOSOCK_POLL_FD FdArray[1];
+} VIOSOCK_POLL_DATA, *PVIOSOCK_POLL_DATA;
+
+typedef struct _VIOSOCK_POLL_FD32
+{
+    ULONG Fd;
+    SHORT Events;
+    SHORT Revents;
+} VIOSOCK_POLL_FD32, *PVIOSOCK_POLL_FD32;
+
+typedef struct _VIOSOCK_POLL_DATA32
+{
+    INT Result;
+    ULONG Fds;
+    INT Timeout;
+    VIOSOCK_POLL_FD32 FdArray[1];
+} VIOSOCK_POLL_DATA32, *PVIOSOCK_POLL_DATA32;
+
+C_ASSERT(FIELD_OFFSET(VIOSOCK_POLL_DATA, Result) == FIELD_OFFSET(VIOSOCK_POLL_DATA32, Result));
+C_ASSERT(FIELD_OFFSET(VIOSOCK_POLL_DATA, Fds) == FIELD_OFFSET(VIOSOCK_POLL_DATA32, Fds));
+C_ASSERT(FIELD_OFFSET(VIOSOCK_POLL_DATA, Timeout) == FIELD_OFFSET(VIOSOCK_POLL_DATA32, Timeout));
+
 typedef struct _VIOSOCK_ACCEPT_ENTRY
 {
     LIST_ENTRY ListEntry;
@@ -401,6 +471,15 @@ _Requires_lock_not_held_(pListenSocket->RxLock) VOID VIOSockAcceptRemovePkt(IN P
 
 _IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockSelectRun(IN PSOCKET_CONTEXT pSocket);
 _IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockSelectEnqueueWorkItem(IN PDEVICE_CONTEXT pContext);
+
+NTSTATUS
+VIOSockPoll(IN WDFREQUEST Request,
+            IN BOOLEAN bIs32BitProcess,
+            IN PVIOSOCK_POLL_DATA pPollDataIn,
+            IN size_t stPollDataInLen,
+            IN PVIOSOCK_POLL_DATA pPollDataOut,
+            IN size_t stPollDataOutLen,
+            IN OUT size_t *pLength);
 
 /*
  * WinSock 2 extension -- bit values and indices for FD_XXX network events
