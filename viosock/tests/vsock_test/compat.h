@@ -242,6 +242,10 @@ static inline ssize_t compat_send(int fd, const void *buf, size_t len, int flags
     }
 
     int r = send((SOCKET)fd, (const char *)buf, (int)len, flags);
+    /* Capture WSAGetLastError() BEFORE the FIONBIO reset below — a successful
+     * ioctlsocket clears the per-thread error and would leave wsa_set_errno()
+     * seeing 0, producing perror("send") == "send: No error". */
+    int saved_err = (r == SOCKET_ERROR) ? WSAGetLastError() : 0;
 
     if (dontwait)
     {
@@ -251,6 +255,7 @@ static inline ssize_t compat_send(int fd, const void *buf, size_t len, int flags
 
     if (r == SOCKET_ERROR)
     {
+        WSASetLastError(saved_err);
         wsa_set_errno();
         return -1;
     }
@@ -269,6 +274,7 @@ static inline ssize_t compat_recv(int fd, void *buf, size_t len, int flags)
     }
 
     int r = recv((SOCKET)fd, (char *)buf, (int)len, flags);
+    int saved_err = (r == SOCKET_ERROR) ? WSAGetLastError() : 0;
 
     if (dontwait)
     {
@@ -278,6 +284,7 @@ static inline ssize_t compat_recv(int fd, void *buf, size_t len, int flags)
 
     if (r == SOCKET_ERROR)
     {
+        WSASetLastError(saved_err);
         wsa_set_errno();
         return -1;
     }
