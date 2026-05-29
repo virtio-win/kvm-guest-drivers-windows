@@ -281,7 +281,7 @@ _Requires_lock_held_(pContext->TxLock) static BOOLEAN VIOSockTxPktInsert(IN PDEV
 
     TraceEvents(TRACE_LEVEL_INFORMATION,
                 DBG_WRITE,
-                "Send packet %!Op! (%d:%d --> %d:%d), len: %d, flags: %d, buf_alloc: %d, fwd_cnt: %d\n",
+                "Send packet %!Op! (%u:%u --> %u:%u), len: %u, flags: %u, buf_alloc: %u, fwd_cnt: %u\n",
                 pPkt->Header.op,
                 (ULONG)pPkt->Header.src_cid,
                 pPkt->Header.src_port,
@@ -326,7 +326,7 @@ _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxVqProcess(IN PDEVICE_CO
         {
             TraceEvents(TRACE_LEVEL_INFORMATION,
                         DBG_WRITE,
-                        "Free packet %!Op! (%d:%d --> %d:%d)\n",
+                        "Free packet %!Op! (%u:%u --> %u:%u)\n",
                         pPkt->Header.op,
                         (ULONG)pPkt->Header.src_cid,
                         pPkt->Header.src_port,

@@ -854,7 +854,16 @@ static VOID VIOSockRxPktHandleListen(IN PSOCKET_CONTEXT pSocket, IN PVIOSOCK_RX_
     }
     else if (pPkt->Header.op != VIRTIO_VSOCK_OP_REQUEST)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "Invalid packet: %u\n", pPkt->Header.op);
+        // OP_RW / OP_SHUTDOWN / OP_CREDIT_* on a listening socket are stragglers
+        // from a previously-accepted-and-closed connection whose 4-tuple no
+        // longer matches any ConnectedList entry. Reply with RST so the peer
+        // discovers the connection is gone (Linux does the same in
+        // virtio_transport_recv_pkt — fall through to reset_no_sock for any
+        // non-REQUEST non-RST packet without a socket match).
+        TraceEvents(TRACE_LEVEL_WARNING,
+                    DBG_SOCKET,
+                    "Unexpected packet for listening socket, op: %!Op!\n",
+                    pPkt->Header.op);
         VIOSockSendResetNoSock(pContext, &pPkt->Header);
         return;
     }
@@ -920,7 +929,7 @@ _Requires_lock_not_held_(pContext->RxLock) VOID VIOSockRxVqProcess(IN PDEVICE_CO
 
             TraceEvents(TRACE_LEVEL_INFORMATION,
                         DBG_READ,
-                        "Recv packet %!Op! (%d:%d <-- %d:%d), len: %d, flags: %d, buf_alloc: %d, fwd_cnt: %d\n",
+                        "Recv packet %!Op! (%u:%u <-- %u:%u), len: %u, flags: %u, buf_alloc: %u, fwd_cnt: %u\n",
                         pPkt->Header.op,
                         (ULONG)pPkt->Header.dst_cid,
                         pPkt->Header.dst_port,
@@ -961,8 +970,20 @@ _Requires_lock_not_held_(pContext->RxLock) VOID VIOSockRxVqProcess(IN PDEVICE_CO
         }
         if (!pSocket)
         {
-            TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Socket for packet is not exists\n");
-            VIOSockSendResetNoSock(pContext, &pPkt->Header);
+            TraceEvents(TRACE_LEVEL_WARNING,
+                        DBG_SOCKET,
+                        "Socket for packet is not exists, op: %!Op!\n",
+                        pPkt->Header.op);
+            // Per virtio-vsock semantics (Linux virtio_transport_common.c::
+            // virtio_transport_reset_no_sock): reply with RST for any packet
+            // that does not match an existing socket, EXCEPT for OP_RST itself
+            // — replying to RST creates a ping-pong of late-arriving cleanup
+            // RSTs that surfaces on the peer as spurious `Connection reset by
+            // peer` on unrelated sockets.
+            if (pPkt->Header.op != VIRTIO_VSOCK_OP_RST)
+            {
+                VIOSockSendResetNoSock(pContext, &pPkt->Header);
+            }
             VIOSockRxPktInsertOrPostpone(pContext, pPkt);
             continue;
         }
