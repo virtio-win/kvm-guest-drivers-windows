@@ -1013,11 +1013,23 @@ _Requires_lock_not_held_(pContext->RxLock) VOID VIOSockRxVqProcess(IN PDEVICE_CO
                 VIOSockRxPktHandleListen(pSocket, pPkt);
                 break;
             default:
+                // The socket exists (bound on this port) but is not in a state
+                // that can accept the incoming packet — typically a STATE_CLOSE
+                // bind-without-listen target of a connect attempt. Linux
+                // virtio_transport_recv_pkt replies with RST in this case so
+                // the peer's connect() fails fast instead of timing out. Skip
+                // the reply for OP_RST to avoid the cleanup-RST ping-pong (same
+                // rule the no-socket fallback above follows).
                 TraceEvents(TRACE_LEVEL_WARNING,
                             DBG_SOCKET,
-                            "Invalid socket %d state for Rx packet %d\n",
+                            "Unhandled packet for socket %d, state %!State!, op: %!Op!\n",
                             pSocket->SocketId,
+                            VIOSockStateGet(pSocket),
                             pPkt->Header.op);
+                if (pPkt->Header.op != VIRTIO_VSOCK_OP_RST)
+                {
+                    VIOSockSendResetNoSock(pContext, &pPkt->Header);
+                }
         }
 
         // reinsert handled packet
