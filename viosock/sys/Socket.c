@@ -1753,10 +1753,20 @@ __inline NTSTATUS VIOSockSetNonBlocking(IN PSOCKET_CONTEXT pSocket, IN BOOLEAN b
 {
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, bNonBlocking: %u\n", __FUNCTION__, bNonBlocking);
 
-    if (!VIOSockSetFlag(pSocket, SOCK_NON_BLOCK))
+    if (bNonBlocking)
     {
-        VIOSockTxCleanup(GetDeviceContextFromSocket(pSocket), pSocket->ThisSocket, STATUS_CANT_WAIT);
-        VIOSockReadProcessDequeueCb(pSocket);
+        // VIOSockSetFlag returns the previous masked value: 0 on first set (blocking→non-blocking
+        // transition), non-zero when the flag was already set. Drain queued blocking ops only
+        // on the transition.
+        if (!VIOSockSetFlag(pSocket, SOCK_NON_BLOCK))
+        {
+            VIOSockTxCleanup(GetDeviceContextFromSocket(pSocket), pSocket->ThisSocket, STATUS_CANT_WAIT);
+            VIOSockReadProcessDequeueCb(pSocket);
+        }
+    }
+    else
+    {
+        VIOSockResetFlag(pSocket, SOCK_NON_BLOCK);
     }
 
     return STATUS_SUCCESS;
