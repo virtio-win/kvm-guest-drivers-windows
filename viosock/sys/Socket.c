@@ -2187,36 +2187,36 @@ static NTSTATUS VIOSockGetSockOpt(IN WDFREQUEST Request, OUT size_t *pLength)
             break;
 
         case SO_VM_SOCKETS_BUFFER_SIZE:
-            if (pOpt->optlen < sizeof(ULONG))
+            if (pOpt->optlen < sizeof(ULONGLONG))
             {
                 status = STATUS_INVALID_PARAMETER;
                 break;
             }
 
-            *(PULONG)pOptVal = pSocket->buf_alloc;
-            pOpt->optlen = sizeof(ULONG);
+            *(PULONGLONG)pOptVal = pSocket->buf_alloc;
+            pOpt->optlen = sizeof(ULONGLONG);
             break;
 
         case SO_VM_SOCKETS_BUFFER_MAX_SIZE:
-            if (pOpt->optlen < sizeof(ULONG))
+            if (pOpt->optlen < sizeof(ULONGLONG))
             {
                 status = STATUS_INVALID_PARAMETER;
                 break;
             }
 
-            *(PULONG)pOptVal = pSocket->BufferMaxSize;
-            pOpt->optlen = sizeof(ULONG);
+            *(PULONGLONG)pOptVal = pSocket->BufferMaxSize;
+            pOpt->optlen = sizeof(ULONGLONG);
             break;
 
         case SO_VM_SOCKETS_BUFFER_MIN_SIZE:
-            if (pOpt->optlen < sizeof(ULONG))
+            if (pOpt->optlen < sizeof(ULONGLONG))
             {
                 status = STATUS_INVALID_PARAMETER;
                 break;
             }
 
-            *(PULONG)pOptVal = pSocket->BufferMinSize;
-            pOpt->optlen = sizeof(ULONG);
+            *(PULONGLONG)pOptVal = pSocket->BufferMinSize;
+            pOpt->optlen = sizeof(ULONGLONG);
             break;
 
         case SO_VM_SOCKETS_CONNECT_TIMEOUT:
@@ -2371,7 +2371,15 @@ static NTSTATUS VIOSockSetSockOpt(IN WDFREQUEST Request)
             break;
 
         case SO_VM_SOCKETS_BUFFER_SIZE:
-            if (pOpt->optlen < sizeof(ULONG))
+            if (pOpt->optlen < sizeof(ULONGLONG))
+            {
+                status = STATUS_INVALID_PARAMETER;
+                break;
+            }
+
+            // BufferMinSize/MaxSize and buf_alloc are stored as ULONG32 (the wire
+            // virtio_vsock_hdr.buf_alloc is u32); reject values that don't fit.
+            if (*(PULONGLONG)pOptVal > MAXULONG32)
             {
                 status = STATUS_INVALID_PARAMETER;
                 break;
@@ -2381,7 +2389,13 @@ static NTSTATUS VIOSockSetSockOpt(IN WDFREQUEST Request)
             break;
 
         case SO_VM_SOCKETS_BUFFER_MAX_SIZE:
-            if (pOpt->optlen < sizeof(ULONG))
+            if (pOpt->optlen < sizeof(ULONGLONG))
+            {
+                status = STATUS_INVALID_PARAMETER;
+                break;
+            }
+
+            if (*(PULONGLONG)pOptVal > MAXULONG32)
             {
                 status = STATUS_INVALID_PARAMETER;
                 break;
@@ -2392,7 +2406,13 @@ static NTSTATUS VIOSockSetSockOpt(IN WDFREQUEST Request)
             break;
 
         case SO_VM_SOCKETS_BUFFER_MIN_SIZE:
-            if (pOpt->optlen < sizeof(ULONG))
+            if (pOpt->optlen < sizeof(ULONGLONG))
+            {
+                status = STATUS_INVALID_PARAMETER;
+                break;
+            }
+
+            if (*(PULONGLONG)pOptVal > MAXULONG32)
             {
                 status = STATUS_INVALID_PARAMETER;
                 break;
