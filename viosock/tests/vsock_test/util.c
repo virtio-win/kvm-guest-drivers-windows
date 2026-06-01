@@ -86,7 +86,10 @@ void vsock_wait_remote_close(int fd)
     int nfds;
 
     fds.fd = (SOCKET)fd;
-    fds.events = POLLIN | POLLHUP;
+    /* WSAPoll input events: only POLLIN, POLLOUT and their POLLRDNORM / POLLRDBAND /
+     * POLLWRNORM / POLLWRBAND sub-flags are valid here. POLLHUP, POLLERR and POLLNVAL
+     * are output-only and are reported in revents regardless of what we requested. */
+    fds.events = POLLIN;
 
     nfds = WSAPoll(&fds, 1, TIMEOUT * 1000);
     if (nfds < 0)
