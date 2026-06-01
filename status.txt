@@ -1,3 +1,17 @@
+Date    1 Jun 2026
+repo    https://github.com/virtio-win/kvm-guest-drivers-windows.git
+tag     mm320
+
+Fixed issues:
+viosock: Fix spec compliance issues in WSP library and socket driver
+netkvm: treat temporary TX queue full as retry, not drop
+RHEL-173203: viostor: Fix write cache mode detection and allow changing it
+RHELMISC-28978: [CI-NO-BUILD] Update CODEOWNERS file
+CODEOWNERS: Add @irudakov77 as viosock co-owner
+RHEL-167333: netkvm: USO fix and visibility
+RHEL-180731: viosock: Validate fd_count in VIOSockSelect against overflow and empty
+viosock: Fix socket lifetime races and getsockname() behavior
+
 Date    16 Apr 2026
 repo    https://github.com/virtio-win/kvm-guest-drivers-windows.git
 tag     mm319
