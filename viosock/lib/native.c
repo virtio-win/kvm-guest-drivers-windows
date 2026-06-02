@@ -171,6 +171,7 @@ INT NtStatusToWsaError(_In_ NTSTATUS Status)
             wsaError = WSAEHOSTUNREACH;
             break;
         case STATUS_BUFFER_TOO_SMALL:
+        case STATUS_ACCESS_VIOLATION:
             wsaError = WSAEFAULT;
             break;
         case STATUS_CANCELLED:
