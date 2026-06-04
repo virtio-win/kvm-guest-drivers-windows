@@ -7,7 +7,7 @@
 # /fwcfg/
 /fwcfg64/           @kostyanf14 @YanVugenfirer
 # /ivshmem/
-/NetKVM/            @ybendito @YanVugenfirer
+/NetKVM/            @ybendito @YanVugenfirer @zjmletang
 # /packaging/
 # /pciserial/
 /pvpanic/           @kostyanf14 @YanVugenfirer
