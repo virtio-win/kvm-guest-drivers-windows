@@ -315,6 +315,12 @@ int WSPAPI VIOSockCloseSocket(_In_ SOCKET s, _Out_ LPINT lpErrno)
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
+    if (!VIOSockIsVsockSocket(s))
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "%s: not a vsock socket\n", __FUNCTION__);
+        return WSP_ERROR(WSAENOTSOCK);
+    }
+
     if (!CloseHandle((HANDLE)s))
     {
         *lpErrno = WSAENOTSOCK;
@@ -524,6 +530,13 @@ BOOL WSPAPI VIOSockGetOverlappedResult(_In_ SOCKET s,
         return FALSE;
     }
 
+    if (!VIOSockIsVsockSocket(s))
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "%s: not a vsock socket\n", __FUNCTION__);
+        *lpErrno = WSAENOTSOCK;
+        return FALSE;
+    }
+
     *lpdwFlags = 0;
 
     if (GetOverlappedResult((HANDLE)s, (LPOVERLAPPED)lpOverlapped, lpcbTransfer, fWait))
@@ -640,6 +653,12 @@ int WSPAPI VIOSockGetSockOpt(_In_ SOCKET s,
         return WSP_ERROR(WSAEFAULT);
     }
 
+    if (!VIOSockIsVsockSocket(s))
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "%s: not a vsock socket\n", __FUNCTION__);
+        return WSP_ERROR(WSAENOTSOCK);
+    }
+
     if (level == SOL_SOCKET && optname == SO_PROTOCOL_INFOW)
     {
         if (*optlen < (int)sizeof(WSAPROTOCOL_INFOW))
@@ -738,6 +757,12 @@ int WSPAPI VIOSockIoctl(_In_ SOCKET s,
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Invalid lpcbBytesReturned\n");
         return WSP_ERROR(WSAEFAULT);
+    }
+
+    if (!VIOSockIsVsockSocket(s))
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "%s: not a vsock socket\n", __FUNCTION__);
+        return WSP_ERROR(WSAENOTSOCK);
     }
 
     if (dwIoControlCode == SIO_BSP_HANDLE || dwIoControlCode == SIO_BSP_HANDLE_POLL ||
@@ -861,6 +886,12 @@ int WSPAPI VIOSockRecv(_In_ SOCKET s,
     UNREFERENCED_PARAMETER(lpThreadId);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
+
+    if (!VIOSockIsVsockSocket(s))
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "%s: not a vsock socket\n", __FUNCTION__);
+        return WSP_ERROR(WSAENOTSOCK);
+    }
 
     if (lpNumberOfBytesRecvd)
     {
@@ -1158,6 +1189,12 @@ int WSPAPI VIOSockSend(_In_ SOCKET s,
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Invalid lpBuffers\n");
         return WSP_ERROR(WSAEFAULT);
+    }
+
+    if (!VIOSockIsVsockSocket(s))
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "%s: not a vsock socket\n", __FUNCTION__);
+        return WSP_ERROR(WSAENOTSOCK);
     }
 
     // If the caller didn't assert sync but the handle is actually sync, drop

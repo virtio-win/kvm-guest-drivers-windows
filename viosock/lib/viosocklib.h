@@ -101,6 +101,8 @@ _Must_inspect_result_ BOOL VIOSockReadFile(_In_ SOCKET s,
 
 BOOL VIOSockIsSyncSocket(_In_ SOCKET s);
 
+BOOL VIOSockIsVsockSocket(_In_ SOCKET s);
+
 INT NtStatusToWsaError(_In_ NTSTATUS Status);
 
 //////////////////////////////////////////////////////////////////////////
