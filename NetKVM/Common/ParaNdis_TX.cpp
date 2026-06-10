@@ -1291,13 +1291,16 @@ bool CNB::CopyHeaders(PVOID Destination, ULONG MaxSize, ULONG &HeadersLength, UL
     }
     else if (m_ParentNBL->IsUdpCSO())
     {
-        HeadersLength = Copy(Destination, MaxSize);
+        // UDP CSO: need L4HeaderOffset, may be IPv6 with extension headers
+        ULONG MaxNeeded = min(MaxSize, MAX_HEADERS_SIZE_FOR_CSO);
+        HeadersLength = Copy(Destination, MaxNeeded);
         L4HeaderOffset = QueryL4HeaderOffset(Destination, m_Context->Offload.ipHeaderOffset);
     }
     else if (m_ParentNBL->IsIPHdrCSO())
     {
-        HeadersLength = Copy(Destination, MaxSize);
-        L4HeaderOffset = QueryL4HeaderOffset(Destination, m_Context->Offload.ipHeaderOffset);
+        // IP header CSO only: IPv4 only, no L4HeaderOffset needed
+        HeadersLength = min(MaxSize, ETH_HEADER_SIZE + MAX_IPV4_HEADER_SIZE);
+        HeadersLength = Copy(Destination, HeadersLength);
     }
     else
     {
