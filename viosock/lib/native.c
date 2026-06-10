@@ -137,10 +137,10 @@ INT NtStatusToWsaError(_In_ NTSTATUS Status)
         case STATUS_ACCESS_DENIED:
             wsaError = WSAEACCES;
             break;
-        case STATUS_INVALID_DEVICE_REQUEST:
         case STATUS_NOT_SUPPORTED:
             wsaError = WSAEOPNOTSUPP;
             break;
+        case STATUS_INVALID_DEVICE_REQUEST:
         case STATUS_NOT_SOCKET:
         case STATUS_INVALID_HANDLE:
             wsaError = WSAENOTSOCK;
@@ -569,4 +569,44 @@ BOOL VIOSockIsSyncSocket(_In_ SOCKET s)
     }
 
     return FALSE;
+}
+
+//
+// Determine whether a handle really belongs to the vsock device.
+//
+// ws2_32 dispatches a Winsock call to every installed provider when it cannot
+// find the handle in its own socket table — which is exactly what happens for
+// handles a process inherited rather than created (rempy's pump.py is handed
+// raw socket and pipe handles on its command line). Without this check our WSP
+// entry points would blindly issue NtReadFile/NtWriteFile on foreign handles
+// (named pipes, other providers' sockets), which hangs or corrupts the host.
+//
+// The driver names its device object \Device\Viosock (VIOSOCK_DEVICE_NAME), so
+// the object name is a reliable, synchronous marker: an anonymous pipe has no
+// name (STATUS_OBJECT_NAME_INVALID), AFD reports \Device\Afd, and only our
+// sockets report \Device\Viosock.
+//
+BOOL VIOSockIsVsockSocket(_In_ SOCKET s)
+{
+    static const WCHAR wszVsockDevice[] = L"\\Device\\Viosock";
+    const USHORT cbName = (USHORT)(sizeof(wszVsockDevice) - sizeof(WCHAR)); // exclude NUL
+
+    struct
+    {
+        UNICODE_STRING Name;
+        WCHAR NameBuffer[ARRAYSIZE(wszVsockDevice)];
+    } info;
+    NTSTATUS status;
+    ULONG retLen = 0;
+
+    // ObjectNameInformation == 1 (not exposed as an enum value by winternl.h).
+    status = NtQueryObject((HANDLE)s, (OBJECT_INFORMATION_CLASS)1, &info, sizeof(info), &retLen);
+    if (!NT_SUCCESS(status))
+    {
+        // Foreign handle: no name (anonymous pipe), or a name longer than ours
+        // (cannot match — our device name is exact).
+        return FALSE;
+    }
+
+    return info.Name.Length == cbName && _wcsnicmp(info.Name.Buffer, wszVsockDevice, cbName / sizeof(WCHAR)) == 0;
 }
