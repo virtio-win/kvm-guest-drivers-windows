@@ -35,6 +35,7 @@
 #endif
 
 DRIVER_INITIALIZE DriverEntry;
+VOID VIOSockTimerInit();
 
 // Context cleanup callbacks generally run at IRQL <= DISPATCH_LEVEL but
 // WDFDRIVER context cleanup is guaranteed to run at PASSIVE_LEVEL.
@@ -44,7 +45,12 @@ EVT_WDF_OBJECT_CONTEXT_CLEANUP _IRQL_requires_(PASSIVE_LEVEL) VIOSockEvtDriverCo
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(INIT, DriverEntry)
 #pragma alloc_text(PAGE, VIOSockEvtDriverContextCleanup)
+#pragma alloc_text(INIT, VIOSockTimerInit)
+#pragma alloc_text(PAGE, VIOSockTimerCreate)
 #endif
+
+ULONG ulTimeIncrement;
+LONGLONG llTimerToleranceTicks;
 
 NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING RegistryPath)
 {
@@ -78,6 +84,8 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
         return status;
     }
 
+    VIOSockTimerInit();
+
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "<-- %s\n", __FUNCTION__);
     return status;
 }
@@ -91,36 +99,54 @@ VOID VIOSockEvtDriverContextCleanup(IN WDFOBJECT Driver)
     WPP_CLEANUP(WdfDriverWdmGetDriverObject((WDFDRIVER)Driver));
 }
 
-VOID VIOSockTimerStart(IN PVIOSOCK_TIMER pTimer, IN LONGLONG Timeout)
+VOID VIOSockTimerInit()
 {
-    LARGE_INTEGER liTicks;
+    ulTimeIncrement = KeQueryTimeIncrement();
+    llTimerToleranceTicks = VIOSOCK_TIMER_TOLERANCE / ulTimeIncrement;
+}
+
+NTSTATUS VIOSockTimerCreate(IN PVIOSOCK_TIMER pTimer, IN WDFOBJECT ParentObject, IN PFN_WDF_TIMER EvtTimerFunc)
+{
+    WDF_OBJECT_ATTRIBUTES Attributes;
+    WDF_TIMER_CONFIG timerConfig;
+
+    PAGED_CODE();
+
+    pTimer->Deadline = MAXLONGLONG;
+    pTimer->StartRefs = 0;
+
+    WDF_TIMER_CONFIG_INIT(&timerConfig, EvtTimerFunc);
+
+    WDF_OBJECT_ATTRIBUTES_INIT(&Attributes);
+    Attributes.ParentObject = ParentObject;
+
+    return WdfTimerCreate(&timerConfig, &Attributes, &pTimer->Timer);
+}
+
+VOID VIOSockTimerStartDeadline(IN PVIOSOCK_TIMER pTimer, IN PVIOSOCK_TIMER_ENTRY pEntry OPTIONAL, IN LONGLONG Deadline)
+{
     BOOLEAN bSetTimer = FALSE;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, Deadline: %lld\n", __FUNCTION__, Deadline);
 
-    if (!Timeout || Timeout == LONGLONG_MAX)
+    ASSERT(Deadline > 0 && Deadline != MAXLONGLONG);
+    if (!Deadline || Deadline == MAXLONGLONG)
     {
         return;
     }
 
-    ASSERT(Timeout > VIOSOCK_TIMER_TOLERANCE);
-    if (Timeout <= VIOSOCK_TIMER_TOLERANCE)
+    ++pTimer->StartRefs;
+    if (pEntry)
     {
-        Timeout = VIOSOCK_TIMER_TOLERANCE + 1;
+        pEntry->Deadline = Deadline;
     }
 
-    KeQueryTickCount(&liTicks);
-
-    ++pTimer->StartRefs;
-
-    if (pTimer->StartTime)
+    ASSERT(!VIOSockTimerDeadlineIsExpired(Deadline));
+    // pTimer->Deadline is MAXLONGLONG when the timer is not running (after Create or Cancel).
+    // The else branch for 0 is unreachable: VIOSockTimerCreate initializes to MAXLONGLONG.
+    if (pTimer->Deadline != MAXLONGLONG)
     {
-        LONGLONG Remaining;
-
-        ASSERT(pTimer->Timeout);
-
-        Remaining = pTimer->Timeout - (liTicks.QuadPart - pTimer->StartTime) * KeQueryTimeIncrement();
-        if (Remaining > Timeout + VIOSOCK_TIMER_TOLERANCE)
+        if (Deadline + VIOSOCK_TIMER_TOLERANCE_TICKS < pTimer->Deadline)
         {
             bSetTimer = TRUE;
         }
@@ -132,8 +158,7 @@ VOID VIOSockTimerStart(IN PVIOSOCK_TIMER pTimer, IN LONGLONG Timeout)
 
     if (bSetTimer)
     {
-        pTimer->StartTime = liTicks.QuadPart;
-        pTimer->Timeout = Timeout;
-        WdfTimerStart(pTimer->Timer, -Timeout);
+        pTimer->Deadline = Deadline;
+        WdfTimerStart(pTimer->Timer, -VIOSockTimerDeadlineToTimeout(Deadline));
     }
 }
