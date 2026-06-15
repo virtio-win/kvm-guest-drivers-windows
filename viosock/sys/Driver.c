@@ -141,7 +141,6 @@ VOID VIOSockTimerStartDeadline(IN PVIOSOCK_TIMER pTimer, IN PVIOSOCK_TIMER_ENTRY
         pEntry->Deadline = Deadline;
     }
 
-    ASSERT(!VIOSockTimerDeadlineIsExpired(Deadline));
     // pTimer->Deadline is MAXLONGLONG when the timer is not running (after Create or Cancel).
     // The else branch for 0 is unreachable: VIOSockTimerCreate initializes to MAXLONGLONG.
     if (pTimer->Deadline != MAXLONGLONG)
