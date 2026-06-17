@@ -797,6 +797,7 @@ _Requires_lock_not_held_(pListenSocket->StateLock) NTSTATUS VIOSockAcceptInitSoc
     pAcceptSocket->RecvTimeout = MAXLONGLONG;
 
     pAcceptSocket->buf_alloc = pListenSocket->buf_alloc;
+    pAcceptSocket->RcvLowat = 1; // SO_RCVLOWAT is not inherited from the listening socket
 
     WdfSpinLockAcquire(pListenSocket->StateLock);
     pAcceptSocket->EventsMask = ~FD_ACCEPT & pListenSocket->EventsMask;
@@ -1061,6 +1062,7 @@ static NTSTATUS VIOSockCreate(IN WDFDEVICE WdfDevice, IN WDFREQUEST Request, IN 
 
             InitializeListHead(&pSocket->RxCbList);
             pSocket->RxBytes = 0;
+            pSocket->RcvLowat = 1; // SO_RCVLOWAT default: any byte makes the socket readable
 
             status = VIOSockTimerCreate(&pSocket->PendedTimer, FileObject, VIOSockPendedTimerFunc);
             if (!NT_SUCCESS(status))
@@ -1991,6 +1993,7 @@ typedef struct _LINGER
 
 #define SO_ACCEPTCONN 0x0002 /* socket has had listen() */
 #define SO_LINGER     0x0080 /* linger on close if data present */
+#define SO_RCVLOWAT   0x1004 /* receive low-water mark */
 
 #define SOCK_STREAM   1
 
@@ -2130,6 +2133,17 @@ static NTSTATUS VIOSockGetSockOpt(IN WDFREQUEST Request, OUT size_t *pLength)
 
             *(PULONG)pOptVal = pSocket->RecvTimeout == MAXLONGLONG ? 0
                                                                    : (ULONG)(pSocket->RecvTimeout / WDF_TIMEOUT_TO_MS);
+            pOpt->optlen = sizeof(ULONG);
+            break;
+
+        case SO_RCVLOWAT:
+            if (pOpt->optlen < sizeof(ULONG))
+            {
+                status = STATUS_INVALID_PARAMETER;
+                break;
+            }
+
+            *(PULONG)pOptVal = pSocket->RcvLowat;
             pOpt->optlen = sizeof(ULONG);
             break;
 
@@ -2316,6 +2330,61 @@ static NTSTATUS VIOSockSetSockOpt(IN WDFREQUEST Request)
 
             pSocket->RecvTimeout = *(PULONG)pOptVal ? WDF_ABS_TIMEOUT_IN_MS(*(PULONG)pOptVal) : MAXLONGLONG;
             break;
+
+        case SO_RCVLOWAT:
+            {
+                ULONG val;
+                BOOLEAN bSendUpdate;
+                BOOLEAN bReadReady;
+
+                if (pOpt->optlen < sizeof(ULONG))
+                {
+                    status = STATUS_INVALID_PARAMETER;
+                    break;
+                }
+
+                val = *(PULONG)pOptVal;
+
+                // Linux coerces a negative SO_RCVLOWAT to INT_MAX, which then fails the
+                // "must not exceed the rx buffer" check; reject negatives the same way.
+                if ((ULONG32)val > pSocket->buf_alloc)
+                {
+                    status = STATUS_INVALID_PARAMETER;
+                    break;
+                }
+
+                if (val == 0)
+                {
+                    val = 1; // mirror Linux 'val ? : 1'
+                }
+
+                WdfSpinLockAcquire(pSocket->RxLock);
+                // Kick the sender if we don't have enough buffered to satisfy the new
+                // low-water mark and the peer is unaware of bytes we already consumed.
+                bSendUpdate = (pSocket->RxBytes < val) && (pSocket->fwd_cnt != pSocket->last_fwd_cnt);
+                pSocket->RcvLowat = val;
+                // The FD_READ event bit is sticky, unlike Linux which recomputes
+                // readability from rx_bytes on every poll. Reconcile it against the new
+                // mark: data may already be buffered (it can arrive before this call),
+                // so set FD_READ when the mark is now met and clear it otherwise.
+                bReadReady = VIOSockRxReadReady(pSocket);
+                WdfSpinLockRelease(pSocket->RxLock);
+
+                if (bReadReady)
+                {
+                    VIOSockEventSetBitLocked(pSocket, FD_READ_BIT, STATUS_SUCCESS);
+                }
+                else
+                {
+                    VIOSockEventClearBitLocked(pSocket, FD_READ_BIT);
+                }
+
+                if (bSendUpdate)
+                {
+                    VIOSockSendCreditUpdate(pSocket);
+                }
+                break;
+            }
 
         case SO_VM_SOCKETS_BUFFER_SIZE:
             if (pOpt->optlen < sizeof(ULONGLONG))

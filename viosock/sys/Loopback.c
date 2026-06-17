@@ -291,7 +291,7 @@ static NTSTATUS VIOSockLoopbackHandleConnected(IN PSOCKET_CONTEXT pDestSocket,
             status = VIOSockRxRequestEnqueueCb(pDestSocket, Request, Length);
             if (NT_SUCCESS(status))
             {
-                VIOSockEventSetBitLocked(pDestSocket, FD_READ_BIT, STATUS_SUCCESS);
+                VIOSockEventSetReadBitLocked(pDestSocket);
                 VIOSockReadProcessDequeueCb(pDestSocket);
             }
             break;

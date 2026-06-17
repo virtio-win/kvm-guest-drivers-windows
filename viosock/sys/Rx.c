@@ -787,7 +787,7 @@ static VOID VIOSockRxPktHandleConnected(IN PSOCKET_CONTEXT pSocket, IN PVIOSOCK_
         case VIRTIO_VSOCK_OP_RW:
             if (VIOSockRxPktEnqueueCb(pSocket, pPkt))
             {
-                VIOSockEventSetBitLocked(pSocket, FD_READ_BIT, STATUS_SUCCESS);
+                VIOSockEventSetReadBitLocked(pSocket);
                 VIOSockReadProcessDequeueCb(pSocket);
             }
             break;
@@ -1460,7 +1460,7 @@ _Requires_lock_not_held_(pSocket->RxLock) BOOLEAN VIOSockReadDequeueCb(IN PSOCKE
         }
     }
 
-    bSetBit = (ReadRequest != WDF_NO_HANDLE && VIOSockRxHasData(pSocket));
+    bSetBit = (ReadRequest != WDF_NO_HANDLE && VIOSockRxReadReady(pSocket));
     FreeSpace = pSocket->buf_alloc - (pSocket->fwd_cnt - pSocket->last_fwd_cnt);
 
     WdfSpinLockRelease(pSocket->RxLock);
