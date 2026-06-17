@@ -351,6 +351,7 @@ typedef struct _SOCKET_CONTEXT
     ULONG32 buf_alloc;
     _Guarded_by_(RxLock) ULONG32 fwd_cnt;
     ULONG32 last_fwd_cnt;
+    ULONG RcvLowat; // SO_RCVLOWAT: report the socket readable only once RxBytes >= RcvLowat
 
     _Guarded_by_(StateLock) ULONG32 peer_buf_alloc;
     _Guarded_by_(StateLock) ULONG32 peer_fwd_cnt;
@@ -648,6 +649,23 @@ _Requires_lock_not_held_(pSocket->RxLock) NTSTATUS VIOSockRxRequestEnqueueCb(IN 
 __inline ULONG VIOSockRxHasData(IN PSOCKET_CONTEXT pSocket)
 {
     return pSocket->RxBytes;
+}
+
+// SO_RCVLOWAT readiness: the socket is reported readable only when at least
+// RcvLowat bytes are buffered (mirrors Linux vsock_data_ready()/poll()).
+// RcvLowat defaults to 1, so the comparison matches the prior "has any data"
+// behavior for sockets that never set SO_RCVLOWAT.
+__inline BOOLEAN VIOSockRxReadReady(IN PSOCKET_CONTEXT pSocket)
+{
+    return (pSocket->RxBytes >= pSocket->RcvLowat);
+}
+
+_Requires_lock_not_held_(pSocket->StateLock) __inline VOID VIOSockEventSetReadBitLocked(IN PSOCKET_CONTEXT pSocket)
+{
+    if (VIOSockRxReadReady(pSocket))
+    {
+        VIOSockEventSetBitLocked(pSocket, FD_READ_BIT, STATUS_SUCCESS);
+    }
 }
 
 NTSTATUS
