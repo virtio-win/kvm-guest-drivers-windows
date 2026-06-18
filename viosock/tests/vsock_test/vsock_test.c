@@ -742,7 +742,11 @@ static void test_stream_poll_rcvlowat_client(const struct test_opts *opts)
         exit(EXIT_FAILURE);
     }
 
-    if (fds.revents != poll_flags)
+    // Windows WSAPoll reports POLLRDNORM for readable normal data. POLLRDBAND
+    // (the other half of POLLIN) is only raised for OOB/priority data, which
+    // vsock streams never carry, so revents == POLLRDNORM here. The Linux
+    // original expected EPOLLIN|EPOLLRDNORM (separate bits, both set on Linux).
+    if (fds.revents != POLLRDNORM)
     {
         fprintf(stderr, "Unexpected poll result %hx\n", fds.revents);
         exit(EXIT_FAILURE);
