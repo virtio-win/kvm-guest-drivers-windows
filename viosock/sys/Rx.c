@@ -644,7 +644,8 @@ _Requires_lock_not_held_(pSocket->RxLock) static BOOLEAN VIOSockRxPktEnqueueCb(I
     PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pSocket);
     PVIOSOCK_RX_CB pCurrentCb = NULL;
     ULONG BufferFree, PktLen;
-    BOOLEAN bRes = FALSE;
+    BOOLEAN bCbEnqueued = TRUE;
+    BOOLEAN bDataAdded = FALSE;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
 
@@ -672,42 +673,46 @@ _Requires_lock_not_held_(pSocket->RxLock) static BOOLEAN VIOSockRxPktEnqueueCb(I
                 memcpy((PCHAR)pCurrentCb->BufferVA + pCurrentCb->DataLen, pPkt->Buffer->BufferVA, PktLen);
                 pCurrentCb->DataLen += PktLen;
                 pCurrentCb->BytesToRead += PktLen;
+                bDataAdded = TRUE;
             }
             else
             {
                 TraceEvents(TRACE_LEVEL_WARNING, DBG_READ, "Rx buffer full, drop packet\n");
             }
-            // just leave buffer with pkt
-            WdfSpinLockRelease(pSocket->RxLock);
-            return FALSE;
+            bCbEnqueued = FALSE;
         }
     }
-    else
-    {
-        bRes = TRUE; // Scan read queue
-    }
 
-    // Enqueue buffer
-    if (VIOSockRxPktInc(pSocket, PktLen))
+    if (bCbEnqueued)
     {
-        pPkt->Buffer->DataLen = PktLen;
-        pPkt->Buffer->BytesToRead = PktLen;
-        pPkt->Buffer->ReadPtr = pPkt->Buffer->BufferVA;
-        InsertTailList(&pSocket->RxCbList, &pPkt->Buffer->ListEntry);
-        pSocket->RxBuffers++;
-        pPkt->Buffer = NULL; // remove buffer from pkt
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "RxCb enqueued: %d bytes\n", PktLen);
-    }
-    else
-    {
-        TraceEvents(TRACE_LEVEL_WARNING, DBG_READ, "Rx buffer full, drop packet\n");
-        bRes = FALSE;
+        // Enqueue buffer
+        if (VIOSockRxPktInc(pSocket, PktLen))
+        {
+            pPkt->Buffer->DataLen = PktLen;
+            pPkt->Buffer->BytesToRead = PktLen;
+            pPkt->Buffer->ReadPtr = pPkt->Buffer->BufferVA;
+            InsertTailList(&pSocket->RxCbList, &pPkt->Buffer->ListEntry);
+            pSocket->RxBuffers++;
+            pPkt->Buffer = NULL; // remove buffer from pkt
+            bDataAdded = TRUE;
+            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "RxCb enqueued: %d bytes\n", PktLen);
+        }
+        else
+        {
+            TraceEvents(TRACE_LEVEL_WARNING, DBG_READ, "Rx buffer full, drop packet\n");
+            bCbEnqueued = FALSE;
+        }
     }
 
     WdfSpinLockRelease(pSocket->RxLock);
 
+    if (bDataAdded)
+    {
+        VIOSockEventSetReadBitLocked(pSocket);
+    }
+
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
-    return bRes;
+    return bCbEnqueued;
 }
 
 static VOID VIOSockRxRequestCancelCb(IN WDFREQUEST Request)
@@ -785,9 +790,11 @@ static VOID VIOSockRxPktHandleConnected(IN PSOCKET_CONTEXT pSocket, IN PVIOSOCK_
     switch (pPkt->Header.op)
     {
         case VIRTIO_VSOCK_OP_RW:
+            // VIOSockRxPktEnqueueCb refreshes read readiness (FD_READ) for any data
+            // it adds, merges included. A TRUE return means a new Cb was queued, so
+            // the read queue must be drained into pending read requests.
             if (VIOSockRxPktEnqueueCb(pSocket, pPkt))
             {
-                VIOSockEventSetReadBitLocked(pSocket);
                 VIOSockReadProcessDequeueCb(pSocket);
             }
             break;
@@ -1235,8 +1242,9 @@ _Requires_lock_not_held_(pSocket->RxLock) BOOLEAN VIOSockReadDequeueCb(IN PSOCKE
     NTSTATUS status = STATUS_SUCCESS;
     PVIOSOCK_RX_CB pCurrentCb;
     LIST_ENTRY LoopbackList, *pCurrentItem;
-    ULONG FreeSpace;
+    ULONG FreeSpace, FwdCntDelta = 0, uRcvTarget = 0;
     BOOLEAN bSetBit, bStop = FALSE, bRequeue = FALSE, bRestart = TRUE, bAlwaysTrue = TRUE, bProcessRxPktList = FALSE;
+    BOOLEAN bLowRxBytes = FALSE;
     PVIOSOCK_RX_CONTEXT pRequest = NULL;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
@@ -1430,11 +1438,17 @@ _Requires_lock_not_held_(pSocket->RxLock) BOOLEAN VIOSockReadDequeueCb(IN PSOCKE
         VIOSockRxPktListProcessLocked(pContext);
     }
 
+    // SO_RCVLOWAT: a blocking stream read must not return fewer than
+    // min(RcvLowat, BufferLen) bytes, so keep waiting until that many are copied.
+    // RcvLowat defaults to 1, so this matches the previous "return any data" path.
+    uRcvTarget = (pSocket->RcvLowat < pRequest->BufferLen) ? pSocket->RcvLowat : pRequest->BufferLen;
+
     if (!pRequest->FreeBytes || pRequest->Flags & MSG_PEEK)
     {
         TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "Should complete read request\n");
     }
-    else if (pRequest->BufferLen == pRequest->FreeBytes || pRequest->Flags & MSG_WAITALL)
+    else if (pRequest->BufferLen == pRequest->FreeBytes || (pRequest->Flags & MSG_WAITALL) ||
+             (!VIOSockIsNonBlocking(pSocket) && (pRequest->BufferLen - pRequest->FreeBytes) < uRcvTarget))
     {
         if (VIOSockTimerEntryIsExpired(&pRequest->TimerEntry))
         {
@@ -1461,7 +1475,9 @@ _Requires_lock_not_held_(pSocket->RxLock) BOOLEAN VIOSockReadDequeueCb(IN PSOCKE
     }
 
     bSetBit = (ReadRequest != WDF_NO_HANDLE && VIOSockRxReadReady(pSocket));
-    FreeSpace = pSocket->buf_alloc - (pSocket->fwd_cnt - pSocket->last_fwd_cnt);
+    FwdCntDelta = pSocket->fwd_cnt - pSocket->last_fwd_cnt;
+    FreeSpace = pSocket->buf_alloc - FwdCntDelta;
+    bLowRxBytes = (BOOLEAN)(pSocket->RxBytes < pSocket->RcvLowat);
 
     WdfSpinLockRelease(pSocket->RxLock);
 
@@ -1474,7 +1490,10 @@ _Requires_lock_not_held_(pSocket->RxLock) BOOLEAN VIOSockReadDequeueCb(IN PSOCKE
         VIOSockEventClearBitLocked(pSocket, FD_READ_BIT);
     }
 
-    if (FreeSpace < VIRTIO_VSOCK_MAX_PKT_BUF_SIZE)
+    // Mirror virtio_transport_stream_do_dequeue(): only advertise when we have
+    // newly consumed bytes to report, and do so when free space is low or the
+    // queued data is still below the reader's SO_RCVLOWAT mark.
+    if (FwdCntDelta != 0 && (FreeSpace < VIRTIO_VSOCK_MAX_PKT_BUF_SIZE || bLowRxBytes))
     {
         VIOSockSendCreditUpdate(pSocket);
     }
