@@ -432,7 +432,7 @@ static inline int compat_fcntl(int fd, int cmd, ...)
 }
 
 /* ------------------------------------------------------------------ */
-/* ioctl: SIOCOUTQ/SIOCINQ not available; tests gracefully skip these  */
+/* ioctl: map Linux SIOCINQ/SIOCOUTQ to their Windows/vsock equivalents */
 /* ------------------------------------------------------------------ */
 
 #define SIOCOUTQ 0x5411
@@ -440,8 +440,34 @@ static inline int compat_fcntl(int fd, int cmd, ...)
 
 static inline int compat_ioctl(int fd, unsigned long op, void *arg)
 {
-    (void)fd;
-    (void)op;
+    /* SIOCINQ (bytes available to read) is Winsock FIONREAD. */
+    if (op == SIOCINQ)
+    {
+        u_long val = 0;
+        if (ioctlsocket((SOCKET)fd, FIONREAD, &val) != 0)
+        {
+            wsa_set_errno();
+            return -1;
+        }
+        *(int *)arg = (int)val;
+        return 0;
+    }
+
+    /* SIOCOUTQ (unsent/unacknowledged bytes) has no Winsock equivalent; the
+     * viosock driver exposes the vsock analog SIO_VSOCK_OUTQ via WSAIoctl. */
+    if (op == SIOCOUTQ)
+    {
+        u_long val = 0;
+        DWORD cb = 0;
+        if (WSAIoctl((SOCKET)fd, SIO_VSOCK_OUTQ, NULL, 0, &val, sizeof(val), &cb, NULL, NULL) != 0)
+        {
+            wsa_set_errno();
+            return -1;
+        }
+        *(int *)arg = (int)val;
+        return 0;
+    }
+
     (void)arg;
     errno = EOPNOTSUPP;
     return -1;
