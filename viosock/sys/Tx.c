@@ -111,6 +111,8 @@ static VOID VIOSockTxRequestComplete(IN WDFREQUEST Request, IN NTSTATUS Status)
 
 _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxDequeue(PDEVICE_CONTEXT pContext);
 
+static VOID VIOSockTxEntryUnsentSub(IN PVIOSOCK_TX_ENTRY pTxEntry);
+
 //////////////////////////////////////////////////////////////////////////
 _Requires_lock_held_(pContext->TxLock) static PVIOSOCK_TX_PKT VIOSockTxPktAlloc(IN PDEVICE_CONTEXT pContext,
                                                                                 IN PVIOSOCK_TX_ENTRY pTxEntry)
@@ -199,6 +201,7 @@ _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxVqCleanup(IN PDEVICE_CO
             VIOSockTxRequestComplete(pTxEntry->Request, STATUS_SUCCESS);
         }
 
+        VIOSockTxEntryUnsentSub(pTxEntry);
         VIOSockTxFreeEntry(pTxEntry);
     };
 
@@ -374,6 +377,7 @@ _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxVqProcess(IN PDEVICE_CO
         {
             VIOSockTxRequestComplete(pTxEntry->Request, STATUS_SUCCESS);
         }
+        VIOSockTxEntryUnsentSub(pTxEntry);
         VIOSockTxFreeEntry(pTxEntry);
     };
 
@@ -526,6 +530,7 @@ _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxCleanup(PDEVICE_CONTEXT
                 VIOSockTxRequestComplete(pTxEntry->Request, Status);
             }
 
+            VIOSockTxEntryUnsentSub(pTxEntry);
             VIOSockTxFreeEntry(pTxEntry);
         }
     }
@@ -578,6 +583,7 @@ static PVIOSOCK_TX_ENTRY VIOSockTxAllocateEntry(IN PDEVICE_CONTEXT pContext,
         pTxEntry->buf_alloc = CreditHdr.buf_alloc;
         pTxEntry->fwd_cnt = CreditHdr.fwd_cnt;
 
+        WdfObjectReference(pTxEntry->Socket);
         bSkipSgList = IsLoopbackSocket(pSocket);
     }
     else
@@ -641,11 +647,25 @@ VOID VIOSockTxFreeEntry(PVIOSOCK_TX_ENTRY pTxEntry)
         WdfObjectDelete(pTxEntry->BufferMemory);
     }
 
+    if (pTxEntry->Socket != WDF_NO_HANDLE)
+    {
+        WdfObjectDereference(pTxEntry->Socket);
+    }
     WdfObjectDelete(pTxEntry->Memory);
 }
 
-// Note: the request handle must come from the caller — the context's
-// ThisRequest union arm is valid only inside the timer scan.
+// Undo the SIOCOUTQ accounting of a wire data chunk once the host has
+// consumed it (or the chunk is dropped at cleanup). Only sliced data entries
+// carry both a socket cookie and a payload; loopback entries are never
+// counted and never reach the callers of this helper.
+static VOID VIOSockTxEntryUnsentSub(IN PVIOSOCK_TX_ENTRY pTxEntry)
+{
+    if (pTxEntry->Socket != WDF_NO_HANDLE && pTxEntry->len)
+    {
+        InterlockedExchangeAdd(&GetSocketContext(pTxEntry->Socket)->BytesUnsent, -(LONG)pTxEntry->len);
+    }
+}
+
 static __inline VOID VIOSockTxEntrySetRequest(PVIOSOCK_TX_ENTRY pTxEntry, IN WDFREQUEST Request)
 {
     pTxEntry->Request = Request;
@@ -919,6 +939,13 @@ static NTSTATUS VIOSockWriteEnqueueRequest(IN PSOCKET_CONTEXT pSocket, IN WDFREQ
     }
 
     pRequest->BytesToWrite -= uPlaced;
+
+    if (!IsLoopbackSocket(pSocket))
+    {
+        // SIOCOUTQ accounting (Linux unsent_bytes parity): the chunk counts
+        // from slicing until the host consumes it.
+        InterlockedExchangeAdd(&pSocket->BytesUnsent, (LONG)pTxEntry->len);
+    }
 
     if (VIOSockTxInsertEntry(pContext, pTxEntry))
     {

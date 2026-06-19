@@ -160,6 +160,14 @@ _Success_(return) __inline BOOL ViosockGetConfig(_Out_ PVIRTIO_VSOCK_CONFIG pCon
 #define MSG_ZEROCOPY 0x4000000
 #endif
 
+/* vsock-specific WSAIoctl: query the number of bytes accepted from the
+ * application but not yet consumed by the transport - the vsock analog of
+ * Linux SIOCOUTQ (unsent_bytes), which has no Winsock equivalent. Output is a
+ * u_long; encoded _WSAIOR so it carries IOC_OUT and flows through the normal
+ * WSPIoctl output-buffer path.
+ */
+#define SIO_VSOCK_OUTQ        _WSAIOR(IOC_VENDOR, 1)
+
 /* Any address  for  binding, equivalent of INADDR_ANY.  This works for the svm_cid field of
  * sockaddr_vm and indicates the context ID of the current endpoint.
  */
