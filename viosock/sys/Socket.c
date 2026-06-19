@@ -1004,6 +1004,7 @@ static NTSTATUS VIOSockCreate(IN WDFDEVICE WdfDevice, IN WDFREQUEST Request, IN 
     pSocket = GetSocketContext(FileObject);
     pSocket->ReadDequeueInProgress = 0;
     pSocket->WriteEnqueueInProgress = 0;
+    pSocket->BytesUnsent = 0;
     pSocket->ThisSocket = FileObject;
     pSocket->SocketId = InterlockedIncrement(&pContext->SocketId);
 
@@ -2666,6 +2667,24 @@ static NTSTATUS VIOSockIoctl(IN WDFREQUEST Request, OUT size_t *pLength)
                 if (stOutBufferLen >= sizeof(ULONG))
                 {
                     *(PULONG)lpvOutBuffer = VIOSockRxHasData(pSocket);
+                    *pLength = sizeof(ULONG);
+                    status = STATUS_SUCCESS;
+                }
+                else
+                {
+                    status = STATUS_INVALID_PARAMETER;
+                }
+                break;
+
+            case SIO_VSOCK_OUTQ:
+                if (stOutBufferLen >= sizeof(ULONG))
+                {
+                    // Bytes accepted from the application but not yet consumed
+                    // by the host — Linux SIOCOUTQ (unsent_bytes) parity, NOT
+                    // the peer-acked window (tx_cnt - peer_fwd_cnt): the value
+                    // must drain to zero without the peer reading. Loopback
+                    // delivery is synchronous, so loopback sockets report 0.
+                    *(PULONG)lpvOutBuffer = (ULONG)pSocket->BytesUnsent;
                     *pLength = sizeof(ULONG);
                     status = STATUS_SUCCESS;
                 }
