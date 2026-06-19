@@ -354,6 +354,7 @@ typedef struct _SOCKET_CONTEXT
     _Interlocked_ volatile LONG WriteEnqueueInProgress; // send-enqueue worker serialization
     WDFQUEUE WriteQueue;
     _Guarded_by_(TxLock) VIOSOCK_TIMER WriteTimer;
+    _Interlocked_ volatile LONG BytesUnsent; // SIOCOUTQ: bytes sliced but not yet consumed by the host
 
     _Guarded_by_(RxLock) WDFREQUEST PendedRequest;
     _Guarded_by_(RxLock) VIOSOCK_TIMER PendedTimer;
