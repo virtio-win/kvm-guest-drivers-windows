@@ -1476,17 +1476,10 @@ _Requires_lock_not_held_(pSocket->StateLock) BOOLEAN VIOSockShutdownFromPeer(PSO
     WdfSpinLockRelease(pSocket->StateLock);
     if (uDrain & VIRTIO_VSOCK_SHUTDOWN_SEND)
     {
-        // Let's empty the recv() request queue. We need to
-        // complete pending requests for which there are no
-        // data. SInce VIOSockReadProcessQueue may process
-        // one such request per call, the loop is needed.
-        //
-        // New recv() requests should not be an issue since they
-        // get removed by queue's Ready Notify callback.
-        while ((WdfIoQueueGetState(pSocket->ReadQueue, NULL, NULL) & WdfIoQueueNoRequests) == 0)
-        {
-            VIOSockReadProcessQueue(pSocket);
-        }
+        // Peer closed its send: no more data will arrive, so wake every parked recv.
+        // The matcher drains the whole queue in one pass now - each request completes
+        // with EOF and keeps the worker going - so a single call empties it.
+        VIOSockReadProcessQueue(pSocket);
     }
 
     //     if (uDrain & VIRTIO_VSOCK_SHUTDOWN_RCV)
@@ -1573,8 +1566,17 @@ static NTSTATUS VIOSockShutdown(IN WDFREQUEST Request)
 
     if (NT_SUCCESS(status))
     {
+        ULONG32 uDrain = ~pSocket->Shutdown & (ULONG32)*pHow;
+
         pSocket->Shutdown |= (ULONG32)*pHow;
         status = VIOSockSendShutdown(pSocket, *pHow);
+
+        if (uDrain & VIRTIO_VSOCK_SHUTDOWN_RCV)
+        {
+            // We closed our own receive side: no more data will be delivered, so wake
+            // every parked recv. The matcher reports EOF for each and drains the rest.
+            VIOSockReadProcessQueue(pSocket);
+        }
     }
     else if (status == STATUS_LOCAL_DISCONNECT)
     {
