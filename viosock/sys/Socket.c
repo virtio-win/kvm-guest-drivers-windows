@@ -1529,14 +1529,14 @@ _Requires_lock_not_held_(pSocket->StateLock) BOOLEAN VIOSockShutdownFromPeer(PSO
     {
         // Let's empty the recv() request queue. We need to
         // complete pending requests for which there are no
-        // data. SInce VIOSockReadProcessDequeueCb may process
+        // data. SInce VIOSockReadProcessQueue may process
         // one such request per call, the loop is needed.
         //
         // New recv() requests should not be an issue since they
         // get removed by queue's Ready Notify callback.
         while ((WdfIoQueueGetState(pSocket->ReadQueue, NULL, NULL) & WdfIoQueueNoRequests) == 0)
         {
-            VIOSockReadProcessDequeueCb(pSocket);
+            VIOSockReadProcessQueue(pSocket);
         }
     }
 
@@ -1814,7 +1814,7 @@ __inline NTSTATUS VIOSockSetNonBlocking(IN PSOCKET_CONTEXT pSocket, IN BOOLEAN b
         if (!VIOSockSetFlag(pSocket, SOCK_NON_BLOCK))
         {
             VIOSockTxCleanup(GetDeviceContextFromSocket(pSocket), pSocket->ThisSocket, STATUS_CANT_WAIT);
-            VIOSockReadProcessDequeueCb(pSocket);
+            VIOSockReadProcessQueue(pSocket);
         }
     }
     else
