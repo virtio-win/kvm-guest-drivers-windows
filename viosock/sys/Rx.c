@@ -1302,69 +1302,61 @@ static VOID VIOSockReadCompleteLoopback(IN PLIST_ENTRY pLoopbackList)
 
 // When the socket has no buffered Rx data, decide what to do with the read request:
 // stop and complete it (*pStop) with the returned status, or requeue it to wait for
-// more data (*pRequeue). With data present nothing is done (*pStop/*pRequeue FALSE).
+// more data (*pRequeue). With data present nothing is done. *pRestart tells the worker
+// whether to go on to the next queued request: it stays TRUE for every terminal
+// completion - shutdown / reset / WOULDBLOCK applies to all parked recvs alike, so
+// drain them in one pass - and drops to FALSE only when this request is parked (FIFO:
+// nothing behind it can proceed, and re-driving a requeued request would busy-spin).
 // Must be called under RxLock.
 _Requires_lock_held_(pSocket->RxLock) static NTSTATUS VIOSockReadEvaluateRequest(IN PSOCKET_CONTEXT pSocket,
-                                                                                 _Out_ BOOLEAN *pStop,
-                                                                                 _Out_ BOOLEAN *pRequeue)
+                                                                                 OUT BOOLEAN *pStop,
+                                                                                 OUT BOOLEAN *pRequeue,
+                                                                                 OUT BOOLEAN *pRestart)
 {
     NTSTATUS status = STATUS_SUCCESS;
-    BOOLEAN bStop = FALSE, bRequeue = FALSE;
+    BOOLEAN bStop = FALSE, bRequeue = FALSE, bRestart = TRUE;
 
     if (!VIOSockRxHasData(pSocket))
     {
-        if (VIOSockIsNonBlocking(pSocket) || VIOSockStateGet(pSocket) != VIOSOCK_STATE_CONNECTED)
+        // No buffered data, so this request cannot be filled now: stop matching it.
+        bStop = TRUE;
+
+        status = VIOSockStateValidate(pSocket, FALSE);
+
+        if (NT_SUCCESS(status))
         {
-            // VIOSockEventClearBit(pSocket, FD_READ_BIT);
-
-            // complete request
-            bStop = TRUE;
-
-            status = VIOSockStateValidate(pSocket, FALSE);
-
-            if (NT_SUCCESS(status))
+            // Socket is healthy but empty.
+            if (VIOSockIsNonBlocking(pSocket))
             {
-                if (VIOSockIsNonBlocking(pSocket))
-                {
-                    status = STATUS_CANT_WAIT;
-                }
-                else
-                {
-                    ASSERT(FALSE);
-                    bRequeue = TRUE;
-                }
+                // Fail this recv with WOULDBLOCK; other non-blocking waiters share the
+                // same fate, so keep draining them (bRestart stays TRUE).
+                status = STATUS_CANT_WAIT;
             }
-            else if (status == STATUS_REMOTE_DISCONNECT)
+            else
             {
-                status = STATUS_SUCCESS; // return zero bytes on peer shutdown
+                // Blocking and connected: park this request and wait for data. FIFO -
+                // nothing behind it can proceed either, so stop the drain.
+                ASSERT(VIOSockStateGet(pSocket) == VIOSOCK_STATE_CONNECTED);
+                bRequeue = TRUE;
+                bRestart = FALSE;
             }
         }
         else
         {
-            // The socket is connected, however, it might
-            // receive a shutdown notification from the other end.
-            // In such a case, we need to complete the recv request with success,
-            // possibly reporting zero data received. If the shutdown is here,
-            // the request must not be requeued since that may cause it being
-            // in the queue forever.
-            status = VIOSockStateValidate(pSocket, FALSE);
-            if (!NT_SUCCESS(status))
+            // Terminal state, identical for every parked recv, so drain them all
+            // (bRestart stays TRUE). A graceful disconnect - our own SHUT_RD (LOCAL) or
+            // the peer's SHUT_SEND (REMOTE) - is reported as EOF (zero bytes); a reset
+            // or invalid socket keeps its error status.
+            if (status == STATUS_LOCAL_DISCONNECT || status == STATUS_REMOTE_DISCONNECT)
             {
-                bStop = TRUE;
-                if (status == STATUS_LOCAL_DISCONNECT || status == STATUS_REMOTE_DISCONNECT)
-                {
-                    status = STATUS_SUCCESS;
-                }
-            }
-            else
-            {
-                bRequeue = TRUE;
+                status = STATUS_SUCCESS;
             }
         }
     }
 
     *pStop = bStop;
     *pRequeue = bRequeue;
+    *pRestart = bRestart;
 
     return status;
 }
@@ -1377,8 +1369,8 @@ _Requires_lock_held_(pSocket->RxLock) static NTSTATUS VIOSockReadEvaluateRequest
 // Returns the read request's completion status; *pRestart tells the caller whether
 // the worker should retrieve and process the next request.
 _Requires_lock_not_held_(pSocket->RxLock) static NTSTATUS VIOSockReadDequeueCb(IN PSOCKET_CONTEXT pSocket,
-                                                                               _Inout_ WDFREQUEST *pReadRequest,
-                                                                               _Out_ BOOLEAN *pRestart)
+                                                                               IN OUT WDFREQUEST *pReadRequest,
+                                                                               OUT BOOLEAN *pRestart)
 {
     PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pSocket);
     WDFREQUEST ReadRequest = *pReadRequest;
@@ -1388,7 +1380,7 @@ _Requires_lock_not_held_(pSocket->RxLock) static NTSTATUS VIOSockReadDequeueCb(I
     PLIST_ENTRY pCurrentItem;
     LIST_ENTRY LoopbackList;
     ULONG FreeSpace, FwdCntDelta = 0, uRcvTarget = 0;
-    BOOLEAN bSetBit, bStop = FALSE, bRequeue = FALSE, bRestart = TRUE, bProcessRxPktList = FALSE;
+    BOOLEAN bSetBit, bStop, bRequeue, bRestart, bProcessRxPktList = FALSE;
     BOOLEAN bLowRxBytes = FALSE;
 
     InitializeListHead(&LoopbackList);
@@ -1400,11 +1392,12 @@ _Requires_lock_not_held_(pSocket->RxLock) static NTSTATUS VIOSockReadDequeueCb(I
         VIOSockTimerDeref(&pSocket->ReadTimer, TRUE);
     }
 
-    status = VIOSockReadEvaluateRequest(pSocket, &bStop, &bRequeue);
+    status = VIOSockReadEvaluateRequest(pSocket, &bStop, &bRequeue, &bRestart);
 
     if (bRequeue)
     {
         bStop = TRUE;
+        bRestart = FALSE;
         status = VIOSockReadRequeue(pSocket, ReadRequest);
         if (NT_SUCCESS(status))
         {
@@ -1421,7 +1414,7 @@ _Requires_lock_not_held_(pSocket->RxLock) static NTSTATUS VIOSockReadDequeueCb(I
             WdfRequestSetInformation(ReadRequest, pRequest->BufferLen - pRequest->FreeBytes);
         }
         *pReadRequest = ReadRequest;
-        *pRestart = FALSE;
+        *pRestart = bRestart;
         return status;
     }
 
