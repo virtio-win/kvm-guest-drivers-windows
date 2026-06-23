@@ -2242,6 +2242,48 @@ static VOID VIOSockRxUpdateBufferSize(IN PSOCKET_CONTEXT pSocket, IN ULONG uBuff
     }
 }
 
+// Not pageable - acquires RxLock, which raises IRQL to DISPATCH_LEVEL, so it must
+// not sit in the PAGE section like its paged caller VIOSockSetSockOpt. Applies the
+// SO_RCVLOWAT mark (coercing 0 to 1 like Linux), then reconciles the sticky FD_READ
+// event against the new mark and kicks a credit update if the sender is unaware of
+// bytes we already consumed.
+static VOID VIOSockSetRcvLowat(IN PSOCKET_CONTEXT pSocket, IN ULONG Val)
+{
+    BOOLEAN bSendUpdate;
+    BOOLEAN bReadReady;
+
+    if (Val == 0)
+    {
+        Val = 1; // mirror Linux 'val ? : 1'
+    }
+
+    WdfSpinLockAcquire(pSocket->RxLock);
+    // Kick the sender if we don't have enough buffered to satisfy the new low-water
+    // mark and the peer is unaware of bytes we already consumed.
+    bSendUpdate = (pSocket->RxBytes < Val) && (pSocket->fwd_cnt != pSocket->last_fwd_cnt);
+    pSocket->RcvLowat = Val;
+    bReadReady = VIOSockRxReadReady(pSocket);
+    WdfSpinLockRelease(pSocket->RxLock);
+
+    // The FD_READ event bit is sticky, unlike Linux which recomputes readability from
+    // rx_bytes on every poll. Reconcile it against the new mark: data may already be
+    // buffered (it can arrive before this call), so set FD_READ when the mark is now
+    // met and clear it otherwise.
+    if (bReadReady)
+    {
+        VIOSockEventSetBitLocked(pSocket, FD_READ_BIT, STATUS_SUCCESS);
+    }
+    else
+    {
+        VIOSockEventClearBitLocked(pSocket, FD_READ_BIT);
+    }
+
+    if (bSendUpdate)
+    {
+        VIOSockSendCreditUpdate(pSocket);
+    }
+}
+
 static NTSTATUS VIOSockSetSockOpt(IN WDFREQUEST Request)
 {
     PSOCKET_CONTEXT pSocket = GetSocketContextFromRequest(Request);
@@ -2334,8 +2376,6 @@ static NTSTATUS VIOSockSetSockOpt(IN WDFREQUEST Request)
         case SO_RCVLOWAT:
             {
                 ULONG val;
-                BOOLEAN bSendUpdate;
-                BOOLEAN bReadReady;
 
                 if (pOpt->optlen < sizeof(ULONG))
                 {
@@ -2353,36 +2393,7 @@ static NTSTATUS VIOSockSetSockOpt(IN WDFREQUEST Request)
                     break;
                 }
 
-                if (val == 0)
-                {
-                    val = 1; // mirror Linux 'val ? : 1'
-                }
-
-                WdfSpinLockAcquire(pSocket->RxLock);
-                // Kick the sender if we don't have enough buffered to satisfy the new
-                // low-water mark and the peer is unaware of bytes we already consumed.
-                bSendUpdate = (pSocket->RxBytes < val) && (pSocket->fwd_cnt != pSocket->last_fwd_cnt);
-                pSocket->RcvLowat = val;
-                // The FD_READ event bit is sticky, unlike Linux which recomputes
-                // readability from rx_bytes on every poll. Reconcile it against the new
-                // mark: data may already be buffered (it can arrive before this call),
-                // so set FD_READ when the mark is now met and clear it otherwise.
-                bReadReady = VIOSockRxReadReady(pSocket);
-                WdfSpinLockRelease(pSocket->RxLock);
-
-                if (bReadReady)
-                {
-                    VIOSockEventSetBitLocked(pSocket, FD_READ_BIT, STATUS_SUCCESS);
-                }
-                else
-                {
-                    VIOSockEventClearBitLocked(pSocket, FD_READ_BIT);
-                }
-
-                if (bSendUpdate)
-                {
-                    VIOSockSendCreditUpdate(pSocket);
-                }
+                VIOSockSetRcvLowat(pSocket, val);
                 break;
             }
 
