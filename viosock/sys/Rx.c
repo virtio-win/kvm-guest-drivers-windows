@@ -795,7 +795,7 @@ static VOID VIOSockRxPktHandleConnected(IN PSOCKET_CONTEXT pSocket, IN PVIOSOCK_
             // the read queue must be drained into pending read requests.
             if (VIOSockRxPktEnqueueCb(pSocket, pPkt))
             {
-                VIOSockReadProcessDequeueCb(pSocket);
+                VIOSockReadProcessQueue(pSocket);
             }
             break;
         case VIRTIO_VSOCK_OP_CREDIT_UPDATE:
@@ -1235,45 +1235,81 @@ VIOSockReadQueueInit(IN WDFDEVICE hDevice)
 // only loopback buffers have request assigned
 #define VIOSockIsLoopbackCb(cb) ((cb)->Request != WDF_NO_HANDLE)
 
-_Requires_lock_not_held_(pSocket->RxLock) BOOLEAN VIOSockReadDequeueCb(IN PSOCKET_CONTEXT pSocket)
+// Requeue the read request to wait for more data, preserving its receive timer.
+// If the deadline has already expired, do not requeue - report STATUS_IO_TIMEOUT
+// so the caller completes the request. Otherwise requeue it (which re-fires the
+// ReadQueue ready-notify synchronously on this thread, so mark the thread to make
+// the recursive VIOSockReadProcessNextRequest entry bail before re-acquiring the
+// non-recursive RxLock - self-deadlock), restart the deadline timer, and clear
+// *pReadRequest so the caller hands the request back to the queue instead of
+// completing it.
+_Requires_lock_held_(pSocket->RxLock) static NTSTATUS VIOSockReadRequeue(IN PSOCKET_CONTEXT pSocket,
+                                                                         IN WDFREQUEST ReadRequest)
 {
-    PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pSocket);
-    WDFREQUEST ReadRequest = WDF_NO_HANDLE;
+    NTSTATUS status;
+    PVIOSOCK_RX_CONTEXT pRequest = GetRequestRxContext(ReadRequest);
+
+    if (VIOSockTimerEntryIsExpired(&pRequest->TimerEntry))
+    {
+        return STATUS_IO_TIMEOUT;
+    }
+
+    pSocket->RxProcessingThreadId = (LONG64)PsGetCurrentThreadId();
+    status = WdfRequestRequeue(ReadRequest);
+    pSocket->RxProcessingThreadId = INVALID_THREAD_ID;
+
+    ASSERT(NT_SUCCESS(status));
+
+    if (NT_SUCCESS(status))
+    {
+        // continue timer
+        if (VIOSockTimerEntryIsSet(&pRequest->TimerEntry))
+        {
+            VIOSockTimerStartDeadline(&pSocket->ReadTimer, NULL, pRequest->TimerEntry.Deadline);
+        }
+    }
+
+    return status;
+}
+
+// Complete the loopback peer's TX requests collected during the dequeue. These are
+// the writes on the other end of a loopback connection that were matched into the
+// read - completing them belongs to the read-dequeue logic, not the read-request
+// lifecycle. Each Cb carries its own Request and DataLen.
+static VOID VIOSockReadCompleteLoopback(IN PLIST_ENTRY pLoopbackList)
+{
+    BOOLEAN bAlwaysTrue = TRUE;
+
+    // Static Driver Verifier(SDV) tracks only one request, and when SDV unwinds the
+    // loop, it treats completion of the second request as another completion of the
+    // first request. The 'assume' below causes SDV to skip loop analysis.
+    __analysis_assume(bAlwaysTrue == FALSE);
+
+    if (bAlwaysTrue)
+    {
+        while (!IsListEmpty(pLoopbackList))
+        {
+            PVIOSOCK_RX_CB pCurrentCb = CONTAINING_RECORD(RemoveHeadList(pLoopbackList), VIOSOCK_RX_CB, ListEntry);
+
+            // NOTE! SDV thinks we are completing INVALID request marked as cancelable,
+            // but request is appeared in this list only if WdfRequestMarkCancelableEx failed
+            WdfRequestCompleteWithInformation(pCurrentCb->Request,
+                                              pCurrentCb->DataLen ? STATUS_SUCCESS : STATUS_CANCELLED,
+                                              pCurrentCb->DataLen);
+        }
+    }
+}
+
+// When the socket has no buffered Rx data, decide what to do with the read request:
+// stop and complete it (*pStop) with the returned status, or requeue it to wait for
+// more data (*pRequeue). With data present nothing is done (*pStop/*pRequeue FALSE).
+// Must be called under RxLock.
+_Requires_lock_held_(pSocket->RxLock) static NTSTATUS VIOSockReadEvaluateRequest(IN PSOCKET_CONTEXT pSocket,
+                                                                                 _Out_ BOOLEAN *pStop,
+                                                                                 _Out_ BOOLEAN *pRequeue)
+{
     NTSTATUS status = STATUS_SUCCESS;
-    PVIOSOCK_RX_CB pCurrentCb;
-    LIST_ENTRY LoopbackList, *pCurrentItem;
-    ULONG FreeSpace, FwdCntDelta = 0, uRcvTarget = 0;
-    BOOLEAN bSetBit, bStop = FALSE, bRequeue = FALSE, bRestart = TRUE, bAlwaysTrue = TRUE, bProcessRxPktList = FALSE;
-    BOOLEAN bLowRxBytes = FALSE;
-    PVIOSOCK_RX_CONTEXT pRequest = NULL;
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
-
-    if (pSocket->RxProcessingThreadId == (LONG64)PsGetCurrentThreadId())
-    {
-        TraceEvents(TRACE_LEVEL_INFORMATION,
-                    DBG_READ,
-                    "Another instance of VIOSockReadDequeueCb already running, stop Cb dequeue\n");
-        return FALSE; // one running instance allowed
-    }
-
-    InitializeListHead(&LoopbackList);
-
-    status = WdfIoQueueRetrieveNextRequest(pSocket->ReadQueue, &ReadRequest);
-    if (!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "The read queue is empty, exiting from VIOSockReadDequeueCb\n");
-        return FALSE;
-    }
-
-    pRequest = GetRequestRxContext(ReadRequest);
-
-    WdfSpinLockAcquire(pSocket->RxLock);
-
-    if (VIOSockTimerEntryIsSet(&pRequest->TimerEntry))
-    {
-        VIOSockTimerDeref(&pSocket->ReadTimer, TRUE);
-    }
+    BOOLEAN bStop = FALSE, bRequeue = FALSE;
 
     if (!VIOSockRxHasData(pSocket))
     {
@@ -1327,45 +1363,66 @@ _Requires_lock_not_held_(pSocket->RxLock) BOOLEAN VIOSockReadDequeueCb(IN PSOCKE
         }
     }
 
+    *pStop = bStop;
+    *pRequeue = bRequeue;
+
+    return status;
+}
+
+// Match the retrieved read request against buffered Rx data under RxLock: fill it,
+// decide complete-vs-requeue (a requeue clears *pReadRequest and returns
+// STATUS_SUCCESS, so the caller leaves the request on the queue), advertise credit
+// and the FD_READ event, and complete the loopback peer requests matched into the
+// read. The caller completes the read request itself after this returns.
+// Returns the read request's completion status; *pRestart tells the caller whether
+// the worker should retrieve and process the next request.
+_Requires_lock_not_held_(pSocket->RxLock) static NTSTATUS VIOSockReadDequeueCb(IN PSOCKET_CONTEXT pSocket,
+                                                                               _Inout_ WDFREQUEST *pReadRequest,
+                                                                               _Out_ BOOLEAN *pRestart)
+{
+    PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pSocket);
+    WDFREQUEST ReadRequest = *pReadRequest;
+    PVIOSOCK_RX_CONTEXT pRequest = GetRequestRxContext(ReadRequest);
+    NTSTATUS status = STATUS_SUCCESS;
+    PVIOSOCK_RX_CB pCurrentCb;
+    PLIST_ENTRY pCurrentItem;
+    LIST_ENTRY LoopbackList;
+    ULONG FreeSpace, FwdCntDelta = 0, uRcvTarget = 0;
+    BOOLEAN bSetBit, bStop = FALSE, bRequeue = FALSE, bRestart = TRUE, bProcessRxPktList = FALSE;
+    BOOLEAN bLowRxBytes = FALSE;
+
+    InitializeListHead(&LoopbackList);
+
+    WdfSpinLockAcquire(pSocket->RxLock);
+
+    if (VIOSockTimerEntryIsSet(&pRequest->TimerEntry))
+    {
+        VIOSockTimerDeref(&pSocket->ReadTimer, TRUE);
+    }
+
+    status = VIOSockReadEvaluateRequest(pSocket, &bStop, &bRequeue);
+
     if (bRequeue)
     {
         bStop = TRUE;
-        if (VIOSockTimerEntryIsExpired(&pRequest->TimerEntry))
+        status = VIOSockReadRequeue(pSocket, ReadRequest);
+        if (NT_SUCCESS(status))
         {
-            status = STATUS_IO_TIMEOUT;
-        }
-        else
-        {
-            pSocket->RxProcessingThreadId = (LONG64)PsGetCurrentThreadId();
-            status = WdfRequestRequeue(ReadRequest);
-            pSocket->RxProcessingThreadId = INVALID_THREAD_ID;
-            if (NT_SUCCESS(status))
-            {
-                // continue timer
-                if (VIOSockTimerEntryIsSet(&pRequest->TimerEntry))
-                {
-                    VIOSockTimerStartDeadline(&pSocket->ReadTimer, NULL, pRequest->TimerEntry.Deadline);
-                }
-                ReadRequest = WDF_NO_HANDLE;
-                status = STATUS_SUCCESS;
-            }
+            ReadRequest = WDF_NO_HANDLE;
+            status = STATUS_SUCCESS;
         }
     }
 
     if (bStop)
     {
         WdfSpinLockRelease(pSocket->RxLock);
-
         if (ReadRequest != WDF_NO_HANDLE)
         {
-            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "Complete request without CB dequeue: 0x%08x\n", status);
-            WdfRequestCompleteWithInformation(ReadRequest, status, pRequest->BufferLen - pRequest->FreeBytes);
+            WdfRequestSetInformation(ReadRequest, pRequest->BufferLen - pRequest->FreeBytes);
         }
-        else
-        {
-            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "No read request to complete\n");
-        }
-        return FALSE;
+        *pReadRequest = ReadRequest;
+        *pRestart = FALSE;
+        return status;
     }
 
     // process chained buffer
@@ -1450,27 +1507,14 @@ _Requires_lock_not_held_(pSocket->RxLock) BOOLEAN VIOSockReadDequeueCb(IN PSOCKE
     else if (pRequest->BufferLen == pRequest->FreeBytes || (pRequest->Flags & MSG_WAITALL) ||
              (!VIOSockIsNonBlocking(pSocket) && (pRequest->BufferLen - pRequest->FreeBytes) < uRcvTarget))
     {
-        if (VIOSockTimerEntryIsExpired(&pRequest->TimerEntry))
+        // requeue request
+        status = VIOSockReadRequeue(pSocket, ReadRequest);
+        if (NT_SUCCESS(status))
         {
-            status = STATUS_IO_TIMEOUT;
-        }
-        else
-        {
-            // requeue request
-            pSocket->RxProcessingThreadId = (LONG64)PsGetCurrentThreadId();
-            status = WdfRequestRequeue(ReadRequest);
-            pSocket->RxProcessingThreadId = INVALID_THREAD_ID;
-            if (NT_SUCCESS(status))
-            {
-                // continue timer
-                if (VIOSockTimerEntryIsSet(&pRequest->TimerEntry))
-                {
-                    VIOSockTimerStartDeadline(&pSocket->ReadTimer, NULL, pRequest->TimerEntry.Deadline);
-                }
-                ReadRequest = WDF_NO_HANDLE;
-                status = STATUS_SUCCESS;
-                bRestart = FALSE;
-            }
+            // requeued: the request left our hands, stop restarting the worker
+            ReadRequest = WDF_NO_HANDLE;
+            status = STATUS_SUCCESS;
+            bRestart = FALSE;
         }
     }
 
@@ -1501,29 +1545,52 @@ _Requires_lock_not_held_(pSocket->RxLock) BOOLEAN VIOSockReadDequeueCb(IN PSOCKE
     if (ReadRequest != WDF_NO_HANDLE)
     {
         ASSERT(pSocket->PendedRequest == WDF_NO_HANDLE);
-
-        WdfRequestCompleteWithInformation(ReadRequest, status, pRequest->BufferLen - pRequest->FreeBytes);
+        WdfRequestSetInformation(ReadRequest, pRequest->BufferLen - pRequest->FreeBytes);
     }
 
-    // Static Driver Verifier(SDV) tracks only one request, and when SDV unwinds the loop,
-    // it treats completion of the second request as another completion of the first request.
-    // The 'assume' below causes SDV to skip loop analysis.
+    VIOSockReadCompleteLoopback(&LoopbackList);
 
-    __analysis_assume(bAlwaysTrue == FALSE);
+    *pReadRequest = ReadRequest;
+    *pRestart = bRestart;
 
-    // complete loopback requests (succeed and canceled)
-    if (bAlwaysTrue)
+    return status;
+}
+
+_Requires_lock_not_held_(pSocket->RxLock) BOOLEAN VIOSockReadProcessNextRequest(IN PSOCKET_CONTEXT pSocket)
+{
+    WDFREQUEST ReadRequest = WDF_NO_HANDLE;
+    NTSTATUS status = STATUS_SUCCESS;
+    BOOLEAN bRestart;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
+
+    if (pSocket->RxProcessingThreadId == (LONG64)PsGetCurrentThreadId())
     {
-        while (!IsListEmpty(&LoopbackList))
-        {
-            pCurrentCb = CONTAINING_RECORD(RemoveHeadList(&LoopbackList), VIOSOCK_RX_CB, ListEntry);
+        TraceEvents(TRACE_LEVEL_INFORMATION,
+                    DBG_READ,
+                    "Another instance of VIOSockReadProcessNextRequest already running, stop Cb dequeue\n");
+        return FALSE; // one running instance allowed
+    }
 
-            // NOTE! SDV thinks we are completing INVALID request marked as cancelable,
-            // but request is appeared in this list only if WdfRequestMarkCancelableEx failed
-            WdfRequestCompleteWithInformation(pCurrentCb->Request,
-                                              pCurrentCb->DataLen ? STATUS_SUCCESS : STATUS_CANCELLED,
-                                              pCurrentCb->DataLen);
-        }
+    status = WdfIoQueueRetrieveNextRequest(pSocket->ReadQueue, &ReadRequest);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION,
+                    DBG_READ,
+                    "The read queue is empty, exiting from VIOSockReadProcessNextRequest\n");
+        return FALSE;
+    }
+
+    status = VIOSockReadDequeueCb(pSocket, &ReadRequest, &bRestart);
+
+    if (ReadRequest != WDF_NO_HANDLE)
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "Complete read request: 0x%08x\n", status);
+        WdfRequestComplete(ReadRequest, status);
+    }
+    else
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "No read request to complete\n");
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
@@ -1592,7 +1659,7 @@ _Requires_lock_not_held_(pSocket->RxLock) VOID VIOSockReadCleanupCb(IN PSOCKET_C
 
 static VOID VIOSockReadSocketState(WDFQUEUE Queue, WDFCONTEXT Context)
 {
-    VIOSockReadProcessDequeueCb((PSOCKET_CONTEXT)Context);
+    VIOSockReadProcessQueue((PSOCKET_CONTEXT)Context);
 }
 
 VOID VIOSockReadIoCanceledOnQueue(IN WDFQUEUE Queue, IN WDFREQUEST Request)

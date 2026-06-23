@@ -674,11 +674,11 @@ VIOSockReadQueueInit(IN WDFDEVICE hDevice);
 NTSTATUS
 VIOSockReadSocketQueueInit(IN PSOCKET_CONTEXT pSocket);
 
-_Requires_lock_not_held_(pSocket->RxLock) BOOLEAN VIOSockReadDequeueCb(IN PSOCKET_CONTEXT pSocket);
+_Requires_lock_not_held_(pSocket->RxLock) BOOLEAN VIOSockReadProcessNextRequest(IN PSOCKET_CONTEXT pSocket);
 
-_Requires_lock_not_held_(pSocket->RxLock) __inline VOID VIOSockReadProcessDequeueCb(IN PSOCKET_CONTEXT pSocket)
+_Requires_lock_not_held_(pSocket->RxLock) __inline VOID VIOSockReadProcessQueue(IN PSOCKET_CONTEXT pSocket)
 {
-    while (VIOSockReadDequeueCb(pSocket))
+    while (VIOSockReadProcessNextRequest(pSocket))
         ;
 }
 

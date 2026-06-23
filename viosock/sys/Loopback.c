@@ -292,7 +292,7 @@ static NTSTATUS VIOSockLoopbackHandleConnected(IN PSOCKET_CONTEXT pDestSocket,
             if (NT_SUCCESS(status))
             {
                 VIOSockEventSetReadBitLocked(pDestSocket);
-                VIOSockReadProcessDequeueCb(pDestSocket);
+                VIOSockReadProcessQueue(pDestSocket);
             }
             break;
         case VIRTIO_VSOCK_OP_CREDIT_UPDATE:
