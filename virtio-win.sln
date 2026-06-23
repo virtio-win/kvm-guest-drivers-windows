@@ -220,6 +220,10 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "tcp-bridge", "viosock\tcp-b
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "viogpures", "viogpu\viogpures\viogpures.vcxproj", "{F737C4C1-5F21-4F77-AA5E-38CDE64BF849}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "stdvga", "stdvga", "{F2E5B9C6-C50F-43DF-AFD2-461042562B03}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "stdvga", "stdvga\stdvga.vcxproj", "{AFA6734D-CD82-4581-93F1-925D5C843F7A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Win10 Release|ARM64 = Win10 Release|ARM64
@@ -730,6 +734,14 @@ Global
 		{F737C4C1-5F21-4F77-AA5E-38CDE64BF849}.Win11 Release|x64.Build.0 = Win11 Release|x64
 		{F737C4C1-5F21-4F77-AA5E-38CDE64BF849}.Win11 Release|x86.ActiveCfg = Win11 Release|Win32
 		{F737C4C1-5F21-4F77-AA5E-38CDE64BF849}.Win11 Release|x86.Build.0 = Win11 Release|Win32
+		{AFA6734D-CD82-4581-93F1-925D5C843F7A}.Win10 Release|ARM64.ActiveCfg = Win10 Release|x64
+		{AFA6734D-CD82-4581-93F1-925D5C843F7A}.Win10 Release|x64.ActiveCfg = Win10 Release|x64
+		{AFA6734D-CD82-4581-93F1-925D5C843F7A}.Win10 Release|x64.Build.0 = Win10 Release|x64
+		{AFA6734D-CD82-4581-93F1-925D5C843F7A}.Win10 Release|x86.ActiveCfg = Win10 Release|x64
+		{AFA6734D-CD82-4581-93F1-925D5C843F7A}.Win11 Release|ARM64.ActiveCfg = Win11 Release|x64
+		{AFA6734D-CD82-4581-93F1-925D5C843F7A}.Win11 Release|x64.ActiveCfg = Win11 Release|x64
+		{AFA6734D-CD82-4581-93F1-925D5C843F7A}.Win11 Release|x64.Build.0 = Win11 Release|x64
+		{AFA6734D-CD82-4581-93F1-925D5C843F7A}.Win11 Release|x86.ActiveCfg = Win11 Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -780,6 +792,7 @@ Global
 		{B8C784B3-7914-4539-B728-F2EAE5C9795E} = {02B3EFA9-96A2-4117-BDFF-38908F1DB93F}
 		{F1D3841D-FC2D-4CF1-BE04-6CF5ACBFC41F} = {02B3EFA9-96A2-4117-BDFF-38908F1DB93F}
 		{F737C4C1-5F21-4F77-AA5E-38CDE64BF849} = {711026E0-B4CD-437B-B9FA-31DF42877EC4}
+		{AFA6734D-CD82-4581-93F1-925D5C843F7A} = {F2E5B9C6-C50F-43DF-AFD2-461042562B03}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {14F2DA75-8F24-42D5-BFE2-D7D0C03EAFA7}

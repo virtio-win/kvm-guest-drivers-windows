@@ -130,3 +130,9 @@
 .\viosock\Install\Win10\amd64\viosockwspsvc.pdb
 .\viosock\Install\Win10\amd64\vstbridge.exe
 .\viosock\Install\Win10\amd64\vstbridge.pdb
+; stdvga driver
+.Set DestinationDir=stdvga
+.\stdvga\Install\Win10\amd64\stdvga.cat
+.\stdvga\Install\Win10\amd64\stdvga.inf
+.\stdvga\Install\Win10\amd64\stdvga.pdb
+.\stdvga\Install\Win10\amd64\stdvga.sys

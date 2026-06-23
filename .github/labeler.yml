@@ -18,3 +18,5 @@ virtio-gpu:
     - '[Vv][Ii]([Rr][Tt][Ii])?[Oo](\s|-)*[Gg][Pp][Uu]'
 virtio-input:
     - '[Vv][Ii]([Rr][Tt][Ii])?[Oo](\s|-)*[Ii][Nn][Pp][Uu][Tt]'
+std-vga:
+    - '[Ss][Tt][Dd][-]?[Vv][Gg][Aa]'
