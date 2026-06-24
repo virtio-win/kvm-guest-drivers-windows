@@ -1083,10 +1083,8 @@ CNB::~CNB()
 {
     NETKVM_ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
 
-    if (m_SGL != nullptr)
-    {
-        NdisMFreeNetBufferSGList(m_Context->DmaHandle, m_SGL, m_NB);
-    }
+    ReleaseResources();
+
     if (m_ExtraNBStorage)
     {
         // for unknown case it was not freed before
