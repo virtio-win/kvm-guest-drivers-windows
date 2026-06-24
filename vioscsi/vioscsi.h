@@ -50,15 +50,16 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #endif
 
 #define PHYS_SEGMENTS                        32
-#define MAX_PHYS_SEGMENTS                    512
+#define PHYS_SEGMENTS_LIMIT                  512
 #define VIOSCSI_POOL_TAG                     'SoiV'
-#define VIRTIO_MAX_SG                        (1 + 1 + MAX_PHYS_SEGMENTS + 1) // cmd + resp + (MAX_PHYS_SEGMENTS + extra_page)
+#define VIRTIO_MAX_SG                        (PHYS_SEGMENTS_LIMIT + 1)
 
 #define SECTOR_SIZE                          512
 #define IO_PORT_LENGTH                       0x40
 #define MAX_CPU                              256
 
 #define REGISTRY_MAX_PH_BREAKS               "PhysicalBreaks"
+#define REGISTRY_MAX_PH_SEGMENTS             "MaxPhysicalSegments"
 #define REGISTRY_ACTION_ON_RESET             "VioscsiActionOnReset"
 #define REGISTRY_RESP_TIME_LIMIT             "TraceResponseTime"
 
@@ -117,7 +118,7 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define VIRTIO_SCSI_CONTROL_QUEUE            0
 #define VIRTIO_SCSI_EVENTS_QUEUE             1
 #define VIRTIO_SCSI_REQUEST_QUEUE_0          2
-#define VIRTIO_SCSI_QUEUE_LAST               VIRTIO_SCSI_REQUEST_QUEUE_0 + MAX_CPU
+#define VIRTIO_SCSI_QUEUE_LAST               (MAX_CPU - VIRTIO_SCSI_REQUEST_QUEUE_0)
 
 /* MSI messages and virtqueue indices are offset by 1, MSI 0 is not used */
 #define QUEUE_TO_MESSAGE(QueueId)            ((QueueId) + 1)
@@ -339,7 +340,7 @@ typedef struct _ADAPTER_EXTENSION
     ULONG num_affinity;
     BOOLEAN dpc_ok;
     PSTOR_DPC dpc;
-    ULONG max_physical_breaks;
+    ULONG max_segments;
     SCSI_WMILIB_CONTEXT WmiLibContext;
     ULONGLONG hba_id;
     PUCHAR ser_num;
