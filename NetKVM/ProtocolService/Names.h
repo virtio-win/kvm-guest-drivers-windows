@@ -71,5 +71,6 @@ typedef enum _tBindingState
     bsUnbindTcpip,
     bsBindTcpip,
     bsBindNone,
-    bsBindNoChange
+    bsBindNoChange,
+    bsCollectProtocols
 } tBindingState;

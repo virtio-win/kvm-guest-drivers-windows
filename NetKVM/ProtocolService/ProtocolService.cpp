@@ -44,6 +44,27 @@
 #define SERVICE_EXEFILE L"netkvmps.exe"
 #define SERVICE_ORGFILE L"netkvmp.exe"
 
+FILE *LogFile;
+CAtlArray<CStringA> ListOfTestProtocols;
+
+void AddToList(LPWSTR protocol)
+{
+    CStringA s;
+    s.Format("%S", protocol);
+    if (s.Find("ndistest") == 0)
+    {
+        auto &l = ListOfTestProtocols;
+        for (int i = 0; i < l.GetCount(); ++i)
+        {
+            if (!s.Compare(l[i]))
+            {
+                return;
+            }
+        }
+        l.Add(s);
+    }
+}
+
 class CNetCfg
 {
   public:
@@ -228,6 +249,10 @@ class CNetCfg
             case bsBindNoChange:
                 bShouldBeEnabled = enabled;
                 break;
+            case bsCollectProtocols:
+                bShouldBeEnabled = enabled;
+                AddToList(upperId);
+                break;
             case bsBindAll:
             default:
                 bShouldBeEnabled = true;
@@ -353,9 +378,9 @@ class CInterfaceTable
     {
         CheckBinding(Index, NULL, true, State, false);
     }
-    void Dump()
+    void Dump(tBindingState st = bsBindNoChange)
     {
-        TraverseTable(INFINITE, NULL, false, bsBindNoChange, false, [](const MIB_IF_ROW2 &row) {
+        TraverseTable(INFINITE, NULL, false, st, false, [](const MIB_IF_ROW2 &row) {
             CMACString sMac(row.PhysicalAddress);
             auto &fl = row.InterfaceAndOperStatusFlags;
             Log("[%s]  hw %d, paused %d, lp %d, %s",
@@ -1254,6 +1279,35 @@ int __cdecl main(int argc, char **argv)
             puts("Dumping interface table to debug output");
             CInterfaceTable t;
             t.Dump();
+        }
+        else if (!s.CompareNoCase("l") || !s.CompareNoCase("z"))
+        {
+            bool remove = !s.CompareNoCase("z");
+            const char *fname = "c:\\netkvmp.log";
+            fopen_s(&LogFile, fname, "a+b");
+            if (LogFile)
+            {
+                printf("Dumping interface table to %s\n", fname);
+                CInterfaceTable t;
+                if (!remove)
+                {
+                    t.Dump();
+                }
+                else
+                {
+                    t.Dump(bsCollectProtocols);
+                    auto &l = ListOfTestProtocols;
+                    for (int i = 0; i < l.GetCount(); ++i)
+                    {
+                        printf("removing %s\n", l[i].GetString());
+                        CStringA cmd = "netcfg -v -u ";
+                        cmd += l[i];
+                        system(cmd);
+                    }
+                }
+                fclose(LogFile);
+                LogFile = NULL;
+            }
         }
         else
         {

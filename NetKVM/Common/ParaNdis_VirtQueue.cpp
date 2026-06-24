@@ -113,6 +113,11 @@ bool CTXVirtQueue::PrepareBuffers()
         }
 
         m_Descriptors.Push(TXDescr);
+        // save maximal size of packet than can be placed in the headera area
+        if (m_TotalDescriptors == 0)
+        {
+            m_MaxSizeForPacketData = TXDescr->HeadersAreaAccessor().MaxEthHeadersSize();
+        }
     }
 
     m_FreeHWBuffers = m_TotalHWBuffers = m_TotalDescriptors;
