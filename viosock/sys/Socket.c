@@ -994,7 +994,7 @@ static NTSTATUS VIOSockCreate(IN WDFDEVICE WdfDevice, IN WDFREQUEST Request, IN 
     }
 
     pSocket = GetSocketContext(FileObject);
-    pSocket->RxProcessingThreadId = INVALID_THREAD_ID;
+    pSocket->DequeueInProgress = 0;
     pSocket->ThisSocket = FileObject;
     pSocket->SocketId = InterlockedIncrement(&pContext->SocketId);
 
