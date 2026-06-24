@@ -1,0 +1,71 @@
+;/*++
+;
+;INX_COPYRIGHT_1
+;INX_COPYRIGHT_2
+;
+;Module Name:
+;    stdvga.inf
+;
+;Abstract:
+;    QEMU Standard VGA Display Adapter driver (KMDOD)
+;
+;--*/
+
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = Display
+ClassGUID   = {4d36e968-e325-11ce-bfc1-08002be10318}
+Provider    = %VENDOR%
+DriverVer   = 01/01/2008,0.0.0.1 ; this line will be replaced with stampinf
+CatalogFile = stdvga.cat
+PnpLockdown = 1
+
+[DestinationDirs]
+DefaultDestDir = INX_PLATFORM_DRIVERS_DIR
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+stdvga.sys = 1,,
+
+[Manufacturer]
+%VENDOR% = StdVga, NT$ARCH$
+
+[StdVga.NT$ARCH$]
+%StdVga.DeviceDesc% = StdVga_Inst, PCI\VEN_1234&DEV_1111
+
+;
+; Installation Section
+;
+[StdVga_Inst]
+FeatureScore = F8
+CopyFiles    = StdVga_CopyFiles
+
+[StdVga_CopyFiles]
+stdvga.sys
+
+[StdVga_Inst.HW]
+AddReg = StdVga_HW_AddReg
+
+[StdVga_HW_AddReg]
+; No upper filters needed for KMDOD display-only driver
+
+[StdVga_Inst.Services]
+AddService = StdVga, 0x00000002, StdVga_Service_Inst
+
+[StdVga_Service_Inst]
+DisplayName    = %StdVga.SVCDESC%
+ServiceType    = 1                  ; SERVICE_KERNEL_DRIVER
+StartType      = 3                  ; SERVICE_DEMAND_START
+ErrorControl   = 0                  ; SERVICE_ERROR_IGNORE
+ServiceBinary  = %INX_PLATFORM_DRIVERS_DIR%\stdvga.sys
+
+;
+; Strings
+;
+[Strings]
+VENDOR              = "INX_COMPANY"
+DiskName            = "QEMU Standard VGA Driver Installation Disk"
+StdVga.DeviceDesc   = "QEMU Standard VGA Display Adapter"
+StdVga.SVCDESC      = "QEMU Standard VGA Display Driver"
