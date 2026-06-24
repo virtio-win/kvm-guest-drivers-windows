@@ -104,7 +104,6 @@ VOID VIOSockRxCbCleanup(IN PDEVICE_CONTEXT pContext);
 
 EVT_WDF_IO_QUEUE_IO_READ VIOSockRead;
 EVT_WDF_IO_QUEUE_IO_CANCELED_ON_QUEUE VIOSockReadIoCanceledOnQueue;
-EVT_WDF_IO_QUEUE_STATE VIOSockReadSocketState;
 EVT_WDF_REQUEST_CANCEL VIOSockRxRequestCancelCb;
 EVT_WDF_TIMER VIOSockReadTimerFunc;
 
@@ -1089,7 +1088,23 @@ _Requires_lock_not_held_(pSocket->RxLock) static NTSTATUS VIOSockReadForward(IN 
     VIOSockEventClearBitLocked(pSocket, FD_READ_BIT);
 
     status = WdfRequestForwardToIoQueue(Request, pSocket->ReadQueue);
-    if (!NT_SUCCESS(status))
+    if (NT_SUCCESS(status))
+    {
+        ULONG QueueRequests;
+
+        // The ReadQueue has no ready-notify callback to avoid recursion, so start the dequeue worker
+        // ourselves on the empty->non-empty edge. QueueRequests counts only requests
+        // still in the queue (not ones already pulled into a running worker), so == 1
+        // means our forward made the queue non-empty and no worker is draining it. If a
+        // worker is already running it will pick this request up on its own - no need to
+        // kick it per request.
+        WdfIoQueueGetState(pSocket->ReadQueue, &QueueRequests, NULL);
+        if (QueueRequests == 1)
+        {
+            VIOSockReadProcessQueue(pSocket);
+        }
+    }
+    else
     {
 
         TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "WdfRequestForwardToIoQueue failed: 0x%x\n", status);
@@ -1237,12 +1252,10 @@ VIOSockReadQueueInit(IN WDFDEVICE hDevice)
 
 // Requeue the read request to wait for more data, preserving its receive timer.
 // If the deadline has already expired, do not requeue - report STATUS_IO_TIMEOUT
-// so the caller completes the request. Otherwise requeue it (which re-fires the
-// ReadQueue ready-notify synchronously on this thread, so mark the thread to make
-// the recursive VIOSockReadProcessNextRequest entry bail before re-acquiring the
-// non-recursive RxLock - self-deadlock), restart the deadline timer, and clear
-// *pReadRequest so the caller hands the request back to the queue instead of
-// completing it.
+// so the caller completes the request. Otherwise requeue it (silent now that the
+// ReadQueue has no ready-notify: this just parks the request until the next explicit
+// worker trigger), restart the deadline timer, and the caller hands the request back to
+// the queue instead of completing it.
 _Requires_lock_held_(pSocket->RxLock) static NTSTATUS VIOSockReadRequeue(IN PSOCKET_CONTEXT pSocket,
                                                                          IN WDFREQUEST ReadRequest)
 {
@@ -1254,9 +1267,7 @@ _Requires_lock_held_(pSocket->RxLock) static NTSTATUS VIOSockReadRequeue(IN PSOC
         return STATUS_IO_TIMEOUT;
     }
 
-    pSocket->RxProcessingThreadId = (LONG64)PsGetCurrentThreadId();
     status = WdfRequestRequeue(ReadRequest);
-    pSocket->RxProcessingThreadId = INVALID_THREAD_ID;
 
     ASSERT(NT_SUCCESS(status));
 
@@ -1301,20 +1312,18 @@ static VOID VIOSockReadCompleteLoopback(IN PLIST_ENTRY pLoopbackList)
 }
 
 // When the socket has no buffered Rx data, decide what to do with the read request:
-// stop and complete it (*pStop) with the returned status, or requeue it to wait for
-// more data (*pRequeue). With data present nothing is done. *pRestart tells the worker
-// whether to go on to the next queued request: it stays TRUE for every terminal
-// completion - shutdown / reset / WOULDBLOCK applies to all parked recvs alike, so
-// drain them in one pass - and drops to FALSE only when this request is parked (FIFO:
-// nothing behind it can proceed, and re-driving a requeued request would busy-spin).
-// Must be called under RxLock.
+// complete it now (*pStop, with the returned status) or requeue it to wait for more
+// data (*pRequeue, which implies *pStop). With data present, neither is set. The caller
+// keeps the dequeue drain going unless this request is parked (*pRequeue): FIFO, nothing
+// behind a parked request can proceed, and re-driving a requeued request would busy-spin.
+// Every other completion - shutdown / reset / WOULDBLOCK - applies to all parked recvs
+// alike, so draining continues. Must be called under RxLock.
 _Requires_lock_held_(pSocket->RxLock) static NTSTATUS VIOSockReadEvaluateRequest(IN PSOCKET_CONTEXT pSocket,
                                                                                  OUT BOOLEAN *pStop,
-                                                                                 OUT BOOLEAN *pRequeue,
-                                                                                 OUT BOOLEAN *pRestart)
+                                                                                 OUT BOOLEAN *pRequeue)
 {
     NTSTATUS status = STATUS_SUCCESS;
-    BOOLEAN bStop = FALSE, bRequeue = FALSE, bRestart = TRUE;
+    BOOLEAN bStop = FALSE, bRequeue = FALSE;
 
     if (!VIOSockRxHasData(pSocket))
     {
@@ -1335,10 +1344,9 @@ _Requires_lock_held_(pSocket->RxLock) static NTSTATUS VIOSockReadEvaluateRequest
             else
             {
                 // Blocking and connected: park this request and wait for data. FIFO -
-                // nothing behind it can proceed either, so stop the drain.
+                // nothing behind it can proceed either, so the caller stops the drain.
                 ASSERT(VIOSockStateGet(pSocket) == VIOSOCK_STATE_CONNECTED);
                 bRequeue = TRUE;
-                bRestart = FALSE;
             }
         }
         else
@@ -1356,7 +1364,6 @@ _Requires_lock_held_(pSocket->RxLock) static NTSTATUS VIOSockReadEvaluateRequest
 
     *pStop = bStop;
     *pRequeue = bRequeue;
-    *pRestart = bRestart;
 
     return status;
 }
@@ -1380,7 +1387,7 @@ _Requires_lock_not_held_(pSocket->RxLock) static NTSTATUS VIOSockReadDequeueCb(I
     PLIST_ENTRY pCurrentItem;
     LIST_ENTRY LoopbackList;
     ULONG FreeSpace, FwdCntDelta = 0, uRcvTarget = 0;
-    BOOLEAN bSetBit, bStop, bRequeue, bRestart, bProcessRxPktList = FALSE;
+    BOOLEAN bSetBit, bStop, bRequeue, bRestart = TRUE, bProcessRxPktList = FALSE;
     BOOLEAN bLowRxBytes = FALSE;
 
     InitializeListHead(&LoopbackList);
@@ -1392,7 +1399,7 @@ _Requires_lock_not_held_(pSocket->RxLock) static NTSTATUS VIOSockReadDequeueCb(I
         VIOSockTimerDeref(&pSocket->ReadTimer, TRUE);
     }
 
-    status = VIOSockReadEvaluateRequest(pSocket, &bStop, &bRequeue, &bRestart);
+    status = VIOSockReadEvaluateRequest(pSocket, &bStop, &bRequeue);
 
     if (bRequeue)
     {
@@ -1549,21 +1556,65 @@ _Requires_lock_not_held_(pSocket->RxLock) static NTSTATUS VIOSockReadDequeueCb(I
     return status;
 }
 
-_Requires_lock_not_held_(pSocket->RxLock) BOOLEAN VIOSockReadProcessNextRequest(IN PSOCKET_CONTEXT pSocket)
+_Requires_lock_not_held_(pSocket->RxLock) static BOOLEAN VIOSockReadProcessNextRequest(IN PSOCKET_CONTEXT pSocket);
+
+//////////////////////////////////////////////////////////////////////////
+// Per-socket recv-dequeue serialization.
+// A producer bumps the counter; only the 0->1 edge starts the dequeue worker. The
+// worker re-arms the counter to 1 at the start of each pass and stops only when it can
+// clear 1->0, i.e. no producer bumped it during the pass.
+
+// Bump the counter. Returns FALSE on the 0->1 edge (the caller must start the dequeue
+// worker) and TRUE otherwise (a worker is already running; the bump makes it take
+// another pass).
+static __inline BOOLEAN VIOSockDequeueAlreadyActive(IN PSOCKET_CONTEXT pSocket)
+{
+    return InterlockedIncrement(&pSocket->DequeueInProgress) != 1;
+}
+
+// Re-arm the counter for another worker pass.
+static __inline VOID VIOSockDequeueReset(IN PSOCKET_CONTEXT pSocket)
+{
+    InterlockedExchange(&pSocket->DequeueInProgress, 1);
+}
+
+// Try to finish the worker by clearing 1->0. Returns FALSE when it cleared (the value
+// was exactly 1, no bump arrived during the pass, so the worker may stop) and TRUE when
+// a bump pushed the count past 1 during the pass (take another pass).
+static __inline BOOLEAN VIOSockDequeueWorkArrived(IN PSOCKET_CONTEXT pSocket)
+{
+    return (BOOLEAN)(InterlockedCompareExchange(&pSocket->DequeueInProgress, 0, 1) != 1);
+}
+
+_Requires_lock_not_held_(pSocket->RxLock) VOID VIOSockReadProcessQueue(IN PSOCKET_CONTEXT pSocket)
+{
+    BOOLEAN bRestart;
+
+    // Single-instance dequeue worker. The 0->1 bump elects the worker owner; any later
+    // caller only bumps the counter and returns, so triggers never recurse or run
+    // concurrently. The owner re-arms at the top of each pass and stops only when the
+    // queue is drained (VIOSockReadProcessNextRequest returns FALSE) AND no bump arrived
+    // during the pass; a bump makes it take another pass to pick up the new request.
+    if (VIOSockDequeueAlreadyActive(pSocket))
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "Dequeue worker already running, bump and return\n");
+        return;
+    }
+
+    do
+    {
+        VIOSockDequeueReset(pSocket);
+        bRestart = VIOSockReadProcessNextRequest(pSocket);
+    } while (bRestart || VIOSockDequeueWorkArrived(pSocket));
+}
+
+_Requires_lock_not_held_(pSocket->RxLock) static BOOLEAN VIOSockReadProcessNextRequest(IN PSOCKET_CONTEXT pSocket)
 {
     WDFREQUEST ReadRequest = WDF_NO_HANDLE;
     NTSTATUS status = STATUS_SUCCESS;
     BOOLEAN bRestart;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
-
-    if (pSocket->RxProcessingThreadId == (LONG64)PsGetCurrentThreadId())
-    {
-        TraceEvents(TRACE_LEVEL_INFORMATION,
-                    DBG_READ,
-                    "Another instance of VIOSockReadProcessNextRequest already running, stop Cb dequeue\n");
-        return FALSE; // one running instance allowed
-    }
 
     status = WdfIoQueueRetrieveNextRequest(pSocket->ReadQueue, &ReadRequest);
     if (!NT_SUCCESS(status))
@@ -1650,11 +1701,6 @@ _Requires_lock_not_held_(pSocket->RxLock) VOID VIOSockReadCleanupCb(IN PSOCKET_C
     }
 }
 
-static VOID VIOSockReadSocketState(WDFQUEUE Queue, WDFCONTEXT Context)
-{
-    VIOSockReadProcessQueue((PSOCKET_CONTEXT)Context);
-}
-
 VOID VIOSockReadIoCanceledOnQueue(IN WDFQUEUE Queue, IN WDFREQUEST Request)
 {
     PVIOSOCK_RX_CONTEXT pRequest = GetRequestRxContext(Request);
@@ -1705,13 +1751,6 @@ VIOSockReadSocketQueueInit(IN PSOCKET_CONTEXT pSocket)
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "WdfIoQueueCreate failed (Socket Read Queue): 0x%x\n", status);
-        return status;
-    }
-
-    status = WdfIoQueueReadyNotify(pSocket->ReadQueue, VIOSockReadSocketState, pSocket);
-    if (!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "WdfIoQueueReadyNotify failed (Socket Read Queue): 0x%x\n", status);
         return status;
     }
 

@@ -111,7 +111,6 @@ typedef struct VirtIOBufferDescriptor VIOSOCK_SG_DESC, *PVIOSOCK_SG_DESC;
 
 #define LAST_RESERVED_PORT               1023
 #define MAX_PORT_RETRIES                 24
-#define INVALID_THREAD_ID                LONG64_ERROR
 //////////////////////////////////////////////////////////////////////////
 #define VIOSOCK_TIMER_TOLERANCE          MSEC_TO_NANO(50)
 #define VIOSOCK_TIMER_TOLERANCE_TICKS    llTimerToleranceTicks
@@ -332,8 +331,8 @@ typedef struct _SOCKET_CONTEXT
     _Guarded_by_(StateLock) ULONG Events;
     _Guarded_by_(StateLock) NTSTATUS EventsStatus[FD_MAX_EVENTS];
 
-    WDFSPINLOCK RxLock;          // accept list lock for listen socket
-    LONG64 RxProcessingThreadId; // Prevents recursion in
+    WDFSPINLOCK RxLock;                            // accept list lock for listen socket
+    _Interlocked_ volatile LONG DequeueInProgress; // recv-dequeue worker serialization
     _Guarded_by_(RxLock) LIST_ENTRY RxCbList;
     _Guarded_by_(RxLock) volatile ULONG RxBytes; // used bytes in rx buffer
     _Guarded_by_(RxLock) ULONG RxBuffers;        // used rx buffers (for debug)
@@ -674,13 +673,7 @@ VIOSockReadQueueInit(IN WDFDEVICE hDevice);
 NTSTATUS
 VIOSockReadSocketQueueInit(IN PSOCKET_CONTEXT pSocket);
 
-_Requires_lock_not_held_(pSocket->RxLock) BOOLEAN VIOSockReadProcessNextRequest(IN PSOCKET_CONTEXT pSocket);
-
-_Requires_lock_not_held_(pSocket->RxLock) __inline VOID VIOSockReadProcessQueue(IN PSOCKET_CONTEXT pSocket)
-{
-    while (VIOSockReadProcessNextRequest(pSocket))
-        ;
-}
+_Requires_lock_not_held_(pSocket->RxLock) VOID VIOSockReadProcessQueue(IN PSOCKET_CONTEXT pSocket);
 
 _Requires_lock_not_held_(pSocket->RxLock) VOID VIOSockReadCleanupCb(IN PSOCKET_CONTEXT pSocket);
 
