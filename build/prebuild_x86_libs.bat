@@ -33,7 +33,7 @@ if "%VIOSOCK_PREBUILD_X86_LIBS%" EQU "1" (
     rem Check for x86 viosock libraries and build them if needed...
     if not exist "%BUILD_DIR%viosock\lib\x86\%TARGET%%BUILD_FLAVOR%\viosocklib.dll" (
       echo.
-      echo ATTENTION ^: Need to build x86 viosock libraries before building for amd64...
+      call :clr_print %_c_Yel% "ATTENTION : Need to build x86 viosock libraries before building for amd64..."
       setlocal
       set VIRTIO_WIN_NO_ARM=1
       if "%BUILD_FILE%"=="virtio-win.sln" (
@@ -50,11 +50,15 @@ if "%VIOSOCK_PREBUILD_X86_LIBS%" EQU "1" (
       if "%BUILD_FAILED%" EQU "1" (
         exit /B 1
       )
-      echo Successfully built the x86 viosock libraries.
+      call :clr_print %_c_Grn% "Successfully built the x86 viosock libraries."
+      call :clr_print %_c_Cyn% "Continuing with amd64 build..."
       echo.
-      echo Continuing with amd64 build...
       endlocal
     )
   )
 )
+goto :eof
+
+:clr_print
+@echo %z_esc%[%~1%~2%z_esc%[%~3%~4%z_esc%[%~5%~6%z_esc%[%~7%~8%z_esc%[0m
 goto :eof
