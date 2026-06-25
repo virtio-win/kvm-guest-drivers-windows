@@ -19,9 +19,9 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     clang_format="$(which clang-format-16)"
 else
     # Windows
-    # Load clang-format from the EWDK 24H2
-    EWDK11_24H2_DIR="${EWDK11_24H2_DIR:-c:\\ewdk11_24h2}"
-    clang_format_ewdk="${EWDK11_24H2_DIR}\\Program Files\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\Llvm\\x64\\bin\\clang-format.exe"
+    # Load clang-format from the EWDK 26H1
+    EWDK11_26H1_DIR="${EWDK11_26H1_DIR:-c:\\ewdk11_26h1}"
+    clang_format_ewdk="${EWDK11_26H1_DIR}\\Program Files\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\Llvm\\x64\\bin\\clang-format.exe"
     clang_format="$(cygpath "${clang_format_ewdk}")"
     # Convert the path to OS specific format
     CLANG_FORMAT_STYLE="$(cygpath -w "${CLANG_FORMAT_STYLE}")"
