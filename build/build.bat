@@ -19,7 +19,7 @@ rem
 rem To do a Static Driver Verifier build, append the _SDV tag to the target OS version,
 rem for example Win10_SDV. Where SDV is deprecated, we rely on CodeQL, defaulting to
 rem the WHCP_24H2 configuration. To use an earlier configuration specify WHCP_LEGACY.
-rem We also continue to run Code Analysis (CA) and Driver Verifier Log (DVL) builds 
+rem We also continue to run Code Analysis (CA) and Driver Verifier Log (DVL) builds
 rem for use with HCK / WHCP.
 rem ================================================================================
 
@@ -191,7 +191,7 @@ if /I "!TAG!"=="SDV" (
   echo.
   rem SDV is deprecated from Windows 11 24H2, both in the EWDK and WHCP. Making some allowances...
   rem We only do SDV for Win10 targets.
-  if "%TARGET%"=="Win10" (  
+  if "%TARGET%"=="Win10" (
     echo Running SDV for %BUILD_FILE%, configuration %TARGET_VS_CONFIG%
     call :run_sdv "%TARGET_PROJ_CONFIG% %BUILD_FLAVOR%" %BUILD_ARCH%
     if "%BUILD_FAILED%" EQU "1" (
@@ -318,7 +318,7 @@ if ERRORLEVEL 1 (
 )
 
 IF "%CODEQL_FAILED%" NEQ "1" (
-  call %CODEQL_BIN% database analyze %~dp1codeql_db %CODEQL_DRIVER_SUITES%\windows_driver_recommended.qls --format=sarifv2.1.0 --output=%~dp1%BUILD_NAME%.sarif -j 0
+  call %CODEQL_BIN% database analyze %~dp1codeql_db microsoft/windows-drivers:windows-driver-suites/recommended.qls --format=sarifv2.1.0 --output=%~dp1%BUILD_NAME%.sarif -j 0
   if ERRORLEVEL 1 (
     set CODEQL_FAILED=1
   )
