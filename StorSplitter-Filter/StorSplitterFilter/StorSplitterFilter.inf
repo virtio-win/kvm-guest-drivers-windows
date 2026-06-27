@@ -1,0 +1,63 @@
+;
+; StorSplitterFilter.inf
+; Class Upper Filter for Disk Drives
+;
+
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = DiskDrive
+ClassGuid   = {4d36e967-e325-11ce-bfc1-08002be10318}
+Provider    = %ManufacturerName%
+CatalogFile = StorSplitterFilter.cat
+DriverVer   = 03/12/2026,1.0.0.0
+PnpLockdown = 1
+
+[DestinationDirs]
+DefaultDestDir = 12
+StorSplitterFilter.CopyFiles = 12
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+StorSplitterFilter.sys = 1,,
+
+[DefaultInstall.NTamd64]
+CopyFiles = StorSplitterFilter.CopyFiles
+AddReg    = StorSplitterFilter_AddReg
+
+[DefaultInstall.NTamd64.Services]
+AddService = StorSplitterFilter, , StorSplitterFilter_Service_Inst
+
+[StorSplitterFilter_AddReg]
+; 0x00010008 = REG_MULTI_SZ (0x00010000) | APPEND (0x0008)
+; Safely appends our filter without overwriting 'partmgr'
+HKLM, System\CurrentControlSet\Control\Class\{4d36e967-e325-11ce-bfc1-08002be10318}, UpperFilters, 0x00010008, "StorSplitterFilter"
+
+[StorSplitterFilter.CopyFiles]
+StorSplitterFilter.sys
+
+[StorSplitterFilter_Service_Inst]
+DisplayName    = %ServiceName%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 0               ; SERVICE_BOOT_START (Required to intercept boot drives!)
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %12%\StorSplitterFilter.sys
+LoadOrderGroup = PnP Filter
+AddReg         = StorSplitterFilter_WDF_Manual_AddReg
+
+; THE WDF MANUAL BINDING BYPASS
+; Because 'DefaultInstall' ignores [Wdf] sections, we must manually create 
+; the KMDF parameters in the driver's service registry key.
+; HKR points to: HKLM\System\CurrentControlSet\Services\StorSplitterFilter
+[StorSplitterFilter_WDF_Manual_AddReg]
+; 0x00000000 = REG_SZ (String)
+HKR, "Parameters\Wdf", "KmdfLibraryVersion", 0x00000000, "1.15"
+; 0x00010001 = REG_DWORD (Number)
+HKR, "Parameters\Wdf", "WdfMajorVersion", 0x00010001, 1
+HKR, "Parameters\Wdf", "WdfMinorVersion", 0x00010001, 15
+
+[Strings]
+ManufacturerName = "Red Hat"
+DiskName         = "StorSplitterFilter Installation Disk"
+ServiceName      = "StorSplitterFilter Upper I/O Filter"
