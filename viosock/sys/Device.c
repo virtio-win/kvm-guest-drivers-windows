@@ -802,40 +802,66 @@ static VOID VIOSockSelectTimerFunc(IN WDFTIMER Timer)
     VIOSockSelectEnqueueWorkItem(pContext);
 }
 
+//
+// select / WSAPoll readiness is a pure level query, computed on demand from the
+// socket's durable state rather than from the consumable Events record. This keeps
+// it independent of the WSAEventSelect path: WSAEnumNetworkEvents zeroes Events,
+// but these predicates read PeerShutdown / EventsStatus / counters / state, which
+// it does not touch. Lockless by design — a one-tick-stale snapshot is re-checked
+// on the next workitem pass; natural-sized aligned reads on x64 don't tear.
+//
+__inline BOOLEAN VIOSockSelectPeerClosed(IN PSOCKET_CONTEXT pSocket)
+{
+    // VIOSockDoClose forces PeerShutdown to the full mask on any close (graceful
+    // or RST), so the peer send-shutdown bit captures every read-side close.
+    return !!(pSocket->PeerShutdown & VIRTIO_VSOCK_SHUTDOWN_SEND);
+}
+
+__inline BOOLEAN VIOSockSelectReadable(IN PSOCKET_CONTEXT pSocket)
+{
+    return VIOSockRxReadReady(pSocket) || !!pSocket->AcceptPended || VIOSockSelectPeerClosed(pSocket);
+}
+
+__inline BOOLEAN VIOSockSelectWritable(IN PSOCKET_CONTEXT pSocket)
+{
+    LONG lSpace = (LONG)pSocket->peer_buf_alloc - (pSocket->tx_cnt - pSocket->peer_fwd_cnt);
+    return VIOSockStateGet(pSocket) == VIOSOCK_STATE_CONNECTED && lSpace > 0;
+}
+
+__inline BOOLEAN VIOSockSelectConnectFailed(IN PSOCKET_CONTEXT pSocket)
+{
+    // Connect failure latches as state==CLOSE with a non-success FD_CONNECT status;
+    // a fresh socket keeps the initial STATUS_SUCCESS, so it is not misreported.
+    return VIOSockStateGet(pSocket) == VIOSOCK_STATE_CLOSE && !NT_SUCCESS(pSocket->EventsStatus[FD_CONNECT_BIT]);
+}
+
 static USHORT VIOSockMapEventsToPollRevents(IN PSOCKET_CONTEXT pSocket, IN USHORT eventsRequested)
 {
-    // Lockless by design — same model as VIOSockSelectCheckPkt: writers update
-    // Events / EventsStatus under StateLock, but readers from the workitem
-    // accept a one-tick stale snapshot. VIOSockSelectRun is invoked under the
-    // writer's lock on every EventSetBit, so any inconsistency we observe here
-    // is re-checked on the next workitem pass. Natural-sized aligned reads on
-    // x64 don't tear.
-    ULONG events = pSocket->Events;
-    NTSTATUS closeStatus = pSocket->EventsStatus[FD_CLOSE_BIT];
-    NTSTATUS connectStatus = pSocket->EventsStatus[FD_CONNECT_BIT];
     USHORT revents = 0;
 
     PAGED_CODE();
 
-    // Read side: accept ready, bytes available, or peer-closed (next recv unblocks)
-    if (events & (FD_ACCEPT | FD_READ))
+    // Read side: readable (>= SO_RCVLOWAT bytes buffered) or a pending accept
+    if (VIOSockRxReadReady(pSocket) || pSocket->AcceptPended)
     {
         revents |= POLLRDNORM;
     }
-    if (events & FD_CLOSE)
+    // Read side: peer-closed (next recv unblocks: data, EOF, or reset)
+    if (VIOSockSelectPeerClosed(pSocket))
     {
         revents |= POLLRDNORM;
-        revents |= NT_SUCCESS(closeStatus) ? POLLHUP : POLLERR;
+        revents |= NT_SUCCESS(pSocket->EventsStatus[FD_CLOSE_BIT]) ? POLLHUP : POLLERR;
     }
 
-    // Write side: TX credits available, or connect just completed
-    if (events & FD_WRITE)
+    // Write side: connected with TX credit available
+    if (VIOSockSelectWritable(pSocket))
     {
         revents |= POLLWRNORM;
     }
-    if (events & FD_CONNECT)
+    // Failed outbound connect
+    if (VIOSockSelectConnectFailed(pSocket))
     {
-        revents |= NT_SUCCESS(connectStatus) ? POLLWRNORM : POLLERR;
+        revents |= POLLERR;
     }
 
     if (!revents && VIOSockIsFlag(pSocket, SOCK_CLEANUP))
@@ -866,7 +892,7 @@ static BOOLEAN VIOSockSelectCheckPkt(IN PVIOSOCK_SELECT_PKT pPkt)
     for (i = 0; i < pPkt->FdCount[FDSET_READ]; ++i)
     {
         PSOCKET_CONTEXT pSocket = GetSocketContext(pHandleSet[i].Socket);
-        if (pSocket->Events & (FD_ACCEPT | FD_READ | FD_CLOSE))
+        if (VIOSockSelectReadable(pSocket))
         {
             pFds->fd_array[pFds->fd_count++] = pHandleSet[i].hSocket;
         }
@@ -884,8 +910,7 @@ static BOOLEAN VIOSockSelectCheckPkt(IN PVIOSOCK_SELECT_PKT pPkt)
     for (i = 0; i < pPkt->FdCount[FDSET_WRITE]; ++i)
     {
         PSOCKET_CONTEXT pSocket = GetSocketContext(pHandleSet[i].Socket);
-        if (pSocket->Events & FD_WRITE ||
-            (pSocket->Events & FD_CONNECT) && NT_SUCCESS(pSocket->EventsStatus[FD_CONNECT_BIT]))
+        if (VIOSockSelectWritable(pSocket))
         {
             pFds->fd_array[pFds->fd_count++] = pHandleSet[i].hSocket;
         }
@@ -903,8 +928,7 @@ static BOOLEAN VIOSockSelectCheckPkt(IN PVIOSOCK_SELECT_PKT pPkt)
     for (i = 0; i < pPkt->FdCount[FDSET_EXCPT]; ++i)
     {
         PSOCKET_CONTEXT pSocket = GetSocketContext(pHandleSet[i].Socket);
-        if (((pSocket->Events & FD_CONNECT) && !NT_SUCCESS(pSocket->EventsStatus[FD_CONNECT_BIT])) ||
-            VIOSockIsFlag(pSocket, SOCK_CLEANUP))
+        if (VIOSockSelectConnectFailed(pSocket) || VIOSockIsFlag(pSocket, SOCK_CLEANUP))
         {
             pFds->fd_array[pFds->fd_count++] = pHandleSet[i].hSocket;
         }
@@ -1160,20 +1184,21 @@ _IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockSelectRun(IN PSOCKET_CONTEXT pSo
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SELECT, "--> %s\n", __FUNCTION__);
 
+    // Enqueue the workitem only for fdsets that actually have a pending select/poll
+    // and whose readiness condition currently holds. Same durable predicates the
+    // workitem evaluates (VIOSockSelectCheckPkt / VIOSockMapEventsToPollRevents), so
+    // this no longer reads the consumable Events record.
     if (pSocket->SelectRefs[FDSET_READ])
     {
-        bRun |= pSocket->Events & (FD_ACCEPT | FD_READ | FD_CLOSE);
+        bRun |= VIOSockSelectReadable(pSocket);
     }
-
     if (pSocket->SelectRefs[FDSET_WRITE])
     {
-        bRun |= pSocket->Events & FD_WRITE ||
-                (pSocket->Events & FD_CONNECT) && NT_SUCCESS(pSocket->EventsStatus[FD_CONNECT_BIT]);
+        bRun |= VIOSockSelectWritable(pSocket);
     }
-
     if (pSocket->SelectRefs[FDSET_EXCPT])
     {
-        bRun |= (pSocket->Events & FD_CONNECT) && !NT_SUCCESS(pSocket->EventsStatus[FD_CONNECT_BIT]);
+        bRun |= VIOSockSelectConnectFailed(pSocket);
     }
 
     if (bRun)

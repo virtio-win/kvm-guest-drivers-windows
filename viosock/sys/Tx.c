@@ -740,6 +740,10 @@ VIOSockTxEnqueue(IN PSOCKET_CONTEXT pSocket,
         ASSERT(pTxEntry->Request);
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE, "No free space on peer\n");
 
+        if (VIOSockIsNonBlocking(pSocket))
+        {
+            return STATUS_CANT_WAIT;
+        }
         return STATUS_BUFFER_TOO_SMALL;
     }
 
@@ -848,6 +852,16 @@ static VOID VIOSockWrite(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN size_t Len
     else
     {
         status = STATUS_CANT_WAIT;
+    }
+
+    if (status == STATUS_CANT_WAIT)
+    {
+        // FD_WRITE is edge-triggered: drop it and arm the re-record. The clear must
+        // precede the arm so a concurrent Rx re-arm (see VIOSockRxPktHandleConnected)
+        // cannot have its freshly raised FD_WRITE wiped by this clear; a transient
+        // miss leaves SOCK_TX_WAIT armed and self-heals on the next inbound packet.
+        VIOSockEventClearBitLocked(pSocket, FD_WRITE_BIT);
+        VIOSockSetFlag(pSocket, SOCK_TX_WAIT);
     }
 
     if (!NT_SUCCESS(status))
