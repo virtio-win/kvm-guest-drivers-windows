@@ -1414,6 +1414,10 @@ static NTSTATUS VIOSockConnect(IN WDFREQUEST Request)
     pSocket->dst_cid = pAddr->svm_cid;
     pSocket->dst_port = pAddr->svm_port;
 
+    // Mark this as an outbound socket: FD_CONNECT applies only to a socket that
+    // issued connect(), never to an accepted one.
+    VIOSockSetFlag(pSocket, SOCK_CONNECT);
+
     // no lock required
     VIOSockStateSet(pSocket, VIOSOCK_STATE_CONNECTING);
 
@@ -1480,6 +1484,16 @@ _Requires_lock_not_held_(pSocket->StateLock) BOOLEAN VIOSockShutdownFromPeer(PSO
         // The matcher drains the whole queue in one pass now - each request completes
         // with EOF and keeps the worker going - so a single call empties it.
         VIOSockReadProcessQueue(pSocket);
+
+        // Raise the graceful FD_CLOSE indication. Per Winsock this fires when the
+        // peer performs shutdown(SD_SEND) or closesocket (read-side close), not
+        // only on a full both-directions close, and the close is signaled by
+        // FD_CLOSE rather than a final FD_READ. uDrain gates this to the first
+        // send-shutdown so the edge-triggered event is recorded exactly once.
+        if (!VIOSockIsDone(pSocket))
+        {
+            VIOSockEventSetBitLocked(pSocket, FD_CLOSE_BIT, STATUS_SUCCESS);
+        }
     }
 
     //     if (uDrain & VIRTIO_VSOCK_SHUTDOWN_RCV)
@@ -1770,6 +1784,10 @@ __inline NTSTATUS VIOSockSetNonBlocking(IN PSOCKET_CONTEXT pSocket, IN BOOLEAN b
     }
     else
     {
+        if (pSocket->EventsMask)
+        {
+            return STATUS_INVALID_DEVICE_STATE;
+        }
         VIOSockResetFlag(pSocket, SOCK_NON_BLOCK);
     }
 
@@ -1788,6 +1806,39 @@ _Requires_lock_not_held_(pSocket->StateLock) static VOID VIOSockEventRegister(IN
     }
 
     pSocket->EventObject = pEvent;
+
+    /* Persistence of network events: re-record on arm any event that already
+     * happened, from the socket's durable state, so a re-arm after
+     * WSAEnumNetworkEvents (which zeroed Events) reactivates it. */
+    if ((lNetworkEvents & FD_READ) && VIOSockRxReadReady(pSocket))
+    {
+        VIOSockEventMarkBit(pSocket, FD_READ_BIT, STATUS_SUCCESS);
+    }
+    if ((lNetworkEvents & FD_ACCEPT) && pSocket->AcceptPended)
+    {
+        VIOSockEventMarkBit(pSocket, FD_ACCEPT_BIT, STATUS_SUCCESS);
+    }
+    if ((lNetworkEvents & FD_CLOSE) && (pSocket->PeerShutdown & VIRTIO_VSOCK_SHUTDOWN_SEND))
+    {
+        VIOSockEventMarkBit(pSocket, FD_CLOSE_BIT, pSocket->EventsStatus[FD_CLOSE_BIT]);
+    }
+    if ((lNetworkEvents & FD_CONNECT) && VIOSockIsFlag(pSocket, SOCK_CONNECT))
+    {
+        // Outbound connect that already completed: CONNECTED = success,
+        // CLOSE with a non-success status = failure. CONNECTING is still in
+        // flight, so there is nothing to persist yet. The SOCK_CONNECT guard
+        // keeps accepted sockets (also CONNECTED) out of this.
+        VIOSOCK_STATE state = VIOSockStateGet(pSocket);
+        if (state == VIOSOCK_STATE_CONNECTED)
+        {
+            VIOSockEventMarkBit(pSocket, FD_CONNECT_BIT, STATUS_SUCCESS);
+        }
+        else if (state == VIOSOCK_STATE_CLOSE && !NT_SUCCESS(pSocket->EventsStatus[FD_CONNECT_BIT]))
+        {
+            VIOSockEventMarkBit(pSocket, FD_CONNECT_BIT, pSocket->EventsStatus[FD_CONNECT_BIT]);
+        }
+    }
+
     if (pSocket->EventObject && (pSocket->Events & pSocket->EventsMask) != 0)
     {
         KeSetEvent(pSocket->EventObject, IO_NO_INCREMENT, FALSE);

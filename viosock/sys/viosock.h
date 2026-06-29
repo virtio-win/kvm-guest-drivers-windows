@@ -218,6 +218,8 @@ typedef enum _VIOSOCK_STATE
 #define SOCK_NON_BLOCK 0x08
 #define SOCK_LOOPBACK  0x10
 #define SOCK_CLEANUP   0x20
+#define SOCK_CONNECT   0x40 // outbound: connect() was issued on this socket (distinguishes it from an accepted socket)
+#define SOCK_TX_WAIT   0x80 // a non-blocking send returned STATUS_CANT_WAIT; re-arm FD_WRITE when TX space reopens
 
 //
 // WSAPoll entry point on the LSP path: ws2_32!WSAPoll packs the caller's

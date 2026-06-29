@@ -285,6 +285,15 @@ static NTSTATUS VIOSockLoopbackHandleConnected(IN PSOCKET_CONTEXT pDestSocket,
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
+    // FD_WRITE re-arm, mirroring VIOSockRxPktHandleConnected: edge-triggered, gated on a
+    // prior zero-credit block (SOCK_TX_WAIT) and reopened space, evaluated for every op
+    // (the peer can advance our window by piggybacking fwd_cnt on OP_RW, not just
+    // OP_CREDIT_UPDATE). SOCK_TX_WAIT is consumed only when space is actually available.
+    if (bTxHasSpace && VIOSockResetFlag(pDestSocket, SOCK_TX_WAIT))
+    {
+        VIOSockEventSetBitLocked(pDestSocket, FD_WRITE_BIT, STATUS_SUCCESS);
+    }
+
     switch (Op)
     {
         case VIRTIO_VSOCK_OP_RW:
@@ -296,20 +305,16 @@ static NTSTATUS VIOSockLoopbackHandleConnected(IN PSOCKET_CONTEXT pDestSocket,
             }
             break;
         case VIRTIO_VSOCK_OP_CREDIT_UPDATE:
-            if (bTxHasSpace)
-            {
-                VIOSockEventSetBitLocked(pDestSocket, FD_WRITE_BIT, STATUS_SUCCESS);
-            }
+            // TX-space accounting and the FD_WRITE re-arm are handled above for all ops.
             break;
         case VIRTIO_VSOCK_OP_SHUTDOWN:
-            if (VIOSockShutdownFromPeer(pDestSocket, Flags & VIRTIO_VSOCK_SHUTDOWN_MASK) && !VIOSockIsDone(pDestSocket))
+            // The read-side EOF FD_CLOSE indication is raised inside
+            // VIOSockShutdownFromPeer; here we only tear the circuit down.
+            if (VIOSockShutdownFromPeer(pDestSocket, Flags & VIRTIO_VSOCK_SHUTDOWN_MASK) &&
+                !VIOSockIsDone(pDestSocket) && !VIOSockRxHasData(pDestSocket))
             {
-                if (!VIOSockRxHasData(pDestSocket))
-                {
-                    VIOSockSendReset(pDestSocket, FALSE);
-                    VIOSockDoClose(pDestSocket);
-                }
-                VIOSockEventSetBitLocked(pDestSocket, FD_CLOSE_BIT, STATUS_SUCCESS);
+                VIOSockSendReset(pDestSocket, FALSE);
+                VIOSockDoClose(pDestSocket);
             }
             break;
         case VIRTIO_VSOCK_OP_RST:
@@ -333,10 +338,6 @@ static VOID VIOSockLoopbackHandleDisconnecting(IN PSOCKET_CONTEXT pDestSocket, I
     if (Op == VIRTIO_VSOCK_OP_RST)
     {
         VIOSockDoClose(pDestSocket);
-        //         if (pDestSocket->PeerShutdown & VIRTIO_VSOCK_SHUTDOWN_MASK != VIRTIO_VSOCK_SHUTDOWN_MASK)
-        //         {
-        //             VIOSockEventSetBit(pDestSocket, FD_CLOSE_BIT, STATUS_CONNECTION_RESET);
-        //         }
     }
 }
 
@@ -377,6 +378,15 @@ VIOSockLoopbackTxEnqueue(IN PSOCKET_CONTEXT pSocket,
     if (Length && !uCredit)
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "VIOSockTxGetCredit failed\n");
+        // FD_WRITE is edge-triggered: a non-blocking send blocked on zero peer credit must
+        // drop FD_WRITE and arm its re-record, mirroring the wire path. The loopback path
+        // reports the block as STATUS_BUFFER_TOO_SMALL (not STATUS_CANT_WAIT), so the arm
+        // is done here rather than in VIOSockWrite. Re-armed in VIOSockLoopbackHandleConnected.
+        if (VIOSockIsNonBlocking(pSocket))
+        {
+            VIOSockEventClearBitLocked(pSocket, FD_WRITE_BIT);
+            VIOSockSetFlag(pSocket, SOCK_TX_WAIT);
+        }
         return STATUS_BUFFER_TOO_SMALL;
     }
 

@@ -786,6 +786,17 @@ static VOID VIOSockRxPktHandleConnected(IN PSOCKET_CONTEXT pSocket, IN PVIOSOCK_
 {
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
+    // FD_WRITE is edge-triggered (Winsock contract): after the initial connect/accept
+    // it is re-recorded only once a send has returned STATUS_CANT_WAIT (SOCK_TX_WAIT)
+    // and TX space has reopened. The peer can advance our window by piggybacking fwd_cnt
+    // on any packet, so re-check on every op, not just OP_CREDIT_UPDATE. SOCK_TX_WAIT is
+    // test-and-cleared only when space is actually available, gating the re-record to
+    // exactly one FD_WRITE per blocked-send episode.
+    if (bTxHasSpace && VIOSockResetFlag(pSocket, SOCK_TX_WAIT))
+    {
+        VIOSockEventSetBitLocked(pSocket, FD_WRITE_BIT, STATUS_SUCCESS);
+    }
+
     switch (pPkt->Header.op)
     {
         case VIRTIO_VSOCK_OP_RW:
@@ -798,21 +809,17 @@ static VOID VIOSockRxPktHandleConnected(IN PSOCKET_CONTEXT pSocket, IN PVIOSOCK_
             }
             break;
         case VIRTIO_VSOCK_OP_CREDIT_UPDATE:
-            if (bTxHasSpace)
-            {
-                VIOSockEventSetBitLocked(pSocket, FD_WRITE_BIT, STATUS_SUCCESS);
-            }
+            // TX-space accounting and the FD_WRITE re-arm are handled above for all ops.
             break;
         case VIRTIO_VSOCK_OP_SHUTDOWN:
+            // The read-side EOF FD_CLOSE indication is raised inside
+            // VIOSockShutdownFromPeer. Here we only tear the circuit down once the
+            // peer has shut down both directions and nothing is left to read.
             if (VIOSockShutdownFromPeer(pSocket, pPkt->Header.flags & VIRTIO_VSOCK_SHUTDOWN_MASK) &&
-                !VIOSockIsDone(pSocket))
+                !VIOSockIsDone(pSocket) && !VIOSockRxHasData(pSocket))
             {
-                if (!VIOSockRxHasData(pSocket))
-                {
-                    VIOSockSendReset(pSocket, FALSE);
-                    VIOSockDoClose(pSocket);
-                }
-                VIOSockEventSetBitLocked(pSocket, FD_CLOSE_BIT, STATUS_SUCCESS);
+                VIOSockSendReset(pSocket, FALSE);
+                VIOSockDoClose(pSocket);
             }
             break;
         case VIRTIO_VSOCK_OP_RST:
@@ -837,11 +844,6 @@ static VOID VIOSockRxPktHandleDisconnecting(IN PSOCKET_CONTEXT pSocket, IN PVIOS
     if (pPkt->Header.op == VIRTIO_VSOCK_OP_RST)
     {
         VIOSockDoClose(pSocket);
-
-        //    if (pSocket->PeerShutdown & VIRTIO_VSOCK_SHUTDOWN_MASK != VIRTIO_VSOCK_SHUTDOWN_MASK)
-        //    {
-        //        VIOSockEventSetBit(pSocket, FD_CLOSE_BIT, STATUS_CONNECTION_RESET);
-        //    }
     }
 }
 
