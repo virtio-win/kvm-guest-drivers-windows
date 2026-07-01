@@ -191,6 +191,10 @@ typedef struct _DEVICE_CONTEXT
     _Interlocked_ volatile LONG SelectInProgress;
     WDFWORKITEM SelectWorkitem;
     _Guarded_by_(SelectLock) VIOSOCK_TIMER SelectTimer;
+    // Set in EvtDeviceSelfManagedIoSuspend (device leaving D0), cleared on restart.
+    // While set, pending and incoming select()/poll() are completed instead of pended,
+    // so the power-managed IoCtl queue has nothing driver-owned to wait on at D0 exit.
+    _Guarded_by_(SelectLock) BOOLEAN PowerSuspended;
 
     WDFQUEUE IoCtlQueue;
 
