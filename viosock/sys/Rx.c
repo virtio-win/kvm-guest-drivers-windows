@@ -1218,16 +1218,12 @@ VIOSockReadQueueInit(IN WDFDEVICE hDevice)
     queueConfig.EvtIoRead = VIOSockRead;
     queueConfig.AllowZeroLengthRequests = WdfFalse;
 
-    //
-    // By default, Static Driver Verifier (SDV) displays a warning if it
-    // doesn't find the EvtIoStop callback on a power-managed queue.
-    // The 'assume' below causes SDV to suppress this warning.
-    //
-    // No need to handle EvtIoStop:
+    // Pure demultiplexer: EvtIoRead immediately forwards each read to the owning socket's
+    // ReadQueue and never holds a request. Make it non-power-managed so it neither blocks
+    // a power transition nor needs an EvtIoStop callback (SDV does not flag a non-PM queue).
+    queueConfig.PowerManaged = WdfFalse;
 
-    __analysis_assume(queueConfig.EvtIoStop != 0);
     status = WdfIoQueueCreate(hDevice, &queueConfig, WDF_NO_OBJECT_ATTRIBUTES, &pContext->ReadQueue);
-    __analysis_assume(queueConfig.EvtIoStop == 0);
 
     if (!NT_SUCCESS(status))
     {
@@ -1736,15 +1732,15 @@ VIOSockReadSocketQueueInit(IN PSOCKET_CONTEXT pSocket)
     queueConfig.EvtIoCanceledOnQueue = VIOSockReadIoCanceledOnQueue;
     queueConfig.AllowZeroLengthRequests = WdfFalse;
 
+    // Power-managed: a blocking read parks here (framework-owned) until data arrives, so on
+    // D0 exit WDF holds it and re-delivers it on D0 entry - the wanted pause/resume. It is
+    // never held driver-owned for an indeterminate time (the read worker retrieves it and
+    // completes or requeues it right away), so per the WDF docs EvtIoStop can be safely
+    // omitted; the assume below suppresses the resulting (false-positive) SDV warning.
+    queueConfig.PowerManaged = WdfTrue;
+
     WDF_OBJECT_ATTRIBUTES_INIT(&queueAttributes);
     queueAttributes.ParentObject = pSocket->ThisSocket;
-
-    //
-    // By default, Static Driver Verifier (SDV) displays a warning if it
-    // doesn't find the EvtIoStop callback on a power-managed queue.
-    // The 'assume' below causes SDV to suppress this warning.
-    //
-    // No need to handle EvtIoStop:
 
     __analysis_assume(queueConfig.EvtIoStop != 0);
     status = WdfIoQueueCreate(hDevice, &queueConfig, &queueAttributes, &pSocket->ReadQueue);

@@ -390,10 +390,15 @@ VIOSockEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
         return status;
     }
 
-    // Create sequential queue for IoCtl requests
+    // Create sequential queue for IoCtl requests.
+    // Power-managed: IOCTL_SELECT / WSAPoll are held driver-owned (cancelable) for an
+    // indeterminate time on this queue. Rather than hang the D0->Dx transition, they are
+    // drained in EvtDeviceSelfManagedIoSuspend (VIOSockSelectIoSuspend), which runs before
+    // WDF stops the power-managed queues - so no EvtIoStop is needed here.
     WDF_IO_QUEUE_CONFIG_INIT(&queueConfig, WdfIoQueueDispatchParallel);
     queueConfig.EvtIoDeviceControl = VIOSockEvtIoDeviceControl;
     queueConfig.AllowZeroLengthRequests = WdfFalse;
+    queueConfig.PowerManaged = WdfTrue;
 
     status = WdfIoQueueCreate(hDevice, &queueConfig, WDF_NO_OBJECT_ATTRIBUTES, &pContext->IoCtlQueue);
 
@@ -555,6 +560,36 @@ static NTSTATUS VIOSockEvtDeviceD0EntryPostInterruptsEnabled(IN WDFDEVICE WdfDev
     return STATUS_SUCCESS;
 }
 
+//
+// Drain pending select()/poll() before the device leaves D0.
+//
+// select()/poll() are held driver-owned (cancelable, parked in SelectList) for an
+// indeterminate time on the power-managed IoCtl queue. When the device leaves D0 WDF
+// stops that queue and waits for its driver-owned requests to drain; with nothing to
+// release them the power watchdog bugchecks 0x9F DRIVER_POWER_STATE_FAILURE.
+//
+// EvtDeviceSelfManagedIoSuspend runs *before* WDF stops the power-managed queues, so we
+// complete the pended requests here: set PowerSuspended (checked by the select workitem
+// and by new VIOSockSelect/VIOSockPoll calls), kick the workitem to complete the parked
+// requests, then flush it so nothing is left driver-owned when WDF stops the queue.
+//
+static VOID VIOSockSelectIoSuspend(IN PDEVICE_CONTEXT pContext)
+{
+    WdfWaitLockAcquire(pContext->SelectLock, NULL);
+    pContext->PowerSuspended = TRUE;
+    WdfWaitLockRelease(pContext->SelectLock);
+
+    VIOSockSelectEnqueueWorkItem(pContext);
+    WdfWorkItemFlush(pContext->SelectWorkitem);
+}
+
+static VOID VIOSockSelectIoRestart(IN PDEVICE_CONTEXT pContext)
+{
+    WdfWaitLockAcquire(pContext->SelectLock, NULL);
+    pContext->PowerSuspended = FALSE;
+    WdfWaitLockRelease(pContext->SelectLock);
+}
+
 NTSTATUS
 VIOSockEvtDeviceSelfManagedIoSuspend(IN WDFDEVICE Device)
 {
@@ -563,6 +598,7 @@ VIOSockEvtDeviceSelfManagedIoSuspend(IN WDFDEVICE Device)
     PAGED_CODE();
 
     VIOSockWriteIoSuspend(pContext);
+    VIOSockSelectIoSuspend(pContext);
 
     return STATUS_SUCCESS;
 }
@@ -574,6 +610,7 @@ VIOSockEvtDeviceSelfManagedIoRestart(IN WDFDEVICE Device)
     PDEVICE_CONTEXT pContext = GetDeviceContext(Device);
 
     VIOSockWriteIoRestart(pContext);
+    VIOSockSelectIoRestart(pContext);
 
     return STATUS_SUCCESS;
 }
@@ -1082,6 +1119,14 @@ static VOID VIOSockSelectWorkitem(IN WDFWORKITEM Workitem)
                 bRemove = TRUE;
                 pPkt->Status = STATUS_CANCELLED;
             }
+            else if (pContext->PowerSuspended)
+            {
+                // Device is leaving D0: complete the pended select/poll so WDF's stop of
+                // the power-managed IoCtl queue has nothing driver-owned to wait on (0x9F).
+                // STATUS_UNSUCCESSFUL maps to WSAENETDOWN in the user-mode provider.
+                bRemove = TRUE;
+                pPkt->Status = STATUS_UNSUCCESSFUL;
+            }
             else if ((pPkt->Type == VIOSOCK_PKT_TYPE_SELECT) ? VIOSockSelectCheckPkt(pPkt) : VIOSockPollCheckPkt(pPkt))
             {
                 // pPkt->Status is already set by VIOSockSelectCheckPkt
@@ -1426,7 +1471,12 @@ static NTSTATUS VIOSockSelect(IN WDFREQUEST Request, IN OUT size_t *pLength)
 
         WdfWaitLockAcquire(pContext->SelectLock, NULL);
 
-        if (VIOSockSelectCheckPkt(pPkt))
+        if (pContext->PowerSuspended)
+        {
+            // Device is leaving D0 - fail the select rather than pend it (-> WSAENETDOWN).
+            status = STATUS_UNSUCCESSFUL;
+        }
+        else if (VIOSockSelectCheckPkt(pPkt))
         {
             status = pPkt->Status;
         }
@@ -1547,7 +1597,12 @@ VIOSockPoll(IN WDFREQUEST Request,
 
     WdfWaitLockAcquire(pContext->SelectLock, NULL);
 
-    if (VIOSockPollCheckPkt(pPkt))
+    if (pContext->PowerSuspended)
+    {
+        // Device is leaving D0 - fail the poll rather than pend it (-> WSAENETDOWN).
+        status = STATUS_UNSUCCESSFUL;
+    }
+    else if (VIOSockPollCheckPkt(pPkt))
     {
         // At least one fd is immediately ready (real ready or POLLNVAL-tagged).
         status = STATUS_SUCCESS;
