@@ -496,22 +496,34 @@ _Requires_lock_held_(pSocket->StateLock) VIOSOCK_STATE VIOSockStateSet(IN PSOCKE
 
     PrevState = InterlockedExchange((PLONG)&pSocket->State, NewState);
 
-    // add/remove socket to/from connected list
+    // Keep the connected list in sync with the socket state: a socket is a member
+    // iff its state is CONNECTED. It is added on entry to CONNECTED and removed as
+    // soon as it leaves CONNECTED (peer close -> CLOSING, or reset/abort/app-close
+    // -> CLOSE). Removing on CLOSING - not only on CLOSE - stops a dying socket
+    // from shadowing a new connect() that reuses the same 4-tuple: the OP_REQUEST
+    // would otherwise be matched to it and dropped instead of reaching the listener.
     if (PrevState != NewState && !IsLoopbackSocket(pSocket))
     {
-        if (NewState == VIOSOCK_STATE_CLOSE &&
-            (PrevState == VIOSOCK_STATE_CONNECTED || PrevState == VIOSOCK_STATE_CLOSING))
+        switch (NewState)
         {
-            VIOSockConnectedRemove(pSocket);
-        }
-        else if (NewState == VIOSOCK_STATE_CONNECTED)
-        {
-            ASSERT(PrevState == VIOSOCK_STATE_CONNECTING || PrevState == VIOSOCK_STATE_CLOSE);
-            if (!NT_SUCCESS(VIOSockConnectedAdd(pSocket)))
-            {
-                TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockConnectedAdd failed\n");
-                //                InterlockedExchange((PLONG)&pSocket->State, VIOSOCK_STATE_CLOSE);
-            }
+            case VIOSOCK_STATE_CONNECTED:
+                ASSERT(PrevState == VIOSOCK_STATE_CONNECTING || PrevState == VIOSOCK_STATE_CLOSE);
+                if (!NT_SUCCESS(VIOSockConnectedAdd(pSocket)))
+                {
+                    TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockConnectedAdd failed\n");
+                }
+                break;
+
+            case VIOSOCK_STATE_CLOSING:
+            case VIOSOCK_STATE_CLOSE:
+                if (PrevState == VIOSOCK_STATE_CONNECTED)
+                {
+                    VIOSockConnectedRemove(pSocket);
+                }
+                break;
+
+            default:
+                break;
         }
     }
 
