@@ -625,7 +625,7 @@ RhelGetSectors(IN PVOID DeviceExtension, IN PCDB Cdb)
     return (sector.AsULong * (adaptExt->info.blk_size / SECTOR_SIZE));
 }
 
-VOID RhelGetDiskGeometry(IN PVOID DeviceExtension)
+BOOLEAN RhelGetDiskGeometry(IN PVOID DeviceExtension)
 {
     u64 cap;
     u32 v;
@@ -664,6 +664,11 @@ VOID RhelGetDiskGeometry(IN PVOID DeviceExtension)
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_BLK_SIZE))
     {
         virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(blk_config, blk_size), &v, sizeof(v));
+        if (v == 0)
+        {
+            RhelDbgPrint(TRACE_LEVEL_ERROR, "Invalid blk_size %u from device config\n", v);
+            return FALSE;
+        }
         adaptExt->info.blk_size = v;
     }
     else
@@ -737,6 +742,7 @@ VOID RhelGetDiskGeometry(IN PVOID DeviceExtension)
         adaptExt->info.max_discard_seg = min(v, MAX_DISCARD_SEGMENTS);
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, " max_discard_seg = %d\n", adaptExt->info.max_discard_seg);
     }
+    return TRUE;
 }
 
 VOID VioStorVQLock(IN PVOID DeviceExtension, IN ULONG MessageID, IN OUT PSTOR_LOCK_HANDLE LockHandle, IN BOOLEAN isr)
