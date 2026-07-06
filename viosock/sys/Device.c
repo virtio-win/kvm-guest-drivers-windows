@@ -483,6 +483,13 @@ static NTSTATUS VIOSockEvtDevicePrepareHardware(IN WDFDEVICE Device,
         virtio_feature_enable(u64GuestFeatures, VIRTIO_RING_F_INDIRECT_DESC);
     }
 
+    if (virtio_is_feature_enabled(u64HostFeatures, VIRTIO_RING_F_EVENT_IDX))
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "Enable event index feature.\n");
+
+        virtio_feature_enable(u64GuestFeatures, VIRTIO_RING_F_EVENT_IDX);
+    }
+
     status = VirtIOWdfSetDriverFeatures(&pContext->VDevice, u64GuestFeatures, 0);
     if (!NT_SUCCESS(status))
     {
