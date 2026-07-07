@@ -1126,7 +1126,6 @@ VirtIoStartIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
 
         default:
             {
-                SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
                 CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_INVALID_REQUEST);
                 return TRUE;
             }
@@ -1271,7 +1270,6 @@ VirtIoStartIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
                  Srb,
                  SRB_FUNCTION(Srb),
                  cdb->CDB6GENERIC.OperationCode);
-    SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
     CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_INVALID_REQUEST);
     return TRUE;
 }
@@ -1512,6 +1510,7 @@ VirtIoBuildIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
     }
     if (adaptExt->stopped == TRUE)
     {
+        SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
         CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_ABORTED);
         return FALSE;
     }
