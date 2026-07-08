@@ -2176,8 +2176,7 @@ VOID CompleteRequestWithStatus(IN PVOID DeviceExtension, IN PSRB_TYPE Srb, IN UC
         }
     }
 
-    if ((status & SRB_STATUS_AUTOSENSE_VALID) &&
-        ((status & ~SRB_STATUS_AUTOSENSE_VALID) == SRB_STATUS_ERROR))
+    if ((status & SRB_STATUS_AUTOSENSE_VALID) && ((status & ~SRB_STATUS_AUTOSENSE_VALID) == SRB_STATUS_ERROR))
     {
         SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
     }
