@@ -1,3 +1,17 @@
+Date    13 Jul 2026
+repo    https://github.com/virtio-win/kvm-guest-drivers-windows.git
+tag     mm321
+
+Fixed issues:
+NetKVM: Fix extra page leak on Enqueue failure causing TX hang
+NetKVM: fix RX buffer shortage flag being overwritten in RSS path
+NetKVM: negotiate mergeable buffers based on adapter setting
+viosock: Fix select correctness, event notification, and socket handle type
+NetKVM: limit header copy size for UDP and IP checksum offload
+RHEL-187788: NetKVM: ensure the destructor zeroes m_SGL
+stdvga: Add QEMU Standard VGA KMDOD display driver
+RHEL-183409: [viostor] Properly setting SRB transfer length
+
 Date    1 Jun 2026
 repo    https://github.com/virtio-win/kvm-guest-drivers-windows.git
 tag     mm320
