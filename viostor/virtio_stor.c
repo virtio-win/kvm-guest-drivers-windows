@@ -851,6 +851,11 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
         if (adaptExt->dpc == NULL)
         {
             adaptExt->dpc = (PSTOR_DPC)VioStorPoolAlloc(DeviceExtension, sizeof(STOR_DPC) * adaptExt->num_queues);
+            if (adaptExt->dpc == NULL)
+            {
+                RhelDbgPrint(TRACE_LEVEL_ERROR, " Failed to allocate DPC array\n");
+                ret = FALSE;
+            }
         }
         if ((adaptExt->dpc != NULL) && (adaptExt->dpc_ok == FALSE))
         {
