@@ -410,6 +410,11 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
     ConfigInfo->CachesData = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_FLUSH);
     adaptExt->writeback_cache = HasWritebackCache(adaptExt);
 
+    if (CHECKBIT(adaptExt->features, VIRTIO_F_ACCESS_PLATFORM))
+    {
+        ConfigInfo->FeatureSupport |= STOR_ADAPTER_DMA_V3_PREFERRED;
+    }
+
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Writeback cache enabled = %d\n", adaptExt->writeback_cache);
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Writeback cache supported = %d\n", ConfigInfo->CachesData);
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " VIRTIO_BLK_F_MQ = %d\n", CHECKBIT(adaptExt->features, VIRTIO_BLK_F_MQ));
@@ -1482,7 +1487,7 @@ VirtIoBuildIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
 {
     PCDB cdb;
     ULONG i;
-    ULONG dummy;
+    ULONG fragLen;
     ULONG sgElement;
     ULONG sgMaxElements;
     ULONG sgLength;
@@ -1492,10 +1497,17 @@ VirtIoBuildIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
     PSTOR_SCATTER_GATHER_LIST sgList;
     ULONGLONG lba;
     ULONG blocks;
+    STOR_PHYSICAL_ADDRESS extPA;
 
     cdb = SRB_CDB(Srb);
     srbExt = SRB_EXTENSION(Srb);
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    extPA = StorPortGetPhysicalAddress(DeviceExtension, Srb, srbExt, &fragLen);
+    if (extPA.QuadPart == 0 || fragLen < sizeof(SRB_EXTENSION))
+    {
+        Srb->SrbStatus = SRB_STATUS_INSUFFICIENT_RESOURCES;
+        return FALSE;
+    }
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " Srb = 0x%p\n", Srb);
 
@@ -1650,10 +1662,9 @@ VirtIoBuildIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
         srbExt->in = sgElement;
     }
 
-    srbExt->sg[0].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.out_hdr, &dummy);
+    srbExt->sg[0].physAddr.QuadPart = extPA.QuadPart + FIELD_OFFSET(SRB_EXTENSION, vbr.out_hdr);
     srbExt->sg[0].length = sizeof(srbExt->vbr.out_hdr);
-
-    srbExt->sg[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &dummy);
+    srbExt->sg[sgElement].physAddr.QuadPart = extPA.QuadPart + FIELD_OFFSET(SRB_EXTENSION, vbr.status);
     srbExt->sg[sgElement].length = sizeof(srbExt->vbr.status);
 
     return TRUE;
@@ -2373,6 +2384,7 @@ VOID VioStorCompleteRequest(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOO
 
             if (bFound && srbExt->vbr.out_hdr.type == VIRTIO_BLK_T_GET_ID)
             {
+                StorPortCopyMemory(&adaptExt->sn, &srbExt->serial, BLOCK_SERIAL_STRLEN);
                 adaptExt->sn_ok = TRUE;
                 if (Srb)
                 {
