@@ -49,6 +49,7 @@ struct STDVGA_VESA_TIMING
     ULONG PixelRateHz; // PixelRate per VESA spec
 };
 
+/*
 // clang-format off
 static const STDVGA_VESA_TIMING s_VesaTimings[] = {
     {800, 600, 1056, 628, 40000000},     // SVGA @60
@@ -81,6 +82,7 @@ static const STDVGA_VESA_TIMING *LookupVesaTiming(USHORT Width, USHORT Height)
     }
     return NULL;
 }
+*/
 
 static VOID BuildVideoSignalInfo(_Out_ D3DKMDT_VIDEO_SIGNAL_INFO *pSignalInfo, _In_ USHORT Width, _In_ USHORT Height)
 {
