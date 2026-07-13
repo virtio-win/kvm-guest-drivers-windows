@@ -518,7 +518,7 @@ RhelGetSerialNumber(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     srbExt->sg[0].physAddr.QuadPart = extPA.QuadPart + FIELD_OFFSET(SRB_EXTENSION, vbr.out_hdr);
     srbExt->sg[0].length = sizeof(srbExt->vbr.out_hdr);
     srbExt->sg[1].physAddr.QuadPart = extPA.QuadPart + FIELD_OFFSET(SRB_EXTENSION, serial);
-    srbExt->sg[1].length = BLOCK_SERIAL_STRLEN; // sizeof(srbExt->serial);
+    srbExt->sg[1].length = BLOCK_SERIAL_STRLEN;
     srbExt->sg[2].physAddr.QuadPart = extPA.QuadPart + FIELD_OFFSET(SRB_EXTENSION, vbr.status);
     srbExt->sg[2].length = sizeof(srbExt->vbr.status);
 
