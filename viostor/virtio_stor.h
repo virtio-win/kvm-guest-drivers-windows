@@ -286,7 +286,10 @@ typedef struct _SRB_EXTENSION
     BOOLEAN fua;
     VIO_SG sg[VIRTIO_MAX_SG];
     VRING_DESC_ALIAS desc[VIRTIO_MAX_SG];
-    blk_discard_write_zeroes blk_discard[MAX_DISCARD_SEGMENTS];
+    union {
+        blk_discard_write_zeroes blk_discard[MAX_DISCARD_SEGMENTS];
+        CHAR serial[BLOCK_SERIAL_STRLEN];
+    };
 } SRB_EXTENSION, *PSRB_EXTENSION;
 
 BOOLEAN

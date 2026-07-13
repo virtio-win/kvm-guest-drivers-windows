@@ -39,9 +39,13 @@
 
 #define SET_VA_PA()                                                                                                    \
     {                                                                                                                  \
-        ULONG len;                                                                                                     \
-        va = adaptExt->indirect ? srbExt->desc : NULL;                                                                 \
-        pa = va ? StorPortGetPhysicalAddress(DeviceExtension, NULL, va, &len).QuadPart : 0;                            \
+        va = NULL;                                                                                                     \
+        pa = 0;                                                                                                        \
+        if (adaptExt->indirect)                                                                                        \
+        {                                                                                                              \
+            va = srbExt->desc;                                                                                         \
+            pa = extPA.QuadPart + FIELD_OFFSET(SRB_EXTENSION, desc);                                                   \
+        }                                                                                                              \
     }
 
 static ULONG GetSrbQueueNumber(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
@@ -99,8 +103,21 @@ RhelDoFlush(PVOID DeviceExtension, PSRB_TYPE Srb, BOOLEAN resend, BOOLEAN bIsr)
     STOR_LOCK_HANDLE LockHandle = {0};
     struct virtqueue *vq = NULL;
     PREQUEST_LIST element;
+    STOR_PHYSICAL_ADDRESS extPA;
+
+    extPA = StorPortGetPhysicalAddress(DeviceExtension, (PSCSI_REQUEST_BLOCK)Srb, srbExt, &fragLen);
+    if (extPA.QuadPart == 0 || fragLen < sizeof(SRB_EXTENSION))
+    {
+        CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_INSUFFICIENT_RESOURCES);
+        return TRUE;
+    }
 
     SET_VA_PA();
+    if (adaptExt->indirect && pa == 0)
+    {
+        CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_INSUFFICIENT_RESOURCES);
+        return TRUE;
+    }
 
     QueueNumber = resend ? srbExt->queue_number : GetSrbQueueNumber(DeviceExtension, Srb);
     MessageId = QueueToMessageId(DeviceExtension, QueueNumber);
@@ -115,9 +132,9 @@ RhelDoFlush(PVOID DeviceExtension, PSRB_TYPE Srb, BOOLEAN resend, BOOLEAN bIsr)
     srbExt->out = 1;
     srbExt->in = 1;
 
-    srbExt->sg[0].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.out_hdr, &fragLen);
+    srbExt->sg[0].physAddr.QuadPart = extPA.QuadPart + FIELD_OFFSET(SRB_EXTENSION, vbr.out_hdr);
     srbExt->sg[0].length = sizeof(srbExt->vbr.out_hdr);
-    srbExt->sg[1].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
+    srbExt->sg[1].physAddr.QuadPart = extPA.QuadPart + FIELD_OFFSET(SRB_EXTENSION, vbr.status);
     srbExt->sg[1].length = sizeof(srbExt->vbr.status);
 
     if (!resend)
@@ -205,8 +222,22 @@ RhelDoReadWrite(PVOID DeviceExtension, PSRB_TYPE Srb)
     STOR_LOCK_HANDLE LockHandle = {0};
     struct virtqueue *vq = NULL;
     PREQUEST_LIST element;
+    ULONG fragLen = 0UL;
+    STOR_PHYSICAL_ADDRESS extPA;
+
+    extPA = StorPortGetPhysicalAddress(DeviceExtension, (PSCSI_REQUEST_BLOCK)Srb, srbExt, &fragLen);
+    if (extPA.QuadPart == 0 || fragLen < sizeof(SRB_EXTENSION))
+    {
+        CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_INSUFFICIENT_RESOURCES);
+        return TRUE;
+    }
 
     SET_VA_PA();
+    if (adaptExt->indirect && pa == 0)
+    {
+        CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_INSUFFICIENT_RESOURCES);
+        return TRUE;
+    }
 
     QueueNumber = GetSrbQueueNumber(DeviceExtension, Srb);
     MessageId = QueueToMessageId(DeviceExtension, QueueNumber);
@@ -299,8 +330,21 @@ RhelDoUnMap(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     BOOLEAN notify = FALSE;
     STOR_LOCK_HANDLE LockHandle = {0};
     struct virtqueue *vq = NULL;
+    STOR_PHYSICAL_ADDRESS extPA;
+
+    extPA = StorPortGetPhysicalAddress(DeviceExtension, (PSCSI_REQUEST_BLOCK)Srb, srbExt, &fragLen);
+    if (extPA.QuadPart == 0 || fragLen < sizeof(SRB_EXTENSION))
+    {
+        CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_INSUFFICIENT_RESOURCES);
+        return TRUE;
+    }
 
     SET_VA_PA();
+    if (adaptExt->indirect && pa == 0)
+    {
+        CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_INSUFFICIENT_RESOURCES);
+        return TRUE;
+    }
 
     unmapList = (PUNMAP_LIST_HEADER)srbDataBuffer;
     if (!(CHECKBIT(adaptExt->features, VIRTIO_BLK_F_DISCARD)) || (unmapList == NULL) ||
@@ -357,11 +401,11 @@ RhelDoUnMap(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     srbExt->out = 2;
     srbExt->in = 1;
 
-    srbExt->sg[0].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.out_hdr, &fragLen);
+    srbExt->sg[0].physAddr.QuadPart = extPA.QuadPart + FIELD_OFFSET(SRB_EXTENSION, vbr.out_hdr);
     srbExt->sg[0].length = sizeof(srbExt->vbr.out_hdr);
-    srbExt->sg[1].physAddr = MmGetPhysicalAddress(&srbExt->blk_discard[0]);
+    srbExt->sg[1].physAddr.QuadPart = extPA.QuadPart + FIELD_OFFSET(SRB_EXTENSION, blk_discard);
     srbExt->sg[1].length = sizeof(blk_discard_write_zeroes) * BlockDescrCount;
-    srbExt->sg[2].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
+    srbExt->sg[2].physAddr.QuadPart = extPA.QuadPart + FIELD_OFFSET(SRB_EXTENSION, vbr.status);
     srbExt->sg[2].length = sizeof(srbExt->vbr.status);
 
     QueueNumber = GetSrbQueueNumber(DeviceExtension, Srb);
@@ -440,8 +484,21 @@ RhelGetSerialNumber(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     BOOLEAN notify = FALSE;
     ULONG fragLen = 0UL;
     PREQUEST_LIST element;
+    STOR_PHYSICAL_ADDRESS extPA;
+
+    extPA = StorPortGetPhysicalAddress(DeviceExtension, (PSCSI_REQUEST_BLOCK)Srb, srbExt, &fragLen);
+    if (extPA.QuadPart == 0 || fragLen < sizeof(SRB_EXTENSION))
+    {
+        CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_INSUFFICIENT_RESOURCES);
+        return TRUE;
+    }
 
     SET_VA_PA();
+    if (adaptExt->indirect && pa == 0)
+    {
+        CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_INSUFFICIENT_RESOURCES);
+        return TRUE;
+    }
 
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " srbExt %p.\n", srbExt);
 
@@ -458,11 +515,11 @@ RhelGetSerialNumber(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     srbExt->out = 1;
     srbExt->in = 2;
 
-    srbExt->sg[0].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.out_hdr, &fragLen);
+    srbExt->sg[0].physAddr.QuadPart = extPA.QuadPart + FIELD_OFFSET(SRB_EXTENSION, vbr.out_hdr);
     srbExt->sg[0].length = sizeof(srbExt->vbr.out_hdr);
-    srbExt->sg[1].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &adaptExt->sn[0], &fragLen);
-    srbExt->sg[1].length = sizeof(adaptExt->sn);
-    srbExt->sg[2].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
+    srbExt->sg[1].physAddr.QuadPart = extPA.QuadPart + FIELD_OFFSET(SRB_EXTENSION, serial);
+    srbExt->sg[1].length = BLOCK_SERIAL_STRLEN;
+    srbExt->sg[2].physAddr.QuadPart = extPA.QuadPart + FIELD_OFFSET(SRB_EXTENSION, vbr.status);
     srbExt->sg[2].length = sizeof(srbExt->vbr.status);
 
     VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
