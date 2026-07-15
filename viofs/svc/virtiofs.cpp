@@ -492,12 +492,26 @@ static VOID SetFileInfo(VIRTFS *VirtFs, struct fuse_entry_out *entry, FSP_FSCTL_
         FileInfo->FileSize = attr->size;
         FileInfo->AllocationSize = attr->blocks * 512;
     }
-    UnixTimeToFileTime(attr->ctime, attr->ctimensec, &FileInfo->CreationTime);
+
+    UnixTimeToFileTime(attr->ctime, attr->ctimensec, &FileInfo->ChangeTime);
     UnixTimeToFileTime(attr->atime, attr->atimensec, &FileInfo->LastAccessTime);
     UnixTimeToFileTime(attr->mtime, attr->mtimensec, &FileInfo->LastWriteTime);
-    FileInfo->ChangeTime = FileInfo->LastWriteTime;
-    FileInfo->IndexNumber = 0;
-    FileInfo->HardLinks = 0;
+
+    if ((attr->ctime != 0) || (attr->ctimensec != 0))
+    {
+        FileInfo->CreationTime = FileInfo->ChangeTime;
+    }
+    else if ((attr->mtime != 0) || (attr->mtimensec != 0))
+    {
+        FileInfo->CreationTime = FileInfo->LastWriteTime;
+    }
+    else
+    {
+        FileInfo->CreationTime = FileInfo->LastAccessTime;
+    }
+
+    FileInfo->IndexNumber = (attr->ino != 0) ? attr->ino : entry->nodeid;
+    FileInfo->HardLinks = (attr->nlink != 0) ? attr->nlink : 1;
     FileInfo->EaSize = 0;
 
     DBG("ino=%I64u size=%I64u blocks=%I64u atime=%I64u mtime=%I64u ctime=%I64u "
@@ -1836,7 +1850,7 @@ static NTSTATUS GetFileInfo(FSP_FILE_SYSTEM *FileSystem, PVOID FileContext0, FSP
 static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
                              PVOID FileContext0,
                              UINT32 FileAttributes,
-                             UINT64 CreationTime,
+                             UINT64 /*CreationTime*/,
                              UINT64 LastAccessTime,
                              UINT64 LastWriteTime,
                              UINT64 ChangeTime,
@@ -1881,20 +1895,17 @@ static NTSTATUS SetBasicInfo(FSP_FILE_SYSTEM *FileSystem,
         setattr_in.setattr.valid |= FATTR_ATIME;
         FileTimeToUnixTime(LastAccessTime, &setattr_in.setattr.atime, &setattr_in.setattr.atimensec);
     }
-    if ((LastWriteTime != 0) || (ChangeTime != 0))
+    if (LastWriteTime != 0)
     {
-        if (LastWriteTime == 0)
-        {
-            LastWriteTime = ChangeTime;
-        }
         setattr_in.setattr.valid |= FATTR_MTIME;
         FileTimeToUnixTime(LastWriteTime, &setattr_in.setattr.mtime, &setattr_in.setattr.mtimensec);
     }
-    if (CreationTime != 0)
+    if (ChangeTime != 0)
     {
         setattr_in.setattr.valid |= FATTR_CTIME;
-        FileTimeToUnixTime(CreationTime, &setattr_in.setattr.ctime, &setattr_in.setattr.ctimensec);
+        FileTimeToUnixTime(ChangeTime, &setattr_in.setattr.ctime, &setattr_in.setattr.ctimensec);
     }
+    // TODO: set creation/birth time, we need to use setattr(FUSE_SET_ATTR_BTIME)
 
     Status = VirtFsFuseRequest(VirtFs->Device, &setattr_in, sizeof(setattr_in), &setattr_out, sizeof(setattr_out));
 
