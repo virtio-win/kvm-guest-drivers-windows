@@ -599,6 +599,26 @@ static NTSTATUS VirtFsFuseRequest(HANDLE Device,
     return Status;
 }
 
+static NTSTATUS VirtFsFuseRequestNoReply(HANDLE Device,
+                                         LPVOID InBuffer,
+                                         DWORD InBufferSize,
+                                         DWORD Code = IOCTL_VIRTFS_FUSE_REQUEST)
+{
+    DWORD bytesReturned = 0;
+    struct fuse_in_header *in_hdr = (struct fuse_in_header *)InBuffer;
+
+    DBG(">>req: %d unique: %I64u len: %u", in_hdr->opcode, in_hdr->unique, in_hdr->len);
+
+    BOOL result = DeviceIoControl(Device, Code, InBuffer, InBufferSize, nullptr, 0, &bytesReturned, nullptr);
+
+    if (!result)
+    {
+        return FspNtStatusFromWin32(GetLastError());
+    }
+
+    return STATUS_SUCCESS;
+}
+
 static NTSTATUS VirtFsCreateFile(VIRTFS *VirtFs,
                                  VIRTFS_FILE_CONTEXT *FileContext,
                                  UINT32 GrantedAccess,
@@ -709,7 +729,6 @@ UINT64 VIRTFS::LookupMapPopNode(UINT64 NodeId)
 static VOID SubmitForgetRequest(HANDLE Device, UINT64 NodeId, UINT64 Nlookup)
 {
     FUSE_FORGET_IN forget_in;
-    FUSE_FORGET_OUT forget_out;
 
     DBG("NodeId: %lu Nlookup: %lu", NodeId, Nlookup);
 
@@ -717,7 +736,7 @@ static VOID SubmitForgetRequest(HANDLE Device, UINT64 NodeId, UINT64 Nlookup)
 
     forget_in.forget.nlookup = Nlookup;
 
-    VirtFsFuseRequest(Device, &forget_in, forget_in.hdr.len, &forget_out, sizeof(forget_out));
+    VirtFsFuseRequestNoReply(Device, &forget_in, forget_in.hdr.len);
 }
 
 NTSTATUS VIRTFS::SubmitDeleteRequest(uint64_t parent, const char *filename, const VIRTFS_FILE_CONTEXT *FileContext)
