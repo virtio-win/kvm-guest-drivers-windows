@@ -474,11 +474,30 @@ static VOID UnixTimeToFileTime(uint64_t time, uint32_t nsec, PUINT64 PFileTime)
     *PFileTime = time * 10000000 + nsec / 100 + 116444736000000000LL;
 }
 
+static UINT64 AlignAllocationSize(UINT64 Size)
+{
+    if (Size == 0)
+    {
+        return 0;
+    }
+
+    return ((Size - 1) / ALLOCATION_UNIT + 1) * ALLOCATION_UNIT;
+}
+
+static UINT64 AllocationSizeFromAttr(const struct fuse_attr *Attr)
+{
+    const UINT64 PhysicalAllocationSize = Attr->blocks * 512ULL;
+    const UINT64 UnalignedAllocationSize = (PhysicalAllocationSize > Attr->size) ? PhysicalAllocationSize : Attr->size;
+
+    return AlignAllocationSize(UnalignedAllocationSize);
+}
+
 static VOID SetFileInfo(VIRTFS *VirtFs, struct fuse_entry_out *entry, FSP_FSCTL_FILE_INFO *FileInfo)
 {
     struct fuse_attr *attr = &entry->attr;
 
     FileInfo->FileAttributes = PosixUnixModeToAttributes(VirtFs, entry->nodeid, attr->mode);
+    FileInfo->ReparseTag = 0;
 
     if (FileInfo->FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
     {
@@ -486,11 +505,15 @@ static VOID SetFileInfo(VIRTFS *VirtFs, struct fuse_entry_out *entry, FSP_FSCTL_
         FileInfo->FileSize = 0;
         FileInfo->AllocationSize = 0;
     }
+    else if (FileInfo->FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+    {
+        FileInfo->FileSize = 0;
+        FileInfo->AllocationSize = 0;
+    }
     else
     {
-        FileInfo->ReparseTag = 0;
         FileInfo->FileSize = attr->size;
-        FileInfo->AllocationSize = attr->blocks * 512;
+        FileInfo->AllocationSize = AllocationSizeFromAttr(attr);
     }
 
     UnixTimeToFileTime(attr->ctime, attr->ctimensec, &FileInfo->ChangeTime);
@@ -674,7 +697,7 @@ static NTSTATUS VirtFsCreateFile(VIRTFS *VirtFs,
 
         if (AllocationSize > 0)
         {
-            SetFileSize(VirtFs->FileSystem, FileContext, AllocationSize, TRUE, FileInfo);
+            Status = SetFileSize(VirtFs->FileSystem, FileContext, AllocationSize, TRUE, FileInfo);
         }
         else
         {
@@ -1982,14 +2005,45 @@ static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
 {
     VIRTFS *VirtFs = (VIRTFS *)FileSystem->UserContext;
     VIRTFS_FILE_CONTEXT *FileContext = (VIRTFS_FILE_CONTEXT *)FileContext0;
-    NTSTATUS Status;
+    NTSTATUS Status = STATUS_SUCCESS;
 
     DBG("NewSize: %I64u SetAllocationSize: %d", NewSize, SetAllocationSize);
     DBG("fh: %I64u nodeid: %I64u", FileContext->FileHandle, FileContext->NodeId);
 
     if (SetAllocationSize == TRUE)
     {
-        if (NewSize > 0)
+        FSP_FSCTL_FILE_INFO CurrentFileInfo;
+
+        Status = GetFileInfoInternal(VirtFs, FileContext, &CurrentFileInfo, NULL);
+        if (!NT_SUCCESS(Status))
+        {
+            return Status;
+        }
+
+        if (NewSize < CurrentFileInfo.FileSize)
+        {
+            FUSE_SETATTR_IN setattr_in;
+            FUSE_SETATTR_OUT setattr_out;
+
+            FUSE_HEADER_INIT(&setattr_in.hdr, FUSE_SETATTR, FileContext->NodeId, sizeof(setattr_in.setattr));
+
+            ZeroMemory(&setattr_in.setattr, sizeof(setattr_in.setattr));
+            setattr_in.setattr.valid = FATTR_SIZE;
+            setattr_in.setattr.size = NewSize;
+
+            if ((FileContext->IsDirectory == FALSE) && (FileContext->FileHandle != INVALID_FILE_HANDLE))
+            {
+                setattr_in.setattr.valid |= FATTR_FH;
+                setattr_in.setattr.fh = FileContext->FileHandle;
+            }
+
+            Status = VirtFsFuseRequest(VirtFs->Device,
+                                       &setattr_in,
+                                       sizeof(setattr_in),
+                                       &setattr_out,
+                                       sizeof(setattr_out));
+        }
+        else if (NewSize > CurrentFileInfo.AllocationSize)
         {
             FUSE_FALLOCATE_IN falloc_in;
             FUSE_FALLOCATE_OUT falloc_out;
@@ -2007,13 +2061,6 @@ static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
 
             Status = VirtFsFuseRequest(VirtFs->Device, &falloc_in, falloc_in.hdr.len, &falloc_out, sizeof(falloc_out));
         }
-        else
-        {
-            // fallocate on host fails when len is less than or equal to 0.
-            // So ignore the request and report success. This fix a failure
-            // to create a new file through Windows Explorer.
-            Status = STATUS_SUCCESS;
-        }
     }
     else
     {
@@ -2025,6 +2072,12 @@ static NTSTATUS SetFileSize(FSP_FILE_SYSTEM *FileSystem,
         ZeroMemory(&setattr_in.setattr, sizeof(setattr_in.setattr));
         setattr_in.setattr.valid = FATTR_SIZE;
         setattr_in.setattr.size = NewSize;
+
+        if ((FileContext->IsDirectory == FALSE) && (FileContext->FileHandle != INVALID_FILE_HANDLE))
+        {
+            setattr_in.setattr.valid |= FATTR_FH;
+            setattr_in.setattr.fh = FileContext->FileHandle;
+        }
 
         Status = VirtFsFuseRequest(VirtFs->Device, &setattr_in, sizeof(setattr_in), &setattr_out, sizeof(setattr_out));
     }
