@@ -15,9 +15,87 @@ static FORCEINLINE VOID ParaNdis_ReceiveQueueAddBuffer(PPARANDIS_RECEIVE_QUEUE p
     NdisInterlockedInsertTailList(&pQueue->BuffersList, &pBuffer->ReceiveQueueListEntry, &pQueue->Lock);
 }
 
+// Capacity of Holder MDL for PhysicalPages[pageIndex], as created by Bind.
+// First data page: VA starts at DataStartOffset, length is size - DataStartOffset.
+// Later pages: full page mapping.
+static FORCEINLINE ULONG ParaNdis_RxDataMdlCapacity(pRxNetDescriptor p, ULONG pageIndex)
+{
+    ULONG capacity = p->PhysicalPages[pageIndex].size;
+
+    if (pageIndex == p->FirstRxDataPage)
+    {
+        NETKVM_ASSERT(capacity >= p->DataStartOffset);
+        capacity -= p->DataStartOffset;
+    }
+    return capacity;
+}
+
+static FORCEINLINE BOOLEAN ParaNdis_ShouldAdjustRxHolderLength(pRxNetDescriptor p)
+{
+    // Mergeable descriptors use FullPageMDL (even when bUseMergedBuffers is ambiguous).
+    return p->Holder != NULL && p->FullPageMDL == NULL;
+}
+
+// Restore Holder MDL lengths to Bind capacities. Safe if never adjusted.
+static void ParaNdis_RestoreRxBufferHolderLength(pRxNetDescriptor p)
+{
+    PMDL mdl = p->Holder;
+    ULONG pageIndex = p->FirstRxDataPage;
+
+    if (!ParaNdis_ShouldAdjustRxHolderLength(p))
+    {
+        return;
+    }
+
+    while (mdl != NULL)
+    {
+        NETKVM_ASSERT(pageIndex < p->NumPages);
+        NdisAdjustMdlLength(mdl, ParaNdis_RxDataMdlCapacity(p, pageIndex));
+        mdl = NDIS_MDL_LINKAGE(mdl);
+        pageIndex++;
+    }
+}
+
+// Shrink Holder chain so sum(MDL lengths) == dataLength + ulDataOffset
+// (VLAN bytes still covered at the front of the first MDL when nBytesStripped != 0).
+// No-op for mergeable descriptors. Recompute from Bind capacity each time so reuse
+// does not need an explicit restore.
+void ParaNdis_AdjustRxBufferHolderLength(pRxNetDescriptor p, ULONG ulDataOffset)
+{
+    PMDL mdl = p->Holder;
+    ULONG pageIndex = p->FirstRxDataPage;
+    ULONG bytesLeft = p->PacketInfo.dataLength + ulDataOffset;
+
+    if (!ParaNdis_ShouldAdjustRxHolderLength(p))
+    {
+        return;
+    }
+
+    while (mdl != NULL)
+    {
+        ULONG capacity;
+        ULONG thisLen;
+
+        NETKVM_ASSERT(pageIndex < p->NumPages);
+        capacity = ParaNdis_RxDataMdlCapacity(p, pageIndex);
+        thisLen = min(capacity, bytesLeft);
+        NdisAdjustMdlLength(mdl, thisLen);
+        bytesLeft -= thisLen;
+        mdl = NDIS_MDL_LINKAGE(mdl);
+        pageIndex++;
+    }
+
+    // Traditional Bind builds MDLs for FirstRxDataPage .. NumPages-1 only.
+    NETKVM_ASSERT(pageIndex == p->NumPages);
+    NETKVM_ASSERT(bytesLeft == 0);
+}
+
 static void ParaNdis_UnbindRxBufferFromPacket(pRxNetDescriptor p)
 {
     PMDL NextMdlLinkage = p->Holder;
+
+    // Return lengths to Bind capacities before free (no-op if skipped/never adjusted).
+    ParaNdis_RestoreRxBufferHolderLength(p);
 
     while (NextMdlLinkage != NULL)
     {
@@ -26,6 +104,7 @@ static void ParaNdis_UnbindRxBufferFromPacket(pRxNetDescriptor p)
 
         NdisFreeMdl(pThisMDL);
     }
+    p->Holder = NULL;
 }
 
 static BOOLEAN ParaNdis_BindRxBufferToPacket(PARANDIS_ADAPTER *pContext, pRxNetDescriptor p)

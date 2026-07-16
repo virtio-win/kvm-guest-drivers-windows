@@ -772,6 +772,8 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(PARANDIS_ADAPTER *pContext,
                                                      pRxNetDescriptor pBufferDesc,
                                                      PUINT pnCoalescedSegmentsCount);
 
+void ParaNdis_AdjustRxBufferHolderLength(pRxNetDescriptor p, ULONG ulDataOffset);
+
 BOOLEAN ParaNdis_SynchronizeWithInterrupt(PARANDIS_ADAPTER *pContext,
                                           ULONG messageId,
                                           tSynchronizedProcedure procedure,
