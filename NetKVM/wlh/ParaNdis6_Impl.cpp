@@ -998,6 +998,10 @@ tPacketIndicationType ParaNdis_PrepareReceivedPacket(PARANDIS_ADAPTER *pContext,
 
         ParaNdis_PadPacketToMinimalLength(pPacketInfo);
 
+        // Traditional multi-page only; no-op for mergeable (FullPageMDL set).
+        // ulDataOffset: NB DataOffset still skips stripped VLAN at MDL start.
+        ParaNdis_AdjustRxBufferHolderLength(pBuffersDesc, nBytesStripped);
+
         pNBL = NdisAllocateNetBufferAndNetBufferList(pContext->BufferListsPool,
                                                      0,
                                                      0,
