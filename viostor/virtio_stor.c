@@ -517,6 +517,10 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
         adaptExt->poolAllocationSize += ROUND_TO_CACHE_LINES((ULONGLONG)(max_queues)*virtio_get_queue_descriptor_size());
     }
 
+    ConfigInfo->MaxIOsPerLun = adaptExt->queue_depth * adaptExt->num_queues;
+    ConfigInfo->InitialLunQueueDepth = ConfigInfo->MaxIOsPerLun;
+    ConfigInfo->MaxNumberOfIO = ConfigInfo->MaxIOsPerLun;
+
     RhelDbgPrint(TRACE_LEVEL_INFORMATION,
                  " breaks_number = %x  queue_depth = %x\n",
                  ConfigInfo->NumberOfPhysicalBreaks,
