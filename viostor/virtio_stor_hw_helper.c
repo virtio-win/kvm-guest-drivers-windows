@@ -61,17 +61,18 @@ static ULONG GetSrbQueueNumber(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     if (status != STOR_STATUS_SUCCESS)
     {
         RhelDbgPrint(TRACE_LEVEL_ERROR, " StorPortGetStartIoPerfParams failed. srb %p status 0x%x.\n", Srb, status);
-        return 0;
+        return (ULONG)InterlockedIncrement(&adaptExt->rr_queue_index) % adaptExt->num_queues;
     }
 
     if (param.MessageNumber == 0)
     {
-        QueueNumber = 0;
+        QueueNumber = (ULONG)InterlockedIncrement(&adaptExt->rr_queue_index) % adaptExt->num_queues;
     }
     else
     {
         QueueNumber = (param.MessageNumber - 1) % adaptExt->num_queues;
     }
+
     RhelDbgPrint(TRACE_LEVEL_INFORMATION,
                  " srb %p, MessageNumber %lu, ChannelNumber %lu -> QueueNumber %lu\n",
                  Srb,

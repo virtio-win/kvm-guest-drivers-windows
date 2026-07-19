@@ -484,6 +484,7 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
         adaptExt->num_queues = min(adaptExt->num_queues, num_cpus);
     }
     adaptExt->reset_in_progress_count = 0;
+    adaptExt->rr_queue_index = -1;
 
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Queues %d CPUs %d\n", adaptExt->num_queues, num_cpus);
 
