@@ -1856,7 +1856,7 @@ RhelScsiGetInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
                                 SRB_PATH_ID(Srb),
                                 SRB_TARGET_ID(Srb),
                                 SRB_LUN(Srb),
-                                adaptExt->queue_depth);
+                                adaptExt->queue_depth * adaptExt->num_queues);
     attributes.DeviceAttentionSupported = 1;
     attributes.AsyncNotificationSupported = 1;
     attributes.D3ColdNotSupported = 1;
