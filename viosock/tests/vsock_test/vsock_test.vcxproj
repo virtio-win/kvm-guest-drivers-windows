@@ -59,7 +59,9 @@
   <PropertyGroup>
     <IntDir>$(PlatformTarget)\$(ConfigurationName)\vsock_test\</IntDir>
     <OutDir>$(PlatformTarget)\$(ConfigurationName)\vsock_test\</OutDir>
-    <TargetName>vsock_test</TargetName>
+    <TargetName Condition="'$(Platform)'=='x64'">vsock_test</TargetName>
+    <TargetName Condition="'$(Platform)'=='Win32'">vsock_test_x86</TargetName>
+    <TargetName Condition="'$(Platform)'=='ARM64'">vsock_test_arm64</TargetName>
   </PropertyGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)'=='Win10 Release'">
