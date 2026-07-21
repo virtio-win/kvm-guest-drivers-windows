@@ -30,6 +30,11 @@ Two flows are supported from the same set of scripts:
 | `run-loopback.sh`  | Loopback sweep: both roles on the Windows guest. |
 | `run-all.sh`       | Orchestrates `setup-env → forward → reverse → loopback`; aggregates exit code, optionally emits JUnit per suite. |
 | `forward.list` / `reverse.list` / `loopback.list` | Test IDs to run per direction. |
+| `prepare-perf-host.sh` | Build (dev) or install (CI, via `--linux-bin`) the Linux `vsock_perf` at `/opt/vsock-test/vsock_perf`. Reuses the kernel sources `prepare-host.sh` already extracted. Idempotent. |
+| `install-perf.sh`  | scp `vsock_perf.exe` (+ x86 sibling) into `guest_bin_dir` on the guest. Meant to be re-run after every Windows-side rebuild. |
+| `prepare-perf.sh`  | Thin orchestrator: calls `prepare-perf-host.sh` then `install-perf.sh`. One-shot dev/CI first-time setup. |
+| `run-perf.sh`      | Automated `vsock_perf` sweep: forward + reverse × default and large buffer. Prints an RX/TX-Gbps summary. |
+| `perf-one.sh`      | One-shot manual `vsock_perf` run for interactive tuning — pick direction + any perf knobs on the CLI. |
 
 Removed (historical): `guest-exec.sh` (virsh-agent fallback), `update-driver.sh`.
 All guest access now goes through the `_guest_ssh` / `_guest_scp_*` /
@@ -310,3 +315,120 @@ via `-EncodedCommand` (base64-UTF16LE). It sidesteps every cmd/ssh
 quoting layer, so the snippet can contain literal quotes, `$` sigils,
 and heredocs without escaping. Prefer it over hand-quoting cmd strings
 for any PowerShell work on the guest.
+
+## vsock_perf harness
+
+`vsock_perf` is the throughput benchmark ported from
+`linux-6.19.8/tools/testing/vsock/vsock_perf.c`. Unlike `vsock_test`, it
+has no TCP control channel — the two peers talk only over vsock — so
+there is no port-wait; a small `SERVER_GRACE_SECS` sleep between
+receiver launch and sender start covers the bind race.
+
+### Setup — two scripts, one orchestrator
+
+The setup splits into two independent scripts on purpose — dev bench
+re-runs one of them much more often than the other. **vsock_test is a
+hard prerequisite**: run `prepare-host.sh` once before touching the
+host-side script so the pinned kernel tarball is fetched/extracted.
+
+* **`prepare-perf-host.sh`** — the Linux side.
+  Dev path: `make vsock_perf` in the kernel tree `prepare-host.sh`
+  extracted, install to `/opt/vsock-test/vsock_perf`. Idempotent.
+  CI path: `--linux-bin <file>` skips the `make` and just copies the
+  pre-built artifact into place.
+  Re-run only after bumping the pinned kernel version (or in every CI
+  invocation with `--linux-bin`).
+
+* **`install-perf.sh`** — the Windows side. `scp vsock_perf.exe`
+  (+ x86 sibling if present) into `guest_bin_dir`. Cheap; re-run after
+  every Windows-side rebuild (agent or manual).
+
+* **`prepare-perf.sh`** — thin orchestrator that calls both, meant for
+  first-time dev setup or a CI job that wants a single command.
+
+Typical dev-bench sequence:
+
+```sh
+./prepare-host.sh                                        # once, ever
+./prepare-perf-host.sh                                   # once, then
+                                                         # only after
+                                                         # kernel bump
+./install-perf.sh \                                      # after every
+    --config /tmp/vsock-ci/x.config \                    # Windows
+    --from   viosock/tests/vsock_perf/x64/Win11Release/vsock_perf   # rebuild
+```
+
+Or all in one call for the initial setup:
+
+```sh
+./prepare-perf.sh \
+    --config /tmp/vsock-ci/x.config \
+    --from   viosock/tests/vsock_perf/x64/Win11Release/vsock_perf
+```
+
+CI shape (perf is *not* in `prepare-ci.sh` / `run-all.sh` yet):
+
+```sh
+./prepare-perf-host.sh --linux-bin /path/to/staged/vsock_perf
+./install-perf.sh      --config <cfg> --from /path/to/staged/win-pkg
+./run-perf.sh          --config <cfg> --logdir /path/to/perf-log
+```
+
+Both installers accept `--skip-host` / `--skip-guest` (on the
+orchestrator) to bypass either half.
+
+### Automated sweep
+
+`run-perf.sh` runs four throughput measurements — two directions ×
+two buffer sizes:
+
+```sh
+./run-perf.sh                      # both directions, default+large buffer
+./run-perf.sh --only forward       # forward only
+./run-perf.sh --only reverse --as-system   # reverse under schtasks/SYSTEM
+```
+
+Everything is env-tunable (defaults shown in brackets):
+
+| Var                 | Default | Meaning                                                   |
+|---------------------|---------|-----------------------------------------------------------|
+| `PERF_BYTES`        | `1G`    | Total bytes per run.                                      |
+| `PERF_BUF_DEFAULT`  | `64K`   | Buffer for the "default" run.                             |
+| `PERF_BUF_LARGE`    | `1M`    | Buffer for the "large" run.                               |
+| `PERF_VSK_SIZE`     | unset   | `--vsk-size` (SO_VM_SOCKETS_BUFFER_SIZE) if set.          |
+| `PERF_RCVLOWAT`     | unset   | `--rcvlowat` if set.                                      |
+| `PERF_PORT`         | `12347` | vsock port.                                               |
+| `PERF_NO_POLL`      | unset   | If set, pass `--no-poll` to the Windows-side receiver in `reverse` (drivers without WSAPoll on accept()ed vsock sockets). Linux side never sees it. |
+| `SERVER_GRACE_SECS` | `1`     | Sleep between receiver launch and sender start.           |
+
+Example overriding:
+
+```sh
+PERF_BUF_LARGE=4M PERF_BYTES=8G ./run-perf.sh --only forward
+```
+
+Output — per-run RX/TX Gbps line and a final table. Raw stdout of both
+sides lives in `--logdir <dir>` (default `/tmp/vsock-perf-<pid>`).
+
+### One-shot manual
+
+`perf-one.sh` runs a single configuration for interactive tuning:
+
+```sh
+./perf-one.sh --direction forward --buf-size 256K
+./perf-one.sh --direction reverse --bytes 4G --buf-size 1M --vsk-size 4M
+./perf-one.sh --direction forward --rcvlowat 65536
+```
+
+Prints raw stdout of both sides + a one-line summary. Same env vars
+apply as fallback defaults; every knob is also settable per-call
+(`--bytes`, `--buf-size`, `--vsk-size`, `--rcvlowat`, `--port`,
+`--grace`, `--variant`, `--bits`).
+
+### Variants (planned)
+
+Both `run-perf.sh` and `perf-one.sh` accept `--variant posix|wsa|
+overlapped`. Only `posix` works today; `wsa` and `overlapped` are
+placeholders for a future native-Winsock port that will pick a
+different binary or extra flags (mirrors the same knob in
+`variant_to_cmd` for `vsock_test`).
