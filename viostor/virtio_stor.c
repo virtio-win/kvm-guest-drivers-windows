@@ -484,6 +484,7 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
         adaptExt->num_queues = min(adaptExt->num_queues, num_cpus);
     }
     adaptExt->reset_in_progress_count = 0;
+    adaptExt->rr_queue_index = -1;
 
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Queues %d CPUs %d\n", adaptExt->num_queues, num_cpus);
 
@@ -516,6 +517,10 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
     {
         adaptExt->poolAllocationSize += ROUND_TO_CACHE_LINES((ULONGLONG)(max_queues)*virtio_get_queue_descriptor_size());
     }
+
+    ConfigInfo->MaxIOsPerLun = adaptExt->queue_depth * adaptExt->num_queues;
+    ConfigInfo->InitialLunQueueDepth = ConfigInfo->MaxIOsPerLun;
+    ConfigInfo->MaxNumberOfIO = ConfigInfo->MaxIOsPerLun;
 
     RhelDbgPrint(TRACE_LEVEL_INFORMATION,
                  " breaks_number = %x  queue_depth = %x\n",
@@ -1852,7 +1857,7 @@ RhelScsiGetInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
                                 SRB_PATH_ID(Srb),
                                 SRB_TARGET_ID(Srb),
                                 SRB_LUN(Srb),
-                                adaptExt->queue_depth);
+                                adaptExt->queue_depth * adaptExt->num_queues);
     attributes.DeviceAttentionSupported = 1;
     attributes.AsyncNotificationSupported = 1;
     attributes.D3ColdNotSupported = 1;
