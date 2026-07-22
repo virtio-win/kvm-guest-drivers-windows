@@ -4,7 +4,7 @@
 # Row format:
 #   <id>  <variant>  <description>
 #     id        Numeric --pick ID (matches upstream Linux vsock_test).
-#     variant   Which Windows-side port to invoke.  See variant_to_cmd()
+#     variant   Which Windows-side port to invoke. See variant_to_cmd()
 #               in _lib.sh for the current mapping.
 #                 posix — the compat.h-driven POSIX-source port
 #                 wsa   — the native Winsock port (Phase 2, when it exists)
@@ -14,24 +14,24 @@
 # "disabled: <reason>" note on the same line.  Contract: every enabled
 # (id, variant) row MUST pass — failure is a regression.
 #
-# Current baseline: vhi-8.1 HEAD 3ec8ad6a.  Only rows known to pass on
-# that baseline are enabled here; NULL-in-table rows and driver-side
-# fails are commented out with the exact failure fingerprint so the
-# next reader can turn a row green with a one-line uncomment.
+# Baseline: upstream master.  Only rows known to pass on that baseline
+# are enabled here; NULL-in-table rows and driver-side fails are
+# commented out with the exact failure fingerprint.  Turning a row
+# green as a fix lands is a one-line uncomment.
 
 0    posix  SOCK_STREAM connection reset
 1    posix  SOCK_STREAM bind only
 2    posix  SOCK_STREAM client close
-3    posix  SOCK_STREAM server close
+# 3  posix  SOCK_STREAM server close                        — disabled: fails on upstream master: "WSAPoll: No error" (WSAPoll on accept()ed vsock not implemented in driver)
 4    posix  SOCK_STREAM multiple connections
 5    posix  SOCK_STREAM MSG_PEEK
 # 6  posix  SOCK_SEQPACKET msg bounds                       — disabled: run_client/run_server = NULL (needs SEQPACKET + recvmsg(MSG_EOR))
 # 7  posix  SOCK_SEQPACKET MSG_TRUNC flag                   — disabled: run_client/run_server = NULL (needs SEQPACKET + recvmsg)
 # 8  posix  SOCK_SEQPACKET timeout                          — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
 # 9  posix  SOCK_SEQPACKET invalid receive buffer           — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
-10   posix  SOCK_STREAM poll() + SO_RCVLOWAT
+# 10 posix  SOCK_STREAM poll() + SO_RCVLOWAT                — disabled: fails on upstream master: "getsockopt err: protocol not supported (135)" (SO_RCVLOWAT not implemented)
 # 11 posix  SOCK_SEQPACKET big message                      — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
-12   posix  SOCK_STREAM test invalid buffer
+# 12 posix  SOCK_STREAM test invalid buffer                 — disabled: fails on upstream master: "recv: Unknown error"
 # 13 posix  SOCK_SEQPACKET test invalid buffer              — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
 14   posix  SOCK_STREAM virtio skb merge
 # 15 posix  SOCK_SEQPACKET MSG_PEEK                         — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
@@ -41,9 +41,9 @@
 # 19 posix  SOCK_SEQPACKET MSG_ZEROCOPY                     — disabled: run_client/run_server = NULL (no MSG_ERRQUEUE + SEQPACKET)
 # 20 posix  SOCK_STREAM MSG_ZEROCOPY empty MSG_ERRQUEUE     — disabled: run_client/run_server = NULL (no MSG_ERRQUEUE)
 21   posix  SOCK_STREAM double bind connect
-# 22 posix  SOCK_STREAM virtio credit update + SO_RCVLOWAT  — disabled: fails on vhi-8.1 HEAD 3ec8ad6a: "send failed: No error" on acceptor (credit-update path bug, forward)
-# 23 posix  SOCK_STREAM virtio credit update + low rx_bytes — disabled: fails on vhi-8.1 HEAD 3ec8ad6a: "send failed: No error" on acceptor (credit-update low-rx-bytes path)
-# 24 posix  SOCK_STREAM ioctl(SIOCOUTQ) 0 unsent bytes      — disabled: fails on vhi-8.1 HEAD 3ec8ad6a: "Test skipped, SIOCOUTQ not supported" (compat.h does not route Linux SIOCOUTQ 0x5411 to SIO_VSOCK_OUTQ)
+# 22 posix  SOCK_STREAM virtio credit update + SO_RCVLOWAT  — disabled: fails on upstream master: "send failed: No error" on acceptor (credit-update path bug)
+# 23 posix  SOCK_STREAM virtio credit update + low rx_bytes — disabled: fails on upstream master: same acceptor credit-update path bug
+# 24 posix  SOCK_STREAM ioctl(SIOCOUTQ) 0 unsent bytes      — disabled: fails on upstream master: "Test skipped, SIOCOUTQ not supported" (SIOCOUTQ ioctl not implemented in driver)
 # 25 posix  SOCK_SEQPACKET ioctl(SIOCOUTQ) 0 unsent bytes   — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
 # 26 posix  SOCK_STREAM leak accept queue                   — disabled: run_client/run_server = NULL (Linux-only: kmemleak regression)
 # 27 posix  SOCK_STREAM MSG_ZEROCOPY leak MSG_ERRQUEUE      — disabled: run_client/run_server = NULL (no MSG_ERRQUEUE + kmemleak)
@@ -51,10 +51,10 @@
 # 29 posix  SOCK_STREAM transport release use-after-free    — disabled: run_client/run_server = NULL (Linux-only: /proc/kallsyms + multi-transport)
 30   posix  SOCK_STREAM retry failed connect()
 31   posix  SOCK_STREAM SO_LINGER null-ptr-deref
-# 32 posix  SOCK_STREAM SO_LINGER close() on unread         — disabled: fails on vhi-8.1 HEAD 3ec8ad6a: "Test skipped, SIOCOUTQ not supported" (vsock_wait_sent → SIOCOUTQ compat.h gap)
+# 32 posix  SOCK_STREAM SO_LINGER close() on unread         — disabled: fails on upstream master: "Test skipped, SIOCOUTQ not supported" (vsock_wait_sent → SIOCOUTQ, not implemented)
 # 33 posix  SOCK_STREAM transport change null-ptr-deref, lockdep warn — disabled: run_client/run_server = NULL (Linux-only: pthread + kill(SIGUSR1))
-# 34 posix  SOCK_STREAM ioctl(SIOCINQ) functionality        — disabled: fails on vhi-8.1 HEAD 3ec8ad6a: "Test skipped, SIOCINQ not supported" (compat.h does not route Linux SIOCINQ 0x541B to SIO_VSOCK_INQ)
+# 34 posix  SOCK_STREAM ioctl(SIOCINQ) functionality        — disabled: fails on upstream master: "Test skipped, SIOCINQ not supported" (SIOCINQ ioctl not implemented in driver)
 # 35 posix  SOCK_SEQPACKET ioctl(SIOCINQ) functionality     — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
 # 36 posix  SOCK_STREAM accept()ed socket custom setsockopt() — disabled: run_client/run_server = NULL (no Winsock SO_ZEROCOPY)
 # 37 posix  SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption — disabled: run_client/run_server = NULL (no MSG_ERRQUEUE)
-# 38 posix  SOCK_STREAM TX credit bounds                    — disabled: fails on vhi-8.1 HEAD 3ec8ad6a: "TX credit too large: queued 2097152 bytes (expected <= 65536)" — regression from recv-worker changes (ea7b2ec4/4a6f5682)
+# 38 posix  SOCK_STREAM TX credit bounds                    — disabled: fails on upstream master: "TX credit too large: queued 2 MB (expected <= 64 KB)" (acceptor doesn't enforce announced ceiling)
