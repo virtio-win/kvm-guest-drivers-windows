@@ -33,11 +33,14 @@
     <ProjectReference Include="..\tcp-bridge\tcp-bridge.vcxproj">
       <Project>{f1d3841d-fc2d-4cf1-be04-6cf5acbfc41f}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\viosock-test\viosock-test.vcxproj">
+    <ProjectReference Include="..\tests\viosock-test\viosock-test.vcxproj">
       <Project>{5e68cce9-f95d-4a6c-a5ad-dba7ce0ca63a}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\viosocklib-test\viosocklib-test.vcxproj">
+    <ProjectReference Include="..\tests\viosocklib-test\viosocklib-test.vcxproj">
       <Project>{2cfbbf52-9646-4e42-9e43-9cee50735254}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\tests\vsock_test\vsock_test.vcxproj">
+      <Project>{7a3f9b2c-1234-4e42-9e43-a1b2c3d4e5f6}</Project>
     </ProjectReference>
     <ProjectReference Include="..\wspsvc\viosockwspsvc.vcxproj">
       <Project>{b8c784b3-7914-4539-b728-f2eae5c9795e}</Project>
@@ -132,6 +135,9 @@
     </LibFiles>
     <LibFiles Include="..\lib\x86\$(ConfigurationName)\viosocklib.pdb">
       <OutLib>viosocklib_x86.pdb</OutLib>
+    </LibFiles>
+    <LibFiles Include="..\tests\vsock_test\x64\$(ConfigurationName)\vsock_test\vsock_test.exe">
+      <OutLib>vsock_test.exe</OutLib>
     </LibFiles>
   </ItemGroup>
   <Target Name="CopyLibFiles" BeforeTargets="InfVerif">
