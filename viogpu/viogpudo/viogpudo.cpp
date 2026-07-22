@@ -2410,6 +2410,11 @@ NTSTATUS VioGpuAdapter::VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION *pDispInfo)
 
         AckFeature(VIRTIO_F_ACCESS_PLATFORM);
 
+        // Enable indirect descriptors to support high-resolution modes.
+        // Large framebuffers (e.g., 4K) require thousands of memory page entries,
+        // which exceed the virtqueue's direct descriptor limit.
+        m_GpuBuf.SetUseIndirect(AckFeature(VIRTIO_RING_F_INDIRECT_DESC));
+
         status = virtio_set_features(&m_VioDev, m_u64GuestFeatures);
         if (!NT_SUCCESS(status))
         {
@@ -2692,6 +2697,12 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
     }
 
     req_size = max(req_size, (max_res_size * 4));
+
+    // NOTE: QEMU virtio-gpu has a host memory limit (max_hostmem, default 256MB)
+    // to prevent guests from consuming unlimited host memory.
+    // High resolutions (e.g., 4K+) may require increasing this limit.
+    // Workaround: -device virtio-gpu-pci,max_hostmem=512M (or larger)
+    // See: https://patchwork.kernel.org/patch/9451903/
 
     if (fb_pa.QuadPart != 0LL)
     {
@@ -3873,7 +3884,14 @@ BOOLEAN VioGpuAdapter::CreateFrameBufferObj(PVIDEO_MODE_INFORMATION pModeInfo, C
         return FALSE;
     }
 
-    GpuObjectAttach(resid, obj);
+    if (!GpuObjectAttach(resid, obj))
+    {
+        DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s Failed to attach gpu object\n", __FUNCTION__));
+        m_CtrlQueue.DestroyResource(resid);
+        m_Idr.PutId(resid);
+        delete obj;
+        return FALSE;
+    }
     m_CtrlQueue.SetScanout(0 /*FIXME m_Id*/, resid, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight, 0, 0);
     m_CtrlQueue.TransferToHost2D(resid, 0, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight, 0, 0);
     m_CtrlQueue.ResFlush(resid, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight, 0, 0);
@@ -4032,7 +4050,12 @@ BOOLEAN VioGpuAdapter::GpuObjectAttach(UINT res_id, VioGpuObj *obj)
         ents[i].padding = 0;
     }
 
-    m_CtrlQueue.AttachBacking(res_id, ents, sgl->NumberOfElements);
+    if (!m_CtrlQueue.AttachBacking(res_id, ents, sgl->NumberOfElements))
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s AttachBacking failed for res_id %d\n", __FUNCTION__, res_id));
+        delete[] reinterpret_cast<PBYTE>(ents);
+        return FALSE;
+    }
     obj->SetId(res_id);
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
     return TRUE;
