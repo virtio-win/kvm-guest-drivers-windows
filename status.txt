@@ -1,3 +1,13 @@
+Date    22 Jul 2026
+repo    https://github.com/virtio-win/kvm-guest-drivers-windows.git
+tag     mm322
+
+Fixed issues:
+stdvga: Comment out unused code that causes warning C4505/error C2220 [NO-SDV]
+RHEL-211166: viofs: Misc fixes
+RHEL-192599: netkvm: fix iSCSI connectivity problem
+Add GetVirtioWinInfo.ps1 - Fast virtio-win version diagnostic tool
+
 Date    13 Jul 2026
 repo    https://github.com/virtio-win/kvm-guest-drivers-windows.git
 tag     mm321
