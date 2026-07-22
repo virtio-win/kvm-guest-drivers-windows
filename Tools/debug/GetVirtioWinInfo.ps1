@@ -35,6 +35,16 @@
 #  3. Different use case - troubleshooting version inconsistencies vs full system diagnostics
 #  4. Lightweight - can be run frequently without overhead
 
+#  PowerShell Execution Policy:
+#  By default, PowerShell may restrict running unsigned scripts as a security measure.
+#  If you encounter execution policy errors, use one of these approaches:
+#
+#  Recommended (affects only current session):
+#    Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force
+#
+#  Alternative (run without changing policy):
+#    powershell -ExecutionPolicy Bypass -File .\GetVirtioWinInfo.ps1
+
 param (
     [switch]$Help,
     [switch]$Export,
