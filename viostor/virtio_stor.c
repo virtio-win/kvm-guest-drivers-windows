@@ -395,7 +395,11 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
         return res;
     }
 
-    RhelGetDiskGeometry(DeviceExtension);
+    if (!RhelGetDiskGeometry(DeviceExtension))
+    {
+        return SP_RETURN_ERROR;
+    }
+
     RhelSetGuestFeatures(DeviceExtension);
 
     ConfigInfo->NumberOfBuses = 1;
@@ -1278,7 +1282,11 @@ static VOID VirtIoConfigUpdated(PADAPTER_EXTENSION adaptExt)
 {
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Device Config Interrupt\n");
 
-    RhelGetDiskGeometry(adaptExt);
+    if (!RhelGetDiskGeometry(adaptExt))
+    {
+        return;
+    }
+
     adaptExt->sense_info.senseKey = SCSI_SENSE_UNIT_ATTENTION;
     adaptExt->sense_info.additionalSenseCode = SCSI_ADSENSE_PARAMETERS_CHANGED;
     adaptExt->sense_info.additionalSenseCodeQualifier = SCSI_SENSEQ_CAPACITY_DATA_CHANGED;
@@ -1458,7 +1466,12 @@ VirtIoHwReinitialize(IN PVOID DeviceExtension)
     {
         return FALSE;
     }
-    RhelGetDiskGeometry(DeviceExtension);
+
+    if (!RhelGetDiskGeometry(DeviceExtension))
+    {
+        return FALSE;
+    }
+
     RhelSetGuestFeatures(DeviceExtension);
 
     if (!VirtIoHwInitialize(DeviceExtension))
