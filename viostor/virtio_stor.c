@@ -100,7 +100,7 @@ RhelScsiModeSelect(PVOID DeviceExtension, PSRB_TYPE Srb);
 UCHAR
 RhelScsiGetCapacity(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb);
 
-VOID RhelSetGuestFeatures(IN PVOID DeviceExtension);
+BOOLEAN RhelSetGuestFeatures(IN PVOID DeviceExtension);
 
 UCHAR
 RhelScsiVerify(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb);
@@ -396,7 +396,12 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
     }
 
     RhelGetDiskGeometry(DeviceExtension);
-    RhelSetGuestFeatures(DeviceExtension);
+    if (!RhelSetGuestFeatures(DeviceExtension))
+    {
+        LogError(DeviceExtension, SP_INTERNAL_ADAPTER_ERROR, __LINE__);
+        RhelDbgPrint(TRACE_LEVEL_FATAL, " Failed to set guest features\n");
+        return SP_RETURN_ERROR;
+    }
 
     ConfigInfo->NumberOfBuses = 1;
     ConfigInfo->MaximumNumberOfTargets = 1;
@@ -593,7 +598,7 @@ static BOOLEAN InitializeVirtualQueues(PADAPTER_EXTENSION adaptExt)
     return TRUE;
 }
 
-VOID RhelSetGuestFeatures(IN PVOID DeviceExtension)
+BOOLEAN RhelSetGuestFeatures(IN PVOID DeviceExtension)
 {
     ULONGLONG guestFeatures = 0;
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
@@ -690,9 +695,13 @@ VOID RhelSetGuestFeatures(IN PVOID DeviceExtension)
     if (!NT_SUCCESS(virtio_set_features(&adaptExt->vdev, guestFeatures)))
     {
         RhelDbgPrint(TRACE_LEVEL_FATAL, " virtio_set_features failed\n");
-        return;
+        /* Do not keep host-offered features; mark the device failed per VirtIO. */
+        adaptExt->features = 0;
+        virtio_add_status(&adaptExt->vdev, VIRTIO_CONFIG_S_FAILED);
+        return FALSE;
     }
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " Host Features %llu gust features %llu\n", adaptExt->features, guestFeatures);
+    return TRUE;
 }
 
 BOOLEAN
@@ -1459,7 +1468,10 @@ VirtIoHwReinitialize(IN PVOID DeviceExtension)
         return FALSE;
     }
     RhelGetDiskGeometry(DeviceExtension);
-    RhelSetGuestFeatures(DeviceExtension);
+    if (!RhelSetGuestFeatures(DeviceExtension))
+    {
+        return FALSE;
+    }
 
     if (!VirtIoHwInitialize(DeviceExtension))
     {
