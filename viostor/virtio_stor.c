@@ -2471,9 +2471,9 @@ VioStorPoolAlloc(IN PVOID DeviceExtension, IN SIZE_T size)
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     PVOID ptr = (PVOID)((ULONG_PTR)adaptExt->poolAllocationVa + adaptExt->poolOffset);
 
-    if ((adaptExt->poolOffset + size) <= adaptExt->poolAllocationSize)
+    size = ROUND_TO_CACHE_LINES(size);
+    if (size && size <= adaptExt->poolAllocationSize - adaptExt->poolOffset)
     {
-        size = ROUND_TO_CACHE_LINES(size);
         adaptExt->poolOffset += (ULONG)size;
         RtlZeroMemory(ptr, size);
         return ptr;
