@@ -923,7 +923,7 @@ int WSPAPI VIOSockRecv(_In_ SOCKET s,
 
             if (!VIOSockDeviceControlEx(s,
                                         FALSE,
-                                        IOCTL_SOCKET_READ,
+                                        IOCTL_SOCKET_RECV,
                                         &ReadParams,
                                         (DWORD)sizeof(ReadParams),
                                         lpBuffers[i].buf,
