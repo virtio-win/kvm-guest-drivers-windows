@@ -870,6 +870,76 @@ int WSPAPI VIOSockListen(_In_ SOCKET s, _In_ int backlog, _Out_ LPINT lpErrno)
     return iRes;
 }
 
+int WSPAPI VIOSockSendRecvEx(_In_ SOCKET s,
+                             _In_ DWORD dwIoControlCode,
+                             _In_reads_(dwBufferCount) LPWSABUF lpBuffers,
+                             _In_ DWORD dwBufferCount,
+                             _Out_opt_ LPDWORD lpNumberOfBytesProcessed,
+                             _In_ DWORD dwFlags,
+                             _Inout_opt_ LPWSAOVERLAPPED lpOverlapped,
+                             _In_opt_ LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine,
+                             _Out_ LPINT lpErrno)
+{
+    DWORD dwNumberOfBytesProcessed, i;
+    PVIRTIO_VSOCK_SEND_RECV_PARAMS pParams;
+    DWORD dwParamsSize;
+    BOOL bResult;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
+
+    dwParamsSize = (DWORD)(FIELD_OFFSET(VIRTIO_VSOCK_SEND_RECV_PARAMS, Buffers) +
+                           sizeof(VIRTIO_VSOCK_WSABUF) * dwBufferCount);
+    // _malloca: stack below _ALLOCA_S_THRESHOLD, heap above (and always heap in
+    // debug builds) — must be paired with _freea
+    pParams = _malloca(dwParamsSize);
+    if (!pParams)
+    {
+        return WSP_ERROR(WSAENOBUFS);
+    }
+    pParams->dwFlags = dwFlags;
+    pParams->dwBufferCount = dwBufferCount;
+
+    for (i = 0; i < dwBufferCount; ++i)
+    {
+        pParams->Buffers[i].dwLen = lpBuffers[i].len;
+        pParams->Buffers[i].lpBuffer = (ULONG_PTR)lpBuffers[i].buf;
+        pParams->Buffers[i]._pad = 0;
+    }
+
+    // No output buffer: the driver returns the transferred byte count via
+    // IRP.Information (lpBytesReturned here, OVERLAPPED.InternalHigh for async)
+    bResult = VIOSockDeviceControlEx(s,
+                                     FALSE,
+                                     dwIoControlCode,
+                                     pParams,
+                                     dwParamsSize,
+                                     NULL,
+                                     0,
+                                     &dwNumberOfBytesProcessed,
+                                     lpOverlapped,
+                                     lpCompletionRoutine,
+                                     0,
+                                     lpErrno);
+
+    // The input block is captured to the system buffer synchronously, even when
+    // the call pends — safe to release before looking at the outcome
+    _freea(pParams);
+
+    if (!bResult)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
+        return SOCKET_ERROR;
+    }
+
+    if (lpNumberOfBytesProcessed)
+    {
+        *lpNumberOfBytesProcessed = dwNumberOfBytesProcessed;
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
+    return ERROR_SUCCESS;
+}
+
 int WSPAPI VIOSockRecv(_In_ SOCKET s,
                        _In_reads_(dwBufferCount) LPWSABUF lpBuffers,
                        _In_ DWORD dwBufferCount,
@@ -881,7 +951,9 @@ int WSPAPI VIOSockRecv(_In_ SOCKET s,
                        _Out_ LPINT lpErrno)
 {
     int iRes = ERROR_SUCCESS;
-    DWORD i, dwNumberOfBytesRecvd = 0;
+    VIRTIO_VSOCK_READ_PARAMS ReadParams;
+    DWORD dwNumberOfBytesRecvd = 0;
+    DWORD dwFlags = 0;
 
     UNREFERENCED_PARAMETER(lpThreadId);
 
@@ -898,10 +970,29 @@ int WSPAPI VIOSockRecv(_In_ SOCKET s,
         *lpNumberOfBytesRecvd = 0;
     }
 
-    if (!lpBuffers)
+    if (!lpBuffers || !dwBufferCount)
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Invalid lpBuffers\n");
         return WSP_ERROR(WSAEFAULT);
+    }
+
+    if (lpFlags)
+    {
+        dwFlags = *lpFlags;
+        if (dwFlags & ~(MSG_PEEK | MSG_WAITALL))
+        {
+            TraceEvents(TRACE_LEVEL_INFORMATION,
+                        DBG_SOCKET,
+                        "Unsupported flag(s): %x\n",
+                        dwFlags & ~(MSG_PEEK | MSG_WAITALL));
+            return WSP_ERROR(WSAEOPNOTSUPP);
+        }
+
+        if (dwFlags & MSG_WAITALL && dwFlags & ~MSG_WAITALL)
+        {
+            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Incompatible flag(s): %x\n", dwFlags);
+            return WSP_ERROR(WSAEINVAL);
+        }
     }
 
     // If the caller didn't assert sync but the handle is actually sync, drop
@@ -912,52 +1003,42 @@ int WSPAPI VIOSockRecv(_In_ SOCKET s,
         lpCompletionRoutine = NULL;
     }
 
-    // TODO: Send buffers to driver to make scatter-gather list
-    for (i = 0; i < dwBufferCount; ++i)
+    // Method routing by request shape only, so the same recv always takes the
+    // same path regardless of which flags the caller happened to pass: a small
+    // single buffer goes through the buffered IOCTL_SOCKET_RECV, everything
+    // larger or scattered through IOCTL_SOCKET_RECV_EX. ReadFile/IRP_MJ_READ is
+    // left to the file-API surface (_open_osfhandle and friends) and is never
+    // used to serve recv.
+    if (dwBufferCount > 1 || lpBuffers[0].len > VIOSOCK_SMALL_RECV_THRESHOLD)
     {
-        DWORD dwNumberOfBytesRead;
-        if (*lpFlags)
-        {
-            VIRTIO_VSOCK_READ_PARAMS ReadParams;
-            ReadParams.Flags = *lpFlags;
+        return VIOSockSendRecvEx(s,
+                                 IOCTL_SOCKET_RECV_EX,
+                                 lpBuffers,
+                                 dwBufferCount,
+                                 lpNumberOfBytesRecvd,
+                                 dwFlags,
+                                 lpOverlapped,
+                                 lpCompletionRoutine,
+                                 lpErrno);
+    }
 
-            if (!VIOSockDeviceControlEx(s,
-                                        FALSE,
-                                        IOCTL_SOCKET_RECV,
-                                        &ReadParams,
-                                        (DWORD)sizeof(ReadParams),
-                                        lpBuffers[i].buf,
-                                        lpBuffers[i].len,
-                                        &dwNumberOfBytesRead,
-                                        lpOverlapped,
-                                        lpCompletionRoutine,
-                                        *lpFlags,
-                                        lpErrno))
-            {
-                TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
-                iRes = SOCKET_ERROR;
-                break;
-            }
-        }
-        else if (!VIOSockReadFile(s,
-                                  lpBuffers[i].buf,
-                                  lpBuffers[i].len,
-                                  &dwNumberOfBytesRead,
-                                  lpOverlapped,
-                                  lpCompletionRoutine,
-                                  *lpFlags,
-                                  lpErrno))
-        {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockReadFile failed: %d\n", *lpErrno);
-            iRes = SOCKET_ERROR;
-            break;
-        }
+    ReadParams.Flags = dwFlags;
 
-        dwNumberOfBytesRecvd += dwNumberOfBytesRead;
-        if (dwNumberOfBytesRead != lpBuffers[i].len)
-        {
-            break;
-        }
+    if (!VIOSockDeviceControlEx(s,
+                                FALSE,
+                                IOCTL_SOCKET_RECV,
+                                &ReadParams,
+                                (DWORD)sizeof(ReadParams),
+                                lpBuffers[0].buf,
+                                lpBuffers[0].len,
+                                &dwNumberOfBytesRecvd,
+                                lpOverlapped,
+                                lpCompletionRoutine,
+                                0,
+                                lpErrno))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
+        iRes = SOCKET_ERROR;
     }
 
     if (lpNumberOfBytesRecvd)

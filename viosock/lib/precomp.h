@@ -40,6 +40,7 @@
 #include <crtdbg.h>
 #include <winioctl.h>
 #include <setupapi.h>
+#include <malloc.h> // _malloca/_freea
 
 #include "..\sys\public.h"
 #include "..\inc\vio_sockets.h"
