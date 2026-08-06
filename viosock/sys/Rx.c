@@ -76,6 +76,11 @@ typedef struct _VIOSOCK_RX_CONTEXT
 {
     ULONG BufferLen;
     ULONG FreeBytes;
+    // SG (RECV_EX) cursor over the locked MDL chain; non-NULL CurrentMdl marks an
+    // SG request. Kept outside the union: completion paths repurpose the union
+    // arms but still must tell SG from flat to set completion information.
+    PMDL CurrentMdl;
+    ULONG MdlFreeBytes; // free bytes left in CurrentMdl
     union {
         struct
         {
@@ -242,7 +247,7 @@ static PVIOSOCK_RX_CB VIOSockRxCbEntryForRequest(IN PDEVICE_CONTEXT pContext, IN
     }
     else
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "WdfRequestRetrieveOutputBuffer failed: 0x%x\n", status);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "WdfRequestRetrieveInputBuffer failed: 0x%x\n", status);
         pCb = NULL;
     }
 
@@ -406,7 +411,7 @@ _Requires_lock_held_(pContext->RxLock) __inline VOID VIOSockRxPktListProcess(IN 
     }
 }
 
-_Requires_lock_not_held_(pContext->RxLock) __inline VOID VIOSockRxPktListProcessLocked(IN PDEVICE_CONTEXT pContext)
+_Requires_lock_not_held_(pContext->RxLock) __inline VOID VIOSockRxPktListProcessLockedNotify(IN PDEVICE_CONTEXT pContext)
 {
     WdfSpinLockAcquire(pContext->RxLock);
     VIOSockRxPktListProcess(pContext);
@@ -1053,11 +1058,24 @@ _Requires_lock_not_held_(pSocket->RxLock) static NTSTATUS VIOSockReadForward(IN 
                                                                              IN ULONG Flags)
 {
     PVIOSOCK_RX_CONTEXT pRequest;
+    PVIOSOCK_SG_CTX pSgCtx;
     WDF_OBJECT_ATTRIBUTES attributes;
     NTSTATUS status;
     SIZE_T Length;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
+
+    if (Flags & ~(MSG_PEEK | MSG_WAITALL))
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "Unsupported flags: 0x%x\n", Flags & ~(MSG_PEEK | MSG_WAITALL));
+        return STATUS_NOT_SUPPORTED;
+    }
+
+    if (Flags & MSG_WAITALL && Flags & ~MSG_WAITALL)
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "Incompatible flags: 0x%x\n", Flags);
+        return STATUS_INVALID_PARAMETER;
+    }
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, VIOSOCK_RX_CONTEXT);
     status = WdfObjectAllocateContext(Request, &attributes, &pRequest);
@@ -1067,14 +1085,35 @@ _Requires_lock_not_held_(pSocket->RxLock) static NTSTATUS VIOSockReadForward(IN 
         return status;
     }
 
-    status = WdfRequestRetrieveOutputBuffer(Request, 0, &pRequest->FreePtr, &Length);
-    if (!NT_SUCCESS(status))
+    pSgCtx = GetRequestSgContext(Request);
+    if (pSgCtx)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "WdfRequestRetrieveOutputBuffer failed: 0x%x\n", status);
-        return status;
+        // SG read (RECV_EX): the cursor starts at the head of the locked MDL
+        // chain; the flat/SG split is decided here once, the copy path picks
+        // its handler by CurrentMdl
+        pRequest->FreePtr = VIOSockSgMapMdl(pSgCtx->MdlChain);
+        if (!pRequest->FreePtr)
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "Failed to map the first Mdl\n");
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+        pRequest->CurrentMdl = pSgCtx->MdlChain;
+        pRequest->MdlFreeBytes = MmGetMdlByteCount(pSgCtx->MdlChain);
+        pRequest->BufferLen = pRequest->FreeBytes = pSgCtx->TotalLen;
+    }
+    else
+    {
+        status = WdfRequestRetrieveOutputBuffer(Request, 0, &pRequest->FreePtr, &Length);
+        if (!NT_SUCCESS(status))
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "WdfRequestRetrieveOutputBuffer failed: 0x%x\n", status);
+            return status;
+        }
+
+        // CurrentMdl/MdlFreeBytes stay zero (WDF zero-inits the context)
+        pRequest->BufferLen = pRequest->FreeBytes = (ULONG)Length;
     }
 
-    pRequest->BufferLen = pRequest->FreeBytes = (ULONG)Length;
     pRequest->Flags = Flags;
     VIOSockTimerEntryInit(&pRequest->TimerEntry);
 
@@ -1153,37 +1192,65 @@ VIOSockReadWithFlags(IN WDFREQUEST Request)
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
 
+    if (VIOSockIsFlag(pSocket, SOCK_CONTROL))
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_READ, "Invalid socket %d for recv\n", pSocket->SocketId);
+        return STATUS_NOT_SOCKET;
+    }
+
     // validate request
     status = WdfRequestRetrieveInputBuffer(Request, sizeof(*pReadParams), &pReadParams, NULL);
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "WdfRequestRetrieveInputBuffer failed: 0x%x\n", status);
-    }
-    else if (pReadParams->Flags & ~(MSG_PEEK | MSG_WAITALL))
-    {
-
-        TraceEvents(TRACE_LEVEL_WARNING,
-                    DBG_READ,
-                    "Unsupported flags: 0x%x\n",
-                    pReadParams->Flags & ~(MSG_PEEK | MSG_WAITALL));
-        status = STATUS_NOT_SUPPORTED;
-    }
-    else if ((pReadParams->Flags & (MSG_PEEK | MSG_WAITALL)) == (MSG_PEEK | MSG_WAITALL))
-    {
-        TraceEvents(TRACE_LEVEL_WARNING, DBG_READ, "Incompatible flags: 0x%x\n", MSG_PEEK | MSG_WAITALL);
-        status = STATUS_NOT_SUPPORTED;
-    }
-    else
-    {
-        Flags = pReadParams->Flags;
+        return status;
     }
 
+    status = VIOSockReadForward(pSocket, Request, pReadParams->Flags);
     if (NT_SUCCESS(status))
     {
-        if (NT_SUCCESS(VIOSockReadForward(pSocket, Request, Flags)))
-        {
-            status = STATUS_PENDING;
-        }
+        status = STATUS_PENDING;
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s, status: 0x%08x\n", __FUNCTION__, status);
+    return status;
+}
+
+NTSTATUS
+VIOSockRecvEx(IN WDFREQUEST Request)
+{
+    PSOCKET_CONTEXT pSocket = GetSocketContextFromRequest(Request);
+    PVIOSOCK_SG_CTX pSgCtx = GetRequestSgContext(Request);
+    PVIRTIO_VSOCK_SEND_RECV_PARAMS pParams;
+    NTSTATUS status;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
+
+    if (VIOSockIsFlag(pSocket, SOCK_CONTROL))
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_READ, "Invalid socket %d for recv\n", pSocket->SocketId);
+        return STATUS_NOT_SOCKET;
+    }
+
+    // The buffer chain is captured and locked in caller context
+    // (VIOSockSgPrepare); no context means the IOCTL somehow bypassed
+    // EvtIoInCallerContext.
+    if (!pSgCtx)
+    {
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    status = WdfRequestRetrieveInputBuffer(Request, sizeof(*pParams), &pParams, NULL);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "WdfRequestRetrieveInputBuffer failed: 0x%x\n", status);
+        return status;
+    }
+
+    status = VIOSockReadForward(pSocket, Request, pParams->dwFlags);
+    if (NT_SUCCESS(status))
+    {
+        status = STATUS_PENDING;
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s, status: 0x%08x\n", __FUNCTION__, status);
@@ -1366,6 +1433,68 @@ _Requires_lock_held_(pSocket->RxLock) static NTSTATUS VIOSockReadEvaluateRequest
     return status;
 }
 
+// Copy as much of the current CB window as fits into the flat request buffer,
+// advancing the request cursor; returns the number of bytes copied. CB-side
+// accounting is the caller's job.
+static ULONG VIOSockReadCopyFlat(IN PVIOSOCK_RX_CONTEXT pRequest, IN PVIOSOCK_RX_CB pCb)
+{
+    ULONG uCopy = (pRequest->FreeBytes < pCb->BytesToRead) ? pRequest->FreeBytes : pCb->BytesToRead;
+
+    memcpy(pRequest->FreePtr, pCb->ReadPtr, uCopy);
+    pRequest->FreePtr += uCopy;
+    pRequest->FreeBytes -= uCopy;
+
+    return uCopy;
+}
+
+// Same contract for an SG request: the destination is the locked MDL chain,
+// walked segment by segment as buffers fill. A failed mapping of the next MDL
+// truncates the request buffer (FreeBytes = 0): the whole previous MDL has
+// already been filled by then, so the request completes as a legal short read.
+static ULONG VIOSockReadCopySg(IN PVIOSOCK_RX_CONTEXT pRequest, IN PVIOSOCK_RX_CB pCb)
+{
+    ULONG uCopied = 0;
+    ULONG uToCopy = (pRequest->FreeBytes < pCb->BytesToRead) ? pRequest->FreeBytes : pCb->BytesToRead;
+
+    while (uToCopy)
+    {
+        ULONG uChunk = (uToCopy < pRequest->MdlFreeBytes) ? uToCopy : pRequest->MdlFreeBytes;
+
+        if (!uChunk)
+        {
+            // current MDL filled up, switch the cursor to the next one
+            PMDL pNextMdl = pRequest->CurrentMdl->Next;
+
+            ASSERT(pNextMdl); // FreeBytes != 0 means the chain has more room
+
+            pRequest->FreePtr = VIOSockSgMapMdl(pNextMdl);
+            if (!pRequest->FreePtr)
+            {
+                TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "Failed to map the next Mdl\n");
+                pRequest->FreeBytes = 0;
+                break;
+            }
+            pRequest->CurrentMdl = pNextMdl;
+            pRequest->MdlFreeBytes = MmGetMdlByteCount(pNextMdl);
+            continue;
+        }
+
+        memcpy(pRequest->FreePtr, pCb->ReadPtr + uCopied, uChunk);
+        pRequest->FreePtr += uChunk;
+        pRequest->FreeBytes -= uChunk;
+        pRequest->MdlFreeBytes -= uChunk;
+        uCopied += uChunk;
+        uToCopy -= uChunk;
+    }
+
+    return uCopied;
+}
+
+static __inline ULONG VIOSockReadCopy(IN PVIOSOCK_RX_CONTEXT pRequest, IN PVIOSOCK_RX_CB pCb)
+{
+    return pRequest->CurrentMdl ? VIOSockReadCopySg(pRequest, pCb) : VIOSockReadCopyFlat(pRequest, pCb);
+}
+
 // Match the retrieved read request against buffered Rx data under RxLock: fill it,
 // decide complete-vs-requeue (a requeue clears *pReadRequest and returns
 // STATUS_SUCCESS, so the caller leaves the request on the queue), advertise credit
@@ -1426,21 +1555,18 @@ _Requires_lock_not_held_(pSocket->RxLock) static NTSTATUS VIOSockReadDequeueCb(I
     // process chained buffer
     for (pCurrentItem = pSocket->RxCbList.Flink; pCurrentItem != &pSocket->RxCbList; pCurrentItem = pCurrentItem->Flink)
     {
+        ULONG uCopied;
+
         // peek the first buffer
         pCurrentCb = CONTAINING_RECORD(pCurrentItem, VIOSOCK_RX_CB, ListEntry);
 
-        // can we copy the whole CB?
-        if (pRequest->FreeBytes >= pCurrentCb->BytesToRead)
+        uCopied = VIOSockReadCopy(pRequest, pCurrentCb);
+
+        // did the whole CB fit?
+        if (uCopied == pCurrentCb->BytesToRead)
         {
-            memcpy(pRequest->FreePtr, pCurrentCb->ReadPtr, pCurrentCb->BytesToRead);
-
-            // update request buffer data ptr
-            pRequest->FreePtr += pCurrentCb->BytesToRead;
-            pRequest->FreeBytes -= pCurrentCb->BytesToRead;
-
             if (!(pRequest->Flags & MSG_PEEK))
             {
-                ULONG uBytesToRead = pCurrentCb->BytesToRead;
                 pCurrentCb->BytesToRead = 0;
                 pCurrentItem = pCurrentItem->Blink;
                 RemoveEntryList(&pCurrentCb->ListEntry);
@@ -1452,7 +1578,7 @@ _Requires_lock_not_held_(pSocket->RxLock) static NTSTATUS VIOSockReadDequeueCb(I
                     if (NT_SUCCESS(status))
                     {
                         InsertTailList(&LoopbackList, &pCurrentCb->ListEntry); // complete loopback requests later
-                        VIOSockRxPktDec(pSocket, uBytesToRead);
+                        VIOSockRxPktDec(pSocket, uCopied);
                     }
                     else
                     {
@@ -1466,23 +1592,21 @@ _Requires_lock_not_held_(pSocket->RxLock) static NTSTATUS VIOSockReadDequeueCb(I
                 else
                 {
                     VIOSockRxCbPushLocked(pContext, pCurrentCb);
-                    VIOSockRxPktDec(pSocket, uBytesToRead);
+                    VIOSockRxPktDec(pSocket, uCopied);
                     bProcessRxPktList = TRUE;
                 }
             }
         }
-        else // request buffer is not big enough
+        else // request buffer exhausted, CB consumed partially
         {
-            memcpy(pRequest->FreePtr, pCurrentCb->ReadPtr, pRequest->FreeBytes);
-
             if (!(pRequest->Flags & MSG_PEEK))
             {
                 // update current CB data ptr
-                pCurrentCb->ReadPtr += pRequest->FreeBytes;
-                pCurrentCb->BytesToRead -= pRequest->FreeBytes;
-                VIOSockRxPktDec(pSocket, pRequest->FreeBytes);
+                pCurrentCb->ReadPtr += uCopied;
+                pCurrentCb->BytesToRead -= uCopied;
+                VIOSockRxPktDec(pSocket, uCopied);
             }
-            pRequest->FreeBytes = 0;
+            ASSERT(pRequest->FreeBytes == 0);
 
             break;
         }
@@ -1490,7 +1614,7 @@ _Requires_lock_not_held_(pSocket->RxLock) static NTSTATUS VIOSockReadDequeueCb(I
 
     if (bProcessRxPktList)
     {
-        VIOSockRxPktListProcessLocked(pContext);
+        VIOSockRxPktListProcessLockedNotify(pContext);
     }
 
     // SO_RCVLOWAT: a blocking stream read must not return fewer than
@@ -1681,7 +1805,7 @@ _Requires_lock_not_held_(pSocket->RxLock) VOID VIOSockReadCleanupCb(IN PSOCKET_C
 
     WdfSpinLockRelease(pSocket->RxLock);
 
-    VIOSockRxPktListProcessLocked(pContext);
+    VIOSockRxPktListProcessLockedNotify(pContext);
 
     // Static Driver Verifier(SDV) tracks only one request, and when SDV unwinds the loop,
     // it treats completion of the second request as another completion of the first request.

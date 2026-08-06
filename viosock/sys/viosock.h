@@ -686,6 +686,9 @@ _Requires_lock_not_held_(pSocket->RxLock) VOID VIOSockReadCleanupCb(IN PSOCKET_C
 NTSTATUS
 VIOSockReadWithFlags(IN WDFREQUEST Request);
 
+NTSTATUS
+VIOSockRecvEx(IN WDFREQUEST Request);
+
 //////////////////////////////////////////////////////////////////////////
 // Scatter-gather buffer chain attached to a data-carrying request.
 // Built from the user WSABUF array of IOCTL_SOCKET_RECV_EX by VIOSockSgPrepare;
@@ -710,6 +713,15 @@ WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIOSOCK_SG_CTX, GetRequestSgContext);
 
 NTSTATUS
 VIOSockSgPrepare(IN WDFREQUEST Request, IN LOCK_OPERATION LockOp);
+
+// System mapping is only needed by the copying paths (Rx CB copy-out, buffered Tx);
+// the zero-copy Tx path feeds the virtqueue with physical addresses straight from
+// the MDL and never maps. The mapping is created once and cached inside the MDL
+// itself; MmUnlockPages releases it. Callable at <= DISPATCH_LEVEL, NULL on failure.
+__inline PVOID VIOSockSgMapMdl(IN PMDL Mdl)
+{
+    return MmGetSystemAddressForMdlSafe(Mdl, NormalPagePriority | MdlMappingNoExecute);
+}
 
 //////////////////////////////////////////////////////////////////////////
 // Event functions
