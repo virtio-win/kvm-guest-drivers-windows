@@ -2696,8 +2696,8 @@ VIOSockDeviceControl(IN WDFREQUEST Request, IN ULONG IoControlCode, IN OUT size_
         case IOCTL_SOCKET_CONNECT:
             status = VIOSockConnect(Request);
             break;
-        case IOCTL_SOCKET_READ:
-            status = VIOSockReadWithFlags(Request);
+        case IOCTL_SOCKET_RECV:
+            status = VIOSockRecvBuffered(Request);
             break;
         case IOCTL_SOCKET_RECV_EX:
             status = VIOSockRecvEx(Request);

@@ -1182,8 +1182,10 @@ static VOID VIOSockRead(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN size_t Leng
     }
 }
 
+// IOCTL_SOCKET_RECV handler: the buffered small-recv path — data is copied into
+// the system buffer, which the io-manager hands back to the caller on completion
 NTSTATUS
-VIOSockReadWithFlags(IN WDFREQUEST Request)
+VIOSockRecvBuffered(IN WDFREQUEST Request)
 {
     PSOCKET_CONTEXT pSocket = GetSocketContextFromRequest(Request);
     NTSTATUS status;
