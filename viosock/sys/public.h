@@ -54,6 +54,7 @@
 #define IOCTL_SOCKET_GET_SOCK_OPT     DEFINE_SOCKET_IOCTL(10)
 #define IOCTL_SOCKET_SET_SOCK_OPT     DEFINE_SOCKET_IOCTL(11)
 #define IOCTL_SOCKET_IOCTL            DEFINE_SOCKET_IOCTL(12)
+#define IOCTL_SOCKET_RECV_EX          DEFINE_SOCKET_IOCTL(13)
 
 /*VSOCK address family value*/
 #ifndef AF_VSOCK
@@ -85,10 +86,32 @@ typedef struct _VIRTIO_VSOCK_PARAMS
 #define MSG_WAITALL 0x8
 #endif
 
+#define VIOSOCK_SG_MAX_BUFFERS 64
+
 typedef struct _VIRTIO_VSOCK_READ_PARAMS
 {
     ULONG Flags;
 } VIRTIO_VSOCK_READ_PARAMS, *PVIRTIO_VSOCK_READ_PARAMS;
+
+// Wire form of a user WSABUF: fixed layout, so a 32-bit process on WoW64 sends
+// the same block as a 64-bit one (the kernel widens the pointer itself)
+typedef struct _VIRTIO_VSOCK_WSABUF
+{
+    ULONG dwLen;
+    ULONG _pad;
+    ULONGLONG lpBuffer;
+} VIRTIO_VSOCK_WSABUF, *PVIRTIO_VSOCK_WSABUF;
+
+// The buffer array travels inline, so the io-manager captures it along with the
+// rest of the input block. There is no output buffer: the transferred byte count
+// is returned via IRP.Information (lpBytesReturned / OVERLAPPED.InternalHigh),
+// and MSG_PARTIAL (future SEQPACKET) via the completion status.
+typedef struct _VIRTIO_VSOCK_SEND_RECV_PARAMS
+{
+    ULONG dwFlags;
+    ULONG dwBufferCount;
+    VIRTIO_VSOCK_WSABUF Buffers[1];
+} VIRTIO_VSOCK_SEND_RECV_PARAMS, *PVIRTIO_VSOCK_SEND_RECV_PARAMS;
 
 // microsecs to 100-nanosec intervals
 #define USEC_TO_NANO(us) ((LONGLONG)(us)*10)

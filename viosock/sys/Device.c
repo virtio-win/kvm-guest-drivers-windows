@@ -43,6 +43,8 @@ EVT_WDF_DEVICE_SELF_MANAGED_IO_SUSPEND VIOSockEvtDeviceSelfManagedIoSuspend;
 EVT_WDF_DEVICE_SELF_MANAGED_IO_RESTART VIOSockEvtDeviceSelfManagedIoRestart;
 
 EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL VIOSockEvtIoDeviceControl;
+EVT_WDF_IO_IN_CALLER_CONTEXT VIOSockEvtIoInCallerContext;
+EVT_WDF_OBJECT_CONTEXT_CLEANUP VIOSockSgCtxCleanup;
 EVT_WDF_REQUEST_CANCEL VIOSockSelectCancel;
 EVT_WDF_WORKITEM VIOSockSelectWorkitem;
 EVT_WDF_TIMER VIOSockSelectTimerFunc;
@@ -266,6 +268,211 @@ static NTSTATUS VIOSockQueuesInit(IN WDFDEVICE hDevice)
 }
 
 //////////////////////////////////////////////////////////////////////////
+// Scatter-gather chain support for IOCTL_SOCKET_RECV_EX
+
+// EvtCleanupCallback of the request context: WDF runs it on request teardown after
+// any completion path, so error paths in VIOSockSgPrepare just return and let the
+// callback unlock whatever got locked. Attached only to contexts whose chain we
+// built ourselves — never to ones wrapping a borrowed MDL. May run at DISPATCH_LEVEL.
+static VOID VIOSockSgCtxCleanup(IN WDFOBJECT Object)
+{
+    PVIOSOCK_SG_CTX pCtx = GetRequestSgContext(Object);
+    PMDL pMdl;
+
+    // MmUnlockPages also releases the system mapping
+    for (pMdl = pCtx->MdlChain; pMdl != NULL;)
+    {
+        PMDL pNext = pMdl->Next;
+
+        MmUnlockPages(pMdl);
+        IoFreeMdl(pMdl);
+        pMdl = pNext;
+    }
+    pCtx->MdlChain = NULL;
+}
+
+// Build a locked MDL for one user WSABUF; runs in the requestor process context
+static NTSTATUS VIOSockSgPrepareBuffer(IN PVIRTIO_VSOCK_WSABUF pUserBuf,
+                                       IN BOOLEAN bIs32BitProcess,
+                                       IN LOCK_OPERATION LockOp,
+                                       OUT PMDL *ppMdl)
+{
+    NTSTATUS status;
+    PMDL pMdl;
+    PVOID pBuffer;
+
+    if (!pUserBuf->lpBuffer || !pUserBuf->dwLen)
+    {
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    pBuffer = bIs32BitProcess ? Ptr32ToPtr((VOID * POINTER_32)(ULONG)pUserBuf->lpBuffer)
+                              : (PVOID)(ULONG_PTR)pUserBuf->lpBuffer;
+
+    pMdl = IoAllocateMdl(pBuffer, pUserBuf->dwLen, FALSE, FALSE, NULL);
+    if (!pMdl)
+    {
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    __try
+    {
+        MmProbeAndLockPages(pMdl, UserMode, LockOp);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        status = GetExceptionCode();
+        IoFreeMdl(pMdl);
+        return status;
+    }
+
+    *ppMdl = pMdl;
+    return STATUS_SUCCESS;
+}
+
+// Called from EvtIoInCallerContext: the WSABUF pointers embedded in the params
+// are meaningful only in the requestor process, so the array must be captured
+// and its data buffers locked before the request is allowed into a queue (which
+// may deliver it in arbitrary context). LockOp gives the data direction, so the
+// same routine serves a future send-side chain as well.
+NTSTATUS
+VIOSockSgPrepare(IN WDFREQUEST Request, IN LOCK_OPERATION LockOp)
+{
+    NTSTATUS status;
+    PVIRTIO_VSOCK_SEND_RECV_PARAMS pParams;
+    WDF_REQUEST_PARAMETERS Parameters;
+    SIZE_T stParamsSize;
+    PVIOSOCK_SG_CTX pCtx;
+    WDF_OBJECT_ATTRIBUTES attributes;
+    PVIRTIO_VSOCK_WSABUF pUserBufs;
+    PMDL *ppNext;
+    ULONGLONG uTotalLen = 0;
+    ULONG i;
+    BOOLEAN bIs32BitProcess = FALSE;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "--> %s\n", __FUNCTION__);
+
+    status = WdfRequestRetrieveInputBuffer(Request, sizeof(*pParams), (PVOID *)&pParams, NULL);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "WdfRequestRetrieveInputBuffer failed: 0x%x\n", status);
+        return status;
+    }
+
+    if (!pParams->dwBufferCount || pParams->dwBufferCount > VIOSOCK_SG_MAX_BUFFERS)
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Invalid params: count %u\n", pParams->dwBufferCount);
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    stParamsSize = FIELD_OFFSET(VIRTIO_VSOCK_SEND_RECV_PARAMS, Buffers) +
+                   sizeof(VIRTIO_VSOCK_WSABUF) * pParams->dwBufferCount;
+    status = WdfRequestRetrieveInputBuffer(Request, stParamsSize, (PVOID *)&pParams, NULL);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "WdfRequestRetrieveInputBuffer failed: 0x%x\n", status);
+        return status;
+    }
+
+    // The transferred byte count is reported via IRP.Information. With an output
+    // buffer present the io-manager would treat Information as the copy-back size
+    // and overrun the (smaller) user buffer — an _EX request must not carry one.
+    WDF_REQUEST_PARAMETERS_INIT(&Parameters);
+    WdfRequestGetParameters(Request, &Parameters);
+    if (Parameters.Parameters.DeviceIoControl.OutputBufferLength != 0)
+    {
+        TraceEvents(TRACE_LEVEL_WARNING,
+                    DBG_IOCTLS,
+                    "Unexpected output buffer, length %Iu\n",
+                    Parameters.Parameters.DeviceIoControl.OutputBufferLength);
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, VIOSOCK_SG_CTX);
+    attributes.EvtCleanupCallback = VIOSockSgCtxCleanup;
+    status = WdfObjectAllocateContext(Request, &attributes, (PVOID *)&pCtx);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "WdfObjectAllocateContext failed: 0x%x\n", status);
+        return status;
+    }
+    RtlZeroMemory(pCtx, sizeof(*pCtx));
+    ppNext = &pCtx->MdlChain;
+
+    pUserBufs = (PVIRTIO_VSOCK_WSABUF)pParams->Buffers;
+
+#ifdef _WIN64
+    bIs32BitProcess = WdfRequestIsFrom32BitProcess(Request);
+#endif //_WIN64
+
+    for (i = 0; i < pParams->dwBufferCount; ++i)
+    {
+        PMDL pMdl;
+
+        status = VIOSockSgPrepareBuffer(&pUserBufs[i], bIs32BitProcess, LockOp, &pMdl);
+        if (!NT_SUCCESS(status))
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "Failed to prepare wsabuf[%u]: 0x%x\n", i, status);
+            return status;
+        }
+
+        uTotalLen += MmGetMdlByteCount(pMdl);
+
+        // Link only after a successful lock: cleanup unconditionally unlocks
+        // every chain member
+        *ppNext = pMdl;
+        ppNext = &pMdl->Next;
+    }
+
+    // The transferred-bytes counter (lpBytesReturned/InternalHigh) is a ULONG
+    if (uTotalLen > MAXULONG)
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Total buffer size %llu overflows ULONG\n", uTotalLen);
+        return STATUS_INVALID_PARAMETER;
+    }
+    pCtx->TotalLen = (ULONG)uTotalLen;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE,
+                DBG_IOCTLS,
+                "<-- %s, locked %u buffers, %llu bytes\n",
+                __FUNCTION__,
+                pParams->dwBufferCount,
+                uTotalLen);
+    return STATUS_SUCCESS;
+}
+
+//////////////////////////////////////////////////////////////////////////
+// Runs in the requestor thread before the request is queued — the only place
+// where the user-mode pointers embedded in IOCTL input (the WSABUF array of
+// IOCTL_SOCKET_RECV_EX) may be probed, captured and locked.
+VOID VIOSockEvtIoInCallerContext(IN WDFDEVICE Device, IN WDFREQUEST Request)
+{
+    WDF_REQUEST_PARAMETERS Parameters;
+    NTSTATUS status = STATUS_SUCCESS;
+
+    WDF_REQUEST_PARAMETERS_INIT(&Parameters);
+    WdfRequestGetParameters(Request, &Parameters);
+
+    if (Parameters.Type == WdfRequestTypeDeviceControl &&
+        Parameters.Parameters.DeviceIoControl.IoControlCode == IOCTL_SOCKET_RECV_EX)
+    {
+        status = VIOSockSgPrepare(Request, IoWriteAccess);
+        if (!NT_SUCCESS(status))
+        {
+            WdfRequestComplete(Request, status);
+            return;
+        }
+    }
+
+    status = WdfDeviceEnqueueRequest(Device, Request);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "WdfDeviceEnqueueRequest failed: 0x%x\n", status);
+        WdfRequestComplete(Request, status);
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////
 NTSTATUS
 VIOSockEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
 {
@@ -302,6 +509,9 @@ VIOSockEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
     WdfDeviceInitSetIoType(DeviceInit, WdfDeviceIoDirect);
     // Valid file type is required for _open_osfhandle
     WdfDeviceInitSetDeviceType(DeviceInit, FILE_DEVICE_NAMED_PIPE);
+
+    // Capture/lock user SG buffers while still in the requestor context
+    WdfDeviceInitSetIoInCallerContextCallback(DeviceInit, VIOSockEvtIoInCallerContext);
 
     // Set device name (for kernel mode clients)
     status = WdfDeviceInitAssignName(DeviceInit, &usDeviceName);
