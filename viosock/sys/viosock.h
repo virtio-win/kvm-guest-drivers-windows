@@ -687,6 +687,31 @@ NTSTATUS
 VIOSockReadWithFlags(IN WDFREQUEST Request);
 
 //////////////////////////////////////////////////////////////////////////
+// Scatter-gather buffer chain attached to a data-carrying request.
+// Built from the user WSABUF array of IOCTL_SOCKET_RECV_EX by VIOSockSgPrepare;
+// plain Read/Write requests may later be wrapped into the same context as a
+// single borrowed MDL.
+
+typedef struct _VIOSOCK_SG_CTX
+{
+    PMDL MdlChain;  // locked MDLs linked via Mdl->Next in WSABUF order;
+                    // per-buffer lengths are MmGetMdlByteCount().
+                    // MDL ownership is encoded by the context cleanup callback:
+                    // VIOSockSgPrepare builds its own chain and attaches the
+                    // callback that unlocks/frees it (unlocking also releases the
+                    // system mappings); a context wrapping a borrowed MDL (e.g.
+                    // the WDF request MDL — locked and possibly mapped by the I/O
+                    // manager) is allocated without the callback, leaving the MDL
+                    // to its owner.
+    ULONG TotalLen; // sum of all chain buffer lengths
+} VIOSOCK_SG_CTX, *PVIOSOCK_SG_CTX;
+
+WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIOSOCK_SG_CTX, GetRequestSgContext);
+
+NTSTATUS
+VIOSockSgPrepare(IN WDFREQUEST Request, IN LOCK_OPERATION LockOp);
+
+//////////////////////////////////////////////////////////////////////////
 // Event functions
 _IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS VIOSockEvtVqInit(IN PDEVICE_CONTEXT pContext);
 
