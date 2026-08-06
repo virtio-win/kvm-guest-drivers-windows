@@ -42,10 +42,14 @@
 // Single-buffer recv up to this size takes the buffered IOCTL_SOCKET_RECV (the
 // io-manager copy is cheaper than page pinning, and the system-buffer allocation
 // stays small); anything larger or scattered takes IOCTL_SOCKET_RECV_EX (locked
-// MDL chain). Initial value — one page; tune with vsock_perf. Setting it to 0
-// routes every recv through RECV_EX, which is how that path gets full test-suite
-// coverage.
-#define VIOSOCK_SMALL_RECV_THRESHOLD 4096
+// MDL chain). Setting it to 0 routes every recv through RECV_EX, which is how
+// that path gets full test-suite coverage.
+//
+// The value is measured: a vsock_perf sweep of both paths over the receive size
+// has the buffered path ahead by 4-17% from 512 bytes to 8K, indistinguishable
+// at 16-32K, and behind by 15% at 64K. 8K is the largest size with a clean win,
+// and it also keeps the per-request non-paged system buffer small.
+#define VIOSOCK_SMALL_RECV_THRESHOLD 8192
 
 _Must_inspect_result_ HANDLE VIOSockCreateFile(_In_opt_ PVIRTIO_VSOCK_PARAMS pSocketParams,
                                                _In_ BOOL bSyncIo,
