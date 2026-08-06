@@ -44,7 +44,11 @@
 // socket ioctls
 #define IOCTL_SOCKET_BIND             DEFINE_SOCKET_IOCTL(1)
 #define IOCTL_SOCKET_CONNECT          DEFINE_SOCKET_IOCTL(2)
-#define IOCTL_SOCKET_READ             CTL_CODE(FILE_DEVICE_SOCKET, 0x800 | (3), METHOD_OUT_DIRECT, FILE_READ_ACCESS)
+// METHOD_BUFFERED: the small-recv path — no page pinning, the io-manager copies
+// the data back on completion. Input (READ_PARAMS) and output share the system
+// buffer, so the flags are consumed at dispatch, before any data lands in it.
+// Large reads go through IRP_MJ_READ or IOCTL_SOCKET_RECV_EX (both direct).
+#define IOCTL_SOCKET_RECV             CTL_CODE(FILE_DEVICE_SOCKET, 0x800 | (3), METHOD_BUFFERED, FILE_READ_ACCESS)
 #define IOCTL_SOCKET_SHUTDOWN         DEFINE_SOCKET_IOCTL(4)
 #define IOCTL_SOCKET_LISTEN           DEFINE_SOCKET_IOCTL(5)
 #define IOCTL_SOCKET_ENUM_NET_EVENTS  DEFINE_SOCKET_IOCTL(6)

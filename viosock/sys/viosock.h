@@ -684,7 +684,7 @@ _Requires_lock_not_held_(pSocket->RxLock) VOID VIOSockReadProcessQueue(IN PSOCKE
 _Requires_lock_not_held_(pSocket->RxLock) VOID VIOSockReadCleanupCb(IN PSOCKET_CONTEXT pSocket);
 
 NTSTATUS
-VIOSockReadWithFlags(IN WDFREQUEST Request);
+VIOSockRecvBuffered(IN WDFREQUEST Request);
 
 NTSTATUS
 VIOSockRecvEx(IN WDFREQUEST Request);
