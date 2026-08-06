@@ -39,6 +39,14 @@
     }
 #endif
 
+// Single-buffer recv up to this size takes the buffered IOCTL_SOCKET_RECV (the
+// io-manager copy is cheaper than page pinning, and the system-buffer allocation
+// stays small); anything larger or scattered takes IOCTL_SOCKET_RECV_EX (locked
+// MDL chain). Initial value — one page; tune with vsock_perf. Setting it to 0
+// routes every recv through RECV_EX, which is how that path gets full test-suite
+// coverage.
+#define VIOSOCK_SMALL_RECV_THRESHOLD 4096
+
 _Must_inspect_result_ HANDLE VIOSockCreateFile(_In_opt_ PVIRTIO_VSOCK_PARAMS pSocketParams,
                                                _In_ BOOL bSyncIo,
                                                _Out_ LPINT lpErrno);
