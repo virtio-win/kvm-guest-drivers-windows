@@ -111,6 +111,7 @@ typedef struct _tagConfigurationEntries
     tConfigurationEntry MinRxBufferPercent;
     tConfigurationEntry PollMode;
     tConfigurationEntry MergeableBuffers;
+    tConfigurationEntry TxFragmentationLimit;
 } tConfigurationEntries;
 
 // clang-format off
@@ -154,6 +155,7 @@ static const tConfigurationEntries defaultConfiguration =
     { "MinRxBufferPercent", PARANDIS_MIN_RX_BUFFER_PERCENT_DEFAULT, 0, 100},
     { "*NdisPoll", 0, 0, 1},
     { "MergeableBuffers", 0, 0, 1},
+    { "TxFragmentationLimit", 256, 20, 256},
 };
 
 static void ParaNdis_ResetVirtIONetDevice(PARANDIS_ADAPTER *pContext)
@@ -291,6 +293,7 @@ static bool ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
             GetConfigurationEntry(cfg, &pConfiguration->MinRxBufferPercent);
             GetConfigurationEntry(cfg, &pConfiguration->PollMode);
             GetConfigurationEntry(cfg, &pConfiguration->MergeableBuffers);
+            GetConfigurationEntry(cfg, &pConfiguration->TxFragmentationLimit);
 
             bDebugPrint = pConfiguration->isLogEnabled.ulValue;
             virtioDebugLevel = pConfiguration->debugLevel.ulValue;
@@ -393,7 +396,7 @@ static bool ReadNicConfiguration(PARANDIS_ADAPTER *pContext, PUCHAR pNewMACAddre
             pContext->RSC.bIPv4SupportedSW = (UCHAR)pConfiguration->RSCIPv4Supported.ulValue;
             pContext->RSC.bIPv6SupportedSW = (UCHAR)pConfiguration->RSCIPv6Supported.ulValue;
 #endif
-            pContext->uMaxFragmentsInOneNB = MAX_FRAGMENTS_IN_ONE_NB;
+            pContext->uMaxFragmentsInOneNB = pConfiguration->TxFragmentationLimit.ulValue;
 #if PARANDIS_SUPPORT_POLL
             // Win10 build: poll mode keyword is not in the INF, poll mode is disabled by compilation
             // Win11 build: poll mode keyword is in the INF
