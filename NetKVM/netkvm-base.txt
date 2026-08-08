@@ -232,7 +232,7 @@ HKR, Ndi\Params\MergeableBuffers\enum,      "0",        0,          %Disable%
 
 HKR, Ndi\params\TxFragmentationLimit,       ParamDesc,  0,          %TxFragmentationLimit%
 HKR, Ndi\params\TxFragmentationLimit,       type,       0,          "int"
-HKR, Ndi\params\TxFragmentationLimit,       default,    0,          "256"
+HKR, Ndi\params\TxFragmentationLimit,       default,    0,          "63"
 HKR, Ndi\params\TxFragmentationLimit,       min,        0,          "20"
 HKR, Ndi\params\TxFragmentationLimit,       max,        0,          "256"
 HKR, Ndi\params\TxFragmentationLimit,       step,       0,          "1"

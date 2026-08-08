@@ -155,7 +155,7 @@ static const tConfigurationEntries defaultConfiguration =
     { "MinRxBufferPercent", PARANDIS_MIN_RX_BUFFER_PERCENT_DEFAULT, 0, 100},
     { "*NdisPoll", 0, 0, 1},
     { "MergeableBuffers", 0, 0, 1},
-    { "TxFragmentationLimit", 256, 20, 256},
+    { "TxFragmentationLimit", 63, 20, 256},
 };
 
 static void ParaNdis_ResetVirtIONetDevice(PARANDIS_ADAPTER *pContext)
