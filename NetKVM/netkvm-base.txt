@@ -230,6 +230,13 @@ HKR, Ndi\Params\MergeableBuffers,           type,       0,          "enum"
 HKR, Ndi\Params\MergeableBuffers\enum,      "1",        0,          %Enable%
 HKR, Ndi\Params\MergeableBuffers\enum,      "0",        0,          %Disable%
 
+HKR, Ndi\params\TxFragmentationLimit,       ParamDesc,  0,          %TxFragmentationLimit%
+HKR, Ndi\params\TxFragmentationLimit,       type,       0,          "int"
+HKR, Ndi\params\TxFragmentationLimit,       default,    0,          "256"
+HKR, Ndi\params\TxFragmentationLimit,       min,        0,          "20"
+HKR, Ndi\params\TxFragmentationLimit,       max,        0,          "256"
+HKR, Ndi\params\TxFragmentationLimit,       step,       0,          "1"
+
 HKR, Ndi\params\*RSS,             ParamDesc,           0, "Receive Side Scaling"
 HKR, Ndi\params\*RSS,             Type,                0, "enum"
 HKR, Ndi\params\*RSS,             Default,             0, "1"
@@ -353,6 +360,7 @@ IPv4 = "IPv4"
 Maximal = "Maximal"
 MinRxBufferPercent = "MinRxBufferPercent"
 MergeableBuffers = "Mergeable Rx Buffers"
+TxFragmentationLimit = "Init.TxFragmentationLimit"
 
 [kvmnet6.Reg] 
 HKR,    ,                         BusNumber,           0, "0"
