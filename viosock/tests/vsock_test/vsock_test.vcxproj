@@ -103,12 +103,15 @@
   <ItemGroup>
     <ClInclude Include="compat.h" />
     <ClInclude Include="control.h" />
+    <ClInclude Include="sock_ops.h" />
     <ClInclude Include="util.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="vsock_test.c" />
     <ClCompile Include="util.c" />
     <ClCompile Include="control.c" />
+    <ClCompile Include="compat.c" />
+    <ClCompile Include="wsa.c" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
