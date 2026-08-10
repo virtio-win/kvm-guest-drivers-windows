@@ -426,7 +426,7 @@ static void test_stream_poll_rcvlowat_client(const struct test_opts *opts)
     poll_flags = POLLIN | POLLRDNORM;
     fds.events = poll_flags;
 
-    if (WSAPoll(&fds, 1, 1000) < 0)
+    if (poll(&fds, 1, 1000) < 0)
     {
         perror("poll");
         exit(EXIT_FAILURE);
@@ -440,7 +440,7 @@ static void test_stream_poll_rcvlowat_client(const struct test_opts *opts)
 
     control_writeln("CLNSENT");
 
-    if (WSAPoll(&fds, 1, 10000) < 0)
+    if (poll(&fds, 1, 10000) < 0)
     {
         perror("poll");
         exit(EXIT_FAILURE);
@@ -843,15 +843,15 @@ static void test_stream_credit_update_test(const struct test_opts *opts, bool lo
         int npoll;
         ssize_t bytes_read;
 
-        npoll = WSAPoll(&fds, 1, TIMEOUT * 1000);
+        npoll = poll(&fds, 1, TIMEOUT * 1000);
         if (npoll < 0)
         {
-            perror("WSAPoll");
+            perror("poll");
             exit(EXIT_FAILURE);
         }
         if (npoll == 0)
         {
-            fprintf(stderr, "WSAPoll timed out\n");
+            fprintf(stderr, "poll timed out\n");
             exit(EXIT_FAILURE);
         }
 
@@ -1552,6 +1552,10 @@ static const struct option longopts[] = {
                                                                                                      required_argument,
                                                                                                      NULL,
                                                                                                      't'},
+                                                                                                    {"variant",
+                                                                                                     required_argument,
+                                                                                                     NULL,
+                                                                                                     'V'},
                                                                                                     {"help",
                                                                                                      no_argument,
                                                                                                      NULL,
@@ -1578,7 +1582,8 @@ static void usage(void)
             "  --peer-port <port>     AF_VSOCK port [default: %d]\n"
             "  --list                 List all tests\n"
             "  --pick <id>            Run only this test (repeatable)\n"
-            "  --skip <id>            Skip this test (repeatable)\n",
+            "  --skip <id>            Skip this test (repeatable)\n"
+            "  --variant <name>       Socket surface: posix (default) or wsa\n",
             DEFAULT_PEER_PORT);
     exit(EXIT_FAILURE);
 }
@@ -1610,6 +1615,7 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
     fprintf(stderr, "AF_VSOCK = %d\n", (int)g_vsock_af);
+    fprintf(stderr, "variant = %s\n", g_ops == &ops_wsa ? "wsa" : "posix");
 
     srand((unsigned int)time(NULL));
     init_signals();
@@ -1660,6 +1666,13 @@ int main(int argc, char **argv)
                 break;
             case 't':
                 pick_test(test_cases, ARRAY_SIZE(test_cases) - 1, optarg);
+                break;
+            case 'V':
+                if (sock_ops_select(optarg) != 0)
+                {
+                    fprintf(stderr, "--variant must be \"posix\" or \"wsa\"\n");
+                    goto fail;
+                }
                 break;
             case '?':
             default:

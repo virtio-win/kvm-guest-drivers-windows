@@ -3,9 +3,16 @@
  * Windows POSIX compatibility shim for vsock tests.
  *
  * Include this header instead of all Linux-specific headers.
- * All inline wrappers are defined BEFORE the macro redirections so the
- * wrappers themselves still call the real Winsock2 functions (macros are
- * not yet visible at that point in the translation unit).
+ *
+ * Two variants share the test bodies:
+ *   posix - compat_* functions defined in compat.c, wired through
+ *           ops_posix; macros in this header route socket/send/... to
+ *           the current g_ops table.
+ *   wsa   - wsa_* functions defined in wsa.c, wired through ops_wsa.
+ *
+ * Translation units that IMPLEMENT the shim (compat.c, wsa.c) must
+ * #define COMPAT_IMPL before including this header so the macro
+ * redirections at the bottom don't rewrite their own bodies.
  */
 
 #pragma once
@@ -35,15 +42,11 @@
 #include <process.h> /* _getpid() */
 
 #include "..\\..\\inc\\vio_sockets.h"
+#include "sock_ops.h"
 
 /* ------------------------------------------------------------------ */
 /* Type compatibility                                                   */
 /* ------------------------------------------------------------------ */
-
-#ifndef _SSIZE_T_DEFINED
-#define _SSIZE_T_DEFINED
-typedef intptr_t ssize_t;
-#endif
 
 typedef unsigned int useconds_t;
 
@@ -77,125 +80,24 @@ extern ADDRESS_FAMILY g_vsock_af;
 /* WSA error -> errno mapping                                           */
 /* ------------------------------------------------------------------ */
 
-static inline void wsa_set_errno(void)
-{
-    switch (WSAGetLastError())
-    {
-        case WSAEWOULDBLOCK:
-            errno = EAGAIN;
-            break;
-        /* SO_RCVTIMEO expiry: map to EAGAIN to match Linux POSIX behavior */
-        case WSAETIMEDOUT:
-            errno = EAGAIN;
-            break;
-        case WSAEINPROGRESS:
-            errno = EINPROGRESS;
-            break;
-        case WSAEALREADY:
-            errno = EALREADY;
-            break;
-        case WSAENOTSOCK:
-            errno = ENOTSOCK;
-            break;
-        case WSAEDESTADDRREQ:
-            errno = EDESTADDRREQ;
-            break;
-        case WSAEMSGSIZE:
-            errno = EMSGSIZE;
-            break;
-        case WSAEPROTOTYPE:
-            errno = EPROTOTYPE;
-            break;
-        case WSAENOPROTOOPT:
-            errno = ENOPROTOOPT;
-            break;
-        case WSAEPROTONOSUPPORT:
-            errno = EPROTONOSUPPORT;
-            break;
-        case WSAEOPNOTSUPP:
-            errno = EOPNOTSUPP;
-            break;
-        case WSAEAFNOSUPPORT:
-            errno = EAFNOSUPPORT;
-            break;
-        case WSAEADDRINUSE:
-            errno = EADDRINUSE;
-            break;
-        case WSAEADDRNOTAVAIL:
-            errno = EADDRNOTAVAIL;
-            break;
-        case WSAENETDOWN:
-            errno = ENETDOWN;
-            break;
-        case WSAENETUNREACH:
-            errno = ENETUNREACH;
-            break;
-        case WSAENETRESET:
-            errno = ENETRESET;
-            break;
-        case WSAECONNABORTED:
-            errno = ECONNABORTED;
-            break;
-        case WSAECONNRESET:
-            errno = ECONNRESET;
-            break;
-        case WSAESHUTDOWN:
-            errno = EPIPE;
-            break;
-        case WSAENOBUFS:
-            errno = ENOBUFS;
-            break;
-        case WSAEISCONN:
-            errno = EISCONN;
-            break;
-        case WSAENOTCONN:
-            errno = ENOTCONN;
-            break;
-        case WSAECONNREFUSED:
-            errno = ECONNREFUSED;
-            break;
-        case WSAEHOSTUNREACH:
-            errno = EHOSTUNREACH;
-            break;
-        case WSAEINTR:
-            errno = EINTR;
-            break;
-        case WSAEFAULT:
-            errno = EFAULT;
-            break;
-        case 0:
-            break;
-        default:
-            errno = WSAGetLastError();
-            break;
-    }
-}
+void wsa_set_errno(void);
 
 /* ------------------------------------------------------------------ */
-/* Socket wrapper inline functions (defined BEFORE the macros so they  */
-/* call the real Winsock2 functions, not themselves recursively).       */
+/* Variant-selectable socket surface (definitions in compat.c/wsa.c;   */
+/* dispatch via ops_posix / ops_wsa through g_ops).                    */
 /* ------------------------------------------------------------------ */
 
-static inline int compat_socket(int af, int type, int proto)
-{
-    SOCKET s = socket(af, type, proto);
-    if (s == INVALID_SOCKET)
-    {
-        wsa_set_errno();
-        return -1;
-    }
-    return (int)s;
-}
+int compat_socket(int af, int type, int proto);
+int compat_connect(int fd, const struct sockaddr *addr, socklen_t len);
+int compat_accept(int fd, struct sockaddr *addr, socklen_t *addrlen);
+ssize_t compat_send(int fd, const void *buf, size_t len, int flags);
+ssize_t compat_recv(int fd, void *buf, size_t len, int flags);
+ssize_t compat_read(int fd, void *buf, size_t len);
+int compat_closesocket(int fd);
 
-static inline int compat_connect(int fd, const struct sockaddr *addr, socklen_t len)
-{
-    if (connect((SOCKET)fd, addr, len) == SOCKET_ERROR)
-    {
-        wsa_set_errno();
-        return -1;
-    }
-    return 0;
-}
+/* ------------------------------------------------------------------ */
+/* Variant-invariant socket wrappers (same behaviour in both variants) */
+/* ------------------------------------------------------------------ */
 
 static inline int compat_bind(int fd, const struct sockaddr *addr, socklen_t len)
 {
@@ -215,85 +117,6 @@ static inline int compat_listen(int fd, int backlog)
         return -1;
     }
     return 0;
-}
-
-static inline int compat_accept(int fd, struct sockaddr *addr, socklen_t *addrlen)
-{
-    SOCKET s = accept((SOCKET)fd, addr, addrlen);
-    if (s == INVALID_SOCKET)
-    {
-        wsa_set_errno();
-        return -1;
-    }
-    return (int)s;
-}
-
-static inline ssize_t compat_send(int fd, const void *buf, size_t len, int flags)
-{
-    bool dontwait = (flags & 0x40) != 0; /* MSG_DONTWAIT */
-    /* Strip flags that Winsock2 doesn't know */
-    flags &= ~(0x40 | 0x8000); /* MSG_DONTWAIT | MSG_MORE */
-    /* MSG_NOSIGNAL is 0 on Windows (no SIGPIPE) */
-
-    if (dontwait)
-    {
-        u_long nb = 1;
-        ioctlsocket((SOCKET)fd, FIONBIO, &nb);
-    }
-
-    int r = send((SOCKET)fd, (const char *)buf, (int)len, flags);
-    /* Capture WSAGetLastError() BEFORE the FIONBIO reset below — a successful
-     * ioctlsocket clears the per-thread error and would leave wsa_set_errno()
-     * seeing 0, producing perror("send") == "send: No error". */
-    int saved_err = (r == SOCKET_ERROR) ? WSAGetLastError() : 0;
-
-    if (dontwait)
-    {
-        u_long nb = 0;
-        ioctlsocket((SOCKET)fd, FIONBIO, &nb);
-    }
-
-    if (r == SOCKET_ERROR)
-    {
-        WSASetLastError(saved_err);
-        wsa_set_errno();
-        return -1;
-    }
-    return r;
-}
-
-static inline ssize_t compat_recv(int fd, void *buf, size_t len, int flags)
-{
-    bool dontwait = (flags & 0x40) != 0; /* MSG_DONTWAIT */
-    flags &= ~0x40;
-
-    if (dontwait)
-    {
-        u_long nb = 1;
-        ioctlsocket((SOCKET)fd, FIONBIO, &nb);
-    }
-
-    int r = recv((SOCKET)fd, (char *)buf, (int)len, flags);
-    int saved_err = (r == SOCKET_ERROR) ? WSAGetLastError() : 0;
-
-    if (dontwait)
-    {
-        u_long nb = 0;
-        ioctlsocket((SOCKET)fd, FIONBIO, &nb);
-    }
-
-    if (r == SOCKET_ERROR)
-    {
-        WSASetLastError(saved_err);
-        wsa_set_errno();
-        return -1;
-    }
-    return r;
-}
-
-static inline ssize_t compat_read(int fd, void *buf, size_t len)
-{
-    return compat_recv(fd, buf, len, 0);
 }
 
 static inline int compat_getsockname(int fd, struct sockaddr *addr, socklen_t *addrlen)
@@ -329,16 +152,6 @@ static inline int compat_getsockopt(int fd, int level, int optname, void *optval
 static inline int compat_shutdown(int fd, int how)
 {
     if (shutdown((SOCKET)fd, how) == SOCKET_ERROR)
-    {
-        wsa_set_errno();
-        return -1;
-    }
-    return 0;
-}
-
-static inline int compat_closesocket(int fd)
-{
-    if (closesocket((SOCKET)fd) == SOCKET_ERROR)
     {
         wsa_set_errno();
         return -1;
@@ -657,8 +470,19 @@ void timeout_end(void);
 int timeout_usleep(unsigned int usec);
 
 /* ------------------------------------------------------------------ */
-/* Macro redirections (MUST be last -- after all inline definitions)    */
+/* Macro redirections (MUST be last -- after all inline definitions).  */
+/*                                                                     */
+/* Variant-affected calls (socket/connect/accept/send/recv/read/close/ */
+/* poll) route through g_ops so tests binding a --variant switch pick  */
+/* up the matching implementation at run time.  Variant-invariant      */
+/* calls (bind/listen/shutdown/getsockopt/setsockopt/fcntl/ioctl) go   */
+/* straight to their compat_* inline wrappers.                         */
+/*                                                                     */
+/* Skipped when COMPAT_IMPL is defined - compat.c and wsa.c set that   */
+/* so the macros don't rewrite the very calls they are implementing.   */
 /* ------------------------------------------------------------------ */
+
+#ifndef COMPAT_IMPL
 
 #undef socket
 #undef connect
@@ -672,26 +496,29 @@ int timeout_usleep(unsigned int usec);
 #undef getsockopt
 #undef shutdown
 
-#define socket(af, t, p)                compat_socket(af, t, p)
-#define connect(fd, addr, len)          compat_connect(fd, addr, len)
+#define socket(af, t, p)                g_ops->sock_socket(af, t, p)
+#define connect(fd, addr, len)          g_ops->sock_connect(fd, addr, len)
+#define accept(fd, addr, alen)          g_ops->sock_accept(fd, addr, alen)
+#define send(fd, buf, len, fl)          g_ops->sock_send(fd, buf, len, fl)
+#define recv(fd, buf, len, fl)          g_ops->sock_recv(fd, buf, len, fl)
+#define read(fd, buf, len)              g_ops->sock_read(fd, buf, len)
+#define close(fd)                       g_ops->sock_close(fd)
+#define poll(fds, n, t)                 g_ops->sock_poll((WSAPOLLFD *)(fds), (ULONG)(n), (INT)(t))
+#define pollfd                          WSAPOLLFD
+
 #define bind(fd, addr, len)             compat_bind(fd, addr, len)
 #define listen(fd, bl)                  compat_listen(fd, bl)
-#define accept(fd, addr, alen)          compat_accept(fd, addr, alen)
-#define send(fd, buf, len, fl)          compat_send(fd, buf, len, fl)
-#define recv(fd, buf, len, fl)          compat_recv(fd, buf, len, fl)
-#define read(fd, buf, len)              compat_read(fd, buf, len)
 #define getsockname(fd, addr, alen)     compat_getsockname(fd, addr, alen)
 #define setsockopt(fd, lv, nm, v, l)    compat_setsockopt(fd, lv, nm, v, l)
 #define getsockopt(fd, lv, nm, v, l)    compat_getsockopt(fd, lv, nm, v, l)
 #define shutdown(fd, how)               compat_shutdown(fd, how)
-#define close(fd)                       compat_closesocket(fd)
 #define mmap(addr, len, p, fl, fd, off) compat_mmap(addr, len, p, fl, fd, off)
 #define munmap(addr, len)               compat_munmap(addr, len)
 #define fcntl                           compat_fcntl
 #define ioctl(fd, op, arg)              compat_ioctl(fd, op, arg)
 #define sigaction(sig, act, oact)       compat_sigaction(sig, act, oact)
 #define signal(sig, h)                  compat_signal(sig, h)
-#define poll                            WSAPoll
-#define pollfd                          WSAPOLLFD
+
+#endif /* !COMPAT_IMPL */
 
 #endif /* COMPAT_H */
