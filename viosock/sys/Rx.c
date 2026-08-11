@@ -1071,10 +1071,20 @@ _Requires_lock_not_held_(pSocket->RxLock) static NTSTATUS VIOSockReadForward(IN 
         return STATUS_NOT_SUPPORTED;
     }
 
+    // Both MSG_WAITALL misuses are reported as unsupported (WSAEOPNOTSUPP), the
+    // code Winsock documents for them: combining it with another flag, and asking
+    // for it on a non-blocking socket, which cannot promise to wait for a full
+    // buffer.
     if (Flags & MSG_WAITALL && Flags & ~MSG_WAITALL)
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "Incompatible flags: 0x%x\n", Flags);
-        return STATUS_INVALID_PARAMETER;
+        return STATUS_NOT_SUPPORTED;
+    }
+
+    if (Flags & MSG_WAITALL && VIOSockIsNonBlocking(pSocket))
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "MSG_WAITALL on a non-blocking socket\n");
+        return STATUS_NOT_SUPPORTED;
     }
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, VIOSOCK_RX_CONTEXT);
