@@ -50,4 +50,13 @@ extern const struct sock_ops *g_ops;
 
 int sock_ops_select(const char *variant);
 
+/*
+ * Negative-path smoke check for the wsa surface: dial the six wsa
+ * functions that reach the LSP/driver with documented-invalid inputs
+ * once each, assert the error code matches what the Winsock docs
+ * promise.  Called from sock_ops_select("wsa") before any test runs
+ * so a regression in error mapping fails the binary early.
+ */
+void wsa_validate_all(void);
+
 #endif /* SOCK_OPS_H */

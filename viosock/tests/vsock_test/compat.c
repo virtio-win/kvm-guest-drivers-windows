@@ -246,6 +246,7 @@ int sock_ops_select(const char *variant)
     if (strcmp(variant, "wsa") == 0)
     {
         g_ops = &ops_wsa;
+        wsa_validate_all();
         return 0;
     }
     return -1;
