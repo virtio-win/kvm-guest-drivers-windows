@@ -1615,7 +1615,6 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
     fprintf(stderr, "AF_VSOCK = %d\n", (int)g_vsock_af);
-    fprintf(stderr, "variant = %s\n", g_ops == &ops_wsa ? "wsa" : "posix");
 
     srand((unsigned int)time(NULL));
     init_signals();
@@ -1701,6 +1700,8 @@ int main(int argc, char **argv)
         }
         control_host = "0.0.0.0";
     }
+
+    fprintf(stderr, "variant = %s\n", g_ops == &ops_wsa ? "wsa" : "posix");
 
     control_init(control_host, control_port, opts.mode == TEST_MODE_SERVER);
     run_tests(test_cases, &opts);
