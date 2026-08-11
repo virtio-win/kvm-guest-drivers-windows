@@ -291,8 +291,13 @@ static VOID VIOSockSgCtxCleanup(IN WDFOBJECT Object)
     pCtx->MdlChain = NULL;
 }
 
-// Build a locked MDL for one user WSABUF; runs in the requestor process context
+// Build a locked MDL for uLen bytes of one user WSABUF (uLen can be less than the
+// buffer's own length — see the cap in VIOSockSgPrepare); runs in the requestor
+// process context. A buffer that is not valid user memory is reported as
+// STATUS_ACCESS_VIOLATION, which maps to the WSAEFAULT that Winsock documents for
+// a buffer "not completely contained in a valid part of the user address space".
 static NTSTATUS VIOSockSgPrepareBuffer(IN PVIRTIO_VSOCK_WSABUF pUserBuf,
+                                       IN ULONG uLen,
                                        IN BOOLEAN bIs32BitProcess,
                                        IN LOCK_OPERATION LockOp,
                                        OUT PMDL *ppMdl)
@@ -301,15 +306,40 @@ static NTSTATUS VIOSockSgPrepareBuffer(IN PVIRTIO_VSOCK_WSABUF pUserBuf,
     PMDL pMdl;
     PVOID pBuffer;
 
-    if (!pUserBuf->lpBuffer || !pUserBuf->dwLen)
+    if (!pUserBuf->lpBuffer)
     {
-        return STATUS_INVALID_PARAMETER;
+        return STATUS_ACCESS_VIOLATION;
     }
 
-    pBuffer = bIs32BitProcess ? Ptr32ToPtr((VOID * POINTER_32)(ULONG)pUserBuf->lpBuffer)
-                              : (PVOID)(ULONG_PTR)pUserBuf->lpBuffer;
+    if (bIs32BitProcess)
+    {
+        // Refuse rather than truncate: a caller whose pointer does not fit its
+        // own address space must not have us lock some other address instead
+        if (pUserBuf->lpBuffer > MAXULONG)
+        {
+            return STATUS_ACCESS_VIOLATION;
+        }
 
-    pMdl = IoAllocateMdl(pBuffer, pUserBuf->dwLen, FALSE, FALSE, NULL);
+        pBuffer = Ptr32ToPtr((VOID * POINTER_32)(ULONG)pUserBuf->lpBuffer);
+    }
+    else
+    {
+        pBuffer = (PVOID)(ULONG_PTR)pUserBuf->lpBuffer;
+    }
+
+    // The range must be checked before an MDL is built for it: IoAllocateMdl
+    // derives the page count from base + length, so a range that wraps yields an
+    // MDL whose page array is shorter than its ByteCount claims, and the lock
+    // below would then write PFNs past the end of that allocation. Everything
+    // else about the range (that it is user memory and accessible in the
+    // requested direction) is enforced by MmProbeAndLockPages.
+    if ((ULONG_PTR)pBuffer + uLen < (ULONG_PTR)pBuffer)
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Buffer range wraps: %p + 0x%x\n", pBuffer, uLen);
+        return STATUS_ACCESS_VIOLATION;
+    }
+
+    pMdl = IoAllocateMdl(pBuffer, uLen, FALSE, FALSE, NULL);
     if (!pMdl)
     {
         return STATUS_INSUFFICIENT_RESOURCES;
@@ -408,28 +438,64 @@ VIOSockSgPrepare(IN WDFREQUEST Request, IN LOCK_OPERATION LockOp)
     for (i = 0; i < pParams->dwBufferCount; ++i)
     {
         PMDL pMdl;
+        ULONG uLen = pUserBufs[i].dwLen;
 
-        status = VIOSockSgPrepareBuffer(&pUserBufs[i], bIs32BitProcess, LockOp, &pMdl);
+        // A zero-length WSABUF is legal — the buffers are packed with no hole for
+        // it — so it simply contributes nothing and needs no MDL
+        if (!uLen)
+        {
+            continue;
+        }
+
+        // Bound how much memory one request can pin. A byte-stream receive may
+        // legally return less than asked for, so the excess is dropped rather
+        // than failing the call — except under MSG_WAITALL, whose contract is to
+        // complete only once the caller's buffer is full, which we then cannot
+        // honour. The sum cannot overflow: at most VIOSOCK_SG_MAX_BUFFERS entries
+        // of at most MAXULONG each, accumulated in a ULONGLONG.
+        if (uTotalLen + uLen > VIOSOCK_SG_MAX_TOTAL_LEN)
+        {
+            if (pParams->dwFlags & MSG_WAITALL)
+            {
+                TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "MSG_WAITALL over the buffer cap\n");
+                return STATUS_NOT_SUPPORTED;
+            }
+
+            uLen = (ULONG)(VIOSOCK_SG_MAX_TOTAL_LEN - uTotalLen);
+            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_IOCTLS, "Buffer list capped at wsabuf[%u]\n", i);
+        }
+
+        status = VIOSockSgPrepareBuffer(&pUserBufs[i], uLen, bIs32BitProcess, LockOp, &pMdl);
         if (!NT_SUCCESS(status))
         {
             TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTLS, "Failed to prepare wsabuf[%u]: 0x%x\n", i, status);
             return status;
         }
 
-        uTotalLen += MmGetMdlByteCount(pMdl);
+        uTotalLen += uLen;
 
         // Link only after a successful lock: cleanup unconditionally unlocks
         // every chain member
         *ppNext = pMdl;
         ppNext = &pMdl->Next;
+
+        if (uTotalLen == VIOSOCK_SG_MAX_TOTAL_LEN)
+        {
+            break;
+        }
     }
 
-    // The transferred-bytes counter (lpBytesReturned/InternalHigh) is a ULONG
-    if (uTotalLen > MAXULONG)
+    // Every buffer was zero-length. Completing such a request would report zero
+    // bytes received, which on a byte stream means the peer closed the connection
+    // — so refuse it instead of manufacturing a false end of stream.
+    if (!uTotalLen)
     {
-        TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Total buffer size %llu overflows ULONG\n", uTotalLen);
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "No buffer space in the list\n");
         return STATUS_INVALID_PARAMETER;
     }
+
+    // Fits a ULONG by the cap above, so it also fits the transferred-bytes counter
+    // reported through IRP.Information
     pCtx->TotalLen = (ULONG)uTotalLen;
 
     TraceEvents(TRACE_LEVEL_VERBOSE,
