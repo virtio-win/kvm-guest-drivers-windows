@@ -84,6 +84,17 @@ static ssize_t wsa_send(int fd, const void *buf, size_t len, int flags)
     return (ssize_t)sent;
 }
 
+/*
+ * Split the caller buffer into two WSABUFs to exercise the LSP +
+ * driver scatter-gather receive path (WSPRecv over multi-entry
+ * WSABUF[]).  Bytes still land in the same underlying buffer, so
+ * from the test body's point of view the result is indistinguishable
+ * from a single-buffer recv - only the code path inside viosocklib
+ * and viosock.sys differs.  For len < 2 (empty peek probe, single
+ * byte) fall back to one WSABUF; splitting a 1-byte read into
+ * (0, 1) would give WSABUF[0] a NULL-length entry that some
+ * providers reject.
+ */
 static ssize_t wsa_recv(int fd, void *buf, size_t len, int flags)
 {
     bool dontwait = (flags & 0x40) != 0; /* MSG_DONTWAIT */
@@ -95,13 +106,27 @@ static ssize_t wsa_recv(int fd, void *buf, size_t len, int flags)
         ioctlsocket((SOCKET)fd, FIONBIO, &nb);
     }
 
-    WSABUF wb;
-    wb.len = (ULONG)len;
-    wb.buf = (CHAR *)buf;
+    WSABUF wb[2];
+    ULONG count;
+    if (len >= 2)
+    {
+        size_t half = len / 2;
+        wb[0].len = (ULONG)half;
+        wb[0].buf = (CHAR *)buf;
+        wb[1].len = (ULONG)(len - half);
+        wb[1].buf = (CHAR *)buf + half;
+        count = 2;
+    }
+    else
+    {
+        wb[0].len = (ULONG)len;
+        wb[0].buf = (CHAR *)buf;
+        count = 1;
+    }
 
     DWORD got = 0;
     DWORD dwFlags = (DWORD)flags;
-    int r = WSARecv((SOCKET)fd, &wb, 1, &got, &dwFlags, NULL, NULL);
+    int r = WSARecv((SOCKET)fd, wb, count, &got, &dwFlags, NULL, NULL);
     int saved_err = (r == SOCKET_ERROR) ? WSAGetLastError() : 0;
 
     if (dontwait)
