@@ -90,7 +90,12 @@ typedef struct _VIRTIO_VSOCK_PARAMS
 #define MSG_WAITALL 0x8
 #endif
 
-#define VIOSOCK_SG_MAX_BUFFERS 64
+#define VIOSOCK_SG_MAX_BUFFERS   64
+
+// Upper bound on how much memory one request may pin. Far above any realistic
+// recv, and it keeps an unprivileged caller from asking the kernel to lock down
+// arbitrary amounts of memory.
+#define VIOSOCK_SG_MAX_TOTAL_LEN (64 * 1024 * 1024)
 
 typedef struct _VIRTIO_VSOCK_READ_PARAMS
 {
