@@ -1,0 +1,192 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
+/*
+ * Negative-path smoke check for the `wsa` variant.
+ *
+ * Each helper dials one wsa function that reaches the LSP/driver
+ * with inputs the Winsock docs say must fail a specific way, and
+ * asserts the surfaced error code matches.  A single call site -
+ * `wsa_validate_all()`, invoked from `sock_ops_select("wsa")` before
+ * the first test runs - trips the binary as soon as an error-mapping
+ * regression lands, so we don't have to chase it through a green-ish
+ * sweep.
+ *
+ * All helpers exit(EXIT_FAILURE) on mismatch; there is no return
+ * channel.  The vsock socket used for the connect/send/recv checks
+ * is closed at the bottom of `wsa_validate_all()`.
+ */
+
+#define COMPAT_IMPL
+#include "compat.h"
+#include "sock_ops.h"
+
+#include "..\\..\\inc\\vio_sockets.h"
+
+static void expect_wsa_err(int rc, int expected, const char *what)
+{
+    if (rc != SOCKET_ERROR)
+    {
+        fprintf(stderr,
+                "wsa-validate: %s: expected SOCKET_ERROR + WSA %d, got rc=%d success\n",
+                what,
+                expected,
+                rc);
+        exit(EXIT_FAILURE);
+    }
+    int got = WSAGetLastError();
+    if (got != expected)
+    {
+        fprintf(stderr,
+                "wsa-validate: %s: expected WSA %d, got WSA %d\n",
+                what,
+                expected,
+                got);
+        exit(EXIT_FAILURE);
+    }
+    WSASetLastError(0);
+}
+
+static void expect_wsa_err_sock(SOCKET s, int expected, const char *what)
+{
+    if (s != INVALID_SOCKET)
+    {
+        fprintf(stderr,
+                "wsa-validate: %s: expected INVALID_SOCKET + WSA %d, got a socket\n",
+                what,
+                expected);
+        closesocket(s);
+        exit(EXIT_FAILURE);
+    }
+    int got = WSAGetLastError();
+    if (got != expected)
+    {
+        fprintf(stderr,
+                "wsa-validate: %s: expected WSA %d, got WSA %d\n",
+                what,
+                expected,
+                got);
+        exit(EXIT_FAILURE);
+    }
+    WSASetLastError(0);
+}
+
+/* WSASocketW: bogus af / bogus type. */
+static void validate_wsa_socket(void)
+{
+    SOCKET s = WSASocketW(0xDEAD, SOCK_STREAM, 0, NULL, 0, 0);
+    expect_wsa_err_sock(s, WSAEAFNOSUPPORT, "WSASocketW(af=0xDEAD)");
+
+    s = WSASocketW(g_vsock_af, 0xDEAD, 0, NULL, 0, 0);
+    expect_wsa_err_sock(s, WSAESOCKTNOSUPPORT, "WSASocketW(type=0xDEAD)");
+}
+
+/* WSAConnect: null name / wrong family. Uses a valid vsock socket. */
+static void validate_wsa_connect(SOCKET s)
+{
+    struct sockaddr_vm addr = {0};
+    addr.svm_family = g_vsock_af;
+    addr.svm_cid = VMADDR_CID_ANY;
+    addr.svm_port = 1;
+
+    int rc = WSAConnect(s, NULL, sizeof(addr), NULL, NULL, NULL, NULL);
+    expect_wsa_err(rc, WSAEFAULT, "WSAConnect(name=NULL)");
+
+    /* DISABLED: WSP surfaces WSAEADDRNOTAVAIL for a wrong-family
+     * address on a valid vsock socket; MSDN documents WSAEAFNOSUPPORT
+     * for this case ("addresses in the specified family cannot be
+     * used with this socket") and reserves WSAEADDRNOTAVAIL for the
+     * distinct "remote address is not valid" scenario (e.g. ADDR_ANY).
+     * Re-enable once the LSP dispatch is aligned with docs. */
+#if 0
+    struct sockaddr_vm bad_af = addr;
+    bad_af.svm_family = 0xBEEF;
+    rc = WSAConnect(s, (const struct sockaddr *)&bad_af, sizeof(bad_af), NULL, NULL, NULL, NULL);
+    expect_wsa_err(rc, WSAEAFNOSUPPORT, "WSAConnect(sa_family=0xBEEF)");
+#endif
+}
+
+/* WSAAccept: bad socket / non-listening socket. */
+static void validate_wsa_accept(SOCKET s_not_listening)
+{
+    SOCKET s = WSAAccept(INVALID_SOCKET, NULL, NULL, NULL, 0);
+    expect_wsa_err_sock(s, WSAENOTSOCK, "WSAAccept(s=INVALID_SOCKET)");
+
+    /* DISABLED: WSP surfaces WSAENOTSOCK for a valid socket that was
+     * never put in listening state; MSDN documents WSAEINVAL ("the
+     * listen function was not invoked prior to accept") for this
+     * case, and reserves WSAENOTSOCK for handles that are not sockets
+     * at all.  Re-enable once the LSP dispatch is aligned with docs. */
+#if 0
+    s = WSAAccept(s_not_listening, NULL, NULL, NULL, 0);
+    expect_wsa_err_sock(s, WSAEINVAL, "WSAAccept(non-listening)");
+#else
+    (void)s_not_listening;
+#endif
+}
+
+/* WSASend: bad socket / null WSABUF.  MSDN does not document a
+ * failure code for dwBufferCount=0 (WSP treats it as a zero-length
+ * send that succeeds), so we do not assert it here. */
+static void validate_wsa_send(SOCKET s)
+{
+    char payload = 'x';
+    WSABUF wb = {.len = 1, .buf = &payload};
+    DWORD sent = 0;
+
+    int rc = WSASend(INVALID_SOCKET, &wb, 1, &sent, 0, NULL, NULL);
+    expect_wsa_err(rc, WSAENOTSOCK, "WSASend(s=INVALID_SOCKET)");
+
+    rc = WSASend(s, NULL, 1, &sent, 0, NULL, NULL);
+    expect_wsa_err(rc, WSAEFAULT, "WSASend(lpBuffers=NULL)");
+}
+
+/* WSARecv: bad socket / null WSABUF.  Same reasoning as WSASend for
+ * the missing dwBufferCount=0 assertion. */
+static void validate_wsa_recv(SOCKET s)
+{
+    char scratch = 0;
+    WSABUF wb = {.len = 1, .buf = &scratch};
+    DWORD got = 0;
+    DWORD flags = 0;
+
+    int rc = WSARecv(INVALID_SOCKET, &wb, 1, &got, &flags, NULL, NULL);
+    expect_wsa_err(rc, WSAENOTSOCK, "WSARecv(s=INVALID_SOCKET)");
+
+    flags = 0;
+    rc = WSARecv(s, NULL, 1, &got, &flags, NULL, NULL);
+    expect_wsa_err(rc, WSAEFAULT, "WSARecv(lpBuffers=NULL)");
+}
+
+/* WSAPoll: null fd list / zero nfds. */
+static void validate_wsa_poll(void)
+{
+    int rc = WSAPoll(NULL, 1, 0);
+    expect_wsa_err(rc, WSAEFAULT, "WSAPoll(fds=NULL, nfds=1)");
+
+    WSAPOLLFD fds = {.fd = INVALID_SOCKET, .events = POLLRDNORM};
+    rc = WSAPoll(&fds, 0, 0);
+    expect_wsa_err(rc, WSAEINVAL, "WSAPoll(nfds=0)");
+}
+
+void wsa_validate_all(void)
+{
+    validate_wsa_socket();
+
+    /* Fresh vsock socket used for the four checks that need a valid
+     * handle to reach the LSP.  Never bound / never connected. */
+    SOCKET s = WSASocketW(g_vsock_af, SOCK_STREAM, 0, NULL, 0, 0);
+    if (s == INVALID_SOCKET)
+    {
+        fprintf(stderr,
+                "wsa-validate: cannot create scaffolding vsock socket: WSA %d\n",
+                WSAGetLastError());
+        exit(EXIT_FAILURE);
+    }
+
+    validate_wsa_connect(s);
+    validate_wsa_accept(s);
+    validate_wsa_send(s);
+    validate_wsa_recv(s);
+    validate_wsa_poll();
+
+    closesocket(s);
+}

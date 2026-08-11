@@ -112,6 +112,7 @@
     <ClCompile Include="control.c" />
     <ClCompile Include="compat.c" />
     <ClCompile Include="wsa.c" />
+    <ClCompile Include="wsa_validate.c" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
