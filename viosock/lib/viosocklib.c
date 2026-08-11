@@ -978,7 +978,11 @@ int WSPAPI VIOSockRecv(_In_ SOCKET s,
 
     if (lpFlags)
     {
-        dwFlags = *lpFlags;
+        // MSG_PUSH_IMMEDIATE only asks the transport not to hold a partially
+        // filled receive back; it is documented as a hint rather than a
+        // guarantee, so take it and drop it instead of failing the call
+        dwFlags = *lpFlags & ~MSG_PUSH_IMMEDIATE;
+
         if (dwFlags & ~(MSG_PEEK | MSG_WAITALL))
         {
             TraceEvents(TRACE_LEVEL_INFORMATION,
@@ -988,10 +992,12 @@ int WSPAPI VIOSockRecv(_In_ SOCKET s,
             return WSP_ERROR(WSAEOPNOTSUPP);
         }
 
+        // MSG_WAITALL combined with anything else is documented to fail with
+        // WSAEOPNOTSUPP, not WSAEINVAL
         if (dwFlags & MSG_WAITALL && dwFlags & ~MSG_WAITALL)
         {
             TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Incompatible flag(s): %x\n", dwFlags);
-            return WSP_ERROR(WSAEINVAL);
+            return WSP_ERROR(WSAEOPNOTSUPP);
         }
     }
 
