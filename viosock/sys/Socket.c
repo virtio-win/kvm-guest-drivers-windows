@@ -929,13 +929,9 @@ static NTSTATUS VIOSockAccept(IN HANDLE hListenSocket, IN WDFREQUEST Request)
     {
         PSOCKET_CONTEXT pListenSocket = VIOSockBoundFindByFileLocked(pContext, pFileObj);
 
-        if (!pListenSocket)
+        if (!pListenSocket || VIOSockStateGet(pListenSocket) != VIOSOCK_STATE_LISTEN)
         {
-            TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Listen socket not found\n");
-            status = STATUS_NOT_SOCKET;
-        }
-        else if (VIOSockStateGet(pListenSocket) != VIOSOCK_STATE_LISTEN)
-        {
+            TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Socket is not listening\n");
             status = STATUS_INVALID_PARAMETER;
         }
         else
