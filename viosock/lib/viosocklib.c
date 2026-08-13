@@ -362,6 +362,12 @@ int WSPAPI VIOSockConnect(_In_ SOCKET s,
         return WSP_ERROR(WSAEFAULT);
     }
 
+    if (name->sa_family != g_ProtocolInfo.iAddressFamily)
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Invalid sa_family: %hu\n", name->sa_family);
+        return WSP_ERROR(WSAEAFNOSUPPORT);
+    }
+
     if (!VIOSockDeviceControl(s, IOCTL_SOCKET_CONNECT, (PVOID)name, (DWORD)namelen, NULL, 0, NULL, lpErrno))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
