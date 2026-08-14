@@ -90,18 +90,10 @@ static void validate_wsa_connect(SOCKET s)
     int rc = WSAConnect(s, NULL, sizeof(addr), NULL, NULL, NULL, NULL);
     expect_wsa_err(rc, WSAEFAULT, "WSAConnect(name=NULL)");
 
-    /* DISABLED: WSP surfaces WSAEADDRNOTAVAIL for a wrong-family
-     * address on a valid vsock socket; MSDN documents WSAEAFNOSUPPORT
-     * for this case ("addresses in the specified family cannot be
-     * used with this socket") and reserves WSAEADDRNOTAVAIL for the
-     * distinct "remote address is not valid" scenario (e.g. ADDR_ANY).
-     * Re-enable once the LSP dispatch is aligned with docs. */
-#if 0
     struct sockaddr_vm bad_af = addr;
     bad_af.svm_family = 0xBEEF;
     rc = WSAConnect(s, (const struct sockaddr *)&bad_af, sizeof(bad_af), NULL, NULL, NULL, NULL);
     expect_wsa_err(rc, WSAEAFNOSUPPORT, "WSAConnect(sa_family=0xBEEF)");
-#endif
 }
 
 /* WSAAccept: bad socket / non-listening socket. */
@@ -110,17 +102,8 @@ static void validate_wsa_accept(SOCKET s_not_listening)
     SOCKET s = WSAAccept(INVALID_SOCKET, NULL, NULL, NULL, 0);
     expect_wsa_err_sock(s, WSAENOTSOCK, "WSAAccept(s=INVALID_SOCKET)");
 
-    /* DISABLED: WSP surfaces WSAENOTSOCK for a valid socket that was
-     * never put in listening state; MSDN documents WSAEINVAL ("the
-     * listen function was not invoked prior to accept") for this
-     * case, and reserves WSAENOTSOCK for handles that are not sockets
-     * at all.  Re-enable once the LSP dispatch is aligned with docs. */
-#if 0
     s = WSAAccept(s_not_listening, NULL, NULL, NULL, 0);
     expect_wsa_err_sock(s, WSAEINVAL, "WSAAccept(non-listening)");
-#else
-    (void)s_not_listening;
-#endif
 }
 
 /* WSASend: bad socket / null WSABUF.  MSDN does not document a
