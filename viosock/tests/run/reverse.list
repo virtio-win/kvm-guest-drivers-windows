@@ -23,7 +23,6 @@
 # 7  posix  SOCK_SEQPACKET MSG_TRUNC flag                   — disabled: run_client/run_server = NULL (needs SEQPACKET + recvmsg)
 # 8  posix  SOCK_SEQPACKET timeout                          — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
 # 9  posix  SOCK_SEQPACKET invalid receive buffer           — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
-10   posix  SOCK_STREAM poll() + SO_RCVLOWAT
 10   wsa    SOCK_STREAM poll() + SO_RCVLOWAT
 # 11 posix  SOCK_SEQPACKET big message                      — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
 12   posix  SOCK_STREAM test invalid buffer

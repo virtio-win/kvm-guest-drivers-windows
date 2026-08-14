@@ -160,95 +160,21 @@ static int wsa_close(int fd)
 }
 
 /*
- * poll() in the wsa variant maps to native select().  Berkeley select
- * uses fd_set and timeval; we translate the pollfd events/revents
- * bitmask on both edges.
- *
- * POLLIN/POLLRDNORM go to readfds; POLLOUT/POLLWRNORM go to writefds;
- * exceptfds always carries every fd to surface OOB / error state as
- * revents |= POLLERR/POLLHUP once select returns.
+ * poll() in the wsa variant maps directly to WSAPoll.  util.c's
+ * vsock_wait_remote_close already calls WSAPoll directly, so a
+ * separate wait code path in wsa (an fd_set/select emulation) would
+ * only diverge test coverage without exercising anything new inside
+ * the WSP surface.
  */
 static int wsa_poll(WSAPOLLFD *fds, ULONG nfds, INT timeout)
 {
-    fd_set rfds, wfds, efds;
-    FD_ZERO(&rfds);
-    FD_ZERO(&wfds);
-    FD_ZERO(&efds);
-
-    for (ULONG i = 0; i < nfds; ++i)
-    {
-        fds[i].revents = 0;
-        if (fds[i].fd == INVALID_SOCKET)
-        {
-            continue;
-        }
-        if (fds[i].events & (POLLRDNORM | POLLRDBAND))
-        {
-            FD_SET((SOCKET)fds[i].fd, &rfds);
-        }
-        if (fds[i].events & (POLLWRNORM | POLLWRBAND))
-        {
-            FD_SET((SOCKET)fds[i].fd, &wfds);
-        }
-        FD_SET((SOCKET)fds[i].fd, &efds);
-    }
-
-    struct timeval tv;
-    struct timeval *ptv;
-    if (timeout < 0)
-    {
-        ptv = NULL;
-    }
-    else
-    {
-        tv.tv_sec = timeout / 1000;
-        tv.tv_usec = (timeout % 1000) * 1000;
-        ptv = &tv;
-    }
-
-    int rc = select(0, &rfds, &wfds, &efds, ptv);
+    int rc = WSAPoll(fds, nfds, timeout);
     if (rc == SOCKET_ERROR)
     {
         wsa_set_errno();
         return -1;
     }
-    if (rc == 0)
-    {
-        return 0;
-    }
-
-    int ready = 0;
-    for (ULONG i = 0; i < nfds; ++i)
-    {
-        if (fds[i].fd == INVALID_SOCKET)
-        {
-            continue;
-        }
-        SHORT re = 0;
-        if (FD_ISSET((SOCKET)fds[i].fd, &rfds))
-        {
-            re |= POLLRDNORM;
-        }
-        if (FD_ISSET((SOCKET)fds[i].fd, &wfds))
-        {
-            re |= POLLWRNORM;
-        }
-        if (FD_ISSET((SOCKET)fds[i].fd, &efds))
-        {
-            /* select() puts a stream socket into exceptfds only for OOB
-             * data or a failed non-blocking connect().  WSAPoll would
-             * additionally raise POLLHUP for a peer-close, but that
-             * arrives here as a POLLRDNORM+recv=0 sequence, which the
-             * tests already handle. */
-            re |= POLLRDBAND;
-        }
-        fds[i].revents = re;
-        if (re)
-        {
-            ++ready;
-        }
-    }
-    return ready;
+    return rc;
 }
 
 const struct sock_ops ops_wsa = {
