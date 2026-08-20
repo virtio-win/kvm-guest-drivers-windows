@@ -1043,6 +1043,19 @@ pRxNetDescriptor CParaNdisRX::ProcessMergedBuffers(pRxNetDescriptor pFirstBuffer
         return pFirstBuffer;
     }
 
+    // num_buffers comes from the device - supplied header — not trustworthy.
+    // Merge context arrays are fixed at VIRTIO_NET_MAX_MRG_BUFS (17) entries.
+    if (numBuffers == 0 || numBuffers > VIRTIO_NET_MAX_MRG_BUFS)
+    {
+        DPrintf(0,
+                "ERROR: num_buffers=%u is out of the valid range [1,%u] - VirtIO protocol violation, dropping packet",
+                numBuffers,
+                VIRTIO_NET_MAX_MRG_BUFS);
+        m_Context->Statistics.ifInErrors++;
+        m_Context->Statistics.ifInDiscards++;
+        ReuseReceiveBufferNoLock(pFirstBuffer);
+        return NULL;
+    }
     // Multi-buffer packet: collect and assemble
     // Initialize merge context with first buffer
     m_MergeContext.BufferSequence[0] = pFirstBuffer;
