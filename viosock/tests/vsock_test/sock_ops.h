@@ -51,12 +51,22 @@ extern const struct sock_ops *g_ops;
 int sock_ops_select(const char *variant);
 
 /*
- * Negative-path smoke check for the wsa surface: dial the six wsa
- * functions that reach the LSP/driver with documented-invalid inputs
- * once each, assert the error code matches what the Winsock docs
- * promise.  Called from sock_ops_select("wsa") before any test runs
- * so a regression in error mapping fails the binary early.
+ * Negative-path smoke checks per variant.  Each variant tests a
+ * different slice of the surface; total coverage is the union of
+ * whatever the caller runs.  Both are fail-fast: on mismatch the
+ * binary exits(EXIT_FAILURE) with a single diagnostic line so a
+ * regression in the LSP/driver surfaces before any test body runs.
+ *
+ *  posix_validate_all - Winsock/LSP semantic reachable from the
+ *      POSIX shim path: GetFileType, _open_osfhandle, unbound
+ *      getsockname, short-buffer SO_PROTOCOL_INFOW.  Called from
+ *      sock_ops_select("posix").
+ *
+ *  wsa_validate_all   - documented-invalid inputs to the six
+ *      variant-selectable WSA functions.  Called from
+ *      sock_ops_select("wsa").
  */
+void posix_validate_all(void);
 void wsa_validate_all(void);
 
 #endif /* SOCK_OPS_H */
