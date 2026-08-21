@@ -241,6 +241,7 @@ int sock_ops_select(const char *variant)
     if (variant == NULL || strcmp(variant, "posix") == 0)
     {
         g_ops = &ops_posix;
+        posix_validate_all();
         return 0;
     }
     if (strcmp(variant, "wsa") == 0)
