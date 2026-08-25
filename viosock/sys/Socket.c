@@ -1988,18 +1988,29 @@ static NTSTATUS VIOSockGetPeerName(IN WDFREQUEST Request, OUT size_t *pLength)
     // minimum length guaranteed by WdfRequestRetrieveInputBuffer above
     _Analysis_assume_(stAddrLen >= sizeof(*pAddr));
 
-    if (VIOSockStateGet(pSocket) == VIOSOCK_STATE_CONNECTED)
+    switch (VIOSockStateGet(pSocket))
     {
-        RtlZeroBytes(pAddr, sizeof(*pAddr));
-        pAddr->svm_family = AF_VSOCK;
-        pAddr->svm_cid = pSocket->dst_cid;
-        pAddr->svm_port = pSocket->dst_port;
-        *pLength = sizeof(*pAddr);
-        status = STATUS_SUCCESS;
-    }
-    else
-    {
-        status = STATUS_INVALID_DEVICE_STATE;
+        case VIOSOCK_STATE_CONNECTED:
+        case VIOSOCK_STATE_CLOSING:
+        case VIOSOCK_STATE_CLOSE:
+            // Keep answering after the connection went down: WSPAccept
+            // fetches the peer name right after accepting, and the peer may
+            // legally have closed/reset by then (deterministically so on
+            // loopback). A never-connected socket keeps
+            // dst_port == VMADDR_PORT_ANY and still fails below.
+            if (pSocket->dst_port != VMADDR_PORT_ANY)
+            {
+                RtlZeroBytes(pAddr, sizeof(*pAddr));
+                pAddr->svm_family = AF_VSOCK;
+                pAddr->svm_cid = pSocket->dst_cid;
+                pAddr->svm_port = pSocket->dst_port;
+                *pLength = sizeof(*pAddr);
+                status = STATUS_SUCCESS;
+                break;
+            }
+            __fallthrough;
+        default:
+            status = STATUS_INVALID_DEVICE_STATE;
     }
 
     return status;
