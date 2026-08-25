@@ -69,6 +69,7 @@ typedef struct _VIOSOCK_TX_CONTEXT
     // cannot hit zero while the request is framework-owned. Whoever
     // decrements to zero completes the request.
     LONG RefCounter;
+    BOOLEAN ZeroCopy; // snapshot at forward: MSG_ZEROCOPY in the SEND_EX params on a non-loopback socket
     ULONG BufferLen;
     ULONG BytesToWrite;
     PVOID ToWritePtr;
@@ -643,6 +644,14 @@ VOID VIOSockTxFreeEntry(PVIOSOCK_TX_ENTRY pTxEntry)
     WdfObjectDelete(pTxEntry->Memory);
 }
 
+// Note: the request handle must come from the caller — the context's
+// ThisRequest union arm is valid only inside the timer scan.
+static __inline VOID VIOSockTxEntrySetRequest(PVIOSOCK_TX_ENTRY pTxEntry, IN WDFREQUEST Request)
+{
+    pTxEntry->Request = Request;
+    InterlockedIncrement(&GetRequestTxContext(Request)->RefCounter);
+}
+
 // Append a fully initialized entry to the global TxList. Returns TRUE when
 // the caller should kick TxVq processing (a future fast path may kick itself
 // and return FALSE).
@@ -729,10 +738,100 @@ static NTSTATUS VIOSockWriteCopySg(IN PVIOSOCK_TX_CONTEXT pRequest, IN PVIOSOCK_
     return STATUS_SUCCESS;
 }
 
-static __inline NTSTATUS VIOSockWriteCopy(IN PVIOSOCK_TX_CONTEXT pRequest, IN PVIOSOCK_TX_ENTRY pTxEntry, IN ULONG uLen)
+// Zero-copy "copy": no data moves — the entry SgList is filled with the
+// physical pages of the request MDL chain at the cursor. The chunk may
+// legally come out SHORT: a scattered chain can exhaust the SG slots before
+// uLen bytes are placed. *puLen returns the bytes actually placed; the caller
+// gives the credit for the remainder back. Contiguous spans are merged.
+static NTSTATUS VIOSockWriteCopyZeroCopy(IN PVIOSOCK_TX_CONTEXT pRequest,
+                                         IN PVIOSOCK_TX_ENTRY pTxEntry,
+                                         IN OUT PULONG puLen)
 {
-    return pRequest->CurrentMdl ? VIOSockWriteCopySg(pRequest, pTxEntry, uLen)
-                                : VIOSockWriteCopyFlat(pRequest, pTxEntry, uLen);
+    ULONG uLen = *puLen;
+    ULONG uPlaced = 0;
+
+    ASSERT(pRequest->CurrentMdl);
+    if (!pRequest->CurrentMdl)
+    {
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    while (uLen)
+    {
+        PPFN_NUMBER pPfn;
+        PHYSICAL_ADDRESS Pa;
+        ULONG uMdlOffset, uPageOffset, cb;
+
+        if (!pRequest->MdlBytesToWrite)
+        {
+            // current MDL drained, switch the cursor to the next one
+            PMDL pNextMdl = pRequest->CurrentMdl->Next;
+
+            ASSERT(pNextMdl); // BytesToWrite != 0 means the chain has more data
+            if (!pNextMdl)
+            {
+                return STATUS_INTERNAL_ERROR;
+            }
+
+            pRequest->CurrentMdl = pNextMdl;
+            pRequest->MdlBytesToWrite = MmGetMdlByteCount(pNextMdl);
+        }
+
+        // Position within the current MDL: the PFN array is indexed from the
+        // page containing the MDL start (ByteOffset within that page).
+        uMdlOffset = MmGetMdlByteOffset(pRequest->CurrentMdl) +
+                     (MmGetMdlByteCount(pRequest->CurrentMdl) - pRequest->MdlBytesToWrite);
+        pPfn = MmGetMdlPfnArray(pRequest->CurrentMdl);
+        uPageOffset = uMdlOffset & (PAGE_SIZE - 1);
+
+        cb = min(uLen, min(pRequest->MdlBytesToWrite, PAGE_SIZE - uPageOffset));
+
+        Pa.QuadPart = ((ULONGLONG)pPfn[uMdlOffset >> PAGE_SHIFT] << PAGE_SHIFT) + uPageOffset;
+
+        if (pTxEntry->SgCount &&
+            pTxEntry->BufferDesc.SgList[pTxEntry->SgCount - 1].physAddr.QuadPart + pTxEntry->BufferDesc.SgList[pTxEntry->SgCount - 1].length ==
+                                                                                                                (ULONGLONG)Pa.QuadPart)
+        {
+            // physically contiguous with the previous span — extend it
+            pTxEntry->BufferDesc.SgList[pTxEntry->SgCount - 1].length += cb;
+        }
+        else if (pTxEntry->SgCount < VIOSOCK_TX_SG_MAX_ELEMENTS)
+        {
+            pTxEntry->BufferDesc.SgList[pTxEntry->SgCount].physAddr = Pa;
+            pTxEntry->BufferDesc.SgList[pTxEntry->SgCount].length = cb;
+            ++pTxEntry->SgCount;
+        }
+        else
+        {
+            // out of SG slots — close the chunk short, the caller returns the
+            // credit for the unplaced remainder
+            break;
+        }
+
+        pRequest->MdlBytesToWrite -= cb;
+        uLen -= cb;
+        uPlaced += cb;
+    }
+
+    // At least the first span always fits: the entry arrives with an empty SgList
+    ASSERT(uPlaced);
+
+    *puLen = uPlaced;
+    return STATUS_SUCCESS;
+}
+
+static __inline NTSTATUS VIOSockWriteCopy(IN PVIOSOCK_TX_CONTEXT pRequest,
+                                          IN PVIOSOCK_TX_ENTRY pTxEntry,
+                                          IN OUT PULONG puLen)
+{
+    if (pRequest->ZeroCopy)
+    {
+        return VIOSockWriteCopyZeroCopy(pRequest, pTxEntry, puLen);
+    }
+
+    // The copying variants never shorten the chunk
+    return pRequest->CurrentMdl ? VIOSockWriteCopySg(pRequest, pTxEntry, *puLen)
+                                : VIOSockWriteCopyFlat(pRequest, pTxEntry, *puLen);
 }
 
 // One bite of the slicer: re-validate the socket (it may have died while the
@@ -749,7 +848,7 @@ static NTSTATUS VIOSockWriteEnqueueRequest(IN PSOCKET_CONTEXT pSocket, IN WDFREQ
     PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pSocket);
     PVIOSOCK_TX_CONTEXT pRequest = GetRequestTxContext(Request);
     PVIOSOCK_TX_ENTRY pTxEntry = NULL;
-    ULONG uLen;
+    ULONG uLen, uPlaced;
     NTSTATUS status;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
@@ -785,7 +884,8 @@ static NTSTATUS VIOSockWriteEnqueueRequest(IN PSOCKET_CONTEXT pSocket, IN WDFREQ
         return STATUS_CANT_WAIT;
     }
 
-    pTxEntry = VIOSockTxAllocateEntry(pContext, pSocket, uLen);
+    // a zero-copy entry needs no skb buffer: its SgList points at the request pages
+    pTxEntry = VIOSockTxAllocateEntry(pContext, pSocket, pRequest->ZeroCopy ? 0 : uLen);
     if (!pTxEntry)
     {
         VIOSockTxPutCredit(pSocket, uLen);
@@ -796,7 +896,8 @@ static NTSTATUS VIOSockWriteEnqueueRequest(IN PSOCKET_CONTEXT pSocket, IN WDFREQ
     pTxEntry->reply = FALSE;
     pTxEntry->flags = 0;
 
-    status = VIOSockWriteCopy(pRequest, pTxEntry, uLen);
+    uPlaced = uLen;
+    status = VIOSockWriteCopy(pRequest, pTxEntry, &uPlaced);
     if (!NT_SUCCESS(status))
     {
         VIOSockTxFreeEntry(pTxEntry);
@@ -804,7 +905,20 @@ static NTSTATUS VIOSockWriteEnqueueRequest(IN PSOCKET_CONTEXT pSocket, IN WDFREQ
         return status;
     }
 
-    pRequest->BytesToWrite -= uLen;
+    if (uPlaced < uLen)
+    {
+        // zero-copy chunk closed short on SG capacity — return the extra credit
+        VIOSockTxPutCredit(pSocket, uLen - uPlaced);
+    }
+    pTxEntry->len = uPlaced;
+
+    if (pRequest->ZeroCopy)
+    {
+        // the chunk references the request pages — hold the request until consumed
+        VIOSockTxEntrySetRequest(pTxEntry, Request);
+    }
+
+    pRequest->BytesToWrite -= uPlaced;
 
     if (VIOSockTxInsertEntry(pContext, pTxEntry))
     {
@@ -1005,6 +1119,22 @@ _Requires_lock_not_held_(pSocket->TxLock) static NTSTATUS VIOSockWriteForward(IN
         return STATUS_NOT_SOCKET;
     }
 
+    if (Flags & MSG_ZEROCOPY)
+    {
+        // Refuse zero-copy on a non-blocking socket rather than silently
+        // degrade to a copy: the completion inherently waits for host
+        // consumption and the flag is an explicit no-copy contract.
+        // Deliberately stricter than Linux (there it is a best-effort hint).
+        if (VIOSockIsNonBlocking(pSocket))
+        {
+            TraceEvents(TRACE_LEVEL_WARNING,
+                        DBG_WRITE,
+                        "Zero-copy send on non-blocking socket %d refused",
+                        pSocket->SocketId);
+            return STATUS_CANT_WAIT;
+        }
+    }
+
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, VIOSOCK_TX_CONTEXT);
     status = WdfObjectAllocateContext(Request, &attributes, &pRequest);
     if (!NT_SUCCESS(status))
@@ -1013,14 +1143,23 @@ _Requires_lock_not_held_(pSocket->TxLock) static NTSTATUS VIOSockWriteForward(IN
         return status;
     }
 
+    pRequest->ZeroCopy = FALSE;
     pSgCtx = GetRequestSgContext(Request);
     if (pSgCtx)
     {
-        pRequest->ToWritePtr = VIOSockSgMapMdl(pSgCtx->MdlChain);
-        if (!pRequest->ToWritePtr)
+        // Loopback silently degrades to the copy path — delivery there is a
+        // synchronous copy anyway, pinning pages would buy nothing.
+        pRequest->ZeroCopy = (Flags & MSG_ZEROCOPY) && !IsLoopbackSocket(pSocket);
+
+        if (!pRequest->ZeroCopy)
         {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "Failed to map the first Mdl\n");
-            return STATUS_INSUFFICIENT_RESOURCES;
+            // only the copying path needs a system mapping
+            pRequest->ToWritePtr = VIOSockSgMapMdl(pSgCtx->MdlChain);
+            if (!pRequest->ToWritePtr)
+            {
+                TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "Failed to map the first Mdl\n");
+                return STATUS_INSUFFICIENT_RESOURCES;
+            }
         }
         pRequest->CurrentMdl = pSgCtx->MdlChain;
         pRequest->MdlBytesToWrite = MmGetMdlByteCount(pSgCtx->MdlChain);

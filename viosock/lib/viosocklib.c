@@ -1291,10 +1291,11 @@ int WSPAPI VIOSockSend(_In_ SOCKET s,
     }
 
     // MSG_DONTROUTE is documented as ignorable by the provider (vsock has no
-    // routing) — take it and drop it. The rest (MSG_OOB, MSG_PARTIAL) is
-    // unsupported on a vsock stream, matching Linux.
+    // routing) — take it and drop it. MSG_ZEROCOPY (our extension, see
+    // vio_sockets.h) rides to the driver in the SEND_EX params. The rest
+    // (MSG_OOB, MSG_PARTIAL) is unsupported on a vsock stream, matching Linux.
     dwFlags &= ~(DWORD)MSG_DONTROUTE;
-    if (dwFlags)
+    if (dwFlags & ~(DWORD)MSG_ZEROCOPY)
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Unsupported flag(s): %x\n", dwFlags);
         return WSP_ERROR(WSAEOPNOTSUPP);
@@ -1310,8 +1311,10 @@ int WSPAPI VIOSockSend(_In_ SOCKET s,
 
     // Method routing by request shape, mirroring recv: a small single buffer
     // goes through the buffered IOCTL_SOCKET_SEND, everything larger or
-    // gathered through IOCTL_SOCKET_SEND_EX.
-    if (dwBufferCount > 1 || lpBuffers[0].len > VIOSOCK_SMALL_SEND_THRESHOLD)
+    // gathered through IOCTL_SOCKET_SEND_EX. MSG_ZEROCOPY forces SEND_EX —
+    // only its params block can carry the flag (the buffered path is a bare
+    // payload).
+    if (dwBufferCount > 1 || lpBuffers[0].len > VIOSOCK_SMALL_SEND_THRESHOLD || (dwFlags & MSG_ZEROCOPY))
     {
         return VIOSockSendRecvEx(s,
                                  IOCTL_SOCKET_SEND_EX,
