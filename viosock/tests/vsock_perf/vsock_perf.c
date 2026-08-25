@@ -10,8 +10,10 @@
  *   - AF_VSOCK is not a fixed constant; it is obtained at runtime via
  *     ViosockGetAF() and stored in g_vsock_af. The same value is used as the
  *     option level for the SO_VM_SOCKETS_* buffer options.
- *   - MSG_ZEROCOPY is not supported by the Windows viosock driver, so the
- *     --zerocopy sender path is omitted.
+ *   - --zerocopy maps to the Windows viosock MSG_ZEROCOPY semantics: the flag
+ *     rides on every send() and the call completes when the host has consumed
+ *     the pinned pages (no SO_ZEROCOPY setsockopt, no MSG_ERRQUEUE completion
+ *     reaping as on Linux).
  *   - Monotonic timing uses current_nsec() from compat.h (QueryPerformanceCounter).
  */
 
@@ -31,6 +33,7 @@ static unsigned int port = DEFAULT_PORT;
  * 4G or more would silently wrap to 0. Use 'unsigned long long' everywhere a byte
  * count is stored or returned. */
 static unsigned long long buf_size_bytes = DEFAULT_BUF_SIZE_BYTES;
+static bool msg_zerocopy = false;
 static unsigned long long vsock_buf_bytes = DEFAULT_VSOCK_BUF_BYTES;
 
 static void error(const char *s)
@@ -278,6 +281,10 @@ static void run_sender(int peer_cid, unsigned long long to_send_bytes)
     printf("Connect to %i:%u\n", peer_cid, port);
     printf("Send %llu bytes\n", to_send_bytes);
     printf("TX buffer %llu bytes\n", buf_size_bytes);
+    if (msg_zerocopy)
+    {
+        printf("Zero-copy send (MSG_ZEROCOPY)\n");
+    }
 
     fd = vsock_connect(peer_cid, port);
 
@@ -308,7 +315,10 @@ static void run_sender(int peer_cid, unsigned long long to_send_bytes)
         rest_bytes = to_send_bytes - total_send;
 
         before = current_nsec();
-        sent = send(fd, data, (rest_bytes > buf_size_bytes) ? buf_size_bytes : rest_bytes, 0);
+        sent = send(fd,
+                    data,
+                    (rest_bytes > buf_size_bytes) ? buf_size_bytes : rest_bytes,
+                    msg_zerocopy ? MSG_ZEROCOPY : 0);
         time_in_send += (current_nsec() - before);
 
         if (sent <= 0)
@@ -547,7 +557,10 @@ static const struct
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         .has_arg = required_argument,
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         .val = 'R',
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     },
-    { .name = "no-poll", .has_arg = no_argument, .val = 'N' },
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    {.name = "no-poll",
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     .has_arg = no_argument,
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     .val = 'N'},
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    {.name = "zerocopy", .has_arg = no_argument, .val = 'Z'},
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     {0},
 };
 
@@ -575,6 +588,10 @@ static void usage(void)
            "                         driver builds that don't implement\n"
            "                         WSAPoll on accept()ed vsock sockets\n"
            "                         (upstream master today).\n"
+           "  --zerocopy             Sender: pass MSG_ZEROCOPY to every send().\n"
+           "                         Windows viosock semantics: the pages are\n"
+           "                         pinned and the call completes when the\n"
+           "                         host has consumed them (no MSG_ERRQUEUE).\n"
            "\n",
            DEFAULT_PORT,
            DEFAULT_TO_SEND_BYTES,
@@ -647,6 +664,9 @@ int main(int argc, char **argv)
                 break;
             case 'N': /* Skip WSAPoll in the receiver (drivers without it). */
                 use_poll = false;
+                break;
+            case 'Z': /* Sender: MSG_ZEROCOPY on every send. */
+                msg_zerocopy = true;
                 break;
             default:
                 usage();
