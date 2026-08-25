@@ -59,6 +59,12 @@
 #define IOCTL_SOCKET_SET_SOCK_OPT     DEFINE_SOCKET_IOCTL(11)
 #define IOCTL_SOCKET_IOCTL            DEFINE_SOCKET_IOCTL(12)
 #define IOCTL_SOCKET_RECV_EX          DEFINE_SOCKET_IOCTL(13)
+// METHOD_BUFFERED: the small-send path, mirror of IOCTL_SOCKET_RECV. The
+// input buffer is the bare payload, no parameter block (the lib resolves all
+// send flags itself); the sent byte count returns via IRP.Information. Large
+// or gathered sends go through IOCTL_SOCKET_SEND_EX (locked MDL chain).
+#define IOCTL_SOCKET_SEND             CTL_CODE(FILE_DEVICE_SOCKET, 0x800 | (14), METHOD_BUFFERED, FILE_WRITE_ACCESS)
+#define IOCTL_SOCKET_SEND_EX          DEFINE_SOCKET_IOCTL(15)
 
 /*VSOCK address family value*/
 #ifndef AF_VSOCK

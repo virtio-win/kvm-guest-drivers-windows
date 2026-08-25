@@ -1002,7 +1002,8 @@ static NTSTATUS VIOSockCreate(IN WDFDEVICE WdfDevice, IN WDFREQUEST Request, IN 
     }
 
     pSocket = GetSocketContext(FileObject);
-    pSocket->DequeueInProgress = 0;
+    pSocket->ReadDequeueInProgress = 0;
+    pSocket->WriteEnqueueInProgress = 0;
     pSocket->ThisSocket = FileObject;
     pSocket->SocketId = InterlockedIncrement(&pContext->SocketId);
 
@@ -1071,6 +1072,20 @@ static NTSTATUS VIOSockCreate(IN WDFDEVICE WdfDevice, IN WDFREQUEST Request, IN 
             InitializeListHead(&pSocket->RxCbList);
             pSocket->RxBytes = 0;
             pSocket->RcvLowat = 1; // SO_RCVLOWAT default: any byte makes the socket readable
+
+            WDF_OBJECT_ATTRIBUTES_INIT(&Attributes);
+            Attributes.ParentObject = FileObject;
+            status = WdfSpinLockCreate(&Attributes, &pSocket->TxLock);
+            if (!NT_SUCCESS(status))
+            {
+                TraceEvents(TRACE_LEVEL_ERROR, DBG_CREATE_CLOSE, "WdfSpinLockCreate failed (TxLock) - 0x%x\n", status);
+                return status;
+            }
+            status = VIOSockWriteSocketQueueInit(pSocket);
+            if (!NT_SUCCESS(status))
+            {
+                return status;
+            }
 
             status = VIOSockTimerCreate(&pSocket->PendedTimer, FileObject, VIOSockPendedTimerFunc);
             if (!NT_SUCCESS(status))
@@ -1248,7 +1263,11 @@ VOID VIOSockCleanup(IN WDFFILEOBJECT FileObject)
     }
     else
     {
-        VIOSockTxCleanup(GetDeviceContextFromSocket(pSocket), pSocket->ThisSocket, STATUS_CONNECTION_DISCONNECTED);
+        // Whatever reached the TxList is considered sent and drains on its
+        // own; only the parked WriteQueue needs attention — the pump's
+        // per-bite validation sees the CLOSE state and completes each request.
+        VIOSockWriteProcessQueue(pSocket);
+        VIOSockReadProcessQueue(pSocket);
         VIOSockReadCleanupCb(pSocket);
     }
 
@@ -1504,10 +1523,12 @@ _Requires_lock_not_held_(pSocket->StateLock) BOOLEAN VIOSockShutdownFromPeer(PSO
         }
     }
 
-    //     if (uDrain & VIRTIO_VSOCK_SHUTDOWN_RCV)
-    //     {
-    //         //TODO: dequeue requests for current socket only
-    //     }
+    if (uDrain & VIRTIO_VSOCK_SHUTDOWN_RCV)
+    {
+        // Peer closed its receive side: parked sends can never proceed, the
+        // pump completes them via the per-bite validation (WSAESHUTDOWN).
+        VIOSockWriteProcessQueue(pSocket);
+    }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s, bRes: %u\n", __FUNCTION__, bRes);
 
@@ -1598,6 +1619,13 @@ static NTSTATUS VIOSockShutdown(IN WDFREQUEST Request)
             // We closed our own receive side: no more data will be delivered, so wake
             // every parked recv. The matcher reports EOF for each and drains the rest.
             VIOSockReadProcessQueue(pSocket);
+        }
+
+        if (uDrain & VIRTIO_VSOCK_SHUTDOWN_SEND)
+        {
+            // We closed our own send side: parked sends complete via the
+            // per-bite validation (LOCAL_DISCONNECT -> WSAESHUTDOWN).
+            VIOSockWriteProcessQueue(pSocket);
         }
     }
     else if (status == STATUS_LOCAL_DISCONNECT)
@@ -1786,7 +1814,10 @@ __inline NTSTATUS VIOSockSetNonBlocking(IN PSOCKET_CONTEXT pSocket, IN BOOLEAN b
         // on the transition.
         if (!VIOSockSetFlag(pSocket, SOCK_NON_BLOCK))
         {
-            VIOSockTxCleanup(GetDeviceContextFromSocket(pSocket), pSocket->ThisSocket, STATUS_CANT_WAIT);
+            // Parked blocking sends: the pump re-evaluates them — whatever
+            // the credit admits is sliced, the rest completes with partial
+            // Information or WSAEWOULDBLOCK.
+            VIOSockWriteProcessQueue(pSocket);
             VIOSockReadProcessQueue(pSocket);
         }
     }
@@ -2708,6 +2739,12 @@ VIOSockDeviceControl(IN WDFREQUEST Request, IN ULONG IoControlCode, IN OUT size_
             break;
         case IOCTL_SOCKET_RECV_EX:
             status = VIOSockRecvEx(Request);
+            break;
+        case IOCTL_SOCKET_SEND:
+            status = VIOSockSendBuffered(Request);
+            break;
+        case IOCTL_SOCKET_SEND_EX:
+            status = VIOSockSendEx(Request);
             break;
         case IOCTL_SOCKET_SHUTDOWN:
             status = VIOSockShutdown(Request);
