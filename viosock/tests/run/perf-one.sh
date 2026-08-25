@@ -31,7 +31,7 @@ LOCAL_BIN="/opt/vsock-test/vsock_perf"
 # Guest-side paths used only by the --as-system code path.  Grouped
 # here so a future move (e.g. to C:\ci-scratch\) is a one-line edit.
 GUEST_SRV_BAT='C:\srv_perf_one.bat'
-GUEST_SRV_LOG='C:\srv_perf_one.log'
+GUEST_SRV_LOG='C:/srv_perf_one.log'
 SCHTASKS_NAME='vsock_perf_one'
 
 usage() {
