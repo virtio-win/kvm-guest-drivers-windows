@@ -12,15 +12,15 @@
 # rows known to survive that stay enabled here.
 
 0    posix  SOCK_STREAM connection reset
-# 0  wsa    SOCK_STREAM connection reset  — disabled: SG-send validation deferred until TX path refactor
+0    wsa    SOCK_STREAM connection reset
 1    posix  SOCK_STREAM bind only
-# 1  wsa    SOCK_STREAM bind only  — disabled: SG-send validation deferred until TX path refactor
+1    wsa    SOCK_STREAM bind only
 2    posix  SOCK_STREAM client close
 3    posix  SOCK_STREAM server close
 4    posix  SOCK_STREAM multiple connections
-# 4  wsa    SOCK_STREAM multiple connections  — disabled: SG-send validation deferred until TX path refactor
+4    wsa    SOCK_STREAM multiple connections
 5    posix  SOCK_STREAM MSG_PEEK
-# 5  wsa    SOCK_STREAM MSG_PEEK  — disabled: SG-send validation deferred until TX path refactor
+5    wsa    SOCK_STREAM MSG_PEEK
 # 6  posix  SOCK_SEQPACKET msg bounds                       — disabled: run_client/run_server = NULL (needs SEQPACKET + recvmsg(MSG_EOR))
 # 7  posix  SOCK_SEQPACKET MSG_TRUNC flag                   — disabled: run_client/run_server = NULL (needs SEQPACKET + recvmsg)
 # 8  posix  SOCK_SEQPACKET timeout                          — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
