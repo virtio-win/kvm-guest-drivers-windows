@@ -26,6 +26,7 @@ PORT=${PERF_PORT:-12347}
 GRACE=${SERVER_GRACE_SECS:-1}
 CFG=""; VARIANT="posix"; BITS="x64"; AS_SYSTEM=0
 NO_POLL=${PERF_NO_POLL:-}
+ZEROCOPY=${PERF_ZEROCOPY:-}
 LOCAL_BIN="/opt/vsock-test/vsock_perf"
 
 # Guest-side paths used only by the --as-system code path.  Grouped
@@ -63,6 +64,10 @@ Other:
                             PERF_NO_POLL=1.
   --as-system               reverse only: launch Windows receiver via
                             schtasks /ru SYSTEM instead of bg-ssh
+  --zerocopy                pass --zerocopy (MSG_ZEROCOPY on every
+                            send()) to whichever side is the sender:
+                            Windows in forward, Linux in reverse. Also
+                            settable via env PERF_ZEROCOPY=1.
   --local-bin <path>        Linux vsock_perf path                      [$LOCAL_BIN]
 EOF
     exit 1
@@ -83,6 +88,7 @@ while [ $# -gt 0 ]; do
         --x86)         BITS="x86";     shift ;;
         --no-poll)     NO_POLL=1;      shift ;;
         --as-system)   AS_SYSTEM=1;    shift ;;
+        --zerocopy)    ZEROCOPY=1;     shift ;;
         --local-bin)   LOCAL_BIN="$2"; shift 2 ;;
         -h|--help)     usage ;;
         *) die "unknown arg: $1" ;;
@@ -117,12 +123,17 @@ send_args=(--port "$PORT" --bytes "$BYTES" --buf-size "$BUF")
 # --no-poll is Windows-only; upstream Linux vsock_perf doesn't know it.
 # So only extend recv_args in reverse (Windows receiver).
 [ -n "$NO_POLL" ] && [ "$DIRECTION" = reverse ] && recv_args+=(--no-poll)
+# --zerocopy is sender-side (pin user pages, skip the copy into the
+# transport buffer).  The receiver is unaware - vhost delivers the
+# same packets into the guest queue either way - so it wires the
+# same into send_args regardless of direction.
+[ -n "$ZEROCOPY" ] && send_args+=(--zerocopy)
 
 LOGDIR="/tmp/vsock-perf-one-$$"; mkdir -p "$LOGDIR"
 rx_log="$LOGDIR/rx.log"
 tx_log="$LOGDIR/tx.log"
 
-info "== perf-one: $DIRECTION  bytes=$BYTES  buf=$BUF${VSK_SIZE:+  vsk=$VSK_SIZE}${RCVLOWAT:+  rcvlowat=$RCVLOWAT}${NO_POLL:+  no-poll}  variant=$VARIANT  bits=$BITS =="
+info "== perf-one: $DIRECTION  bytes=$BYTES  buf=$BUF${VSK_SIZE:+  vsk=$VSK_SIZE}${RCVLOWAT:+  rcvlowat=$RCVLOWAT}${NO_POLL:+  no-poll}${ZEROCOPY:+  zerocopy}  variant=$VARIANT  bits=$BITS =="
 
 if [ "$DIRECTION" = forward ]; then
     "$LOCAL_BIN" "${recv_args[@]}" > "$rx_log" 2>&1 &
