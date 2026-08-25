@@ -510,7 +510,8 @@ VIOSockSgPrepare(IN WDFREQUEST Request, IN LOCK_OPERATION LockOp)
 //////////////////////////////////////////////////////////////////////////
 // Runs in the requestor thread before the request is queued — the only place
 // where the user-mode pointers embedded in IOCTL input (the WSABUF array of
-// IOCTL_SOCKET_RECV_EX) may be probed, captured and locked.
+// IOCTL_SOCKET_RECV_EX / IOCTL_SOCKET_SEND_EX) may be probed, captured and
+// locked. LockOp direction: recv writes into the user buffers, send reads them.
 VOID VIOSockEvtIoInCallerContext(IN WDFDEVICE Device, IN WDFREQUEST Request)
 {
     WDF_REQUEST_PARAMETERS Parameters;
@@ -519,10 +520,19 @@ VOID VIOSockEvtIoInCallerContext(IN WDFDEVICE Device, IN WDFREQUEST Request)
     WDF_REQUEST_PARAMETERS_INIT(&Parameters);
     WdfRequestGetParameters(Request, &Parameters);
 
-    if (Parameters.Type == WdfRequestTypeDeviceControl &&
-        Parameters.Parameters.DeviceIoControl.IoControlCode == IOCTL_SOCKET_RECV_EX)
+    if (Parameters.Type == WdfRequestTypeDeviceControl)
     {
-        status = VIOSockSgPrepare(Request, IoWriteAccess);
+        switch (Parameters.Parameters.DeviceIoControl.IoControlCode)
+        {
+            case IOCTL_SOCKET_RECV_EX:
+                status = VIOSockSgPrepare(Request, IoWriteAccess);
+                break;
+
+            case IOCTL_SOCKET_SEND_EX:
+                status = VIOSockSgPrepare(Request, IoReadAccess);
+                break;
+        }
+
         if (!NT_SUCCESS(status))
         {
             WdfRequestComplete(Request, status);
