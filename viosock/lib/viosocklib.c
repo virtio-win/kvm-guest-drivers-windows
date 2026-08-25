@@ -1267,7 +1267,7 @@ int WSPAPI VIOSockSend(_In_ SOCKET s,
                        _Out_ LPINT lpErrno)
 {
     int iRes = ERROR_SUCCESS;
-    DWORD i, dwNumberOfBytesSent = 0;
+    DWORD dwNumberOfBytesSent = 0;
 
     UNREFERENCED_PARAMETER(lpThreadId);
 
@@ -1278,7 +1278,7 @@ int WSPAPI VIOSockSend(_In_ SOCKET s,
         *lpNumberOfBytesSent = 0;
     }
 
-    if (!lpBuffers)
+    if (!lpBuffers || !dwBufferCount)
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Invalid lpBuffers\n");
         return WSP_ERROR(WSAEFAULT);
@@ -1290,6 +1290,16 @@ int WSPAPI VIOSockSend(_In_ SOCKET s,
         return WSP_ERROR(WSAENOTSOCK);
     }
 
+    // MSG_DONTROUTE is documented as ignorable by the provider (vsock has no
+    // routing) — take it and drop it. The rest (MSG_OOB, MSG_PARTIAL) is
+    // unsupported on a vsock stream, matching Linux.
+    dwFlags &= ~(DWORD)MSG_DONTROUTE;
+    if (dwFlags)
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Unsupported flag(s): %x\n", dwFlags);
+        return WSP_ERROR(WSAEOPNOTSUPP);
+    }
+
     // If the caller didn't assert sync but the handle is actually sync, drop
     // the completion routine — kernel ignores ApcRoutine on sync handles, which
     // would otherwise leak ApcContext.
@@ -1298,29 +1308,40 @@ int WSPAPI VIOSockSend(_In_ SOCKET s,
         lpCompletionRoutine = NULL;
     }
 
-    for (i = 0; i < dwBufferCount; ++i)
+    // Method routing by request shape, mirroring recv: a small single buffer
+    // goes through the buffered IOCTL_SOCKET_SEND, everything larger or
+    // gathered through IOCTL_SOCKET_SEND_EX.
+    if (dwBufferCount > 1 || lpBuffers[0].len > VIOSOCK_SMALL_SEND_THRESHOLD)
     {
-        DWORD dwNumberOfBytesWritten;
+        return VIOSockSendRecvEx(s,
+                                 IOCTL_SOCKET_SEND_EX,
+                                 lpBuffers,
+                                 dwBufferCount,
+                                 lpNumberOfBytesSent,
+                                 dwFlags,
+                                 lpOverlapped,
+                                 lpCompletionRoutine,
+                                 lpErrno);
+    }
 
-        if (!VIOSockWriteFile(s,
-                              lpBuffers[i].buf,
-                              lpBuffers[i].len,
-                              &dwNumberOfBytesWritten,
-                              lpOverlapped,
-                              lpCompletionRoutine,
-                              dwFlags,
-                              lpErrno))
-        {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockWriteFile failed: %d\n", *lpErrno);
-            iRes = SOCKET_ERROR;
-            break;
-        }
-
-        dwNumberOfBytesSent += dwNumberOfBytesWritten;
-        if (dwNumberOfBytesWritten != lpBuffers[i].len)
-        {
-            break;
-        }
+    // The payload is the whole input buffer — no parameter block, the
+    // io-manager capture is the only copy; the sent byte count comes back
+    // via IRP.Information.
+    if (!VIOSockDeviceControlEx(s,
+                                FALSE,
+                                IOCTL_SOCKET_SEND,
+                                lpBuffers[0].buf,
+                                lpBuffers[0].len,
+                                NULL,
+                                0,
+                                &dwNumberOfBytesSent,
+                                lpOverlapped,
+                                lpCompletionRoutine,
+                                0,
+                                lpErrno))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockDeviceControl failed: %d\n", *lpErrno);
+        iRes = SOCKET_ERROR;
     }
 
     if (lpNumberOfBytesSent)

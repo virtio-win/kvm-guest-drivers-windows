@@ -51,6 +51,14 @@
 // and it also keeps the per-request non-paged system buffer small.
 #define VIOSOCK_SMALL_RECV_THRESHOLD 8192
 
+// Send-side mirror of the recv threshold: a single buffer up to this size takes
+// the buffered IOCTL_SOCKET_SEND (the payload itself is the input buffer — one
+// io-manager copy, no page pinning), anything larger or gathered takes
+// IOCTL_SOCKET_SEND_EX (locked MDL chain). Starts at the recv-measured value;
+// re-tune with vsock_perf once the driver side lands. Setting it to 0 routes
+// every send through SEND_EX.
+#define VIOSOCK_SMALL_SEND_THRESHOLD 8192
+
 _Must_inspect_result_ HANDLE VIOSockCreateFile(_In_opt_ PVIRTIO_VSOCK_PARAMS pSocketParams,
                                                _In_ BOOL bSyncIo,
                                                _Out_ LPINT lpErrno);
