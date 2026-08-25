@@ -46,4 +46,4 @@
 # 35 posix  SOCK_SEQPACKET ioctl(SIOCINQ) functionality     — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
 # 36 posix  SOCK_STREAM accept()ed socket custom setsockopt() — disabled: run_client/run_server = NULL (no Winsock SO_ZEROCOPY)
 # 37 posix  SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption — disabled: run_client/run_server = NULL (no MSG_ERRQUEUE)
-# 38 posix  SOCK_STREAM TX credit bounds                    — disabled: fails on vhi-8.1 HEAD 3ec8ad6a: "TX credit too large: queued 2097152 bytes (expected <= 65536)" — regression from recv-worker changes (ea7b2ec4/4a6f5682)
+# 38 posix  SOCK_STREAM TX credit bounds                    — disabled: environmental, not a guest bug (re-classified 2026-08-21 on the Tx-refactor branch). The test checks the SENDER-side min(own,peer) TX window cap; in reverse the sender is the HOST Linux kernel, and dev008's kernel predates the upstream cap fix, so it queues the full 2MB window the server half itself advertises ("queued 2097152, expected <= 65536"). The Windows acceptor advertises correctly (forward direction passes with the guest-side cap). Re-enable on hosts with a capped kernel.
