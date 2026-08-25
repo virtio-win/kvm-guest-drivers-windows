@@ -20,28 +20,28 @@
 # next reader can turn a row green with a one-line uncomment.
 
 0    posix  SOCK_STREAM connection reset
-# 0  wsa    SOCK_STREAM connection reset  — disabled: SG-send validation deferred until TX path refactor
+0    wsa    SOCK_STREAM connection reset
 1    posix  SOCK_STREAM bind only
-# 1  wsa    SOCK_STREAM bind only  — disabled: SG-send validation deferred until TX path refactor
+1    wsa    SOCK_STREAM bind only
 2    posix  SOCK_STREAM client close
-# 2  wsa    SOCK_STREAM client close  — disabled: SG-send validation deferred until TX path refactor
+2    wsa    SOCK_STREAM client close
 3    posix  SOCK_STREAM server close
-# 3  wsa    SOCK_STREAM server close  — disabled: SG-send validation deferred until TX path refactor
+3    wsa    SOCK_STREAM server close
 4    posix  SOCK_STREAM multiple connections
-# 4  wsa    SOCK_STREAM multiple connections  — disabled: SG-send validation deferred until TX path refactor
+4    wsa    SOCK_STREAM multiple connections
 5    posix  SOCK_STREAM MSG_PEEK
-# 5  wsa    SOCK_STREAM MSG_PEEK  — disabled: SG-send validation deferred until TX path refactor
+5    wsa    SOCK_STREAM MSG_PEEK
 # 6  posix  SOCK_SEQPACKET msg bounds                       — disabled: run_client/run_server = NULL (needs SEQPACKET + recvmsg(MSG_EOR))
 # 7  posix  SOCK_SEQPACKET MSG_TRUNC flag                   — disabled: run_client/run_server = NULL (needs SEQPACKET + recvmsg)
 # 8  posix  SOCK_SEQPACKET timeout                          — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
 # 9  posix  SOCK_SEQPACKET invalid receive buffer           — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
-# 10 wsa    SOCK_STREAM poll() + SO_RCVLOWAT  — disabled: SG-send validation deferred until TX path refactor
+10   wsa    SOCK_STREAM poll() + SO_RCVLOWAT
 # 11 posix  SOCK_SEQPACKET big message                      — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
 12   posix  SOCK_STREAM test invalid buffer
-# 12 wsa    SOCK_STREAM test invalid buffer  — disabled: SG-send validation deferred until TX path refactor
+12   wsa    SOCK_STREAM test invalid buffer
 # 13 posix  SOCK_SEQPACKET test invalid buffer              — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
 14   posix  SOCK_STREAM virtio skb merge
-# 14 wsa    SOCK_STREAM virtio skb merge  — disabled: SG-send validation deferred until TX path refactor
+14   wsa    SOCK_STREAM virtio skb merge
 # 15 posix  SOCK_SEQPACKET MSG_PEEK                         — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
 # 16 posix  SOCK_STREAM SHUT_WR  — disabled: run_client/run_server = NULL (Linux-only SIGPIPE); isolated-pick harness artifact
 # 17 posix  SOCK_STREAM SHUT_RD  — disabled: run_client/run_server = NULL (Linux-only SIGPIPE); isolated-pick harness artifact
@@ -49,7 +49,7 @@
 # 19 posix  SOCK_SEQPACKET MSG_ZEROCOPY                     — disabled: run_client/run_server = NULL (no MSG_ERRQUEUE + SEQPACKET)
 # 20 posix  SOCK_STREAM MSG_ZEROCOPY empty MSG_ERRQUEUE     — disabled: run_client/run_server = NULL (no MSG_ERRQUEUE)
 21   posix  SOCK_STREAM double bind connect
-# 21 wsa    SOCK_STREAM double bind connect  — disabled: SG-send validation deferred until TX path refactor
+21   wsa    SOCK_STREAM double bind connect
 22   posix  SOCK_STREAM virtio credit update + SO_RCVLOWAT
 23   posix  SOCK_STREAM virtio credit update + low rx_bytes
 24   posix  SOCK_STREAM ioctl(SIOCOUTQ) 0 unsent bytes
@@ -59,9 +59,9 @@
 # 28 posix  SOCK_STREAM MSG_ZEROCOPY leak completion skb    — disabled: run_client/run_server = NULL (no MSG_ERRQUEUE + kmemleak)
 29   posix  SOCK_STREAM transport release use-after-free
 30   posix  SOCK_STREAM retry failed connect()
-# 30 wsa    SOCK_STREAM retry failed connect()  — disabled: SG-send validation deferred until TX path refactor
+30   wsa    SOCK_STREAM retry failed connect()
 31   posix  SOCK_STREAM SO_LINGER null-ptr-deref
-# 31 wsa    SOCK_STREAM SO_LINGER null-ptr-deref  — disabled: SG-send validation deferred until TX path refactor
+31   wsa    SOCK_STREAM SO_LINGER null-ptr-deref
 32   posix  SOCK_STREAM SO_LINGER close() on unread
 # 33 posix  SOCK_STREAM transport change null-ptr-deref, lockdep warn — disabled: run_client/run_server = NULL (Linux-only: pthread + kill(SIGUSR1))
 # 34 posix  SOCK_STREAM ioctl(SIOCINQ) functionality  — disabled: "Test skipped, SIOCINQ not supported" - compat.h gap
