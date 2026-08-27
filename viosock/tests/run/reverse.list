@@ -5,8 +5,31 @@
 # Contract: every enabled (id, variant) row MUST pass — failure is a regression.
 # Rows are kept in numeric-ID order.
 #
+# --- Reverse-direction inclusion policy ---
+#
+# In reverse the Windows guest is the acceptor, so what a row exercises in
+# our driver is whatever `.run_server` in test_cases[] actually touches.  A
+# reading of the callbacks shows that surface is thin: most rows do
+# `accept + one send_byte / one recv_byte + close`, and the interesting
+# per-test variation lives in `.run_client` (non-blocking connect, MSG_PEEK,
+# MSG_DONTWAIT, SO_LINGER, invalid buffer, connect retry) — which in reverse
+# runs on the Linux side and drives our driver identically across those rows.
+#
+# So reverse enables ONLY rows whose `.run_server` reaches a distinct driver
+# code path.  A row that is server-side just accept+trivial+close is disabled
+# with the note "server-side surface duplicative", even if the client-side
+# logic looks unique.  Coverage of those client-side variations belongs in
+# the forward direction (where the Linux acceptor is the boring half) or in
+# loopback (where both halves are on the Windows guest).
+#
+# Current unique reverse posix set: 1, 4, 10, 14, 21, 22.  Re-open the
+# server body of another test to argue for adding one; do not re-enable
+# just because a fresh driver "would probably pass" it in reverse.
+#
+# --- Baseline ---
+#
 # Current baseline: vhi-8.1 HEAD 3ec8ad6a.  Only rows known to pass on
-# that baseline are enabled here.
+# that baseline (and to meet the inclusion policy above) are enabled here.
 
 # 0  posix  SOCK_STREAM connection reset  — disabled: server-side surface duplicative (accept + trivial send/recv + close); reverse coverage kept minimal (1,4,10,14,21,22 = unique driver-side paths)
 0    wsa    SOCK_STREAM connection reset
