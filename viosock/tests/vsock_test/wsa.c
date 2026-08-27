@@ -8,10 +8,10 @@
  * scatter-gather-shaped so a future scatter test only needs a new
  * helper, not a reshaped table.
  *
- * The wait primitive is native Berkeley select() (through fd_set),
- * NOT WSAPoll - the posix variant already covers WSAPoll, so wsa
- * exercises the parallel WSPSelect / SIO_BSP_HANDLE_SELECT tract in
- * the LSP.
+ * The wait primitive is WSAEventSelect + WSAWaitForMultipleEvents +
+ * WSAEnumNetworkEvents.  posix covers WSAPoll; wsa covers the
+ * parallel event-object tract in the LSP so both dispatch paths
+ * stay exercised.
  */
 
 #define COMPAT_IMPL
@@ -174,21 +174,152 @@ static int wsa_close(int fd)
 }
 
 /*
- * poll() in the wsa variant maps directly to WSAPoll.  util.c's
- * vsock_wait_remote_close already calls WSAPoll directly, so a
- * separate wait code path in wsa (an fd_set/select emulation) would
- * only diverge test coverage without exercising anything new inside
- * the WSP surface.
+ * poll() in the wsa variant is built on WSAEventSelect +
+ * WSAWaitForMultipleEvents + WSAEnumNetworkEvents.  Each fd is
+ * associated with a WSAEVENT tuned to the mask derived from
+ * fds[i].events; WSAWaitForMultipleEvents parks on the pack; on
+ * wake-up (or timeout) WSAEnumNetworkEvents drains the pending
+ * FD_* bits per fd, which are mapped back to poll's revents.
+ *
+ * Winsock keeps the socket in non-blocking mode as long as an
+ * event-select association is active, so the cleanup path
+ * dissociates every fd (WSAEventSelect(fd, NULL, 0)) and then
+ * puts the socket back into blocking mode via ioctlsocket
+ * FIONBIO to keep this call transparent to the test bodies.
+ *
+ * Negative-input semantics mirror WSAPoll's docs (fds=NULL ->
+ * WSAEFAULT, nfds==0 -> WSAEINVAL) so the validate suite can
+ * probe the same failure branches without special-casing.
  */
 static int wsa_poll(WSAPOLLFD *fds, ULONG nfds, INT timeout)
 {
-    int rc = WSAPoll(fds, nfds, timeout);
-    if (rc == SOCKET_ERROR)
+    if (fds == NULL)
     {
+        WSASetLastError(WSAEFAULT);
         wsa_set_errno();
         return -1;
     }
-    return rc;
+    if (nfds == 0 || nfds > WSA_MAXIMUM_WAIT_EVENTS)
+    {
+        WSASetLastError(WSAEINVAL);
+        wsa_set_errno();
+        return -1;
+    }
+
+    WSAEVENT events[WSA_MAXIMUM_WAIT_EVENTS];
+    long masks[WSA_MAXIMUM_WAIT_EVENTS];
+    ULONG i;
+
+    for (i = 0; i < nfds; ++i)
+    {
+        events[i] = WSA_INVALID_EVENT;
+        masks[i] = 0;
+        fds[i].revents = 0;
+
+        if (fds[i].fd == INVALID_SOCKET)
+            continue;
+
+        if (fds[i].events & (POLLIN | POLLRDNORM))
+            masks[i] |= FD_READ | FD_ACCEPT | FD_CLOSE;
+        if (fds[i].events & POLLRDBAND)
+            masks[i] |= FD_OOB;
+        if (fds[i].events & (POLLOUT | POLLWRNORM))
+            masks[i] |= FD_WRITE | FD_CONNECT;
+    }
+
+    int result = -1;
+    int saved_wsa = 0;
+
+    for (i = 0; i < nfds; ++i)
+    {
+        if (fds[i].fd == INVALID_SOCKET)
+            continue;
+        events[i] = WSACreateEvent();
+        if (events[i] == WSA_INVALID_EVENT)
+        {
+            saved_wsa = WSAGetLastError();
+            goto cleanup;
+        }
+        if (WSAEventSelect((SOCKET)fds[i].fd, events[i], masks[i]) == SOCKET_ERROR)
+        {
+            saved_wsa = WSAGetLastError();
+            goto cleanup;
+        }
+    }
+
+    WSAEVENT pack[WSA_MAXIMUM_WAIT_EVENTS];
+    ULONG pack_n = 0;
+    for (i = 0; i < nfds; ++i)
+    {
+        if (events[i] != WSA_INVALID_EVENT)
+            pack[pack_n++] = events[i];
+    }
+
+    if (pack_n == 0)
+    {
+        /* All fds were INVALID_SOCKET; WSAPoll would return 0. */
+        result = 0;
+        goto cleanup;
+    }
+
+    DWORD dw_timeout = (timeout < 0) ? WSA_INFINITE : (DWORD)timeout;
+    DWORD wr = WSAWaitForMultipleEvents(pack_n, pack, FALSE, dw_timeout, FALSE);
+
+    if (wr == WSA_WAIT_FAILED)
+    {
+        saved_wsa = WSAGetLastError();
+        goto cleanup;
+    }
+
+    int ready = 0;
+    if (wr != WSA_WAIT_TIMEOUT)
+    {
+        for (i = 0; i < nfds; ++i)
+        {
+            if (events[i] == WSA_INVALID_EVENT)
+                continue;
+            WSANETWORKEVENTS ne;
+            if (WSAEnumNetworkEvents((SOCKET)fds[i].fd, events[i], &ne) == SOCKET_ERROR)
+                continue;
+
+            SHORT revents = 0;
+            if (ne.lNetworkEvents & (FD_READ | FD_ACCEPT))
+                revents |= (SHORT)(fds[i].events & (POLLIN | POLLRDNORM));
+            if (ne.lNetworkEvents & FD_OOB)
+                revents |= (SHORT)(fds[i].events & POLLRDBAND);
+            if (ne.lNetworkEvents & (FD_WRITE | FD_CONNECT))
+                revents |= (SHORT)(fds[i].events & (POLLOUT | POLLWRNORM));
+            if (ne.lNetworkEvents & FD_CLOSE)
+                revents |= POLLHUP;
+
+            fds[i].revents = revents;
+            if (revents)
+                ++ready;
+        }
+    }
+
+    result = ready;
+
+cleanup:
+    for (i = 0; i < nfds; ++i)
+    {
+        if (events[i] != WSA_INVALID_EVENT)
+        {
+            /* Dissociate; also flip the socket back to blocking so the
+             * caller does not have to know that we touched FIONBIO. */
+            WSAEventSelect((SOCKET)fds[i].fd, NULL, 0);
+            u_long nb = 0;
+            ioctlsocket((SOCKET)fds[i].fd, FIONBIO, &nb);
+            WSACloseEvent(events[i]);
+        }
+    }
+
+    if (result < 0)
+    {
+        WSASetLastError(saved_wsa);
+        wsa_set_errno();
+    }
+    return result;
 }
 
 const struct sock_ops ops_wsa = {

@@ -86,20 +86,25 @@ void vsock_wait_remote_close(int fd)
     int nfds;
 
     fds.fd = (SOCKET)fd;
-    /* WSAPoll input events: only POLLIN, POLLOUT and their POLLRDNORM / POLLRDBAND /
-     * POLLWRNORM / POLLWRBAND sub-flags are valid here. POLLHUP, POLLERR and POLLNVAL
-     * are output-only and are reported in revents regardless of what we requested. */
+    /* Only POLLIN / POLLOUT and their POLLRDNORM / POLLRDBAND /
+     * POLLWRNORM / POLLWRBAND sub-flags are valid input events for
+     * poll().  POLLHUP, POLLERR and POLLNVAL are output-only and are
+     * reported in revents regardless of what we requested. */
     fds.events = POLLIN;
 
-    nfds = WSAPoll(&fds, 1, TIMEOUT * 1000);
+    /* Route through the variant dispatch: posix -> WSAPoll (compat.c),
+     * wsa   -> WSAEventSelect + WSAEnumNetworkEvents (wsa.c).  Both
+     * primitives get runtime coverage from the tests that use this
+     * helper (currently 3 / 21 / 30 / 31). */
+    nfds = g_ops->sock_poll(&fds, 1, TIMEOUT * 1000);
     if (nfds < 0)
     {
-        perror("WSAPoll");
+        perror("sock_poll");
         exit(EXIT_FAILURE);
     }
     if (nfds == 0)
     {
-        fprintf(stderr, "WSAPoll timed out waiting for remote close\n");
+        fprintf(stderr, "sock_poll timed out waiting for remote close\n");
         exit(EXIT_FAILURE);
     }
     /* POLLHUP or recv() returning 0 both indicate remote close. */
