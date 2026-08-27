@@ -132,9 +132,75 @@ static void validate_so_protocol_info_short(void)
     }
 }
 
+/*
+ * select() with every fd_set NULL is docs-invalid per MSDN ("at
+ * least one of readfds, writefds, or exceptfds must be a non-null
+ * pointer") and must fail WSAEINVAL.  Cheap negative check that
+ * runs the LSP select entry even before any test body.
+ */
+static void validate_select_all_null(void)
+{
+    int rc = select(0, NULL, NULL, NULL, NULL);
+    int got = (rc == SOCKET_ERROR) ? WSAGetLastError() : 0;
+    if (rc != SOCKET_ERROR)
+    {
+        fprintf(stderr, "posix-validate: select(all-NULL): expected SOCKET_ERROR + WSAEINVAL, got success\n");
+        exit(EXIT_FAILURE);
+    }
+    if (got != WSAEINVAL)
+    {
+        fprintf(stderr, "posix-validate: select(all-NULL): expected WSAEINVAL, got WSA %d\n", got);
+        exit(EXIT_FAILURE);
+    }
+}
+
+/*
+ * Positive timeout probe: an unbound vsock socket in readfds with a
+ * short finite timeout has nothing readable and must return 0 (timed
+ * out).  Complements validate_select_all_null so both the error and
+ * the timeout branches of the LSP select entry are exercised.
+ */
+static void validate_select_timeout(void)
+{
+    SOCKET s = fresh_vsock_socket("select(timeout)");
+    struct sockaddr_vm addr = {0};
+    addr.svm_family = g_vsock_af;
+    addr.svm_cid = VMADDR_CID_ANY;
+    addr.svm_port = 0;
+    if (bind(s, (const struct sockaddr *)&addr, sizeof(addr)) == SOCKET_ERROR)
+    {
+        fprintf(stderr, "posix-validate: select(timeout): bind failed WSA %d\n", WSAGetLastError());
+        closesocket(s);
+        exit(EXIT_FAILURE);
+    }
+
+    fd_set rfds;
+    struct timeval tv;
+    FD_ZERO(&rfds);
+    FD_SET(s, &rfds);
+    tv.tv_sec = 0;
+    tv.tv_usec = 50 * 1000; /* 50 ms */
+    int rc = select(0, &rfds, NULL, NULL, &tv);
+    int got = (rc == SOCKET_ERROR) ? WSAGetLastError() : 0;
+    closesocket(s);
+
+    if (rc == SOCKET_ERROR)
+    {
+        fprintf(stderr, "posix-validate: select(timeout): expected 0 (timed out), got WSA %d\n", got);
+        exit(EXIT_FAILURE);
+    }
+    if (rc != 0)
+    {
+        fprintf(stderr, "posix-validate: select(timeout): expected 0 (timed out), got %d ready fds\n", rc);
+        exit(EXIT_FAILURE);
+    }
+}
+
 void posix_validate_all(void)
 {
     validate_getfiletype_and_osfhandle();
     validate_getsockname_unbound();
     validate_so_protocol_info_short();
+    validate_select_all_null();
+    validate_select_timeout();
 }

@@ -167,7 +167,7 @@ static void test_stream_client_close_server(const struct test_opts *opts)
         exit(EXIT_FAILURE);
     }
 
-    vsock_wait_remote_close(fd);
+    vsock_wait_remote_close_select(fd);
 
     send_byte(fd, -EPIPE, 0);
     recv_byte(fd, 1, 0);

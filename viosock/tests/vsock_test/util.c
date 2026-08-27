@@ -105,6 +105,38 @@ void vsock_wait_remote_close(int fd)
     /* POLLHUP or recv() returning 0 both indicate remote close. */
 }
 
+/*
+ * Same shape as vsock_wait_remote_close but built on native Berkeley
+ * select() instead of WSAPoll — the sole runtime user of select() in
+ * the test binary, so the LSP + kernel WSPSelect tract gets exercised
+ * end-to-end.  Any single caller migrated from WSAPoll to this helper
+ * keeps WSAPoll coverage on the callers that stayed put.
+ */
+void vsock_wait_remote_close_select(int fd)
+{
+    fd_set rfds;
+    struct timeval tv;
+    int rc;
+
+    FD_ZERO(&rfds);
+    FD_SET((SOCKET)fd, &rfds);
+
+    tv.tv_sec = TIMEOUT;
+    tv.tv_usec = 0;
+
+    rc = select(0, &rfds, NULL, NULL, &tv);
+    if (rc < 0)
+    {
+        perror("select");
+        exit(EXIT_FAILURE);
+    }
+    if (rc == 0)
+    {
+        fprintf(stderr, "select timed out waiting for remote close\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
 bool vsock_ioctl_int(int fd, unsigned long op, int expected)
 {
     int actual, ret;
