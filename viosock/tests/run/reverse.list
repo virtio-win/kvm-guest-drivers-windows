@@ -47,7 +47,7 @@
 # 8  posix  SOCK_SEQPACKET timeout                          — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
 # 9  posix  SOCK_SEQPACKET invalid receive buffer           — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
 10   posix  SOCK_STREAM poll() + SO_RCVLOWAT
-10   wsa    SOCK_STREAM poll() + SO_RCVLOWAT
+# 10 wsa    SOCK_STREAM poll() + SO_RCVLOWAT  — disabled: the wsa variant's poll is built on WSAEventSelect (edge-triggered FD_READ), which does not honour SO_RCVLOWAT; the low-water semantics are unique to WSAPoll and stay covered by the posix row (WSAPoll is our conscious posix-side exception).
 # 11 posix  SOCK_SEQPACKET big message                      — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
 # 12 posix  SOCK_STREAM test invalid buffer  — disabled: server-side surface duplicative (accept + trivial send/recv + close); reverse coverage kept minimal (1,4,10,14,21,22 = unique driver-side paths)
 # 13 posix  SOCK_SEQPACKET test invalid buffer              — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)

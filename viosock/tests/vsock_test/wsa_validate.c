@@ -139,64 +139,93 @@ static void validate_wsa_recv(SOCKET s)
     expect_wsa_err(rc, WSAEFAULT, "WSARecv(lpBuffers=NULL)");
 }
 
-/* WSAPoll: null fd list / zero nfds. */
-static void validate_wsa_poll(void)
+/*
+ * WSAEventSelect on an invalid socket must fail with WSAENOTSOCK.
+ * Reaches the WSP dispatch entry that wsa_poll's arming step uses,
+ * so a regression in that call is caught before any wait.
+ */
+static void validate_wsa_event_select_notsock(void)
 {
-    int rc = WSAPoll(NULL, 1, 0);
-    expect_wsa_err(rc, WSAEFAULT, "WSAPoll(fds=NULL, nfds=1)");
+    WSAEVENT ev = WSACreateEvent();
+    if (ev == WSA_INVALID_EVENT)
+    {
+        fprintf(stderr, "wsa-validate: WSACreateEvent failed WSA %d\n", WSAGetLastError());
+        exit(EXIT_FAILURE);
+    }
+    int rc = WSAEventSelect(INVALID_SOCKET, ev, FD_READ | FD_CLOSE);
+    int got = (rc == SOCKET_ERROR) ? WSAGetLastError() : 0;
+    WSACloseEvent(ev);
 
-    WSAPOLLFD fds = {.fd = INVALID_SOCKET, .events = POLLRDNORM};
-    rc = WSAPoll(&fds, 0, 0);
-    expect_wsa_err(rc, WSAEINVAL, "WSAPoll(nfds=0)");
+    if (rc != SOCKET_ERROR)
+    {
+        fprintf(stderr, "wsa-validate: WSAEventSelect(INVALID_SOCKET): expected SOCKET_ERROR + WSAENOTSOCK, got success\n");
+        exit(EXIT_FAILURE);
+    }
+    if (got != WSAENOTSOCK)
+    {
+        fprintf(stderr, "wsa-validate: WSAEventSelect(INVALID_SOCKET): expected WSAENOTSOCK, got WSA %d\n", got);
+        exit(EXIT_FAILURE);
+    }
 }
 
 /*
  * Positive timeout probe: a bound-but-not-listening vsock socket
- * armed for POLLRDNORM has nothing to signal and must return 0 after
- * a short finite timeout.  (An unbound socket returns POLLHUP/POLLERR
- * immediately on this LSP, so timeout wouldn't be observable
- * without at least a bind.)
+ * armed via WSAEventSelect for FD_READ | FD_CLOSE has nothing to
+ * signal, so WSAWaitForMultipleEvents must return WSA_WAIT_TIMEOUT
+ * after a short finite wait.  Mirrors the negative probe: the WSA
+ * variant's wait primitive is exercised end-to-end without a peer.
  */
-static void validate_wsa_poll_timeout(void)
+static void validate_wsa_event_select_timeout(void)
 {
     SOCKET s = WSASocketW(g_vsock_af, SOCK_STREAM, 0, NULL, 0, 0);
     if (s == INVALID_SOCKET)
     {
-        fprintf(stderr, "wsa-validate: WSAPoll(timeout): WSASocketW failed WSA %d\n", WSAGetLastError());
+        fprintf(stderr, "wsa-validate: WSAEventSelect(timeout): WSASocketW failed WSA %d\n", WSAGetLastError());
         exit(EXIT_FAILURE);
     }
 
     struct sockaddr_vm addr = {0};
     addr.svm_family = g_vsock_af;
     addr.svm_cid = VMADDR_CID_ANY;
-    addr.svm_port = 0; /* let the driver pick a free port */
+    addr.svm_port = 0;
     if (bind(s, (const struct sockaddr *)&addr, sizeof(addr)) == SOCKET_ERROR)
     {
-        fprintf(stderr, "wsa-validate: WSAPoll(timeout): bind failed WSA %d\n", WSAGetLastError());
+        fprintf(stderr, "wsa-validate: WSAEventSelect(timeout): bind failed WSA %d\n", WSAGetLastError());
         closesocket(s);
         exit(EXIT_FAILURE);
     }
 
-    WSAPOLLFD fds;
-    fds.fd = s;
-    fds.events = POLLRDNORM;
-    fds.revents = 0;
-    int rc = WSAPoll(&fds, 1, 50 /* ms */);
-    int wsa_err = (rc == SOCKET_ERROR) ? WSAGetLastError() : 0;
-    closesocket(s);
-
-    if (rc == SOCKET_ERROR)
+    WSAEVENT ev = WSACreateEvent();
+    if (ev == WSA_INVALID_EVENT)
     {
-        fprintf(stderr,
-                "wsa-validate: WSAPoll(timeout): expected 0 (timed out), got WSA %d\n",
-                wsa_err);
+        fprintf(stderr, "wsa-validate: WSAEventSelect(timeout): WSACreateEvent failed WSA %d\n", WSAGetLastError());
+        closesocket(s);
         exit(EXIT_FAILURE);
     }
-    if (rc != 0)
+
+    if (WSAEventSelect(s, ev, FD_READ | FD_CLOSE) == SOCKET_ERROR)
+    {
+        fprintf(stderr, "wsa-validate: WSAEventSelect(timeout): arm failed WSA %d\n", WSAGetLastError());
+        WSACloseEvent(ev);
+        closesocket(s);
+        exit(EXIT_FAILURE);
+    }
+
+    DWORD wr = WSAWaitForMultipleEvents(1, &ev, FALSE, 50 /* ms */, FALSE);
+
+    /* Dissociate + restore blocking mode + close event. */
+    WSAEventSelect(s, NULL, 0);
+    u_long nb = 0;
+    ioctlsocket(s, FIONBIO, &nb);
+    WSACloseEvent(ev);
+    closesocket(s);
+
+    if (wr != WSA_WAIT_TIMEOUT)
     {
         fprintf(stderr,
-                "wsa-validate: WSAPoll(timeout): expected 0 (timed out), got %d ready\n",
-                rc);
+                "wsa-validate: WSAEventSelect(timeout): expected WSA_WAIT_TIMEOUT, got 0x%lx (WSA %d)\n",
+                (unsigned long)wr,
+                (wr == WSA_WAIT_FAILED) ? WSAGetLastError() : 0);
         exit(EXIT_FAILURE);
     }
 }
@@ -220,9 +249,9 @@ void wsa_validate_all(void)
     validate_wsa_accept(s);
     validate_wsa_send(s);
     validate_wsa_recv(s);
-    validate_wsa_poll();
+    validate_wsa_event_select_notsock();
 
     closesocket(s);
 
-    validate_wsa_poll_timeout();
+    validate_wsa_event_select_timeout();
 }
