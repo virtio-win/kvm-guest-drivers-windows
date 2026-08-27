@@ -150,6 +150,57 @@ static void validate_wsa_poll(void)
     expect_wsa_err(rc, WSAEINVAL, "WSAPoll(nfds=0)");
 }
 
+/*
+ * Positive timeout probe: a bound-but-not-listening vsock socket
+ * armed for POLLRDNORM has nothing to signal and must return 0 after
+ * a short finite timeout.  (An unbound socket returns POLLHUP/POLLERR
+ * immediately on this LSP, so timeout wouldn't be observable
+ * without at least a bind.)
+ */
+static void validate_wsa_poll_timeout(void)
+{
+    SOCKET s = WSASocketW(g_vsock_af, SOCK_STREAM, 0, NULL, 0, 0);
+    if (s == INVALID_SOCKET)
+    {
+        fprintf(stderr, "wsa-validate: WSAPoll(timeout): WSASocketW failed WSA %d\n", WSAGetLastError());
+        exit(EXIT_FAILURE);
+    }
+
+    struct sockaddr_vm addr = {0};
+    addr.svm_family = g_vsock_af;
+    addr.svm_cid = VMADDR_CID_ANY;
+    addr.svm_port = 0; /* let the driver pick a free port */
+    if (bind(s, (const struct sockaddr *)&addr, sizeof(addr)) == SOCKET_ERROR)
+    {
+        fprintf(stderr, "wsa-validate: WSAPoll(timeout): bind failed WSA %d\n", WSAGetLastError());
+        closesocket(s);
+        exit(EXIT_FAILURE);
+    }
+
+    WSAPOLLFD fds;
+    fds.fd = s;
+    fds.events = POLLRDNORM;
+    fds.revents = 0;
+    int rc = WSAPoll(&fds, 1, 50 /* ms */);
+    int wsa_err = (rc == SOCKET_ERROR) ? WSAGetLastError() : 0;
+    closesocket(s);
+
+    if (rc == SOCKET_ERROR)
+    {
+        fprintf(stderr,
+                "wsa-validate: WSAPoll(timeout): expected 0 (timed out), got WSA %d\n",
+                wsa_err);
+        exit(EXIT_FAILURE);
+    }
+    if (rc != 0)
+    {
+        fprintf(stderr,
+                "wsa-validate: WSAPoll(timeout): expected 0 (timed out), got %d ready\n",
+                rc);
+        exit(EXIT_FAILURE);
+    }
+}
+
 void wsa_validate_all(void)
 {
     validate_wsa_socket();
@@ -172,4 +223,6 @@ void wsa_validate_all(void)
     validate_wsa_poll();
 
     closesocket(s);
+
+    validate_wsa_poll_timeout();
 }
