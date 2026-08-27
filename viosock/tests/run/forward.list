@@ -35,6 +35,7 @@
 # 7  posix  SOCK_SEQPACKET MSG_TRUNC flag                   — disabled: run_client/run_server = NULL (needs SEQPACKET + recvmsg)
 # 8  posix  SOCK_SEQPACKET timeout                          — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
 # 9  posix  SOCK_SEQPACKET invalid receive buffer           — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
+10   posix  SOCK_STREAM poll() + SO_RCVLOWAT
 10   wsa    SOCK_STREAM poll() + SO_RCVLOWAT
 # 11 posix  SOCK_SEQPACKET big message                      — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
 12   posix  SOCK_STREAM test invalid buffer
@@ -54,10 +55,10 @@
 23   posix  SOCK_STREAM virtio credit update + low rx_bytes
 24   posix  SOCK_STREAM ioctl(SIOCOUTQ) 0 unsent bytes
 # 25 posix  SOCK_SEQPACKET ioctl(SIOCOUTQ) 0 unsent bytes   — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
-26   posix  SOCK_STREAM leak accept queue
+# 26 posix  SOCK_STREAM leak accept queue  — disabled: run_client/run_server = NULL (Linux-only)
 # 27 posix  SOCK_STREAM MSG_ZEROCOPY leak MSG_ERRQUEUE      — disabled: run_client/run_server = NULL (no MSG_ERRQUEUE + kmemleak)
 # 28 posix  SOCK_STREAM MSG_ZEROCOPY leak completion skb    — disabled: run_client/run_server = NULL (no MSG_ERRQUEUE + kmemleak)
-29   posix  SOCK_STREAM transport release use-after-free
+# 29 posix  SOCK_STREAM transport release use-after-free  — disabled: run_client/run_server = NULL (Linux-only)
 30   posix  SOCK_STREAM retry failed connect()
 30   wsa    SOCK_STREAM retry failed connect()
 31   posix  SOCK_STREAM SO_LINGER null-ptr-deref
