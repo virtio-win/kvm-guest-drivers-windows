@@ -43,7 +43,7 @@
 21   posix  SOCK_STREAM double bind connect
 # 22 posix  SOCK_STREAM virtio credit update + SO_RCVLOWAT  — disabled: fails on vhi-8.1 HEAD 3ec8ad6a: "send failed: No error" on acceptor (credit-update path bug, forward)
 # 23 posix  SOCK_STREAM virtio credit update + low rx_bytes — disabled: fails on vhi-8.1 HEAD 3ec8ad6a: "send failed: No error" on acceptor (credit-update low-rx-bytes path)
-# 24 posix  SOCK_STREAM ioctl(SIOCOUTQ) 0 unsent bytes      — disabled: fails on vhi-8.1 HEAD 3ec8ad6a: "Test skipped, SIOCOUTQ not supported" (compat.h does not route Linux SIOCOUTQ 0x5411 to SIO_VSOCK_OUTQ)
+24   posix  SOCK_STREAM ioctl(SIOCOUTQ) 0 unsent bytes
 # 25 posix  SOCK_SEQPACKET ioctl(SIOCOUTQ) 0 unsent bytes   — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
 # 26 posix  SOCK_STREAM leak accept queue                   — disabled: run_client/run_server = NULL (Linux-only: kmemleak regression)
 # 27 posix  SOCK_STREAM MSG_ZEROCOPY leak MSG_ERRQUEUE      — disabled: run_client/run_server = NULL (no MSG_ERRQUEUE + kmemleak)
@@ -51,7 +51,7 @@
 # 29 posix  SOCK_STREAM transport release use-after-free    — disabled: run_client/run_server = NULL (Linux-only: /proc/kallsyms + multi-transport)
 30   posix  SOCK_STREAM retry failed connect()
 31   posix  SOCK_STREAM SO_LINGER null-ptr-deref
-# 32 posix  SOCK_STREAM SO_LINGER close() on unread         — disabled: fails on vhi-8.1 HEAD 3ec8ad6a: "Test skipped, SIOCOUTQ not supported" (vsock_wait_sent → SIOCOUTQ compat.h gap)
+# 32 posix  SOCK_STREAM SO_LINGER close() on unread         — disabled: "Unexpected lingering" — close() with SO_LINGER blocks past the linger timeout even with SIOCOUTQ drained to 0 (same SO_LINGER close-semantics gap as the reverse direction); the former blockers (SIOCOUTQ compat gap, loopback Tx hang) are fixed
 # 33 posix  SOCK_STREAM transport change null-ptr-deref, lockdep warn — disabled: run_client/run_server = NULL (Linux-only: pthread + kill(SIGUSR1))
 # 34 posix  SOCK_STREAM ioctl(SIOCINQ) functionality        — disabled: fails on vhi-8.1 HEAD 3ec8ad6a: "Test skipped, SIOCINQ not supported" (compat.h does not route Linux SIOCINQ 0x541B to SIO_VSOCK_INQ)
 # 35 posix  SOCK_SEQPACKET ioctl(SIOCINQ) functionality     — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
