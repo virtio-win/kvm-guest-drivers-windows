@@ -23,6 +23,7 @@
 # 7  posix  SOCK_SEQPACKET MSG_TRUNC flag                   — disabled: run_client/run_server = NULL (needs SEQPACKET + recvmsg)
 # 8  posix  SOCK_SEQPACKET timeout                          — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
 # 9  posix  SOCK_SEQPACKET invalid receive buffer           — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
+10   posix  SOCK_STREAM poll() + SO_RCVLOWAT
 10   wsa    SOCK_STREAM poll() + SO_RCVLOWAT
 # 11 posix  SOCK_SEQPACKET big message                      — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
 12   posix  SOCK_STREAM test invalid buffer
@@ -43,7 +44,7 @@
 # 26 posix  SOCK_STREAM leak accept queue  — disabled: run_client/run_server = NULL (kmemleak); isolated-pick harness artifact
 # 27 posix  SOCK_STREAM MSG_ZEROCOPY leak MSG_ERRQUEUE      — disabled: run_client/run_server = NULL (no MSG_ERRQUEUE + kmemleak)
 # 28 posix  SOCK_STREAM MSG_ZEROCOPY leak completion skb    — disabled: run_client/run_server = NULL (no MSG_ERRQUEUE + kmemleak)
-29   posix  SOCK_STREAM transport release use-after-free
+# 29 posix  SOCK_STREAM transport release use-after-free  — disabled: run_client/run_server = NULL (Linux-only)
 # 30 posix  SOCK_STREAM retry failed connect()  — disabled: "connect() #2: Connection reset by peer" - acceptor sends RST on retry
 31   posix  SOCK_STREAM SO_LINGER null-ptr-deref
 # 32 posix  SOCK_STREAM SO_LINGER close() on unread  — disabled: "Unexpected lingering" - acceptor does not honor SO_LINGER timeout
