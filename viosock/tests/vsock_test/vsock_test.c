@@ -1701,9 +1701,14 @@ int main(int argc, char **argv)
         control_host = "0.0.0.0";
     }
 
-    fprintf(stderr, "variant = %s\n", g_ops == &ops_wsa ? "wsa" : "posix");
-
+    const char *variant_str = "posix";
     if (g_ops == &ops_wsa)
+        variant_str = "wsa";
+    else if (g_ops == &ops_overlapped)
+        variant_str = "overlapped";
+    fprintf(stderr, "variant = %s\n", variant_str);
+
+    if (g_ops == &ops_wsa || g_ops == &ops_overlapped)
         wsa_events_all(opts.peer_cid);
     else
         posix_events_all(opts.peer_cid);

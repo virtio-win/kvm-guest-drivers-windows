@@ -46,6 +46,7 @@ struct sock_ops
 
 extern const struct sock_ops ops_posix;
 extern const struct sock_ops ops_wsa;
+extern const struct sock_ops ops_overlapped;
 extern const struct sock_ops *g_ops;
 
 int sock_ops_select(const char *variant);

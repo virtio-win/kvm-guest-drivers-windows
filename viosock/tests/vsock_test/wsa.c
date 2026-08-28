@@ -191,7 +191,10 @@ static int wsa_close(int fd)
  * WSAEFAULT, nfds==0 -> WSAEINVAL) so the validate suite can
  * probe the same failure branches without special-casing.
  */
-static int wsa_poll(WSAPOLLFD *fds, ULONG nfds, INT timeout)
+/* Exported (not static) so overlapped.c can dispatch its poll here
+ * without duplicating the WSAEventSelect body. */
+int wsa_poll_dispatch(WSAPOLLFD *fds, ULONG nfds, INT timeout);
+int wsa_poll_dispatch(WSAPOLLFD *fds, ULONG nfds, INT timeout)
 {
     if (fds == NULL)
     {
@@ -330,5 +333,5 @@ const struct sock_ops ops_wsa = {
     .sock_recv = wsa_recv,
     .sock_read = wsa_read,
     .sock_close = wsa_close,
-    .sock_poll = wsa_poll,
+    .sock_poll = wsa_poll_dispatch,
 };

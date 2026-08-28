@@ -250,5 +250,13 @@ int sock_ops_select(const char *variant)
         wsa_validate_all();
         return 0;
     }
+    if (strcmp(variant, "overlapped") == 0)
+    {
+        g_ops = &ops_overlapped;
+        /* overlapped reuses the WSAEventSelect wait primitive and the
+         * WSA-side error mapping; validation runs the same wsa smoke. */
+        wsa_validate_all();
+        return 0;
+    }
     return -1;
 }

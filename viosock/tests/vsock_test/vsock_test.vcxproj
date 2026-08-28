@@ -116,6 +116,7 @@
     <ClCompile Include="wsa_validate.c" />
     <ClCompile Include="wsa_events.c" />
     <ClCompile Include="posix_events.c" />
+    <ClCompile Include="overlapped.c" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
