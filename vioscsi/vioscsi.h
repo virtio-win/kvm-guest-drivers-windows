@@ -36,18 +36,15 @@
 #include "scsiwmi.h"
 
 #include "osdep.h"
+#include "ntddi_ver.h"
 #include "virtio_pci.h"
 #include "virtio.h"
 #include "virtio_ring.h"
 
 typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
-#define VIRTIO_SCSI_CDB_SIZE   32
-#define VIRTIO_SCSI_SENSE_SIZE 96
-
-#ifndef NTDDI_WINTHRESHOLD
-#define NTDDI_WINTHRESHOLD 0x0A000000 /* ABRACADABRA_THRESHOLD */
-#endif
+#define VIRTIO_SCSI_CDB_SIZE                 32
+#define VIRTIO_SCSI_SENSE_SIZE               96
 
 #define PHYS_SEGMENTS                        32
 #define MAX_PHYS_SEGMENTS                    512

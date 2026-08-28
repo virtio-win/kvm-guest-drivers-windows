@@ -218,6 +218,53 @@ USHORT CopyBufferToAnsiString(void *_pDest, const void *_pSrc, const char delimi
     return _length;
 }
 
+const char *GetNtddiDesc()
+{
+    switch (NTDDI_VERSION)
+    {
+        case NTDDI_WIN10:
+            return "NTDDI_VERSION : THRESHOLD | Windows 10.0.10240 | 1507 | Threshold 1 \n";
+        case NTDDI_WIN10_TH2:
+            return "NTDDI_VERSION : WIN10_TH2 | Windows 10.0.10586 | 1511 | Threshold 2 \n";
+        case NTDDI_WIN10_RS1:
+            return "NTDDI_VERSION : WIN10_RS1 | Windows 10.0.14393 | 1607 | Redstone 1 \n";
+        case NTDDI_WIN10_RS2:
+            return "NTDDI_VERSION : WIN10_RS2 | Windows 10.0.15063 | 1703 | Redstone 2 \n";
+        case NTDDI_WIN10_RS3:
+            return "NTDDI_VERSION : WIN10_RS3 | Windows 10.0.16299 | 1709 | Redstone 3 \n";
+        case NTDDI_WIN10_RS4:
+            return "NTDDI_VERSION : WIN10_RS4 | Windows 10.0.17134 | 1803 | Redstone 4 \n";
+        case NTDDI_WIN10_RS5:
+            return "NTDDI_VERSION : WIN10_RS5 | Windows 10.0.17763 | 1809 | Redstone 5 \n";
+        case NTDDI_WIN10_19H1:
+            return "NTDDI_VERSION : WIN10_19H1 | Windows 10.0.18362 | 19H1 | Titanium \n";
+        case NTDDI_WIN10_VB:
+            return "NTDDI_VERSION : WIN10_VB | Windows 10.0.19041 | 2004 | Vibranium \n";
+        case NTDDI_WIN10_MN:
+            return "NTDDI_VERSION : WIN10_MN | Windows 10.0.19042 | 20H2 | Manganese \n";
+        case NTDDI_WIN10_FE:
+            return "NTDDI_VERSION : WIN10_FE | Windows 10.0.19043 | 21H1 | Iron \n";
+        case NTDDI_WIN10_CO:
+            return "NTDDI_VERSION : WIN10_CO | Windows 10.0.19044-22000 | 21H2 | Cobalt \n";
+        case NTDDI_WIN10_NI:
+            return "NTDDI_VERSION : WIN10_NI | Windows 10.0.22449-22631 | 22H2 | Nickel \n";
+        case NTDDI_WIN10_CU:
+            return "NTDDI_VERSION : WIN10_CU | Windows 10.0.25057-25236 | 23H1 | Copper \n";
+        case NTDDI_WIN11_ZN:
+            return "NTDDI_VERSION : WIN11_ZN | Windows 10.0.25246-25398 | 23H2 | Zinc \n";
+        case NTDDI_WIN11_GA:
+            return "NTDDI_VERSION : WIN11_GA | Windows 10.0.25905-25941 | 24H1 | Gallium \n";
+        case NTDDI_WIN11_GE:
+            return "NTDDI_VERSION : WIN11_GE | Windows 10.0.25947-26100 | 24H2 | Germanium \n";
+        case NTDDI_WIN11_DT:
+            return "NTDDI_VERSION : WIN11_DT | Windows 10.0.27686-27691 | 25H1 | Dilithium \n";
+        case NTDDI_WIN11_SE:
+            return "NTDDI_VERSION : WIN11_SE | Windows 10.0.27764 | 25H2 | Selenium \n";
+        default:
+            return "UNKNOWN";
+    }
+}
+
 BOOLEAN VioScsiReadRegistryParameter(IN PVOID DeviceExtension, IN PUCHAR ValueName, IN LONG offset)
 {
     BOOLEAN Ret = FALSE;
@@ -257,6 +304,8 @@ DriverEntry(IN PVOID DriverObject, IN PVOID RegistryPath)
 
     HW_INITIALIZATION_DATA hwInitData;
     ULONG initResult;
+    ANSI_STRING aRegistryPath;
+    NTSTATUS u2a_status;
 
 #ifdef EVENT_TRACING
     STORAGE_TRACE_INIT_INFO initInfo;
@@ -265,12 +314,26 @@ DriverEntry(IN PVOID DriverObject, IN PVOID RegistryPath)
     InitializeDebugPrints((PDRIVER_OBJECT)DriverObject, (PUNICODE_STRING)RegistryPath);
 
     IsCrashDumpMode = FALSE;
-    RhelDbgPrint(TRACE_LEVEL_FATAL, " Vioscsi driver started...built on %s %s\n", __DATE__, __TIME__);
     if (RegistryPath == NULL)
     {
         IsCrashDumpMode = TRUE;
-        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Crash dump mode\n");
     }
+#if !defined(RUN_UNCHECKED)
+    RhelDbgPrint(TRACE_LEVEL_FATAL, " VIOSCSI driver started...built on %s %s\n", __DATE__, __TIME__);
+    if (!IsCrashDumpMode)
+    {
+        memset(&aRegistryPath, 0, sizeof(aRegistryPath));
+        u2a_status = RtlUnicodeStringToAnsiString(&aRegistryPath, RegistryPath, TRUE);
+        if (u2a_status == STATUS_SUCCESS)
+        {
+            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " RegistryPath : %s \n", aRegistryPath.Buffer);
+            RtlFreeAnsiString(&aRegistryPath);
+        }
+    }
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                 " Crash dump mode : %s \n",
+                 (IsCrashDumpMode) ? "ACTIVATED" : "NOT ACTIVATED");
+#endif
 
     RtlZeroMemory(&hwInitData, sizeof(HW_INITIALIZATION_DATA));
 
@@ -325,8 +388,30 @@ DriverEntry(IN PVOID DriverObject, IN PVOID RegistryPath)
     }
 #endif
 
-    RhelDbgPrint(TRACE_LEVEL_VERBOSE, " Initialize returned 0x%x\n", initResult);
+#if !defined(RUN_UNCHECKED)
+    RhelDbgPrint(TRACE_LEVEL_NONE, " VIOSCSI driver starting...");
+    RhelDbgPrint(TRACE_LEVEL_NONE, " Built on %s at %s \n", __DATE__, __TIME__);
+    memset(&aRegistryPath, 0, sizeof(aRegistryPath));
+    u2a_status = RtlUnicodeStringToAnsiString(&aRegistryPath, RegistryPath, TRUE);
+    if (u2a_status == STATUS_SUCCESS)
+    {
+        RhelDbgPrint(TRACE_LEVEL_VERBOSE, " RegistryPath : %s \n", aRegistryPath.Buffer);
+        RtlFreeAnsiString(&aRegistryPath);
+    }
+    RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                 " Crash dump mode : %s \n",
+                 (IsCrashDumpMode) ? "ACTIVATED" : "NOT ACTIVATED");
+    RhelDbgPrint(TRACE_LEVEL_VERBOSE, " StorPortInitialize() returned : 0x%x (%lu) \n", initResult, initResult);
 
+    if (strcmp(GetNtddiDesc(), "UNKNOWN") == 0)
+    {
+        RhelDbgPrint(TRACE_LEVEL_VERBOSE, " NTDDI_VERSION : 0x%x \n", NTDDI_VERSION);
+    }
+    else
+    {
+        RhelDbgPrint(TRACE_LEVEL_VERBOSE, " %s", GetNtddiDesc());
+    }
+#endif
     return initResult;
 }
 
