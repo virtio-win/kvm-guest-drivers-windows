@@ -355,6 +355,7 @@ typedef struct _SOCKET_CONTEXT
     WDFQUEUE WriteQueue;
     _Guarded_by_(TxLock) VIOSOCK_TIMER WriteTimer;
     _Interlocked_ volatile LONG BytesUnsent; // SIOCOUTQ: bytes sliced but not yet consumed by the host
+    KEVENT TxIdleEvent;                      // signaled while BytesUnsent == 0; SO_LINGER close waits on it
 
     _Guarded_by_(RxLock) WDFREQUEST PendedRequest;
     _Guarded_by_(RxLock) VIOSOCK_TIMER PendedTimer;
