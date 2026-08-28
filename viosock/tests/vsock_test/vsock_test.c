@@ -1703,6 +1703,11 @@ int main(int argc, char **argv)
 
     fprintf(stderr, "variant = %s\n", g_ops == &ops_wsa ? "wsa" : "posix");
 
+    if (g_ops == &ops_wsa)
+        wsa_events_all(opts.peer_cid);
+    else
+        posix_events_all(opts.peer_cid);
+
     control_init(control_host, control_port, opts.mode == TEST_MODE_SERVER);
     run_tests(test_cases, &opts);
     control_cleanup();
