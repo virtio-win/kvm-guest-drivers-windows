@@ -662,7 +662,12 @@ static VOID VIOSockTxEntryUnsentSub(IN PVIOSOCK_TX_ENTRY pTxEntry)
 {
     if (pTxEntry->Socket != WDF_NO_HANDLE && pTxEntry->len)
     {
-        InterlockedExchangeAdd(&GetSocketContext(pTxEntry->Socket)->BytesUnsent, -(LONG)pTxEntry->len);
+        PSOCKET_CONTEXT pSocket = GetSocketContext(pTxEntry->Socket);
+
+        if (InterlockedExchangeAdd(&pSocket->BytesUnsent, -(LONG)pTxEntry->len) == (LONG)pTxEntry->len)
+        {
+            KeSetEvent(&pSocket->TxIdleEvent, IO_NO_INCREMENT, FALSE);
+        }
     }
 }
 
@@ -943,8 +948,14 @@ static NTSTATUS VIOSockWriteEnqueueRequest(IN PSOCKET_CONTEXT pSocket, IN WDFREQ
     if (!IsLoopbackSocket(pSocket))
     {
         // SIOCOUTQ accounting (Linux unsent_bytes parity): the chunk counts
-        // from slicing until the host consumes it.
-        InterlockedExchangeAdd(&pSocket->BytesUnsent, (LONG)pTxEntry->len);
+        // from slicing until the host consumes it. The 0 -> len edge cannot
+        // race the draining side: with nothing in flight there is nobody to
+        // decrement, and this entry becomes consumable only after the insert
+        // below.
+        if (InterlockedExchangeAdd(&pSocket->BytesUnsent, (LONG)pTxEntry->len) == 0)
+        {
+            KeClearEvent(&pSocket->TxIdleEvent);
+        }
     }
 
     if (VIOSockTxInsertEntry(pContext, pTxEntry))
