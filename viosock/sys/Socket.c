@@ -1005,6 +1005,7 @@ static NTSTATUS VIOSockCreate(IN WDFDEVICE WdfDevice, IN WDFREQUEST Request, IN 
     pSocket->ReadDequeueInProgress = 0;
     pSocket->WriteEnqueueInProgress = 0;
     pSocket->BytesUnsent = 0;
+    KeInitializeEvent(&pSocket->TxIdleEvent, NotificationEvent, TRUE);
     pSocket->ThisSocket = FileObject;
     pSocket->SocketId = InterlockedIncrement(&pContext->SocketId);
 
@@ -1219,6 +1220,13 @@ VOID VIOSockCleanup(IN WDFFILEOBJECT FileObject)
                 VIOSockSendReset(pSocket, FALSE);
             }
         }
+        else if (VIOSockIsFlag(pSocket, SOCK_LINGER) && pSocket->LingerTime == 0)
+        {
+            // SO_LINGER with a zero timeout is the documented hard close:
+            // discard whatever is pending and reset the connection.
+            VIOSockSendReset(pSocket, FALSE);
+            VIOSockDoClose(pSocket);
+        }
         else
         {
             LARGE_INTEGER liTimeout;
@@ -1228,19 +1236,38 @@ VOID VIOSockCleanup(IN WDFFILEOBJECT FileObject)
                 VIOSockSendShutdown(pSocket, VIRTIO_VSOCK_SHUTDOWN_MASK);
             }
 
-            liTimeout.QuadPart = -(VSOCK_CLOSE_TIMEOUT +
-                                   (VIOSockIsFlag(pSocket, SOCK_LINGER) ? WDF_ABS_TIMEOUT_IN_SEC(pSocket->LingerTime)
-                                                                        : 0));
-
-            if (KeWaitForSingleObject(&pSocket->CloseEvent, Executive, KernelMode, FALSE, &liTimeout) == STATUS_TIMEOUT)
+            if (VIOSockIsFlag(pSocket, SOCK_LINGER))
             {
-                TraceEvents(TRACE_LEVEL_WARNING,
-                            DBG_CREATE_CLOSE,
-                            "Socket %d, close timeout expires\n",
-                            pSocket->SocketId);
+                // Linux virtio_transport_wait_close parity: a lingering close
+                // waits only for the unsent bytes to drain, bounded by the
+                // linger timeout — never for the peer's teardown ack (which
+                // may legally take forever: the peer replies only once it has
+                // read the data out). The wire converges without us: the
+                // peer's eventual RST is answered at the device level.
+                liTimeout.QuadPart = -WDF_ABS_TIMEOUT_IN_SEC(pSocket->LingerTime);
+                if (KeWaitForSingleObject(&pSocket->TxIdleEvent, Executive, KernelMode, FALSE, &liTimeout) ==
+                    STATUS_TIMEOUT)
+                {
+                    TraceEvents(TRACE_LEVEL_WARNING,
+                                DBG_CREATE_CLOSE,
+                                "Socket %d, linger timeout expires with unsent data\n",
+                                pSocket->SocketId);
+                }
+            }
+            else
+            {
+                liTimeout.QuadPart = -VSOCK_CLOSE_TIMEOUT;
+                if (KeWaitForSingleObject(&pSocket->CloseEvent, Executive, KernelMode, FALSE, &liTimeout) ==
+                    STATUS_TIMEOUT)
+                {
+                    TraceEvents(TRACE_LEVEL_WARNING,
+                                DBG_CREATE_CLOSE,
+                                "Socket %d, close timeout expires\n",
+                                pSocket->SocketId);
 
-                VIOSockSendReset(pSocket, FALSE);
-                VIOSockDoClose(pSocket);
+                    VIOSockSendReset(pSocket, FALSE);
+                    VIOSockDoClose(pSocket);
+                }
             }
         }
     }
