@@ -69,4 +69,22 @@ int sock_ops_select(const char *variant);
 void posix_validate_all(void);
 void wsa_validate_all(void);
 
+/*
+ * Positive-path targeted checks split by variant so each side of
+ * the dispatch table exercises exactly its own primitive:
+ *   posix_events_all - WSPSelect (readfds/writefds/exceptfds via
+ *       native select()).  Called from main() after "posix" is
+ *       selected and opts.peer_cid is known.
+ *   wsa_events_all   - WSAEventSelect (FD_* mask + WSAWaitFor* +
+ *       WSAEnumNetworkEvents).  Called from main() after "wsa"
+ *       is selected and opts.peer_cid is known.
+ *
+ * Both use the guest's own CID (passed in from --peer-cid) to form
+ * in-process connected pairs; a variant-native self-loopback probe
+ * gates the pair-based helpers so a routing gap in the guest does
+ * not hang the smoke.
+ */
+void posix_events_all(unsigned int self_cid);
+void wsa_events_all(unsigned int self_cid);
+
 #endif /* SOCK_OPS_H */
