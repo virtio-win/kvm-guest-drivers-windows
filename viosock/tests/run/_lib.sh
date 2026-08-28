@@ -190,11 +190,10 @@ variant_to_cmd() {
         *)   err "unknown bits: $bits"; return 1 ;;
     esac
     case "$variant" in
-        posix) flags='' ;;
-        wsa)   flags=' --variant wsa' ;;
-        # Example future variant, sharing the exe with wsa:
-        # overlapped) flags=' --variant overlapped' ;;
-        *)     err "unknown variant: $variant"; return 1 ;;
+        posix)      flags='' ;;
+        wsa)        flags=' --variant wsa' ;;
+        overlapped) flags=' --variant overlapped' ;;
+        *)          err "unknown variant: $variant"; return 1 ;;
     esac
     printf '%s\\%s%s\n' "$bin_dir" "$exe" "$flags"
 }
