@@ -1388,6 +1388,7 @@ VIOSockWriteSocketQueueInit(IN PSOCKET_CONTEXT pSocket)
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "WdfIoQueueCreate failed (Socket Write Queue): 0x%x\n", status);
+        return status;
     }
 
     status = VIOSockTimerCreate(&pSocket->WriteTimer, pSocket->ThisSocket, VIOSockWriteTimerFunc);
