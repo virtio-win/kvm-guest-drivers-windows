@@ -6,21 +6,69 @@
  * Same source-level API as wsa (WSASocket / WSAConnect / WSAAccept /
  * WSASend / WSARecv / closesocket) but the socket is created with
  * WSA_FLAG_OVERLAPPED and every send / recv is issued with a live
- * WSAOVERLAPPED whose hEvent we wait on via WSAGetOverlappedResult
- * (fWait=TRUE).  That routes each I/O through the LSP + driver
+ * WSAOVERLAPPED - routing each I/O through the LSP + driver
  * OVERLAPPED-completion tract instead of the synchronous fast path
- * covered by wsa; the test bodies themselves stay unchanged.
+ * covered by wsa.
+ *
+ * Hybrid completion split: send uses an APC completion routine
+ * (LPWSAOVERLAPPED_COMPLETION_ROUTINE) waited on with an alertable
+ * WaitForSingleObjectEx, recv uses an event-based OVERLAPPED
+ * waited on with WSAGetOverlappedResult(fWait=TRUE).  So every test
+ * body exercises both async-completion tracts in the same run - the
+ * APC-driven send path and the event-driven WSAGetOverlappedResult
+ * recv path - without needing two separate variants.
  *
  * connect / accept keep their synchronous WSAConnect / WSAAccept
  * form - MSDN documents no lpOverlapped parameter on WSAConnect and
- * async accept requires AcceptEx, both non-trivial reworks we do
- * not need for send/recv coverage.  poll dispatches to the same
- * WSAEventSelect wait primitive as the wsa variant.
+ * async accept requires ConnectEx / AcceptEx (VSTOR-143723 tracks
+ * the LSP work needed to expose them).  poll dispatches to
+ * wsa_poll_dispatch (WSAPoll), shared with wsa.
  */
 
 #define COMPAT_IMPL
 #include "compat.h"
 #include "sock_ops.h"
+
+/* Send path: APC. */
+struct overlapped_apc_ctx
+{
+    WSAOVERLAPPED ov;
+    DWORD bytes;
+    DWORD err;
+    HANDLE done_ev;
+};
+
+static void CALLBACK overlapped_apc_cb(DWORD dwError,
+                                        DWORD cbTransferred,
+                                        LPWSAOVERLAPPED lpOverlapped,
+                                        DWORD dwFlags)
+{
+    struct overlapped_apc_ctx *c = (struct overlapped_apc_ctx *)lpOverlapped->hEvent;
+    (void)dwFlags;
+    c->err = dwError;
+    c->bytes = cbTransferred;
+    SetEvent(c->done_ev);
+}
+
+/*
+ * Park in an alertable wait until the APC has fired.  Wraps the
+ * WAIT_IO_COMPLETION -> re-arm loop so callers do not have to open
+ * it.  Returns true on success (ctx populated), false on wait
+ * failure with the WSA error stashed in ctx.err.
+ */
+static bool overlapped_wait_apc(struct overlapped_apc_ctx *ctx)
+{
+    for (;;)
+    {
+        DWORD dw = WaitForSingleObjectEx(ctx->done_ev, INFINITE, TRUE);
+        if (dw == WAIT_OBJECT_0)
+            return true;
+        if (dw == WAIT_IO_COMPLETION)
+            continue;
+        ctx->err = WSAGetLastError();
+        return false;
+    }
+}
 
 static int overlapped_socket(int af, int type, int proto)
 {
@@ -55,15 +103,17 @@ static int overlapped_accept(int fd, struct sockaddr *addr, socklen_t *addrlen)
 }
 
 /*
- * Issue WSASend with a live WSAOVERLAPPED, then wait for completion
- * via WSAGetOverlappedResult(fWait=TRUE).  Sender-side WSABUF split
- * mirrors wsa_send so both variants exercise the LSP's scatter-send
- * path with the same call shape.
+ * Send: issue WSASend with a non-NULL lpCompletionRoutine and park
+ * in an alertable wait; the APC delivers bytes/error into the
+ * per-request ctx.  WSABUF split mirrors wsa_send so the LSP's
+ * scatter-send path is exercised with the same call shape.
  */
 static ssize_t overlapped_send(int fd, const void *buf, size_t len, int flags)
 {
     bool dontwait = (flags & 0x40) != 0; /* MSG_DONTWAIT */
-    flags &= ~(0x40 | 0x8000);           /* strip MSG_DONTWAIT | MSG_MORE */
+    /* Strip Linux-only flags; MSG_ZEROCOPY stays - viosocklib
+     * (see vio_sockets.h) routes it to SEND_EX / MDL. */
+    flags &= ~(0x40 | 0x8000); /* strip MSG_DONTWAIT | MSG_MORE */
 
     if (dontwait)
     {
@@ -89,9 +139,9 @@ static ssize_t overlapped_send(int fd, const void *buf, size_t len, int flags)
         count = 1;
     }
 
-    WSAOVERLAPPED ov = {0};
-    ov.hEvent = WSACreateEvent();
-    if (ov.hEvent == WSA_INVALID_EVENT)
+    struct overlapped_apc_ctx ctx = {0};
+    ctx.done_ev = CreateEventW(NULL, TRUE, FALSE, NULL);
+    if (!ctx.done_ev)
     {
         if (dontwait)
         {
@@ -101,16 +151,20 @@ static ssize_t overlapped_send(int fd, const void *buf, size_t len, int flags)
         wsa_set_errno();
         return -1;
     }
+    /* WSASend / WSARecv with a completion routine ignore
+     * lpOverlapped->hEvent for signalling; reuse the field as a ctx
+     * back-pointer for the APC. */
+    ctx.ov.hEvent = (HANDLE)&ctx;
 
     DWORD sent = 0;
-    int r = WSASend((SOCKET)fd, wb, count, &sent, (DWORD)flags, &ov, NULL);
+    int r = WSASend((SOCKET)fd, wb, count, &sent, (DWORD)flags, &ctx.ov, overlapped_apc_cb);
     int saved_err = 0;
     if (r == SOCKET_ERROR)
     {
         saved_err = WSAGetLastError();
         if (saved_err != WSA_IO_PENDING)
         {
-            WSACloseEvent(ov.hEvent);
+            CloseHandle(ctx.done_ev);
             if (dontwait)
             {
                 u_long nb = 0;
@@ -122,11 +176,8 @@ static ssize_t overlapped_send(int fd, const void *buf, size_t len, int flags)
         }
     }
 
-    DWORD bytes = 0;
-    DWORD ov_flags = 0;
-    BOOL ok = WSAGetOverlappedResult((SOCKET)fd, &ov, &bytes, TRUE, &ov_flags);
-    saved_err = ok ? 0 : WSAGetLastError();
-    WSACloseEvent(ov.hEvent);
+    bool ok = overlapped_wait_apc(&ctx);
+    CloseHandle(ctx.done_ev);
 
     if (dontwait)
     {
@@ -134,19 +185,20 @@ static ssize_t overlapped_send(int fd, const void *buf, size_t len, int flags)
         ioctlsocket((SOCKET)fd, FIONBIO, &nb);
     }
 
-    if (!ok)
+    if (!ok || ctx.err != 0)
     {
-        WSASetLastError(saved_err);
+        WSASetLastError(ok ? (int)ctx.err : ctx.err);
         wsa_set_errno();
         return -1;
     }
-    return (ssize_t)bytes;
+    return (ssize_t)ctx.bytes;
 }
 
 /*
- * WSARecv counterpart of overlapped_send.  Same split-buffer shape as
- * wsa_recv (WSABUF[2] for len >= 2) so the scatter-recv path is hit
- * identically.
+ * Recv: WSARecv with a live WSAOVERLAPPED, waited on via
+ * WSAGetOverlappedResult(fWait=TRUE) - the event-based completion
+ * tract.  Same WSABUF split shape as overlapped_send so the
+ * scatter-recv path is hit identically.
  */
 static ssize_t overlapped_recv(int fd, void *buf, size_t len, int flags)
 {
@@ -178,6 +230,13 @@ static ssize_t overlapped_recv(int fd, void *buf, size_t len, int flags)
     }
 
     WSAOVERLAPPED ov = {0};
+    /* WDF driver does not populate the user-mode IoStatusBlock until
+     * completion; the WSAOVERLAPPED lives in the caller.  If Internal
+     * stays at 0 (STATUS_SUCCESS) when WSAGetOverlappedResult runs, it
+     * returns immediately with bytes=InternalHigh=0.  Mark the op as
+     * pending here so the WaitForSingleObjectEx branch inside
+     * WSAGetOverlappedResult actually blocks on hEvent. */
+    ov.Internal = (ULONG_PTR)STATUS_PENDING;
     ov.hEvent = WSACreateEvent();
     if (ov.hEvent == WSA_INVALID_EVENT)
     {
@@ -194,7 +253,18 @@ static ssize_t overlapped_recv(int fd, void *buf, size_t len, int flags)
     DWORD dwFlags = (DWORD)flags;
     int r = WSARecv((SOCKET)fd, wb, count, &got, &dwFlags, &ov, NULL);
     int saved_err = 0;
-    if (r == SOCKET_ERROR)
+    DWORD bytes = 0;
+    BOOL ok;
+
+    if (r == 0)
+    {
+        /* Immediate completion: bytes are in `got`, ov may not have
+         * been populated and hEvent may not be signalled - do NOT
+         * call WSAGetOverlappedResult, it would read zeros. */
+        bytes = got;
+        ok = TRUE;
+    }
+    else
     {
         saved_err = WSAGetLastError();
         if (saved_err != WSA_IO_PENDING)
@@ -209,12 +279,10 @@ static ssize_t overlapped_recv(int fd, void *buf, size_t len, int flags)
             wsa_set_errno();
             return -1;
         }
+        DWORD ov_flags = 0;
+        ok = WSAGetOverlappedResult((SOCKET)fd, &ov, &bytes, TRUE, &ov_flags);
+        saved_err = ok ? 0 : WSAGetLastError();
     }
-
-    DWORD bytes = 0;
-    DWORD ov_flags = 0;
-    BOOL ok = WSAGetOverlappedResult((SOCKET)fd, &ov, &bytes, TRUE, &ov_flags);
-    saved_err = ok ? 0 : WSAGetLastError();
     WSACloseEvent(ov.hEvent);
 
     if (dontwait)
