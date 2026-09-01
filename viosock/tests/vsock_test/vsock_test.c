@@ -540,6 +540,232 @@ static void test_stream_inv_buf_server(const struct test_opts *opts)
 #define HELLO_STR "HELLO"
 #define WORLD_STR "WORLD"
 
+/*
+ * MSG_ZEROCOPY on Windows: no SO_ZEROCOPY setsockopt and no
+ * MSG_ERRQUEUE completion reaping (both are Linux errqueue
+ * machinery that Winsock does not expose).  viosocklib recognises
+ * MSG_ZEROCOPY as a per-send flag (see viosock/inc/vio_sockets.h)
+ * and routes matching sends through IOCTL_SOCKET_SEND_EX / MDL -
+ * the zero-copy tract.  So the Windows counterpart of MSG_ZEROCOPY
+ * is just "issue the send with the flag riding on it and wait for
+ * completion normally"; the flag stays in the wrappers untouched.
+ *
+ * The client-side + server-side control-channel protocol below
+ * mirrors upstream Linux tools/testing/vsock/vsock_test_zerocopy.c
+ * (one control_writeulong(hash) + control_writeln("DONE") per
+ * iteration) so the same "--pick 18" row can be run against an
+ * upstream Linux peer.  Windows-specific adjustments:
+ *   - enable_so_zerocopy_check is a no-op (util.c); the flag alone
+ *     drives the zero-copy tract, no setsockopt is required.
+ *   - MSG_ERRQUEUE poll is not portable; skip the POLLERR / recv
+ *     completion step (a Linux-only errqueue drain).
+ *   - the MAP_FAILED "unmapped middle vec" scenario cannot be
+ *     simulated cleanly from user space on Windows; that iteration
+ *     is handled by skipping the real send and simply emitting the
+ *     control ack the Linux peer expects (hash 0 + DONE), matching
+ *     what the upstream client does when sendmsg fails with ENOMEM.
+ */
+#ifndef PAGE_SIZE
+#define PAGE_SIZE 4096
+#endif
+
+struct vsock_test_data
+{
+    int sendmsg_errno;
+    int vecs_cnt;
+    struct iovec vecs[3];
+};
+
+static const struct vsock_test_data test_data_array[] = {
+    /* Last element has non-page aligned size. */
+    {0, 3, {{NULL, PAGE_SIZE}, {NULL, PAGE_SIZE}, {NULL, 200}}},
+    /* All elements have page aligned base and size. */
+    {0, 3, {{NULL, PAGE_SIZE}, {NULL, PAGE_SIZE * 2}, {NULL, PAGE_SIZE * 3}}},
+    /* All elements page aligned; data length is bigger than 64 KB. */
+    {0, 3, {{NULL, PAGE_SIZE * 16}, {NULL, PAGE_SIZE * 16}, {NULL, PAGE_SIZE * 16}}},
+    /* Middle element has both non-page aligned base and size. */
+    {0, 3, {{NULL, PAGE_SIZE}, {(void *)1, 100}, {NULL, PAGE_SIZE}}},
+    /* Middle element is unmapped: on Windows we cannot fake the
+     * sendmsg ENOMEM cleanly, so we mirror the upstream ack path
+     * (hash 0 + DONE) without doing a real send. */
+    {ENOMEM, 3, {{NULL, PAGE_SIZE}, {MAP_FAILED, PAGE_SIZE}, {NULL, PAGE_SIZE}}},
+    /* Valid data but SO_ZEROCOPY is off on Linux - triggers fallback
+     * to copy; on Windows this behaves the same as any other send. */
+    {0, 1, {{NULL, PAGE_SIZE}}},
+    /* Valid data but bigger than peer buffer -> fallback to copy on
+     * Linux, straight send on Windows.  100 * PAGE_SIZE = 400 KB. */
+    {0, 1, {{NULL, 100 * PAGE_SIZE}}},
+};
+
+static bool test_msg_zcopy_has_map_failed(const struct vsock_test_data *td)
+{
+    int i;
+    for (i = 0; i < td->vecs_cnt; i++)
+    {
+        if (td->vecs[i].iov_base == MAP_FAILED)
+            return true;
+    }
+    return false;
+}
+
+static void test_msg_zcopy_send_iovec(int fd, struct iovec *iovec, int iovnum)
+{
+    int i;
+    for (i = 0; i < iovnum; i++)
+        send_buf(fd, iovec[i].iov_base, iovec[i].iov_len, MSG_ZEROCOPY, iovec[i].iov_len);
+}
+
+/*
+ * djb2 with an explicit 64-bit accumulator + text I/O so hashes
+ * match across LP64 (Linux) and LLP64 (Windows) peers.  The
+ * generic control_writeulong / control_readulong path truncates to
+ * `unsigned long` which is 32-bit on Windows and 64-bit on Linux;
+ * for large iovecs that mismatch makes the "hash mismatch" check
+ * on the server fire even when the byte streams are identical.
+ */
+static uint64_t test_msg_zcopy_hash_u64(const void *data, size_t len)
+{
+    uint64_t hash = 5381;
+    size_t i;
+    for (i = 0; i < len; i++)
+        hash = ((hash << 5) + hash) + ((const unsigned char *)data)[i];
+    return hash;
+}
+
+static uint64_t test_msg_zcopy_iovec_hash_u64(const struct iovec *iov, size_t iovnum)
+{
+    size_t total = iovec_bytes(iov, iovnum);
+    unsigned char *tmp = malloc(total);
+    size_t offs = 0, i;
+    uint64_t h;
+    if (!tmp)
+    {
+        perror("malloc");
+        exit(EXIT_FAILURE);
+    }
+    for (i = 0; i < iovnum; i++)
+    {
+        memcpy(tmp + offs, iov[i].iov_base, iov[i].iov_len);
+        offs += iov[i].iov_len;
+    }
+    h = test_msg_zcopy_hash_u64(tmp, total);
+    free(tmp);
+    return h;
+}
+
+static void test_msg_zcopy_writeulong64(uint64_t v)
+{
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%llu", (unsigned long long)v);
+    control_writeln(buf);
+}
+
+static uint64_t test_msg_zcopy_readulong64(void)
+{
+    char *str = control_readln();
+    uint64_t v;
+    if (!str)
+        exit(EXIT_FAILURE);
+    v = (uint64_t)strtoull(str, NULL, 10);
+    free(str);
+    return v;
+}
+
+static void test_msg_zcopy_client_one(const struct test_opts *opts,
+                                       const struct vsock_test_data *test_data)
+{
+    struct iovec *iovec;
+    uint64_t hash = 0;
+    int fd;
+    bool skip_send;
+
+    fd = vsock_stream_connect(opts->peer_cid, opts->peer_port);
+    if (fd < 0)
+    {
+        perror("connect");
+        exit(EXIT_FAILURE);
+    }
+
+    /* No-op on Windows; kept so the flow matches upstream. */
+    enable_so_zerocopy_check(fd);
+
+    iovec = alloc_test_iovec(test_data->vecs, test_data->vecs_cnt);
+
+    skip_send = test_data->sendmsg_errno != 0 || test_msg_zcopy_has_map_failed(test_data);
+    if (!skip_send)
+    {
+        test_msg_zcopy_send_iovec(fd, iovec, test_data->vecs_cnt);
+        hash = test_msg_zcopy_iovec_hash_u64(iovec, test_data->vecs_cnt);
+    }
+
+    test_msg_zcopy_writeulong64(hash);
+    control_writeln("DONE");
+    free_test_iovec(test_data->vecs, iovec, test_data->vecs_cnt);
+    close(fd);
+}
+
+static void test_msg_zcopy_server_one(const struct test_opts *opts,
+                                       const struct vsock_test_data *test_data)
+{
+    uint64_t remote_hash, local_hash = 0;
+    size_t data_len, total = 0;
+    unsigned char *data;
+    int fd;
+
+    fd = vsock_stream_accept(VMADDR_CID_ANY, opts->peer_port, NULL);
+    if (fd < 0)
+    {
+        perror("accept");
+        exit(EXIT_FAILURE);
+    }
+
+    data_len = iovec_bytes(test_data->vecs, test_data->vecs_cnt);
+    data = malloc(data_len);
+    if (!data)
+    {
+        perror("malloc");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Read until data_len bytes arrive or the peer stops; the loop
+     * mirrors upstream `while (total_bytes_rec != data_len)`. */
+    while (total != data_len)
+    {
+        ssize_t n = recv((SOCKET)fd, (char *)(data + total), (int)(data_len - total), 0);
+        if (n <= 0)
+            break;
+        total += (size_t)n;
+    }
+
+    if (test_data->sendmsg_errno == 0 && !test_msg_zcopy_has_map_failed(test_data))
+        local_hash = test_msg_zcopy_hash_u64(data, data_len);
+
+    free(data);
+
+    remote_hash = test_msg_zcopy_readulong64();
+    if (remote_hash != local_hash)
+    {
+        fprintf(stderr, "hash mismatch\n");
+        exit(EXIT_FAILURE);
+    }
+    control_expectln("DONE");
+    close(fd);
+}
+
+static void test_stream_msg_zcopy_client(const struct test_opts *opts)
+{
+    size_t i;
+    for (i = 0; i < ARRAY_SIZE(test_data_array); i++)
+        test_msg_zcopy_client_one(opts, &test_data_array[i]);
+}
+
+static void test_stream_msg_zcopy_server(const struct test_opts *opts)
+{
+    size_t i;
+    for (i = 0; i < ARRAY_SIZE(test_data_array); i++)
+        test_msg_zcopy_server_one(opts, &test_data_array[i]);
+}
+
 static void test_stream_virtio_skb_merge_client(const struct test_opts *opts)
 {
     int fd;
@@ -1224,11 +1450,9 @@ static struct test_case test_cases[] = {
         .run_server = NULL,
     },
     {
-        /* Winsock has no MSG_ERRQUEUE / sock_extended_err notification path
-         * that the POSIX MSG_ZEROCOPY completion protocol depends on. */
         .name = "SOCK_STREAM MSG_ZEROCOPY",
-        .run_client = NULL,
-        .run_server = NULL,
+        .run_client = test_stream_msg_zcopy_client,
+        .run_server = test_stream_msg_zcopy_server,
     },
     {
         /* SEQPACKET not implemented (also no Winsock MSG_ERRQUEUE) */

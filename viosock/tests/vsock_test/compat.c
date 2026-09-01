@@ -142,7 +142,11 @@ int compat_accept(int fd, struct sockaddr *addr, socklen_t *addrlen)
 ssize_t compat_send(int fd, const void *buf, size_t len, int flags)
 {
     bool dontwait = (flags & 0x40) != 0; /* MSG_DONTWAIT */
-    /* Strip flags that Winsock2 doesn't know */
+    /* Strip Linux-only send flags that Winsock2 does not know.
+     * MSG_ZEROCOPY stays - viosocklib recognises it (see
+     * vio_sockets.h) and routes the send through SEND_EX (MDL /
+     * zero-copy tract).  compat.c uses the CRT `send()` which
+     * forwards flags to WSASend under the hood. */
     flags &= ~(0x40 | 0x8000); /* MSG_DONTWAIT | MSG_MORE */
     /* MSG_NOSIGNAL is 0 on Windows (no SIGPIPE) */
 
