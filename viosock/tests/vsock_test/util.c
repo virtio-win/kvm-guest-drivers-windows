@@ -847,9 +847,11 @@ void setsockopt_timeval_check(int fd, int level, int optname, struct timeval val
 /* SO_ZEROCOPY not available on Windows; skip tests that require it. */
 void enable_so_zerocopy_check(int fd)
 {
+    /* No-op on Windows: viosocklib recognises MSG_ZEROCOPY as a
+     * per-call flag (see vio_sockets.h) and routes it through
+     * IOCTL_SOCKET_SEND_EX / MDL without any prior setsockopt.
+     * Kept as a call site so the test flow mirrors upstream Linux. */
     (void)fd;
-    fprintf(stderr, "SO_ZEROCOPY not supported on Windows -- test skipped\n");
-    exit(EXIT_FAILURE);
 }
 
 void enable_so_linger(int fd, int timeout)
