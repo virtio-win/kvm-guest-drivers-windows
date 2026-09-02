@@ -1,3 +1,16 @@
+Date    10 Sep 2026
+repo    https://github.com/virtio-win/kvm-guest-drivers-windows.git
+tag     mm323
+
+Fixed issues:
+* RHEL-213209: Add PowerShell execution policy guidance to GetVirtioWinInfo.ps1
+* RHEL-216649: viofs: add optional polling-based file change notifications
+* RHEL-212375: viostor: Fix queue depth throttling
+* Stdvga v2
+* RHEL-216681: viogpu: serialize the pointer DDIs and honor pointer visibility
+* RHEL-180674: Tools: Add Restore-VirtioNetworkConfig script to IPRecovery
+* netkvm: fix TX RSS queue mapping for unmatched CPUs
+
 Date    22 Jul 2026
 repo    https://github.com/virtio-win/kvm-guest-drivers-windows.git
 tag     mm322
