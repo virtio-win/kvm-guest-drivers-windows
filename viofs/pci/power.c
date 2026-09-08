@@ -222,7 +222,7 @@ NTSTATUS VirtFsEvtDeviceD0Entry(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE P
     params[VQ_TYPE_HIPRIO].Interrupt = context->WdfInterrupt[VQ_TYPE_HIPRIO];
     params[VQ_TYPE_REQUEST].Interrupt = context->WdfInterrupt[VQ_TYPE_REQUEST];
 
-    status = VirtIOWdfInitQueues(&context->VDevice, context->NumQueues, context->VirtQueues, params);
+    status = VirtIOWdfInitQueuesPowerOfTwoAligned(&context->VDevice, context->NumQueues, context->VirtQueues, params);
 
     if (NT_SUCCESS(status))
     {
