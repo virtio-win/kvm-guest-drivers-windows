@@ -437,6 +437,10 @@ VIOSockBoundAdd(IN PSOCKET_CONTEXT pSocket, IN ULONG32 svm_port);
 _Requires_lock_not_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundFindByPortLocked(IN PDEVICE_CONTEXT pContext,
                                                                                            IN ULONG32 ulSrcPort);
 
+_Requires_lock_not_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundFindByPortLockedReferenced(
+                                                                                                    IN PDEVICE_CONTEXT pContext,
+                                                                                                    IN ULONG32 ulSrcPort);
+
 _Requires_lock_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundFindByPort(IN PDEVICE_CONTEXT pContext,
                                                                                  IN ULONG32 ulSrcPort);
 
@@ -490,7 +494,8 @@ _Requires_lock_not_held_(pListenSocket->StateLock) NTSTATUS VIOSockAcceptInitSoc
                                                                                     PSOCKET_CONTEXT pListenSocket);
 
 _Requires_lock_not_held_(pListenSocket->RxLock) NTSTATUS VIOSockAcceptEnqueuePkt(IN PSOCKET_CONTEXT pListenSocket,
-                                                                                 IN PVIRTIO_VSOCK_HDR pPkt);
+                                                                                 IN PVIRTIO_VSOCK_HDR pPkt,
+                                                                                 IN WDFFILEOBJECT LoopbackSocket OPTIONAL);
 
 _Requires_lock_not_held_(pListenSocket->RxLock) VOID VIOSockAcceptRemovePkt(IN PSOCKET_CONTEXT pListenSocket,
                                                                             IN PVIRTIO_VSOCK_HDR pPkt);
@@ -618,6 +623,9 @@ typedef struct _VIOSOCK_TX_ENTRY
     } BufferDesc;
 } VIOSOCK_TX_ENTRY, *PVIOSOCK_TX_ENTRY;
 
+PVIOSOCK_TX_ENTRY VIOSockTxAllocateEntry(IN PDEVICE_CONTEXT pContext,
+                                         IN PSOCKET_CONTEXT pSocket OPTIONAL,
+                                         IN ULONG BufferLen);
 VOID VIOSockTxFreeEntry(PVIOSOCK_TX_ENTRY pTxEntry);
 
 NTSTATUS
@@ -632,6 +640,7 @@ VIOSockWriteSocketQueueInit(IN PSOCKET_CONTEXT pSocket);
 _Requires_lock_not_held_(pSocket->TxLock) VOID VIOSockWriteProcessQueue(IN PSOCKET_CONTEXT pSocket);
 
 VOID VIOSockLoopbackProcessTxEntry(IN PVIOSOCK_TX_ENTRY pTxEntry);
+VOID VIOSockLoopbackSendReset(IN PSOCKET_CONTEXT pLoopbackSocket);
 
 NTSTATUS
 VIOSockTxVqInit(IN PDEVICE_CONTEXT pContext);
@@ -786,6 +795,12 @@ _Requires_lock_not_held_(pSocket->StateLock) __inline VOID VIOSockEventSetReadBi
     }
 }
 
+_Requires_lock_not_held_(pSocket->StateLock) VOID VIOSockRxPktHandleConnecting(IN PSOCKET_CONTEXT pSocket,
+                                                                               IN PVIRTIO_VSOCK_HDR pPkt,
+                                                                               IN BOOLEAN bTxHasSpace);
+
+VOID VIOSockRxPktHandleDisconnecting(IN PSOCKET_CONTEXT pSocket, IN PVIRTIO_VSOCK_HDR pPkt);
+
 NTSTATUS
 VIOSockReadQueueInit(IN WDFDEVICE hDevice);
 
@@ -846,7 +861,7 @@ _IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockEvtVqProcess(IN PDEVICE_CONTEXT 
 
 //////////////////////////////////////////////////////////////////////////
 BOOLEAN
-VIOSockLoopbackAcceptDequeue(IN PSOCKET_CONTEXT pAcceptSocket, IN PVIOSOCK_ACCEPT_ENTRY pAcceptEntry);
+VIOSockLoopbackAcceptInitSocket(IN PSOCKET_CONTEXT pAcceptSocket, IN WDFFILEOBJECT ConnectSocket);
 
 //////////////////////////////////////////////////////////////////////////
 __inline LONGLONG VIOSockTimerTimeoutToTicks(IN LONGLONG Timeout)
@@ -976,24 +991,6 @@ __inline VOID VIOSockTimerDeref(IN PVIOSOCK_TIMER pTimer, IN BOOLEAN bStop)
             WdfTimerStop(pTimer->Timer, FALSE);
         }
     }
-}
-
-//////////////////////////////////////////////////////////////////////////
-
-__inline VOID VioSockReference(IN WDFFILEOBJECT Socket)
-{
-    ObReferenceObject(WdfFileObjectWdmGetFileObject(Socket));
-    WdfObjectReference(Socket);
-
-    return;
-}
-
-__inline VOID VioSockDereference(IN WDFFILEOBJECT Socket)
-{
-    WdfObjectDereference(Socket);
-    ObDereferenceObject(WdfFileObjectWdmGetFileObject(Socket));
-
-    return;
 }
 
 #endif /* VIOSOCK_H */
