@@ -508,9 +508,9 @@ VIOSockRxVqInit(IN PDEVICE_CONTEXT pContext)
     return status;
 }
 
-_Requires_lock_not_held_(pSocket->StateLock) static VOID VIOSockRxPktHandleConnecting(IN PSOCKET_CONTEXT pSocket,
-                                                                                      IN PVIOSOCK_RX_PKT pPkt,
-                                                                                      IN BOOLEAN bTxHasSpace)
+_Requires_lock_not_held_(pSocket->StateLock) VOID VIOSockRxPktHandleConnecting(IN PSOCKET_CONTEXT pSocket,
+                                                                               IN PVIRTIO_VSOCK_HDR pPkt,
+                                                                               IN BOOLEAN bTxHasSpace)
 {
     WDFREQUEST PendedRequest;
     NTSTATUS status;
@@ -529,7 +529,7 @@ _Requires_lock_not_held_(pSocket->StateLock) static VOID VIOSockRxPktHandleConne
         else
         {
             BOOLEAN bSetEvent = FALSE;
-            switch (pPkt->Header.op)
+            switch (pPkt->op)
             {
                 case VIRTIO_VSOCK_OP_RESPONSE:
                     WdfSpinLockAcquire(pSocket->StateLock);
@@ -568,7 +568,7 @@ _Requires_lock_not_held_(pSocket->StateLock) static VOID VIOSockRxPktHandleConne
         VIOSockEventSetBit(pSocket, FD_CONNECT_BIT, status);
         VIOSockStateSet(pSocket, VIOSOCK_STATE_CLOSE);
         WdfSpinLockRelease(pSocket->StateLock);
-        if (pPkt->Header.op != VIRTIO_VSOCK_OP_RST)
+        if (pPkt->op != VIRTIO_VSOCK_OP_RST)
         {
             VIOSockSendReset(pSocket, TRUE);
         }
@@ -779,11 +779,11 @@ static VOID VIOSockRxPktHandleConnected(IN PSOCKET_CONTEXT pSocket, IN PVIOSOCK_
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
 }
 
-static VOID VIOSockRxPktHandleDisconnecting(IN PSOCKET_CONTEXT pSocket, IN PVIOSOCK_RX_PKT pPkt)
+VOID VIOSockRxPktHandleDisconnecting(IN PSOCKET_CONTEXT pSocket, IN PVIRTIO_VSOCK_HDR pPkt)
 {
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
-    if (pPkt->Header.op == VIRTIO_VSOCK_OP_RST)
+    if (pPkt->op == VIRTIO_VSOCK_OP_RST)
     {
         VIOSockDoClose(pSocket);
     }
@@ -818,7 +818,7 @@ static VOID VIOSockRxPktHandleListen(IN PSOCKET_CONTEXT pSocket, IN PVIOSOCK_RX_
         return;
     }
 
-    status = VIOSockAcceptEnqueuePkt(pSocket, &pPkt->Header);
+    status = VIOSockAcceptEnqueuePkt(pSocket, &pPkt->Header, WDF_NO_HANDLE);
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockAcceptEnqueuePkt failed: 0x%x\n", status);
@@ -901,44 +901,43 @@ _Requires_lock_not_held_(pContext->RxLock) VOID VIOSockRxVqProcess(IN PDEVICE_CO
     while (!IsListEmpty(&CompletionList))
     {
         BOOLEAN bTxHasSpace;
+        PVIRTIO_VSOCK_HDR pPktHdr;
 
         pPkt = CONTAINING_RECORD(RemoveHeadList(&CompletionList), VIOSOCK_RX_PKT, CompletionListEntry);
+        pPktHdr = &pPkt->Header;
 
         // find socket
-        pSocket = VIOSockConnectedFindByRxPktLocked(pContext, &pPkt->Header);
+        pSocket = VIOSockConnectedFindByRxPktLocked(pContext, pPktHdr);
         if (!pSocket)
         {
             // no connected socket for incoming packet
             TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "No connected socket found\n");
-            pSocket = VIOSockBoundFindByPortLocked(pContext, pPkt->Header.dst_port);
+            pSocket = VIOSockBoundFindByPortLocked(pContext, pPktHdr->dst_port);
         }
 
-        if (pSocket && pSocket->type != pPkt->Header.type)
+        if (pSocket && pSocket->type != pPktHdr->type)
         {
             TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Invalid socket %d type\n", pSocket->SocketId);
             pSocket = NULL;
         }
         if (!pSocket)
         {
-            TraceEvents(TRACE_LEVEL_WARNING,
-                        DBG_SOCKET,
-                        "Socket for packet is not exists, op: %!Op!\n",
-                        pPkt->Header.op);
+            TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Socket for packet is not exists, op: %!Op!\n", pPktHdr->op);
             // Per virtio-vsock semantics (Linux virtio_transport_common.c::
             // virtio_transport_reset_no_sock): reply with RST for any packet
             // that does not match an existing socket, EXCEPT for OP_RST itself
             // — replying to RST creates a ping-pong of late-arriving cleanup
             // RSTs that surfaces on the peer as spurious `Connection reset by
             // peer` on unrelated sockets.
-            if (pPkt->Header.op != VIRTIO_VSOCK_OP_RST)
+            if (pPktHdr->op != VIRTIO_VSOCK_OP_RST)
             {
-                VIOSockSendResetNoSock(pContext, &pPkt->Header);
+                VIOSockSendResetNoSock(pContext, pPktHdr);
             }
             VIOSockRxPktInsertOrPostpone(pContext, pPkt);
             continue;
         }
 
-        ASSERT(pContext->Config.guest_cid == (ULONG32)pPkt->Header.dst_cid);
+        ASSERT(pContext->Config.guest_cid == (ULONG32)pPktHdr->dst_cid);
 
         TraceEvents(TRACE_LEVEL_INFORMATION,
                     DBG_SOCKET,
@@ -946,18 +945,18 @@ _Requires_lock_not_held_(pContext->RxLock) VOID VIOSockRxVqProcess(IN PDEVICE_CO
                     pSocket->SocketId,
                     VIOSockStateGet(pSocket));
 
-        bTxHasSpace = !!VIOSockTxSpaceUpdate(pSocket, &pPkt->Header);
+        bTxHasSpace = !!VIOSockTxSpaceUpdate(pSocket, pPktHdr);
 
         switch (VIOSockStateGet(pSocket))
         {
             case VIOSOCK_STATE_CONNECTING:
-                VIOSockRxPktHandleConnecting(pSocket, pPkt, bTxHasSpace);
+                VIOSockRxPktHandleConnecting(pSocket, pPktHdr, bTxHasSpace);
                 break;
             case VIOSOCK_STATE_CONNECTED:
                 VIOSockRxPktHandleConnected(pSocket, pPkt, bTxHasSpace);
                 break;
             case VIOSOCK_STATE_CLOSING:
-                VIOSockRxPktHandleDisconnecting(pSocket, pPkt);
+                VIOSockRxPktHandleDisconnecting(pSocket, pPktHdr);
                 break;
             case VIOSOCK_STATE_LISTEN:
                 VIOSockRxPktHandleListen(pSocket, pPkt);
@@ -975,10 +974,10 @@ _Requires_lock_not_held_(pContext->RxLock) VOID VIOSockRxVqProcess(IN PDEVICE_CO
                             "Unhandled packet for socket %d, state %!State!, op: %!Op!\n",
                             pSocket->SocketId,
                             VIOSockStateGet(pSocket),
-                            pPkt->Header.op);
-                if (pPkt->Header.op != VIRTIO_VSOCK_OP_RST)
+                            pPktHdr->op);
+                if (pPktHdr->op != VIRTIO_VSOCK_OP_RST)
                 {
-                    VIOSockSendResetNoSock(pContext, &pPkt->Header);
+                    VIOSockSendResetNoSock(pContext, pPktHdr);
                 }
         }
 
