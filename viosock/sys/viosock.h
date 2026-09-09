@@ -197,6 +197,7 @@ typedef struct _DEVICE_CONTEXT
     _Guarded_by_(SelectLock) BOOLEAN PowerSuspended;
 
     WDFQUEUE IoCtlQueue;
+    WDFQUEUE CreateQueue;
 
     WDFINTERRUPT WdfInterrupt;
 
@@ -364,6 +365,12 @@ typedef struct _SOCKET_CONTEXT
     LONG Backlog;
     _Interlocked_ volatile LONG AcceptPended;
 
+    // Pending accept() requests (multiple), power-managed WDF queue on the listen
+    // socket. Framework-owned while parked, so it does not block the D0->Dx
+    // transition. Matched against AcceptList by VIOSockAcceptProcessQueue.
+    WDFQUEUE AcceptQueue;
+    _Interlocked_ volatile LONG AcceptMatchInProgress;
+
     ULONG32 buf_alloc;
     _Guarded_by_(RxLock) ULONG32 fwd_cnt;
     ULONG32 last_fwd_cnt;
@@ -407,9 +414,11 @@ VIOSockInterruptInit(IN WDFDEVICE hDevice);
 
 //////////////////////////////////////////////////////////////////////////
 // Socket functions
-EVT_WDF_DEVICE_FILE_CREATE VIOSockCreateStub;
 EVT_WDF_FILE_CLEANUP VIOSockCleanup;
 EVT_WDF_OBJECT_CONTEXT_CLEANUP VIOSockObjectCleanup;
+
+NTSTATUS
+VIOSockCreate(IN WDFDEVICE WdfDevice, IN WDFREQUEST Request);
 
 NTSTATUS
 VIOSockDeviceControl(IN WDFREQUEST Request, IN ULONG IoControlCode, IN OUT size_t *pLength);
@@ -485,6 +494,11 @@ _Requires_lock_not_held_(pListenSocket->RxLock) NTSTATUS VIOSockAcceptEnqueuePkt
 
 _Requires_lock_not_held_(pListenSocket->RxLock) VOID VIOSockAcceptRemovePkt(IN PSOCKET_CONTEXT pListenSocket,
                                                                             IN PVIRTIO_VSOCK_HDR pPkt);
+
+// Pair backlogged connections (AcceptList) with pending accept requests
+// (AcceptQueue). Safe to call from any context that just enqueued to
+// either side; serialized internally.
+VOID VIOSockAcceptProcessQueue(IN PSOCKET_CONTEXT pListenSocket);
 
 _IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockSelectRun(IN PSOCKET_CONTEXT pSocket);
 _IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockSelectEnqueueWorkItem(IN PDEVICE_CONTEXT pContext);
