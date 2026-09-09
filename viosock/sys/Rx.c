@@ -998,6 +998,7 @@ _Requires_lock_not_held_(pSocket->RxLock) static NTSTATUS VIOSockReadForward(IN 
     WDF_OBJECT_ATTRIBUTES attributes;
     NTSTATUS status;
     SIZE_T Length;
+    VIOSOCK_STATE state = VIOSockStateGet(pSocket);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
 
@@ -1027,6 +1028,24 @@ _Requires_lock_not_held_(pSocket->RxLock) static NTSTATUS VIOSockReadForward(IN 
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_READ, "MSG_WAITALL on a non-blocking socket\n");
         return STATUS_NOT_SUPPORTED;
+    }
+
+    // recv is valid only on a connected socket - CONNECTED, or CLOSING to drain the
+    // final EOF after the peer closed. CLOSE is also allowed while buffered data
+    // remains: a transport reset (VM save/restore, migration) moves a CONNECTED
+    // socket straight to CLOSE without draining the Rx buffers, and the bytes
+    // already received must stay readable. Otherwise reject with WSAENOTCONN
+    // instead of parking the request in the read queue, where it would never
+    // complete.
+    if (state != VIOSOCK_STATE_CONNECTED && state != VIOSOCK_STATE_CLOSING &&
+        !(state == VIOSOCK_STATE_CLOSE && VIOSockRxHasData(pSocket)))
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION,
+                    DBG_READ,
+                    "recv on socket %d in state %!State! rejected (not connected)\n",
+                    pSocket->SocketId,
+                    state);
+        return STATUS_CONNECTION_INVALID;
     }
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, VIOSOCK_RX_CONTEXT);
