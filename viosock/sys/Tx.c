@@ -542,9 +542,9 @@ _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxCleanup(PDEVICE_CONTEXT
 }
 
 //////////////////////////////////////////////////////////////////////////
-static PVIOSOCK_TX_ENTRY VIOSockTxAllocateEntry(IN PDEVICE_CONTEXT pContext,
-                                                IN PSOCKET_CONTEXT pSocket OPTIONAL,
-                                                IN ULONG BufferLen)
+PVIOSOCK_TX_ENTRY VIOSockTxAllocateEntry(IN PDEVICE_CONTEXT pContext,
+                                         IN PSOCKET_CONTEXT pSocket OPTIONAL,
+                                         IN ULONG BufferLen)
 {
     NTSTATUS status;
     PVIOSOCK_TX_ENTRY pTxEntry = NULL;
