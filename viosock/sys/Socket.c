@@ -75,20 +75,14 @@ typedef struct _VIOSOCK_PENDED_CONTEXT
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIOSOCK_PENDED_CONTEXT, GetRequestPendedContext);
 
-NTSTATUS
-VIOSockAccept(IN HANDLE hListenSocket, IN WDFREQUEST Request);
-
-NTSTATUS
-VIOSockCreate(IN WDFDEVICE WdfDevice, IN WDFREQUEST Request, IN WDFFILEOBJECT FileObject);
-
 EVT_WDF_REQUEST_CANCEL VIOSockPendedRequestCancel;
 EVT_WDF_TIMER VIOSockPendedTimerFunc;
+EVT_WDF_IO_QUEUE_IO_CANCELED_ON_QUEUE VIOSockAcceptIoCanceledOnQueue;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, VIOSockBoundListInit)
 #pragma alloc_text(PAGE, VIOSockConnectedListInit)
 
-#pragma alloc_text(PAGE, VIOSockCreateStub)
 #pragma alloc_text(PAGE, VIOSockCleanup)
 
 #pragma alloc_text(PAGE, VIOSockBind)
@@ -102,7 +96,6 @@ EVT_WDF_TIMER VIOSockPendedTimerFunc;
 #pragma alloc_text(PAGE, VIOSockGetSockOpt)
 #pragma alloc_text(PAGE, VIOSockSetSockOpt)
 #pragma alloc_text(PAGE, VIOSockIoctl)
-#pragma alloc_text(PAGE, VIOSockAccept)
 #pragma alloc_text(PAGE, VIOSockCreate)
 
 #pragma alloc_text(PAGE, VIOSockDeviceControl)
@@ -712,30 +705,9 @@ _Requires_lock_not_held_(pListenSocket->RxLock) NTSTATUS VIOSockAcceptEnqueuePkt
         return STATUS_CONNECTION_RESET;
     }
 
-    // accepted list is empty
-    if (lAcceptPended == 1)
-    {
-        WDFREQUEST PendedRequest;
-
-        VIOSockPendedRequestGetLocked(pListenSocket, &PendedRequest);
-        if (PendedRequest)
-        {
-            PSOCKET_CONTEXT pAcceptSocket = GetSocketContextFromRequest(PendedRequest);
-
-            InterlockedDecrement(&pListenSocket->AcceptPended);
-
-            pAcceptSocket->dst_cid = (ULONG32)pPkt->src_cid;
-            pAcceptSocket->dst_port = pPkt->src_port;
-            pAcceptSocket->peer_buf_alloc = pPkt->buf_alloc;
-            pAcceptSocket->peer_fwd_cnt = pPkt->fwd_cnt;
-
-            VIOSockAcceptInitSocket(pAcceptSocket, pListenSocket);
-
-            WdfRequestComplete(PendedRequest, STATUS_SUCCESS);
-            return STATUS_SUCCESS;
-        }
-    }
-
+    // Queue the incoming connection, then hand it to a waiting accept (if any)
+    // via VIOSockAcceptProcessQueue. Pending accept()s live on the listen
+    // socket's AcceptQueue (multiple), not a single pended slot.
     status = WdfMemoryCreateFromLookaside(pContext->AcceptMemoryList, &Memory);
 
     if (NT_SUCCESS(status))
@@ -754,7 +726,9 @@ _Requires_lock_not_held_(pListenSocket->RxLock) NTSTATUS VIOSockAcceptEnqueuePkt
         InsertTailList(&pListenSocket->AcceptList, &pAccept->ListEntry);
         WdfSpinLockRelease(pListenSocket->RxLock);
         VIOSockEventSetBit(pListenSocket, FD_ACCEPT_BIT, STATUS_SUCCESS);
-        status = STATUS_PENDING;
+        status = STATUS_SUCCESS;
+
+        VIOSockAcceptProcessQueue(pListenSocket);
     }
     else
     {
@@ -802,6 +776,11 @@ _Requires_lock_not_held_(pListenSocket->StateLock) NTSTATUS VIOSockAcceptInitSoc
 
     pAcceptSocket->src_port = pListenSocket->src_port;
 
+    if (VIOSockIsNonBlocking(pListenSocket))
+    {
+        VIOSockSetFlag(pAcceptSocket, SOCK_NON_BLOCK);
+    }
+
     pAcceptSocket->ConnectTimeout = pListenSocket->ConnectTimeout;
     pAcceptSocket->BufferMinSize = pListenSocket->BufferMinSize;
     pAcceptSocket->BufferMaxSize = pListenSocket->BufferMaxSize;
@@ -828,8 +807,7 @@ _Requires_lock_not_held_(pListenSocket->StateLock) NTSTATUS VIOSockAcceptInitSoc
 }
 
 _Requires_lock_not_held_(pListenSocket->RxLock) static BOOLEAN VIOSockAcceptDequeue(IN PSOCKET_CONTEXT pListenSocket,
-                                                                                    IN PSOCKET_CONTEXT pAcceptSocket,
-                                                                                    OUT PBOOLEAN pbSetBit)
+                                                                                    IN PSOCKET_CONTEXT pAcceptSocket)
 {
     BOOLEAN bAccepted = FALSE;
 
@@ -843,38 +821,30 @@ _Requires_lock_not_held_(pListenSocket->RxLock) static BOOLEAN VIOSockAcceptDequ
         pListEntry = IsListEmpty(&pListenSocket->AcceptList) ? NULL : RemoveHeadList(&pListenSocket->AcceptList);
         WdfSpinLockRelease(pListenSocket->RxLock);
 
-        *pbSetBit = FALSE;
         if (pListEntry)
         {
             PVIOSOCK_ACCEPT_ENTRY pAccept = CONTAINING_RECORD(pListEntry, VIOSOCK_ACCEPT_ENTRY, ListEntry);
             LONG lAcceptPended = InterlockedDecrement(&pListenSocket->AcceptPended);
 
             // loopback connect
-            if (pAccept->ConnectSocket != WDF_NO_HANDLE)
+            if (pAccept->ConnectSocket == WDF_NO_HANDLE || VIOSockLoopbackAcceptDequeue(pAcceptSocket, pAccept))
             {
-                if (!VIOSockLoopbackAcceptDequeue(pAcceptSocket, pAccept))
-                {
-                    WdfObjectDelete(pAccept->Memory);
-                    continue;
-                }
+                pAcceptSocket->dst_cid = pAccept->dst_cid;
+                pAcceptSocket->dst_port = pAccept->dst_port;
+                pAcceptSocket->peer_buf_alloc = pAccept->peer_buf_alloc;
+                pAcceptSocket->peer_fwd_cnt = pAccept->peer_fwd_cnt;
+                VIOSockAcceptInitSocket(pAcceptSocket, pListenSocket);
+
+                bAccepted = TRUE;
             }
 
-            *pbSetBit = !!lAcceptPended;
-
-            pAcceptSocket->dst_cid = pAccept->dst_cid;
-            pAcceptSocket->dst_port = pAccept->dst_port;
-            pAcceptSocket->peer_buf_alloc = pAccept->peer_buf_alloc;
-            pAcceptSocket->peer_fwd_cnt = pAccept->peer_fwd_cnt;
-
-            VIOSockAcceptInitSocket(pAcceptSocket, pListenSocket);
-
             WdfObjectDelete(pAccept->Memory);
-            bAccepted = TRUE;
         }
         else
         {
             break;
         }
+
     } while (!bAccepted);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s, accepted: %d\n", __FUNCTION__, bAccepted);
@@ -882,16 +852,165 @@ _Requires_lock_not_held_(pListenSocket->RxLock) static BOOLEAN VIOSockAcceptDequ
     return bAccepted;
 }
 
-_Requires_lock_not_held_(pListenSocket->RxLock) static VOID VIOSockAcceptCleanup(IN PSOCKET_CONTEXT pListenSocket)
+VOID VIOSockAcceptIoCanceledOnQueue(IN WDFQUEUE Queue, IN WDFREQUEST Request)
 {
-    WDFREQUEST PendedRequest;
+    UNREFERENCED_PARAMETER(Queue);
+    WdfRequestComplete(Request, STATUS_CANCELLED);
+}
+
+static NTSTATUS VIOSockListenSocketInit(IN PSOCKET_CONTEXT pListenSocket, IN int Backlog)
+{
+    WDFDEVICE hDevice = WdfFileObjectGetDevice(pListenSocket->ThisSocket);
+    WDF_IO_QUEUE_CONFIG queueConfig;
+    WDF_OBJECT_ATTRIBUTES queueAttributes;
+    NTSTATUS status;
+
+    pListenSocket->Backlog = Backlog;
+    InitializeListHead(&pListenSocket->AcceptList);
+    pListenSocket->AcceptPended = 0;
+    pListenSocket->AcceptMatchInProgress = 0;
+
+    WDF_IO_QUEUE_CONFIG_INIT(&queueConfig, WdfIoQueueDispatchManual);
+    queueConfig.EvtIoCanceledOnQueue = VIOSockAcceptIoCanceledOnQueue;
+
+    // Power-managed: a parked accept is framework-owned, so it does not hold the
+    // D0->Dx transition (no EvtIoStop needed - same rationale as the read queue).
+    queueConfig.PowerManaged = WdfTrue;
+
+    WDF_OBJECT_ATTRIBUTES_INIT(&queueAttributes);
+    queueAttributes.ParentObject = pListenSocket->ThisSocket;
+
+    __analysis_assume(queueConfig.EvtIoStop != 0);
+    status = WdfIoQueueCreate(hDevice, &queueConfig, &queueAttributes, &pListenSocket->AcceptQueue);
+    __analysis_assume(queueConfig.EvtIoStop == 0);
+
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "WdfIoQueueCreate failed (Accept Queue): 0x%x\n", status);
+        return status;
+    }
+
+    VIOSockStateSet(pListenSocket, VIOSOCK_STATE_LISTEN);
+
+    return STATUS_SUCCESS;
+}
+
+static __inline BOOLEAN VIOSockAcceptDequeueAlreadyActive(IN PSOCKET_CONTEXT pListenSocket)
+{
+    return InterlockedIncrement(&pListenSocket->AcceptMatchInProgress) != 1;
+}
+
+// Re-arm the counter for another worker pass.
+static __inline VOID VIOSockAcceptDequeueReset(IN PSOCKET_CONTEXT pListenSocket)
+{
+    InterlockedExchange(&pListenSocket->AcceptMatchInProgress, 1);
+}
+
+// Try to finish the worker by clearing 1->0. Returns FALSE when it cleared (the value
+// was exactly 1, no bump arrived during the pass, so the worker may stop) and TRUE when
+// a bump pushed the count past 1 during the pass (take another pass).
+static __inline BOOLEAN VIOSockAcceptDequeueWorkArrived(IN PSOCKET_CONTEXT pListenSocket)
+{
+    return (BOOLEAN)(InterlockedCompareExchange(&pListenSocket->AcceptMatchInProgress, 0, 1) != 1);
+}
+
+static BOOLEAN VIOSockAcceptProcessNextRequest(IN PSOCKET_CONTEXT pListenSocket)
+{
+    WDFREQUEST AcceptRequest = WDF_NO_HANDLE;
+    PSOCKET_CONTEXT pAcceptSocket;
+    NTSTATUS status = STATUS_SUCCESS;
+    BOOLEAN bRestart = FALSE;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
-    WdfSpinLockAcquire(pListenSocket->RxLock);
-    while (!IsListEmpty(&pListenSocket->AcceptList))
+    status = WdfIoQueueRetrieveNextRequest(pListenSocket->AcceptQueue, &AcceptRequest);
+    if (!NT_SUCCESS(status))
     {
-        PVIOSOCK_ACCEPT_ENTRY pAccept = CONTAINING_RECORD(RemoveHeadList(&pListenSocket->AcceptList),
+        TraceEvents(TRACE_LEVEL_INFORMATION,
+                    DBG_SOCKET,
+                    "The accept queue is empty, exiting from VIOSockAcceptProcessNextRequest\n");
+        return FALSE;
+    }
+
+    pAcceptSocket = GetSocketContextFromRequest(AcceptRequest);
+    if (!VIOSockAcceptDequeue(pListenSocket, pAcceptSocket))
+    {
+        if (VIOSockIsNonBlocking(pListenSocket))
+        {
+            status = STATUS_CANT_WAIT;
+        }
+        else
+        {
+            status = WdfRequestRequeue(AcceptRequest);
+            if (NT_SUCCESS(status))
+            {
+                AcceptRequest = WDF_NO_HANDLE;
+            }
+        }
+    }
+    else
+    {
+        status = STATUS_SUCCESS;
+    }
+
+    if (AcceptRequest != WDF_NO_HANDLE)
+    {
+        WdfRequestComplete(AcceptRequest, status);
+        bRestart = TRUE;
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
+
+    return bRestart;
+}
+
+VOID VIOSockAcceptProcessQueue(IN PSOCKET_CONTEXT pListenSocket)
+{
+    BOOLEAN bRestart;
+
+    if (VIOSockAcceptDequeueAlreadyActive(pListenSocket))
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Dequeue worker already running, bump and return\n");
+        return;
+    }
+
+    do
+    {
+        VIOSockAcceptDequeueReset(pListenSocket);
+        bRestart = VIOSockAcceptProcessNextRequest(pListenSocket);
+    } while (bRestart || VIOSockAcceptDequeueWorkArrived(pListenSocket));
+}
+
+_Requires_lock_not_held_(pListenSocket->RxLock) static VOID VIOSockAcceptCleanup(IN PSOCKET_CONTEXT pListenSocket)
+{
+    PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pListenSocket);
+    LIST_ENTRY CleanupList;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+
+    // Cancel every parked accept request (framework completes each STATUS_CANCELLED
+    // via VIOSockAcceptIoCanceledOnQueue) and wait for them to drain.
+    if (pListenSocket->AcceptQueue != WDF_NO_HANDLE)
+    {
+        WdfIoQueuePurgeSynchronously(pListenSocket->AcceptQueue);
+    }
+
+    InitializeListHead(&CleanupList);
+
+    WdfSpinLockAcquire(pListenSocket->RxLock);
+    if (!IsListEmpty(&pListenSocket->AcceptList))
+    {
+        CleanupList = pListenSocket->AcceptList;
+        CleanupList.Flink->Blink = &CleanupList;
+        CleanupList.Blink->Flink = &CleanupList;
+        InitializeListHead(&pListenSocket->AcceptList);
+    }
+    pListenSocket->AcceptPended = 0;
+    WdfSpinLockRelease(pListenSocket->RxLock);
+
+    while (!IsListEmpty(&CleanupList))
+    {
+        PVIOSOCK_ACCEPT_ENTRY pAccept = CONTAINING_RECORD(RemoveHeadList(&CleanupList),
                                                           VIOSOCK_ACCEPT_ENTRY,
                                                           ListEntry);
 
@@ -899,92 +1018,139 @@ _Requires_lock_not_held_(pListenSocket->RxLock) static VOID VIOSockAcceptCleanup
         {
             VioSockDereference(pAccept->ConnectSocket);
         }
+        else
+        {
+            VIRTIO_VSOCK_HDR PktHdr = {0};
+
+            PktHdr.type = pListenSocket->type;
+            PktHdr.dst_port = pListenSocket->src_port;
+            PktHdr.src_cid = pAccept->dst_cid;
+            PktHdr.src_port = pAccept->dst_port;
+            VIOSockSendResetNoSock(pContext, &PktHdr);
+        }
 
         WdfObjectDelete(pAccept->Memory);
     }
-    pListenSocket->AcceptPended = 0;
-
-    WdfSpinLockRelease(pListenSocket->RxLock);
 }
 
-static NTSTATUS VIOSockAccept(IN HANDLE hListenSocket, IN WDFREQUEST Request)
+static NTSTATUS VIOSockStreamSocketInit(IN PSOCKET_CONTEXT pSocket)
 {
-    NTSTATUS status;
-    PSOCKET_CONTEXT pAcceptSocket = GetSocketContextFromRequest(Request);
-    PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pAcceptSocket);
-    PFILE_OBJECT pFileObj;
+    NTSTATUS status = STATUS_SUCCESS;
+    WDF_OBJECT_ATTRIBUTES Attributes;
 
-    PAGED_CODE();
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_CREATE_CLOSE, "%s\n", __FUNCTION__);
+    pSocket->ReadDequeueInProgress = 0;
+    pSocket->WriteEnqueueInProgress = 0;
+    pSocket->BytesUnsent = 0;
+    KeInitializeEvent(&pSocket->TxIdleEvent, NotificationEvent, TRUE);
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION,
+                DBG_SOCKET,
+                "Stream socket %d (%p) initializing\n",
+                pSocket->SocketId,
+                pSocket->ThisSocket);
 
-    status = ObReferenceObjectByHandle(hListenSocket,
-                                       FILE_READ_ACCESS,
-                                       *IoFileObjectType,
-                                       WdfRequestGetRequestorMode(Request),
-                                       (PVOID)&pFileObj,
-                                       NULL);
+    ASSERT(pSocket->ThisSocket);
 
-    if (NT_SUCCESS(status))
+    KeInitializeEvent(&pSocket->CloseEvent, NotificationEvent, FALSE);
+
+    WDF_OBJECT_ATTRIBUTES_INIT(&Attributes);
+    Attributes.ParentObject = pSocket->ThisSocket;
+    status = WdfSpinLockCreate(&Attributes, &pSocket->StateLock);
+    if (!NT_SUCCESS(status))
     {
-        PSOCKET_CONTEXT pListenSocket = VIOSockBoundFindByFileLocked(pContext, pFileObj);
-
-        if (!pListenSocket || VIOSockStateGet(pListenSocket) != VIOSOCK_STATE_LISTEN)
-        {
-            TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Socket is not listening\n");
-            status = STATUS_INVALID_PARAMETER;
-        }
-        else
-        {
-            BOOLEAN bDequeued = FALSE, bSetBit = FALSE;
-
-            if (VIOSockIsNonBlocking(pListenSocket))
-            {
-                VIOSockSetFlag(pAcceptSocket, SOCK_NON_BLOCK);
-            }
-
-            VIOSockEventClearBitLocked(pListenSocket, FD_ACCEPT_BIT);
-
-            if (!VIOSockAcceptDequeue(pListenSocket, pAcceptSocket, &bSetBit))
-            {
-                if (VIOSockIsNonBlocking(pListenSocket))
-                {
-                    status = STATUS_CANT_WAIT;
-                }
-                else
-                {
-                    if (pListenSocket->PendedRequest == WDF_NO_HANDLE)
-                    {
-                        status = VIOSockPendedRequestSetLocked(pListenSocket, Request, MAXLONGLONG);
-                    }
-                    else
-                    {
-                        status = STATUS_DEVICE_BUSY;
-                    }
-
-                    if (NT_SUCCESS(status))
-                    {
-                        status = STATUS_PENDING;
-                    }
-                }
-            }
-        }
-
-        // Keep listen socket file object alive during accept
-        ObDereferenceObject(pFileObj);
-    }
-    else
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "ObReferenceObjectByHandle failed: 0x%x\n", status);
-        status = STATUS_NOT_SOCKET;
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_CREATE_CLOSE, "WdfSpinLockCreate failed (StateLock) - 0x%x\n", status);
+        return status;
     }
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s, status: 0x%08x\n", __FUNCTION__, status);
+    WDF_OBJECT_ATTRIBUTES_INIT(&Attributes);
+    Attributes.ParentObject = pSocket->ThisSocket;
+    status = WdfSpinLockCreate(&Attributes, &pSocket->RxLock);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_CREATE_CLOSE, "WdfSpinLockCreate failed (RxLock) - 0x%x\n", status);
+        return status;
+    }
+
+    status = VIOSockReadSocketQueueInit(pSocket);
+    if (!NT_SUCCESS(status))
+    {
+        return status;
+    }
+
+    InitializeListHead(&pSocket->RxCbList);
+    pSocket->RxBytes = 0;
+    pSocket->RcvLowat = 1; // SO_RCVLOWAT default: any byte makes the socket readable
+
+    WDF_OBJECT_ATTRIBUTES_INIT(&Attributes);
+    Attributes.ParentObject = pSocket->ThisSocket;
+    status = WdfSpinLockCreate(&Attributes, &pSocket->TxLock);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_CREATE_CLOSE, "WdfSpinLockCreate failed (TxLock) - 0x%x\n", status);
+        return status;
+    }
+    status = VIOSockWriteSocketQueueInit(pSocket);
+    if (!NT_SUCCESS(status))
+    {
+        return status;
+    }
+
+    status = VIOSockTimerCreate(&pSocket->PendedTimer, pSocket->ThisSocket, VIOSockPendedTimerFunc);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_CREATE_CLOSE, "VIOSockTimerCreate failed (PendedTimer) - 0x%x\n", status);
+        return status;
+    }
+    pSocket->PendedRequest = WDF_NO_HANDLE;
+
+    pSocket->src_port = VMADDR_PORT_ANY; // set unbound state
+    pSocket->dst_port = VMADDR_PORT_ANY;
+    pSocket->dst_cid = VMADDR_CID_ANY;
+
+    pSocket->State = VIOSOCK_STATE_CLOSE;
+    pSocket->LoopbackSocket = WDF_NO_HANDLE;
+
+    pSocket->ConnectTimeout = VSOCK_DEFAULT_CONNECT_TIMEOUT;
+    pSocket->BufferMinSize = VSOCK_DEFAULT_BUFFER_MIN_SIZE;
+    pSocket->BufferMaxSize = VSOCK_DEFAULT_BUFFER_MAX_SIZE;
+    pSocket->SendTimeout = MAXLONGLONG;
+    pSocket->RecvTimeout = MAXLONGLONG;
+
+    pSocket->buf_alloc = VSOCK_DEFAULT_BUFFER_SIZE;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_CREATE_CLOSE, "<-- %s\n", __FUNCTION__);
     return status;
 }
 
-static NTSTATUS VIOSockCreate(IN WDFDEVICE WdfDevice, IN WDFREQUEST Request, IN WDFFILEOBJECT FileObject)
+static NTSTATUS VIOSockAcceptForward(IN WDFFILEOBJECT ListenSocket, IN WDFREQUEST Request)
 {
+    PSOCKET_CONTEXT pListenSocket = GetSocketContext(ListenSocket);
+    NTSTATUS status;
+
+    if (VIOSockStateGet(pListenSocket) != VIOSOCK_STATE_LISTEN || VIOSockIsFlag(pListenSocket, SOCK_CLEANUP))
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "Invalid listen socket state\n");
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    status = WdfRequestForwardToIoQueue(Request, pListenSocket->AcceptQueue);
+    if (NT_SUCCESS(status))
+    {
+        VIOSockAcceptProcessQueue(pListenSocket);
+        status = STATUS_PENDING;
+    }
+    else
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_CREATE_CLOSE, "WdfRequestForwardToIoQueue failed: 0x%x\n", status);
+    }
+
+    return status;
+}
+
+NTSTATUS VIOSockCreate(IN WDFDEVICE WdfDevice, IN WDFREQUEST Request)
+{
+    WDFFILEOBJECT FileObject = WdfRequestGetFileObject(Request);
     PDEVICE_CONTEXT pContext = GetDeviceContext(WdfDevice);
     PSOCKET_CONTEXT pSocket;
     NTSTATUS status = STATUS_SUCCESS;
@@ -1002,10 +1168,6 @@ static NTSTATUS VIOSockCreate(IN WDFDEVICE WdfDevice, IN WDFREQUEST Request, IN 
     }
 
     pSocket = GetSocketContext(FileObject);
-    pSocket->ReadDequeueInProgress = 0;
-    pSocket->WriteEnqueueInProgress = 0;
-    pSocket->BytesUnsent = 0;
-    KeInitializeEvent(&pSocket->TxIdleEvent, NotificationEvent, TRUE);
     pSocket->ThisSocket = FileObject;
     pSocket->SocketId = InterlockedIncrement(&pContext->SocketId);
 
@@ -1022,119 +1184,45 @@ static NTSTATUS VIOSockCreate(IN WDFDEVICE WdfDevice, IN WDFREQUEST Request, IN 
 
         if (EaBuffer->EaValueLength >= sizeof(VIRTIO_VSOCK_PARAMS))
         {
-            WDF_OBJECT_ATTRIBUTES Attributes;
-            HANDLE hListenSocket;
             PVIRTIO_VSOCK_PARAMS pParams = (PVIRTIO_VSOCK_PARAMS)((PCHAR)EaBuffer +
                                                                   ((ULONG_PTR)UFIELD_OFFSET(FILE_FULL_EA_INFORMATION,
                                                                                             EaName) +
                                                                    1 + EaBuffer->EaNameLength));
 
-            TraceEvents(TRACE_LEVEL_INFORMATION,
-                        DBG_SOCKET,
-                        "Socket %d (%p) initializing\n",
-                        pSocket->SocketId,
-                        pSocket->ThisSocket);
-
-            WDF_OBJECT_ATTRIBUTES_INIT(&Attributes);
-            Attributes.ParentObject = FileObject;
-            status = WdfSpinLockCreate(&Attributes, &pSocket->StateLock);
-            if (!NT_SUCCESS(status))
+            // accept() passes only the listening socket handle in the EA (Type stays
+            // 0): the accepted socket inherits its type from the listener at match
+            // time (VIOSockAcceptInitSocket), so the STREAM gate applies only to a
+            // plain socket() create.
+            if (pParams->Socket)
             {
-                TraceEvents(TRACE_LEVEL_ERROR,
-                            DBG_CREATE_CLOSE,
-                            "WdfSpinLockCreate failed (StateLock) - 0x%x\n",
-                            status);
-                return status;
+                status = VIOSockStreamSocketInit(pSocket);
+                if (NT_SUCCESS(status))
+                {
+                    WDFFILEOBJECT ListenSocket = VIOSockGetSocketFromHandle(pContext,
+                                                                            pParams->Socket,
+                                                                            WdfRequestIsFrom32BitProcess(Request));
+
+                    if (ListenSocket != WDF_NO_HANDLE)
+                    {
+                        status = VIOSockAcceptForward(ListenSocket, Request);
+                        WdfObjectDereference(ListenSocket);
+                    }
+                    else
+                    {
+                        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "Invalid listen socket\n");
+                        status = STATUS_NOT_SOCKET;
+                    }
+                }
             }
-
-            WDF_OBJECT_ATTRIBUTES_INIT(&Attributes);
-            Attributes.ParentObject = FileObject;
-            status = WdfSpinLockCreate(&Attributes, &pSocket->RxLock);
-            if (!NT_SUCCESS(status))
+            else if (pParams->Type == VIRTIO_VSOCK_TYPE_STREAM)
             {
-                TraceEvents(TRACE_LEVEL_ERROR, DBG_CREATE_CLOSE, "WdfSpinLockCreate failed (RxLock) - 0x%x\n", status);
-                return status;
-            }
-
-            KeInitializeEvent(&pSocket->CloseEvent, NotificationEvent, FALSE);
-
-            pSocket->src_port = VMADDR_PORT_ANY; // set unbound state
-            pSocket->dst_port = VMADDR_PORT_ANY;
-            pSocket->dst_cid = VMADDR_CID_ANY;
-
-            pSocket->State = VIOSOCK_STATE_CLOSE;
-            pSocket->LoopbackSocket = WDF_NO_HANDLE;
-
-            status = VIOSockReadSocketQueueInit(pSocket);
-            if (!NT_SUCCESS(status))
-            {
-                return status;
-            }
-
-            InitializeListHead(&pSocket->RxCbList);
-            pSocket->RxBytes = 0;
-            pSocket->RcvLowat = 1; // SO_RCVLOWAT default: any byte makes the socket readable
-
-            WDF_OBJECT_ATTRIBUTES_INIT(&Attributes);
-            Attributes.ParentObject = FileObject;
-            status = WdfSpinLockCreate(&Attributes, &pSocket->TxLock);
-            if (!NT_SUCCESS(status))
-            {
-                TraceEvents(TRACE_LEVEL_ERROR, DBG_CREATE_CLOSE, "WdfSpinLockCreate failed (TxLock) - 0x%x\n", status);
-                return status;
-            }
-            status = VIOSockWriteSocketQueueInit(pSocket);
-            if (!NT_SUCCESS(status))
-            {
-                return status;
-            }
-
-            status = VIOSockTimerCreate(&pSocket->PendedTimer, FileObject, VIOSockPendedTimerFunc);
-            if (!NT_SUCCESS(status))
-            {
-                TraceEvents(TRACE_LEVEL_ERROR,
-                            DBG_CREATE_CLOSE,
-                            "VIOSockTimerCreate failed (PendedTimer) - 0x%x\n",
-                            status);
-                return status;
-            }
-            pSocket->PendedRequest = WDF_NO_HANDLE;
-
-#ifdef _WIN64
-            if (WdfRequestIsFrom32BitProcess(Request))
-            {
-                hListenSocket = Handle32ToHandle((void *POINTER_32)(ULONG)pParams->Socket);
-            }
-            else
-#endif //_WIN64
-            {
-                hListenSocket = (HANDLE)pParams->Socket;
-            }
-
-            // find listen socket
-            if (hListenSocket)
-            {
-                status = VIOSockAccept(hListenSocket, Request);
+                pSocket->type = pParams->Type;
+                status = VIOSockStreamSocketInit(pSocket);
             }
             else
             {
-                if (pParams->Type != VIRTIO_VSOCK_TYPE_STREAM)
-                {
-                    TraceEvents(TRACE_LEVEL_ERROR, DBG_CREATE_CLOSE, "Unsupported socket type: %u\n", pSocket->type);
-                    status = STATUS_NOT_SUPPORTED;
-                }
-                else
-                {
-                    pSocket->type = pParams->Type;
-
-                    pSocket->ConnectTimeout = VSOCK_DEFAULT_CONNECT_TIMEOUT;
-                    pSocket->BufferMinSize = VSOCK_DEFAULT_BUFFER_MIN_SIZE;
-                    pSocket->BufferMaxSize = VSOCK_DEFAULT_BUFFER_MAX_SIZE;
-                    pSocket->SendTimeout = MAXLONGLONG;
-                    pSocket->RecvTimeout = MAXLONGLONG;
-
-                    pSocket->buf_alloc = VSOCK_DEFAULT_BUFFER_SIZE;
-                }
+                TraceEvents(TRACE_LEVEL_WARNING, DBG_CREATE_CLOSE, "Unsupported socket type: %u\n", pParams->Type);
+                status = STATUS_NOT_SUPPORTED;
             }
         }
         else
@@ -1158,18 +1246,6 @@ static NTSTATUS VIOSockCreate(IN WDFDEVICE WdfDevice, IN WDFREQUEST Request, IN 
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_CREATE_CLOSE, "<-- %s\n", __FUNCTION__);
     return status;
-}
-
-VOID VIOSockCreateStub(IN WDFDEVICE WdfDevice, IN WDFREQUEST Request, IN WDFFILEOBJECT FileObject)
-{
-    NTSTATUS status = VIOSockCreate(WdfDevice, Request, FileObject);
-
-    PAGED_CODE();
-
-    if (status != STATUS_PENDING)
-    {
-        WdfRequestComplete(Request, status);
-    }
 }
 
 VOID VIOSockDoClose(PSOCKET_CONTEXT pSocket)
@@ -1198,7 +1274,7 @@ VOID VIOSockCleanup(IN WDFFILEOBJECT FileObject)
 
     if (VIOSockIsFlag(pSocket, SOCK_CONTROL))
     {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Control socket %d closed\n", pSocket->SocketId);
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "Control socket %d closed\n", pSocket->SocketId);
         return;
     }
 
@@ -1280,11 +1356,6 @@ VOID VIOSockCleanup(IN WDFFILEOBJECT FileObject)
         WdfRequestComplete(Request, STATUS_CANCELLED);
     }
 
-    if (pSocket->LoopbackSocket != WDF_NO_HANDLE)
-    {
-        VioSockDereference(pSocket->LoopbackSocket);
-    }
-
     if (PrevState == VIOSOCK_STATE_LISTEN)
     {
         VIOSockAcceptCleanup(pSocket);
@@ -1299,7 +1370,13 @@ VOID VIOSockCleanup(IN WDFFILEOBJECT FileObject)
         VIOSockReadCleanupCb(pSocket);
     }
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Socket %d closed\n", pSocket->SocketId);
+    if (pSocket->LoopbackSocket != WDF_NO_HANDLE)
+    {
+        VioSockDereference(pSocket->LoopbackSocket);
+        pSocket->LoopbackSocket = WDF_NO_HANDLE;
+    }
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "Socket %d closed\n", pSocket->SocketId);
 
     VIOSockSetFlag(pSocket, SOCK_CLEANUP);
     if (pSocket->SelectRefs[FDSET_READ] || pSocket->SelectRefs[FDSET_WRITE] || pSocket->SelectRefs[FDSET_EXCPT])
@@ -1685,27 +1762,23 @@ static NTSTATUS VIOSockListen(IN WDFREQUEST Request)
     // minimum length guaranteed by WdfRequestRetrieveInputBuffer above
     _Analysis_assume_(stBacklogLen >= sizeof(*pBacklog));
 
-    if (VIOSockStateGet(pSocket) == VIOSOCK_STATE_CLOSE)
+    switch (VIOSockStateGet(pSocket))
     {
-        if (VIOSockIsBound(pSocket))
-        {
+        case VIOSOCK_STATE_CLOSE:
+            status = VIOSockIsBound(pSocket) ? VIOSockListenSocketInit(pSocket, *pBacklog) : STATUS_INVALID_PARAMETER;
+            break;
+        case VIOSOCK_STATE_LISTEN:
             pSocket->Backlog = *pBacklog;
-            InitializeListHead(&pSocket->AcceptList);
-            // no lock required
-            VIOSockStateSet(pSocket, VIOSOCK_STATE_LISTEN);
-        }
-        else
-        {
-            status = STATUS_INVALID_PARAMETER;
-        }
-    }
-    else
-    {
-        status = STATUS_CONNECTION_ACTIVE;
+            status = STATUS_SUCCESS;
+            break;
+        default:
+            status = STATUS_CONNECTION_ACTIVE;
+            break;
     }
 
     return status;
 }
+
 __inline NTSTATUS VIOSockGetEventFromHandle(IN HANDLE hEvent, OUT PKEVENT *pEvent)
 {
     NTSTATUS status = STATUS_UNSUCCESSFUL;
@@ -1845,8 +1918,15 @@ __inline NTSTATUS VIOSockSetNonBlocking(IN PSOCKET_CONTEXT pSocket, IN BOOLEAN b
             // Parked blocking sends: the pump re-evaluates them — whatever
             // the credit admits is sliced, the rest completes with partial
             // Information or WSAEWOULDBLOCK.
-            VIOSockWriteProcessQueue(pSocket);
-            VIOSockReadProcessQueue(pSocket);
+            if (VIOSockStateGet(pSocket) == VIOSOCK_STATE_LISTEN)
+            {
+                VIOSockAcceptProcessQueue(pSocket);
+            }
+            else
+            {
+                VIOSockWriteProcessQueue(pSocket);
+                VIOSockReadProcessQueue(pSocket);
+            }
         }
     }
     else

@@ -43,6 +43,7 @@ EVT_WDF_DEVICE_SELF_MANAGED_IO_SUSPEND VIOSockEvtDeviceSelfManagedIoSuspend;
 EVT_WDF_DEVICE_SELF_MANAGED_IO_RESTART VIOSockEvtDeviceSelfManagedIoRestart;
 
 EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL VIOSockEvtIoDeviceControl;
+EVT_WDF_IO_QUEUE_IO_DEFAULT VIOSockEvtIoCreate;
 EVT_WDF_IO_IN_CALLER_CONTEXT VIOSockEvtIoInCallerContext;
 EVT_WDF_OBJECT_CONTEXT_CLEANUP VIOSockSgCtxCleanup;
 EVT_WDF_REQUEST_CANCEL VIOSockSelectCancel;
@@ -165,6 +166,7 @@ VIOSockPoll(IN WDFREQUEST Request,
 #pragma alloc_text(PAGE, VIOSockDeviceGetConfig)
 #pragma alloc_text(PAGE, VIOSockDeviceGetAf)
 #pragma alloc_text(PAGE, VIOSockEvtIoDeviceControl)
+#pragma alloc_text(PAGE, VIOSockEvtIoCreate)
 #pragma alloc_text(PAGE, VIOSockSelectInit)
 #pragma alloc_text(PAGE, VIOSockSelectCleanupFds)
 #pragma alloc_text(PAGE, VIOSockPollCleanupPkt)
@@ -605,9 +607,14 @@ VIOSockEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
         return status;
     }
 
-    // Configure file object callbacks
+    // Configure file object callbacks.
+    // Create is not handled here: it is routed to a dedicated I/O queue below (see
+    // WdfDeviceConfigureRequestDispatching for WdfRequestTypeCreate). This is required
+    // so that accept() - which is dispatched as IRP_MJ_CREATE - can be parked on the
+    // listen socket's AcceptQueue via WdfRequestForwardToIoQueue (which is only
+    // legal for requests obtained from an I/O queue).
     WDF_FILEOBJECT_CONFIG_INIT(&fileConfig,
-                               VIOSockCreateStub,
+                               WDF_NO_EVENT_CALLBACK, // Create (routed to the create queue)
                                WDF_NO_EVENT_CALLBACK, // Close
                                VIOSockCleanup);
     fileConfig.FileObjectClass = WdfFileObjectWdfCanUseFsContext;
@@ -701,6 +708,34 @@ VIOSockEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
         TraceEvents(TRACE_LEVEL_ERROR,
                     DBG_INIT,
                     "WdfDeviceConfigureRequestDispatching failed (IoCtrl Queue): 0x%x\n",
+                    status);
+        return status;
+    }
+
+    // Create parallel queue for Create (IRP_MJ_CREATE) requests.
+    // Not power-managed: a create is a short setup operation that should complete
+    // regardless of power state. The long-lived accept() park happens on the listen
+    // socket's power-managed AcceptQueue, to which VIOSockAcceptForward forwards the
+    // create request (legal because the request is now obtained from this queue).
+    WDF_IO_QUEUE_CONFIG_INIT(&queueConfig, WdfIoQueueDispatchParallel);
+    queueConfig.EvtIoDefault = VIOSockEvtIoCreate;
+    queueConfig.PowerManaged = WdfFalse;
+
+    status = WdfIoQueueCreate(hDevice, &queueConfig, WDF_NO_OBJECT_ATTRIBUTES, &pContext->CreateQueue);
+
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfIoQueueCreate failed (Create Queue): 0x%x\n", status);
+        return status;
+    }
+
+    status = WdfDeviceConfigureRequestDispatching(hDevice, pContext->CreateQueue, WdfRequestTypeCreate);
+
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR,
+                    DBG_INIT,
+                    "WdfDeviceConfigureRequestDispatching failed (Create Queue): 0x%x\n",
                     status);
         return status;
     }
@@ -1005,6 +1040,21 @@ static VOID VIOSockEvtIoDeviceControl(IN WDFQUEUE Queue,
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTLS, "<-- %s, status: 0x%08x\n", __FUNCTION__, status);
+}
+
+static VOID VIOSockEvtIoCreate(IN WDFQUEUE Queue, IN WDFREQUEST Request)
+{
+    WDFDEVICE WdfDevice = WdfIoQueueGetDevice(Queue);
+    NTSTATUS status;
+
+    PAGED_CODE();
+
+    status = VIOSockCreate(WdfDevice, Request);
+
+    if (status != STATUS_PENDING)
+    {
+        WdfRequestComplete(Request, status);
+    }
 }
 
 //////////////////////////////////////////////////////////////////////////

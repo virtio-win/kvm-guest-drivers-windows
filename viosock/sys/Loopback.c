@@ -52,35 +52,8 @@ _Requires_lock_not_held_(pListenSocket->RxLock) static NTSTATUS VIOSockLoopbackA
         return STATUS_CONNECTION_RESET;
     }
 
-    // accepted list is empty
-    if (lAcceptPended == 1)
-    {
-        WDFREQUEST PendedRequest;
-
-        VIOSockPendedRequestGetLocked(pListenSocket, &PendedRequest);
-        if (PendedRequest)
-        {
-            PSOCKET_CONTEXT pAcceptSocket = GetSocketContextFromRequest(PendedRequest);
-
-            InterlockedDecrement(&pListenSocket->AcceptPended);
-
-            pAcceptSocket->dst_cid = pContext->Config.guest_cid;
-            pAcceptSocket->dst_port = pConnectSocket->src_port;
-            pAcceptSocket->peer_buf_alloc = pConnectSocket->buf_alloc;
-            pAcceptSocket->peer_fwd_cnt = pConnectSocket->fwd_cnt;
-
-            // link accepted socket to connecting one
-            pAcceptSocket->LoopbackSocket = pConnectSocket->ThisSocket;
-            VioSockReference(pAcceptSocket->LoopbackSocket);
-            VIOSockSetFlag(pAcceptSocket, SOCK_LOOPBACK);
-
-            VIOSockAcceptInitSocket(pAcceptSocket, pListenSocket);
-
-            WdfRequestComplete(PendedRequest, STATUS_SUCCESS);
-            return STATUS_SUCCESS;
-        }
-    }
-
+    // Queue the loopback connection, then hand it to a waiting accept (if any).
+    // Pending accept()s live on AcceptQueue now, not a single slot.
     status = WdfMemoryCreateFromLookaside(pContext->AcceptMemoryList, &Memory);
 
     if (NT_SUCCESS(status))
@@ -102,6 +75,8 @@ _Requires_lock_not_held_(pListenSocket->RxLock) static NTSTATUS VIOSockLoopbackA
 
         VIOSockEventSetBitLocked(pListenSocket, FD_ACCEPT_BIT, STATUS_SUCCESS);
         status = STATUS_PENDING;
+
+        VIOSockAcceptProcessQueue(pListenSocket);
     }
     else
     {
