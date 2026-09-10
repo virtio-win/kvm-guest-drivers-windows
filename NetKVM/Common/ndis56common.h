@@ -475,12 +475,12 @@ struct _tagRxNetDescriptor
     //
     // Field semantics:
     //   MergedBufferCount: Number of ADDITIONAL buffers (NOT including this descriptor)
-    //                      Range: 0 (single buffer) to 16 (max merged packet)
-    //   MergedBuffersInline: Array storing pointers to the 16 additional buffers
-    //                        (this descriptor itself is not stored in the array)
-#define MAX_MERGED_BUFFERS 16
+    //                      Range: 0 (single buffer) to VIRTIO_NET_MAX_MRG_BUFS - 1
+    //   MergedBuffers: Array storing pointers to the additional buffers
+    //                  (this descriptor itself is not stored in the array,
+    //                  hence one entry less than VIRTIO_NET_MAX_MRG_BUFS)
     USHORT MergedBufferCount;
-    pRxNetDescriptor MergedBuffers[MAX_MERGED_BUFFERS];
+    pRxNetDescriptor MergedBuffers[VIRTIO_NET_MAX_MRG_BUFS - 1];
 };
 
 struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
