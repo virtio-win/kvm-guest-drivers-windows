@@ -75,6 +75,7 @@ NTSTATUS VirtFsEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
     WDFDEVICE device;
     WDF_PNPPOWER_EVENT_CALLBACKS pnpPowerCallbacks;
     WDF_OBJECT_ATTRIBUTES attributes;
+    WDF_OBJECT_ATTRIBUTES requestAttributes;
     WDFQUEUE queue;
     WDF_IO_QUEUE_CONFIG queueConfig;
     WDF_INTERRUPT_CONFIG interruptConfig;
@@ -95,6 +96,14 @@ NTSTATUS VirtFsEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
 
     WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &pnpPowerCallbacks);
     WdfDeviceInitSetIoType(DeviceInit, WdfDeviceIoDirect);
+
+    // The zero-copy read IOCTL carries a raw user-mode buffer pointer that must be
+    // probed and locked in the requestor's thread and process context. Register an
+    // in-caller-context callback to do that at PASSIVE_LEVEL before the request is
+    // queued, and give every request a context to carry the locked buffer.
+    WdfDeviceInitSetIoInCallerContextCallback(DeviceInit, VirtFsEvtIoInCallerContext);
+    WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&requestAttributes, VIRTIO_FS_READ_REQUEST_CONTEXT);
+    WdfDeviceInitSetRequestAttributes(DeviceInit, &requestAttributes);
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, DEVICE_CONTEXT);
     attributes.EvtCleanupCallback = VirtFsEvtDeviceContextCleanup;
