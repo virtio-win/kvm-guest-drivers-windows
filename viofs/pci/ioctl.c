@@ -460,22 +460,26 @@ static VOID HandleFuseRead(IN PDEVICE_CONTEXT Context,
         goto complete_wdf_req_no_fs_req;
     }
 
-    PVOID originalBuffer = (PVOID)(ULONG_PTR)((struct fuse_out_for_read *)out_buf)->original_pointer;
-    ULONG originalBufferLen = ((struct fuse_out_for_read *)out_buf)->hdr.len;
     ULONG outHeaderLength = sizeof(((struct fuse_out_for_read *)out_buf)->hdr);
+
+    // The caller's read buffer was probed and locked by VirtFsEvtIoInCallerContext in
+    // the requestor's context. Take the buffer and its length from the locked memory
+    // object rather than reading hdr.len again from the caller-writable output buffer.
+    WDFMEMORY userMem = GetReadRequestContext(Request)->LockedReadBuffer;
+    size_t lockedLen = 0;
+    if (userMem == NULL)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "Read buffer was not locked in the caller's context");
+        status = STATUS_INVALID_DEVICE_STATE;
+        goto complete_wdf_req;
+    }
+    WdfMemoryGetBuffer(userMem, &lockedLen);
+    ULONG originalBufferLen = (ULONG)lockedLen;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "read length %d", originalBufferLen);
 
     fs_req->Request = Request;
     fs_req->Cancellable = FALSE;
-
-    WDFMEMORY userMem;
-    status = WdfRequestProbeAndLockUserBufferForWrite(Request, originalBuffer, originalBufferLen, &userMem);
-    if (!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "WdfRequestProbeAndLockUserBufferForWrite failed");
-        goto complete_wdf_req;
-    }
 
     PMDL firstMdl = IoAllocateMdl(out_buf, outHeaderLength, FALSE, FALSE, NULL);
     if (!firstMdl)
@@ -527,6 +531,63 @@ complete_wdf_req:
 complete_wdf_req_no_fs_req:
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "Complete Request: %p Status: %!STATUS!", Request, status);
     WdfRequestComplete(Request, status);
+}
+
+// Runs at PASSIVE_LEVEL in the requestor's thread and process context, before the
+// request is placed in a queue. IOCTL_VIRTFS_FUSE_REQUEST_READ carries a raw
+// user-mode buffer pointer in fuse_out_for_read.original_pointer, which is only
+// valid here; the sequential queue dispatches from the completion DPC in an
+// arbitrary context. Probe and lock the buffer here and pass the locked memory
+// object to HandleFuseRead through the request context, then queue the request as
+// before. All other requests are forwarded to the queue unchanged.
+VOID VirtFsEvtIoInCallerContext(IN WDFDEVICE Device, IN WDFREQUEST Request)
+{
+    NTSTATUS status;
+    WDF_REQUEST_PARAMETERS params;
+    struct fuse_out_for_read *out_buf;
+    PVOID originalBuffer;
+    ULONG originalBufferLen;
+    WDFMEMORY userMem;
+
+    WDF_REQUEST_PARAMETERS_INIT(&params);
+    WdfRequestGetParameters(Request, &params);
+
+    if (params.Type == WdfRequestTypeDeviceControl &&
+        params.Parameters.DeviceIoControl.IoControlCode == IOCTL_VIRTFS_FUSE_REQUEST_READ)
+    {
+        status = WdfRequestRetrieveOutputBuffer(Request, sizeof(*out_buf), &out_buf, NULL);
+        if (!NT_SUCCESS(status))
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "WdfRequestRetrieveOutputBuffer failed: %!STATUS!", status);
+            WdfRequestComplete(Request, status);
+            return;
+        }
+
+        originalBuffer = (PVOID)(ULONG_PTR)out_buf->original_pointer;
+        originalBufferLen = out_buf->hdr.len;
+
+        status = WdfRequestProbeAndLockUserBufferForWrite(Request, originalBuffer, originalBufferLen, &userMem);
+        if (!NT_SUCCESS(status))
+        {
+            TraceEvents(TRACE_LEVEL_ERROR,
+                        DBG_IOCTL,
+                        "WdfRequestProbeAndLockUserBufferForWrite failed: %!STATUS!",
+                        status);
+            WdfRequestComplete(Request, status);
+            return;
+        }
+
+        // The memory object is a child of the request; the framework releases it when the
+        // request completes, including on cancellation or queue purge.
+        GetReadRequestContext(Request)->LockedReadBuffer = userMem;
+    }
+
+    status = WdfDeviceEnqueueRequest(Device, Request);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "WdfDeviceEnqueueRequest failed: %!STATUS!", status);
+        WdfRequestComplete(Request, status);
+    }
 }
 
 void CopyBuffer(void *_Dst, void const *_Src, size_t _Size)
