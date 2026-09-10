@@ -548,6 +548,11 @@ VOID VirtFsEvtIoInCallerContext(IN WDFDEVICE Device, IN WDFREQUEST Request)
     PVOID originalBuffer;
     ULONG originalBufferLen;
     WDFMEMORY userMem;
+    PVOID in_buf;
+    size_t inLen;
+    SIZE_T inPages;
+    SIZE_T hdrPages;
+    SIZE_T readPages;
 
     WDF_REQUEST_PARAMETERS_INIT(&params);
     WdfRequestGetParameters(Request, &params);
@@ -565,6 +570,27 @@ VOID VirtFsEvtIoInCallerContext(IN WDFDEVICE Device, IN WDFREQUEST Request)
 
         originalBuffer = (PVOID)(ULONG_PTR)out_buf->original_pointer;
         originalBufferLen = out_buf->hdr.len;
+
+        // hdr.len and original_pointer are supplied by the caller. Reject a NULL or empty
+        // buffer, and a request whose pages (input buffer, reply header and read buffer)
+        // exceed VIRT_FS_MAX_QUEUE_SIZE, which the Rx DMA transaction callback otherwise
+        // rejects only after the buffer has been locked.
+        status = WdfRequestRetrieveInputBuffer(Request, sizeof(struct fuse_in_header), &in_buf, &inLen);
+        if (!NT_SUCCESS(status))
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "WdfRequestRetrieveInputBuffer failed: %!STATUS!", status);
+            WdfRequestComplete(Request, status);
+            return;
+        }
+        inPages = ADDRESS_AND_SIZE_TO_SPAN_PAGES(in_buf, inLen);
+        hdrPages = ADDRESS_AND_SIZE_TO_SPAN_PAGES(out_buf, sizeof(out_buf->hdr));
+        readPages = ADDRESS_AND_SIZE_TO_SPAN_PAGES(originalBuffer, originalBufferLen);
+        if (originalBuffer == NULL || originalBufferLen == 0 || inPages + hdrPages + readPages > VIRT_FS_MAX_QUEUE_SIZE)
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "Invalid zero-copy read buffer");
+            WdfRequestComplete(Request, STATUS_INVALID_PARAMETER);
+            return;
+        }
 
         status = WdfRequestProbeAndLockUserBufferForWrite(Request, originalBuffer, originalBufferLen, &userMem);
         if (!NT_SUCCESS(status))
