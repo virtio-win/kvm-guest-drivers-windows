@@ -520,10 +520,12 @@ static VOID HandleFuseRead(IN PDEVICE_CONTEXT Context,
     hiprio = FALSE;
 
     status = VirtFsEnqueueRequest(Context, fs_req, hiprio);
-    if (NT_SUCCESS(status))
+    if (!NT_SUCCESS(status))
     {
-        return;
+        // the request is already on RequestsList; this dequeues, completes and frees it
+        FailFsRequest(Context, fs_req);
     }
+    return;
 
 complete_wdf_req:
     FreeVirtFsRequest(fs_req);
