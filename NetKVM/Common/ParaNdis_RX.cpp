@@ -310,16 +310,18 @@ pRxNetDescriptor CParaNdisRX::CreateMergeableRxDescriptorOnInit()
         goto error_exit;
     }
 
-    p->PhysicalPages = (tCompletePhysicalAddress *)ParaNdis_AllocateMemory(m_Context, sizeof(tCompletePhysicalAddress));
+    // The page array must hold mappings for all pages of a merged packet:
+    // page 0 for header + payload of this buffer, one page per each additional
+    // buffer of the largest mergeable packet (VIRTIO_NET_MAX_MRG_BUFS total).
+    p->PhysicalPages = (tCompletePhysicalAddress *)ParaNdis_AllocateMemory(m_Context,
+                                                                           sizeof(tCompletePhysicalAddress) * VIRTIO_NET_MAX_MRG_BUFS);
     if (p->PhysicalPages == NULL)
     {
         DPrintf(0, "ERROR: Failed to allocate PhysicalPages array");
         goto error_exit;
     }
 
-    NdisZeroMemory(p->PhysicalPages, sizeof(tCompletePhysicalAddress));
-
-    p->OriginalPhysicalPages = p->PhysicalPages;
+    NdisZeroMemory(p->PhysicalPages, sizeof(tCompletePhysicalAddress) * VIRTIO_NET_MAX_MRG_BUFS);
 
     if (!ParaNdis_InitialAllocatePhysicalMemory(m_Context, PAGE_SIZE, &p->PhysicalPages[0]))
     {
@@ -414,7 +416,6 @@ pRxNetDescriptor CParaNdisRX::CreateRxDescriptorOnInit()
     p->HeaderPage = m_Context->RxLayout.ReserveForHeader ? 0 : 1;
     p->FirstRxDataPage = 1;
     p->DataStartOffset = (p->HeaderPage == 0) ? 0 : (USHORT)m_Context->nVirtioHeaderSize;
-    p->OriginalPhysicalPages = p->PhysicalPages;
     auto &pageNumber = p->NumPages;
 
     while (ulNumDataPages > 0)
@@ -578,7 +579,6 @@ void CParaNdisRX::DisassembleMergedPacket(pRxNetDescriptor pBuffer)
         pMDL = pNextMDL;
     }
 
-    pBuffer->PhysicalPages = pBuffer->OriginalPhysicalPages;
     pBuffer->NumPages = 1;
     pBuffer->NumOwnedPages = 1;
     pBuffer->MergedBufferCount = 0;
@@ -1150,8 +1150,6 @@ pRxNetDescriptor CParaNdisRX::AssembleMergedPacket()
     // - First buffer: 1 page (header + data in same page)
     // - Each additional buffer: 1 page (subsequent buffers contain only data, no virtio header)
     USHORT totalPages = (USHORT)m_MergeContext.CollectedBuffers;
-    pAssembledBuffer->PhysicalPages = m_MergeContext.PhysicalPages;
-    pAssembledBuffer->PhysicalPages[0] = pAssembledBuffer->OriginalPhysicalPages[0];
 
     USHORT destPageIdx = 1;
     for (UINT i = 1; i < m_MergeContext.CollectedBuffers; i++)

@@ -456,8 +456,6 @@ struct _tagRxNetDescriptor
     USHORT DataStartOffset;
     struct VirtIOBufferDescriptor *BufferSGArray;
     tCompletePhysicalAddress *PhysicalPages;
-    // Saved pointer for restoration after merge
-    tCompletePhysicalAddress *OriginalPhysicalPages;
     tCompletePhysicalAddress IndirectArea;
     tPacketHolderType Holder;
 
