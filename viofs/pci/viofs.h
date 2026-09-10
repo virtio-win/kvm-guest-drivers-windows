@@ -97,6 +97,17 @@ typedef struct _VIRTIO_FS_REQUEST
 #endif
 } VIRTIO_FS_REQUEST, *PVIRTIO_FS_REQUEST;
 
+// Per-request context for IOCTL_VIRTFS_FUSE_REQUEST_READ. The caller's read buffer
+// is probed and locked by VirtFsEvtIoInCallerContext in the requestor's context; the
+// resulting memory object is a child of the request, so the framework releases it
+// when the request completes on any path. HandleFuseRead takes the buffer from here.
+typedef struct _VIRTIO_FS_READ_REQUEST_CONTEXT
+{
+    WDFMEMORY LockedReadBuffer;
+} VIRTIO_FS_READ_REQUEST_CONTEXT, *PVIRTIO_FS_READ_REQUEST_CONTEXT;
+
+WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIRTIO_FS_READ_REQUEST_CONTEXT, GetReadRequestContext);
+
 typedef struct _DEVICE_CONTEXT
 {
 
@@ -150,6 +161,7 @@ EVT_WDF_INTERRUPT_DISABLE VirtFsEvtInterruptDisable;
 
 EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL VirtFsEvtIoDeviceControl;
 EVT_WDF_IO_QUEUE_IO_STOP VirtFsEvtIoStop;
+EVT_WDF_IO_IN_CALLER_CONTEXT VirtFsEvtIoInCallerContext;
 
 BOOLEAN VirtFsDequeueRequest(PDEVICE_CONTEXT Context, PVIRTIO_FS_REQUEST Req);
 BOOLEAN VirtFsDequeueWdfRequest(PDEVICE_CONTEXT Context, WDFREQUEST WdfRequest);
