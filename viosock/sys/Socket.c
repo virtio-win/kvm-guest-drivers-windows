@@ -1235,7 +1235,7 @@ NTSTATUS VIOSockCreate(IN WDFDEVICE WdfDevice, IN WDFREQUEST Request)
                     else
                     {
                         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "Invalid listen socket\n");
-                        status = STATUS_NOT_SOCKET;
+                        status = STATUS_INVALID_PARAMETER;
                     }
                 }
             }
