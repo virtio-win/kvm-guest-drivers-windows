@@ -747,7 +747,7 @@ _Requires_lock_not_held_(pListenSocket->RxLock) NTSTATUS VIOSockAcceptEnqueuePkt
         WdfSpinLockAcquire(pListenSocket->RxLock);
         InsertTailList(&pListenSocket->AcceptList, &pAccept->ListEntry);
         WdfSpinLockRelease(pListenSocket->RxLock);
-        VIOSockEventSetBit(pListenSocket, FD_ACCEPT_BIT, STATUS_SUCCESS);
+        VIOSockEventSetBitLocked(pListenSocket, FD_ACCEPT_BIT, STATUS_SUCCESS);
         status = STATUS_SUCCESS;
 
         VIOSockAcceptProcessQueue(pListenSocket);
@@ -821,9 +821,11 @@ _Requires_lock_not_held_(pListenSocket->StateLock) NTSTATUS VIOSockAcceptInitSoc
     }
     WdfSpinLockRelease(pListenSocket->StateLock);
 
+    // From CONNECTED on the socket is findable by the Rx/loopback paths, so the
+    // peer's first packet can already race this bit - take the lock.
     VIOSockStateSet(pAcceptSocket, VIOSOCK_STATE_CONNECTED);
     status = VIOSockSendResponse(pAcceptSocket);
-    VIOSockEventSetBit(pAcceptSocket, FD_WRITE_BIT, status);
+    VIOSockEventSetBitLocked(pAcceptSocket, FD_WRITE_BIT, status);
 
     return status;
 }
