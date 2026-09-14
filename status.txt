@@ -1,3 +1,10 @@
+Date    14 Sep 2026
+repo    https://github.com/virtio-win/kvm-guest-drivers-windows.git
+tag     mm324
+
+Fixed issues:
+* RHEL-192319: Switch build environment to EWDK 26H1 and CodeQL 2.24.1 (WHCP_25H2)
+
 Date    10 Sep 2026
 repo    https://github.com/virtio-win/kvm-guest-drivers-windows.git
 tag     mm323
