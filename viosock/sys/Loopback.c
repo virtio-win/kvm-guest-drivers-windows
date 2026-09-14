@@ -37,10 +37,12 @@
 _Requires_lock_not_held_(pListenSocket->RxLock) static NTSTATUS VIOSockLoopbackAcceptEnqueue(IN PSOCKET_CONTEXT pListenSocket,
                                                                                              IN PSOCKET_CONTEXT pConnectSocket)
 {
-    PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pListenSocket);
     VIRTIO_VSOCK_HDR PktHdr = {0};
 
-    PktHdr.src_cid = pContext->Config.guest_cid;
+    // A loopback peer is always reported as VMADDR_CID_LOCAL, whether the
+    // connector dialed CID 1 or the guest's own CID - Linux does the same: the
+    // loopback transport stamps its own local CID into every packet it sends.
+    PktHdr.src_cid = VMADDR_CID_LOCAL;
     PktHdr.src_port = pConnectSocket->src_port;
     PktHdr.buf_alloc = pConnectSocket->buf_alloc;
     PktHdr.fwd_cnt = pConnectSocket->fwd_cnt;

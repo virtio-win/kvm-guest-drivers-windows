@@ -1450,13 +1450,21 @@ VOID VIOSockObjectCleanup(IN WDFOBJECT Object)
 __inline BOOLEAN VIOSockIsGuestAddrValid(IN PSOCKADDR_VM pAddr)
 {
     return (pAddr->svm_family == AF_VSOCK) && (pAddr->svm_cid != VMADDR_CID_HYPERVISOR) &&
-           (pAddr->svm_cid != VMADDR_CID_RESERVED) && (pAddr->svm_cid != VMADDR_CID_HOST);
+           (pAddr->svm_cid != VMADDR_CID_LOCAL) && (pAddr->svm_cid != VMADDR_CID_HOST);
+}
+
+// Both the guest's own CID and VMADDR_CID_LOCAL address the guest itself
+// (loopback), mirroring Linux vsock_use_local_transport().
+__inline BOOLEAN VIOSockIsLocalCid(IN ULONG32 ulCid, IN ULONG32 ulGuestCid)
+{
+    return ulCid == ulGuestCid || ulCid == VMADDR_CID_LOCAL;
 }
 
 __inline BOOLEAN VIOSockIsHostAddrValid(IN PSOCKADDR_VM pAddr, IN ULONG32 ulSrcCid)
 {
     return (pAddr->svm_family == AF_VSOCK) &&
-           (pAddr->svm_cid == VMADDR_CID_HYPERVISOR || pAddr->svm_cid == VMADDR_CID_HOST || pAddr->svm_cid == ulSrcCid);
+           (pAddr->svm_cid == VMADDR_CID_HYPERVISOR || pAddr->svm_cid == VMADDR_CID_HOST ||
+            VIOSockIsLocalCid(pAddr->svm_cid, ulSrcCid));
 }
 
 static NTSTATUS VIOSockBind(IN WDFREQUEST Request)
@@ -1611,7 +1619,7 @@ static NTSTATUS VIOSockConnect(IN WDFREQUEST Request)
         }
     }
 
-    if (pSocket->dst_cid == (ULONG32)pContext->Config.guest_cid)
+    if (VIOSockIsLocalCid(pSocket->dst_cid, (ULONG32)pContext->Config.guest_cid))
     {
         TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "Connect to local socket (loopback)\n");
         VIOSockSetFlag(pSocket, SOCK_LOOPBACK);
