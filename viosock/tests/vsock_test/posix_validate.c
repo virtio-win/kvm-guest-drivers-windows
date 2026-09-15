@@ -196,11 +196,96 @@ static void validate_select_timeout(void)
     }
 }
 
+/*
+ * getsockopt(SO_ERROR) on a fresh, never-failed socket must succeed and
+ * report 0.  A buffer smaller than the option value is rejected with
+ * WSAEINVAL rather than silently truncated.
+ */
+static void validate_so_error_fresh(void)
+{
+    SOCKET s = fresh_vsock_socket("SO_ERROR(fresh)");
+    int err = -1;
+    int len = sizeof(err);
+    int rc = getsockopt(s, SOL_SOCKET, SO_ERROR, (char *)&err, &len);
+    if (rc == SOCKET_ERROR)
+    {
+        fprintf(stderr, "posix-validate: SO_ERROR(fresh): getsockopt failed WSA %d\n", WSAGetLastError());
+        closesocket(s);
+        exit(EXIT_FAILURE);
+    }
+    if (err != 0)
+    {
+        fprintf(stderr, "posix-validate: SO_ERROR(fresh): expected 0, got %d\n", err);
+        closesocket(s);
+        exit(EXIT_FAILURE);
+    }
+
+    char tiny;
+    int tiny_len = sizeof(tiny);
+    rc = getsockopt(s, SOL_SOCKET, SO_ERROR, &tiny, &tiny_len);
+    int got = (rc == SOCKET_ERROR) ? WSAGetLastError() : 0;
+    closesocket(s);
+    if (rc != SOCKET_ERROR)
+    {
+        fprintf(stderr, "posix-validate: SO_ERROR(short buffer): expected SOCKET_ERROR + WSAEINVAL, got success\n");
+        exit(EXIT_FAILURE);
+    }
+    if (got != WSAEINVAL)
+    {
+        fprintf(stderr, "posix-validate: SO_ERROR(short buffer): expected WSAEINVAL, got WSA %d\n", got);
+        exit(EXIT_FAILURE);
+    }
+}
+
+/*
+ * An unknown SOL_SOCKET option must fail with WSAENOPROTOOPT for both
+ * getsockopt and setsockopt (per the Winsock docs) - not WSAEOPNOTSUPP,
+ * and not a silent success.
+ */
+static void validate_unknown_sockopt(void)
+{
+    SOCKET s = fresh_vsock_socket("unknown sockopt");
+    int val = 0;
+    int len = sizeof(val);
+
+    int rc = getsockopt(s, SOL_SOCKET, 0x7777, (char *)&val, &len);
+    int got = (rc == SOCKET_ERROR) ? WSAGetLastError() : 0;
+    if (rc != SOCKET_ERROR)
+    {
+        fprintf(stderr, "posix-validate: getsockopt(unknown): expected SOCKET_ERROR + WSAENOPROTOOPT, got success\n");
+        closesocket(s);
+        exit(EXIT_FAILURE);
+    }
+    if (got != WSAENOPROTOOPT)
+    {
+        fprintf(stderr, "posix-validate: getsockopt(unknown): expected WSAENOPROTOOPT, got WSA %d\n", got);
+        closesocket(s);
+        exit(EXIT_FAILURE);
+    }
+
+    val = 0;
+    rc = setsockopt(s, SOL_SOCKET, 0x7777, (const char *)&val, sizeof(val));
+    got = (rc == SOCKET_ERROR) ? WSAGetLastError() : 0;
+    closesocket(s);
+    if (rc != SOCKET_ERROR)
+    {
+        fprintf(stderr, "posix-validate: setsockopt(unknown): expected SOCKET_ERROR + WSAENOPROTOOPT, got success\n");
+        exit(EXIT_FAILURE);
+    }
+    if (got != WSAENOPROTOOPT)
+    {
+        fprintf(stderr, "posix-validate: setsockopt(unknown): expected WSAENOPROTOOPT, got WSA %d\n", got);
+        exit(EXIT_FAILURE);
+    }
+}
+
 void posix_validate_all(void)
 {
     validate_getfiletype_and_osfhandle();
     validate_getsockname_unbound();
     validate_so_protocol_info_short();
+    validate_so_error_fresh();
+    validate_unknown_sockopt();
     validate_select_all_null();
     validate_select_timeout();
 }
