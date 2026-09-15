@@ -2,12 +2,12 @@
 *                   @YanVugenfirer @kostyanf14
 
 # Driver custom owners
-/Balloon/           @vrozenfe @ybendito @kostyanf14
+/Balloon/           @vrozenfe @ybendito @kostyanf14 @YanVugenfirer
 # /Documentation/
 # /fwcfg/
 /fwcfg64/           @kostyanf14 @YanVugenfirer
 # /ivshmem/
-/NetKVM/            @ybendito @YanVugenfirer @zjmletang
+/NetKVM/            @ybendito @YanVugenfirer @zjmletang @kostyanf14
 # /packaging/
 # /pciserial/
 /pvpanic/           @kostyanf14 @YanVugenfirer
@@ -15,11 +15,11 @@
 /Tools/             @kostyanf14 @YanVugenfirer @ybendito
 # /viocrypt/
 /viofs/             @kostyanf14 @YanVugenfirer @ybendito
-/viogpu/            @vrozenfe @YanVugenfirer
+/viogpu/            @vrozenfe @YanVugenfirer @kostyanf14
 # /vioinput/
 # /viorng/
-/vioscsi/           @vrozenfe @YanVugenfirer
-/vioserial/         @vrozenfe @ybendito
+/vioscsi/           @vrozenfe @YanVugenfirer @kostyanf14
+/vioserial/         @vrozenfe @ybendito @kostyanf14
 /viosock/           @kostyanf14 @YanVugenfirer @irudakov77
 /viostor/           @vrozenfe @YanVugenfirer @kostyanf14
 /stdvga/            @zjmletang @YanVugenfirer @kostyanf14
