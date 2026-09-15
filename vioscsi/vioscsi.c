@@ -1932,12 +1932,14 @@ ParseIdentificationDescr(IN PVOID DeviceExtension,
     PADAPTER_EXTENSION adaptExt;
     UCHAR CodeSet = 0;
     UCHAR IdentifierType = 0;
+    UCHAR Association = 0;
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     ENTER_FN();
     if (IdentificationDescr)
     {
         CodeSet = IdentificationDescr->CodeSet;               //(UCHAR)(((PCHAR)IdentificationDescr)[0]);
         IdentifierType = IdentificationDescr->IdentifierType; //(UCHAR)(((PCHAR)IdentificationDescr)[1]);
+        Association = IdentificationDescr->Association;
         if (PageLength < IdentificationDescr->IdentifierLength)
         {
             RhelDbgPrint(TRACE_LEVEL_INFORMATION,
@@ -1973,27 +1975,26 @@ ParseIdentificationDescr(IN PVOID DeviceExtension,
                 break;
             case VioscsiVpdIdentifierTypeFCPHName:
                 {
+                    // NAA identifier: Association tells us whether it names the logical unit or the target port.
                     if ((CodeSet == VioscsiVpdCodeSetBinary) &&
                         (IdentificationDescr->IdentifierLength == sizeof(ULONGLONG)))
                     {
-                        REVERSE_BYTES_QUAD(&adaptExt->wwn, IdentificationDescr->Identifier);
-                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " wwn %llu\n", (ULONGLONG)adaptExt->wwn);
-                    }
-                }
-                break;
-            case VioscsiVpdIdentifierTypeFCTargetPortPHName:
-                {
-                    if ((CodeSet == VioscsiVpdCodeSetSASBinary) &&
-                        (IdentificationDescr->IdentifierLength == sizeof(ULONGLONG)))
-                    {
-                        REVERSE_BYTES_QUAD(&adaptExt->port_wwn, IdentificationDescr->Identifier);
-                        RhelDbgPrint(TRACE_LEVEL_INFORMATION, " port wwn %llu\n", (ULONGLONG)adaptExt->port_wwn);
+                        if (Association == VioscsiVpdAssociationLogicalUnit)
+                        {
+                            REVERSE_BYTES_QUAD(&adaptExt->wwn, IdentificationDescr->Identifier);
+                            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " wwn %llu\n", (ULONGLONG)adaptExt->wwn);
+                        }
+                        else if (Association == VioscsiVpdAssociationTargetPort)
+                        {
+                            REVERSE_BYTES_QUAD(&adaptExt->port_wwn, IdentificationDescr->Identifier);
+                            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " port wwn %llu\n", (ULONGLONG)adaptExt->port_wwn);
+                        }
                     }
                 }
                 break;
             case VioscsiVpdIdentifierTypeFCTargetPortRelativeTargetPort:
                 {
-                    if ((CodeSet == VioscsiVpdCodeSetSASBinary) &&
+                    if ((CodeSet == VioscsiVpdCodeSetBinary) &&
                         (IdentificationDescr->IdentifierLength == sizeof(ULONG)))
                     {
                         REVERSE_BYTES(&adaptExt->port_idx, IdentificationDescr->Identifier);

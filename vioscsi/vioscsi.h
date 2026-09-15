@@ -394,7 +394,6 @@ typedef enum VIOSCSI_VPD_CODE_SET
 {
     VioscsiVpdCodeSetBinary = 1,
     VioscsiVpdCodeSetAscii = 2,
-    VioscsiVpdCodeSetSASBinary = 0x61,
 } VIOSCSI_VPD_CODE_SET, *PVIOSCSI_VPD_CODE_SET;
 
 typedef enum VIOSCSI_VPD_IDENTIFIER_TYPE
@@ -402,9 +401,16 @@ typedef enum VIOSCSI_VPD_IDENTIFIER_TYPE
     VioscsiVpdIdentifierTypeVendorSpecific = 0,
     VioscsiVpdIdentifierTypeVendorId = 1,
     VioscsiVpdIdentifierTypeEUI64 = 2,
-    VioscsiVpdIdentifierTypeFCPHName = 3,
-    VioscsiVpdIdentifierTypeFCTargetPortPHName = 0x93,
-    VioscsiVpdIdentifierTypeFCTargetPortRelativeTargetPort = 0x94,
+    VioscsiVpdIdentifierTypeFCPHName = 3, // NAA; also used for the target port's WWN, see VIOSCSI_VPD_ASSOCIATION
+    VioscsiVpdIdentifierTypeFCTargetPortRelativeTargetPort = 4,
 } VIOSCSI_VPD_IDENTIFIER_TYPE, *PVIOSCSI_VPD_IDENTIFIER_TYPE;
+
+// SPC IDENTIFICATION DESCRIPTOR ASSOCIATION field (2 bits): what the identifier refers to.
+typedef enum VIOSCSI_VPD_ASSOCIATION
+{
+    VioscsiVpdAssociationLogicalUnit = 0,
+    VioscsiVpdAssociationTargetPort = 1,
+    VioscsiVpdAssociationTargetDevice = 2,
+} VIOSCSI_VPD_ASSOCIATION, *PVIOSCSI_VPD_ASSOCIATION;
 
 #endif ___VIOSCSI__H__
