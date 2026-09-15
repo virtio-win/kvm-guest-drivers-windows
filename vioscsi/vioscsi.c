@@ -2105,8 +2105,13 @@ VOID VioScsiSaveInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
     }
     else if (cdb->CDB6INQUIRY3.PageCode == VPD_SUPPORTED_PAGES)
     {
+        // Process Standard INQUIRY response (EVPD == 0, PageCode == 0).
+        // Extracts basic device identity strings: Vendor ID (8B), Product ID (16B), and Revision Level (4B).
+        // Memory bounds are validated using FIELD_OFFSET to ensure dataLen reaches at least the end of
+        // ProductRevisionLevel (36 bytes total), preventing out-of-bounds reads on probe responses
         PINQUIRYDATA InquiryData = (PINQUIRYDATA)dataBuffer;
-        if (InquiryData && dataLen)
+        if (InquiryData &&
+            dataLen >= FIELD_OFFSET(INQUIRYDATA, ProductRevisionLevel) + sizeof(InquiryData->ProductRevisionLevel))
         {
             CopyBufferToAnsiString(adaptExt->ven_id, InquiryData->VendorId, ' ', sizeof(InquiryData->VendorId));
             CopyBufferToAnsiString(adaptExt->prod_id, InquiryData->ProductId, ' ', sizeof(InquiryData->ProductId));
