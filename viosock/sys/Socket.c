@@ -2109,6 +2109,13 @@ BOOLEAN VIOSockEventMarkBit(IN PSOCKET_CONTEXT pSocket, IN ULONG uSetBit, IN NTS
     pSocket->Events |= uEvent;
     pSocket->EventsStatus[uSetBit] = Status;
 
+    if (!NT_SUCCESS(Status))
+    {
+        // keep the failure for getsockopt(SO_ERROR): a failed connect or a
+        // reset is otherwise visible only through the network event status
+        pSocket->SoError = Status;
+    }
+
     return bSetEvent;
 }
 
@@ -2355,6 +2362,22 @@ static NTSTATUS VIOSockGetSockOpt(IN WDFREQUEST Request, OUT size_t *pLength)
             pOpt->optlen = sizeof(ULONG);
             break;
 
+        case SO_ERROR:
+            if (pOpt->optlen < sizeof(ULONG))
+            {
+                status = STATUS_INVALID_PARAMETER;
+                break;
+            }
+
+            // read-and-clear, as the option is specified; the value is the
+            // NTSTATUS of the failure, viosocklib maps it to a Winsock error
+            WdfSpinLockAcquire(pSocket->StateLock);
+            *(PULONG)pOptVal = (ULONG)pSocket->SoError;
+            pSocket->SoError = STATUS_SUCCESS;
+            WdfSpinLockRelease(pSocket->StateLock);
+            pOpt->optlen = sizeof(ULONG);
+            break;
+
         case SO_LINGER:
             if (pOpt->optlen < sizeof(LINGER))
             {
@@ -2453,7 +2476,7 @@ static NTSTATUS VIOSockGetSockOpt(IN WDFREQUEST Request, OUT size_t *pLength)
             }
             break;
         default:
-            status = STATUS_NOT_SUPPORTED;
+            status = STATUS_NOT_IMPLEMENTED;
     }
 
     if (NT_SUCCESS(status))
@@ -2728,6 +2751,12 @@ static NTSTATUS VIOSockSetSockOpt(IN WDFREQUEST Request)
 
                 pSocket->ConnectTimeout = llTimeout;
             }
+            break;
+
+        default:
+            // an unknown option must fail, otherwise setsockopt silently
+            // succeeds; WSAENOPROTOOPT (see NtStatusToWsaError)
+            status = STATUS_NOT_IMPLEMENTED;
             break;
     }
 
