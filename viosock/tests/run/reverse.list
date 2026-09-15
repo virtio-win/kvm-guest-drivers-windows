@@ -75,7 +75,7 @@
 31   posix  SOCK_STREAM SO_LINGER null-ptr-deref
 # 32 posix  SOCK_STREAM SO_LINGER close() on unread  — disabled: "Unexpected lingering" — acceptor does not honour SO_LINGER timeout when the client closes with unread data; symptom pre-dates and survives the accept refactor + WSAEINVAL fix (vhi-8.1 73790a30).
 # 33 posix  SOCK_STREAM transport change null-ptr-deref, lockdep warn  — disabled: run_client/run_server = NULL (transport-change); isolated-pick harness artifact
-# 34 posix  SOCK_STREAM ioctl(SIOCINQ) functionality  — disabled: "Test skipped, SIOCINQ not supported" - client-side compat.h gap
+# 34 posix  SOCK_STREAM ioctl(SIOCINQ) functionality  — disabled: reverse client-side runs on the Linux host (dev008 kernel 6.12 vz10), whose vsock does not implement ioctl(SIOCINQ); the upstream test then gracefully prints "Test skipped, SIOCINQ not supported." and exits, which the harness scores as a fail.  Windows client-side runs (forward, loopback) do exercise SIOCINQ end-to-end.
 # 35 posix  SOCK_SEQPACKET ioctl(SIOCINQ) functionality     — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
 # 36 posix  SOCK_STREAM accept()ed socket custom setsockopt() — disabled: run_client/run_server = NULL (no Winsock SO_ZEROCOPY)
 # 37 posix  SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption — disabled: run_client/run_server = NULL (no MSG_ERRQUEUE)

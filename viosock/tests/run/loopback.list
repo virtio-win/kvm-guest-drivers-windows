@@ -75,7 +75,7 @@
 32   wsa    SOCK_STREAM SO_LINGER close() on unread
 32   overlapped SOCK_STREAM SO_LINGER close() on unread
 # 33 posix  SOCK_STREAM transport change null-ptr-deref, lockdep warn  — disabled: run_client/run_server = NULL (Linux-only)
-# 34 posix  SOCK_STREAM ioctl(SIOCINQ) functionality  — disabled: "Test skipped, SIOCINQ not supported" - compat.h gap
+34   posix  SOCK_STREAM ioctl(SIOCINQ) functionality
 # 35 posix  SOCK_SEQPACKET ioctl(SIOCINQ) functionality     — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
 # 36 posix  SOCK_STREAM accept()ed socket custom setsockopt() — disabled: run_client/run_server = NULL (no Winsock SO_ZEROCOPY)
 # 37 posix  SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption — disabled: run_client/run_server = NULL (no MSG_ERRQUEUE)
