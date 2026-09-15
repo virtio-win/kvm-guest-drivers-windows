@@ -38,14 +38,13 @@ GUEST_SRV_LOG='C:\srv_perf.log'
 SCHTASKS_NAME='vsock_perf_srv'
 
 # --- args ----------------------------------------------------------------
-CFG=""; LOGDIR=""; VARIANT="posix"; BITS="x64"; DIRS=""; AS_SYSTEM=0
+CFG=""; LOGDIR=""; BITS="x64"; DIRS=""; AS_SYSTEM=0
 LOCAL_BIN="/opt/vsock-test/vsock_perf"
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --config)      CFG="$2";       shift 2 ;;
         --logdir)      LOGDIR="$2";    shift 2 ;;
-        --variant)     VARIANT="$2";   shift 2 ;;
         --bits)        BITS="$2";      shift 2 ;;
         --x86)         BITS="x86";     shift ;;
         --only)        DIRS="$2";      shift 2 ;;
@@ -54,10 +53,15 @@ while [ $# -gt 0 ]; do
         -h|--help)
             cat >&2 <<EOF
 Usage: $0 [--config <cfg>] [--logdir <dir>]
-          [--variant posix|wsa|overlapped] [--bits x64|x86 | --x86]
+          [--bits x64|x86 | --x86]
           [--only forward,reverse] [--as-system] [--local-bin <path>]
 
 Runs vsock_perf in every enabled direction × two buffer sizes.
+
+vsock_perf has one Windows-side flavour: the compat.h POSIX shim.
+Native WSA / overlapped I/O in vsock_perf itself would be a separate
+feature (add --variant to vsock_perf.c first), so this driver has no
+--variant flag today.
 
 Tunables (env-overridable, defaults in [brackets]):
   PERF_BYTES        [1G]      Total bytes to transfer per run.
@@ -69,8 +73,6 @@ Tunables (env-overridable, defaults in [brackets]):
   SERVER_GRACE_SECS [1]       Sleep between receiver launch and sender start.
 
 Flags:
-  --variant       posix (default), wsa or overlapped. Only 'posix' works today;
-                  the other two are planned for the native Winsock port.
   --bits          Guest binary bit-width (default: x64).
   --only          Comma-separated subset: forward, reverse.
   --as-system     For the reverse direction: launch the Windows receiver via
@@ -83,8 +85,7 @@ EOF
     esac
 done
 
-case "$BITS"    in x64|x86) ;;             *) die "--bits must be x64 or x86" ;; esac
-case "$VARIANT" in posix|wsa|overlapped) ;; *) die "--variant must be posix|wsa|overlapped" ;; esac
+case "$BITS" in x64|x86) ;; *) die "--bits must be x64 or x86" ;; esac
 
 CFG=$(discover_config "$CFG")
 guest_load "$CFG"
@@ -96,23 +97,17 @@ guest_cid=$(config_read "$CFG" guest_cid); [ -n "$guest_cid" ] || die "config ha
 [ -z "$LOGDIR" ] && LOGDIR="/tmp/vsock-perf-$$"
 mkdir -p "$LOGDIR"
 
-# What runs where — 'posix' is the only variant today; 'wsa'/'overlapped'
-# will pick a different exe / flag set through the same case-branch.
+# vsock_perf.exe has no variant flag — always compat.h POSIX shim.
 guest_perf_cmd() {
-    local variant="$1" bits="$2" bin_dir="$3"
-    local exe flags=''
+    local bits="$1" bin_dir="$2"
+    local exe
     case "$bits" in
         x64) exe='vsock_perf.exe' ;;
         x86) exe='vsock_perf_x86.exe' ;;
     esac
-    case "$variant" in
-        posix)      ;;
-        wsa)        flags=' --variant wsa' ;;
-        overlapped) flags=' --variant overlapped' ;;
-    esac
-    printf '%s\\%s%s\n' "$bin_dir" "$exe" "$flags"
+    printf '%s\\%s\n' "$bin_dir" "$exe"
 }
-GUEST_CMD=$(guest_perf_cmd "$VARIANT" "$BITS" "$guest_bin_dir")
+GUEST_CMD=$(guest_perf_cmd "$BITS" "$guest_bin_dir")
 
 # What directions to run
 run_fwd=1; run_rev=1
