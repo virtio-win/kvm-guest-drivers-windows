@@ -1954,19 +1954,19 @@ ParseIdentificationDescr(IN PVOID DeviceExtension,
                 {
                     if (CodeSet == VioscsiVpdCodeSetAscii)
                     {
-                        if (IdentificationDescr->IdentifierLength > 0 && adaptExt->ser_num == NULL)
+                        // A short/truncated first INQUIRY (small allocation length) can yield a shorter,
+                        // internally-consistent identifier. Keep the longest one seen so a later, complete
+                        // response can still replace an earlier truncated one, instead of latching forever.
+                        ULONG newSerialNumLen = min(64, IdentificationDescr->IdentifierLength);
+                        ULONG currentSerialNumLen = (ULONG)strnlen((PCHAR)adaptExt->ser_num, 64);
+
+                        if (newSerialNumLen > 0 && newSerialNumLen > currentSerialNumLen)
                         {
-                            int ln = min(64, IdentificationDescr->IdentifierLength);
-                            ULONG Status = StorPortAllocatePool(DeviceExtension,
-                                                                ln + 1,
-                                                                VIOSCSI_POOL_TAG,
-                                                                (PVOID *)&adaptExt->ser_num);
-                            if (NT_SUCCESS(Status))
-                            {
-                                StorPortMoveMemory(adaptExt->ser_num, IdentificationDescr->Identifier, ln);
-                                adaptExt->ser_num[ln] = '\0';
-                                RhelDbgPrint(TRACE_LEVEL_INFORMATION, " serial number %s\n", adaptExt->ser_num);
-                            }
+                            // ser_num is a fixed-size buffer in the adapter extension (no allocation, no
+                            // free), so a longer identifier simply overwrites it in place.
+                            StorPortMoveMemory(adaptExt->ser_num, IdentificationDescr->Identifier, newSerialNumLen);
+                            adaptExt->ser_num[newSerialNumLen] = '\0';
+                            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " serial number %s\n", adaptExt->ser_num);
                         }
                     }
                 }
@@ -2048,23 +2048,34 @@ VOID VioScsiSaveInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
         {
             case VPD_SERIAL_NUMBER:
                 {
-                    PVPD_SERIAL_NUMBER_PAGE SerialPage;
-                    SerialPage = (PVPD_SERIAL_NUMBER_PAGE)dataBuffer;
-                    RhelDbgPrint(TRACE_LEVEL_INFORMATION,
-                                 " VPD_SERIAL_NUMBER PageLength = %d\n",
-                                 SerialPage->PageLength);
-                    if (SerialPage->PageLength > 0 && adaptExt->ser_num == NULL)
+                    // Check if we have enough data for the Serial Number Page header. Use FIELD_OFFSET
+                    // rather than sizeof: SerialNumber is a trailing zero-length array, so both are
+                    // numerically identical today, but FIELD_OFFSET stays correct even if that member's
+                    // declared size ever changes.
+                    if (dataLen >= (ULONG)FIELD_OFFSET(VPD_SERIAL_NUMBER_PAGE, SerialNumber))
                     {
-                        int ln = min(64, SerialPage->PageLength);
-                        ULONG Status = StorPortAllocatePool(DeviceExtension,
-                                                            ln + 1,
-                                                            VIOSCSI_POOL_TAG,
-                                                            (PVOID *)&adaptExt->ser_num);
-                        if (NT_SUCCESS(Status))
+                        PVPD_SERIAL_NUMBER_PAGE SerialPage = (PVPD_SERIAL_NUMBER_PAGE)dataBuffer;
+
+                        RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                                     " VPD_SERIAL_NUMBER PageLength = %d\n",
+                                     SerialPage->PageLength);
+
+                        if (SerialPage->PageLength > 0)
                         {
-                            StorPortMoveMemory(adaptExt->ser_num, SerialPage->SerialNumber, ln);
-                            adaptExt->ser_num[ln] = '\0';
-                            RhelDbgPrint(TRACE_LEVEL_INFORMATION, " serial number %s\n", adaptExt->ser_num);
+                            ULONG availableBytes = dataLen - (ULONG)FIELD_OFFSET(VPD_SERIAL_NUMBER_PAGE, SerialNumber);
+                            ULONG bytesToCopy = min((ULONG)SerialPage->PageLength, availableBytes);
+                            ULONG newSerialNumLen = min(64, bytesToCopy);
+                            SIZE_T currentSerialNumLen = strnlen((PCHAR)adaptExt->ser_num, 64);
+
+                            // Copy the new serial number in place if it is longer than the cached one
+                            if (newSerialNumLen > 0 && newSerialNumLen > currentSerialNumLen)
+                            {
+                                // ser_num is a fixed-size buffer in the adapter extension (no allocation,
+                                // no free), so a longer identifier simply overwrites it in place.
+                                StorPortMoveMemory(adaptExt->ser_num, SerialPage->SerialNumber, newSerialNumLen);
+                                adaptExt->ser_num[newSerialNumLen] = '\0';
+                                RhelDbgPrint(TRACE_LEVEL_INFORMATION, " serial number %s\n", adaptExt->ser_num);
+                            }
                         }
                     }
                 }
@@ -2245,7 +2256,7 @@ VioScsiQueryWmiDataBlock(IN PVOID Context,
                 pOutBfr->NumberOfPorts = 1;
                 pOutBfr->VendorSpecificID = VENDORID | (PRODUCTID << 16);
                 CopyUnicodeString(pOutBfr->Manufacturer, MANUFACTURER, sizeof(pOutBfr->Manufacturer));
-                if (adaptExt->ser_num)
+                if (adaptExt->ser_num[0] != '\0')
                 {
                     CopyAnsiToUnicodeString(pOutBfr->SerialNumber, adaptExt->ser_num, sizeof(pOutBfr->SerialNumber));
                 }
