@@ -2020,27 +2020,46 @@ VOID VioScsiSaveInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
     UCHAR SrbStatus = SRB_STATUS_SUCCESS;
     ENTER_FN_SRB();
 
-    if (!Srb)
+    if (!Srb || !DeviceExtension)
     {
         return;
     }
 
     cdb = SRB_CDB(Srb);
-
-    if (!cdb)
+    dataBuffer = SRB_DATA_BUFFER(Srb);
+    dataLen = SRB_DATA_TRANSFER_LENGTH(Srb);
+    // Validate cdb structure. Do not touch invalid data at all.
+    if (!cdb || !dataBuffer || dataLen == 0)
     {
         return;
     }
-
+    // A VPD (EVPD=1) INQUIRY is commonly probed first with a short allocation length (per SPC,
+    // as little as the 4-byte page header, a well-known two-step VPD read pattern used by e.g.
+    // sg_vpd/Linux sd.c) before a follow-up INQUIRY fetches the full page, so dataLen can
+    // legitimately be much smaller than INQUIRYDATABUFFERSIZE in that case. Only require the
+    // full standard INQUIRY size (36 bytes) when EVPD is 0. For EVPD=1, still require at least
+    // the smallest VPD page header this driver inspects - VPD_SERIAL_NUMBER_PAGE and
+    // VPD_IDENTIFICATION_PAGE are both exactly this size - so it is always safe to read a page's
+    // PageLength field here, regardless of which (if any) of the per-page fixes are merged. Each
+    // VPD branch below additionally validates the exact length it needs for its own payload
+    // against dataLen.
+    if (cdb->CDB6INQUIRY3.EnableVitalProductData == 0)
+    {
+        if (dataLen < INQUIRYDATABUFFERSIZE)
+        {
+            return;
+        }
+    }
+    else if (dataLen < sizeof(VPD_SERIAL_NUMBER_PAGE))
+    {
+        return;
+    }
     SRB_GET_SCSI_STATUS(Srb, SrbStatus);
     if (SrbStatus == SRB_STATUS_ERROR)
     {
         return;
     }
-
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    dataBuffer = SRB_DATA_BUFFER(Srb);
-    dataLen = SRB_DATA_TRANSFER_LENGTH(Srb);
 
     if (cdb->CDB6INQUIRY3.EnableVitalProductData == 1)
     {
