@@ -338,6 +338,9 @@ typedef struct _SOCKET_CONTEXT
     _Guarded_by_(StateLock) ULONG EventsMask;
     _Guarded_by_(StateLock) ULONG Events;
     _Guarded_by_(StateLock) NTSTATUS EventsStatus[FD_MAX_EVENTS];
+    // last asynchronous failure (connect failure, connection reset), reported
+    // and cleared by getsockopt(SO_ERROR)
+    _Guarded_by_(StateLock) NTSTATUS SoError;
 
     WDFSPINLOCK RxLock;                                // accept list lock for listen socket
     _Interlocked_ volatile LONG ReadDequeueInProgress; // recv-dequeue worker serialization

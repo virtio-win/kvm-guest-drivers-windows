@@ -697,6 +697,12 @@ int WSPAPI VIOSockGetSockOpt(_In_ SOCKET s,
     else if (dwBytesReturned == sizeof(Opt))
     {
         *optlen = Opt.optlen;
+
+        if (level == SOL_SOCKET && optname == SO_ERROR && Opt.optlen >= (int)sizeof(int))
+        {
+            // the driver reports the pending error as NTSTATUS
+            *(int *)optval = NtStatusToWsaError(*(NTSTATUS *)optval);
+        }
     }
     else
     {
