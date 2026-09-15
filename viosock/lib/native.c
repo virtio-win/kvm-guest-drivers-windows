@@ -108,6 +108,13 @@ NTSTATUS NTAPI NtQueryInformationFile(_In_ HANDLE FileHandle,
 #define STATUS_CONNECTION_INVALID         ((NTSTATUS)0xC000023AL)
 #define STATUS_DEVICE_BUSY                ((NTSTATUS)0x80000011L)
 
+#ifndef STATUS_NOT_IMPLEMENTED
+// repurposed: an unknown/unsupported socket option (getsockopt/setsockopt),
+// mapped to WSAENOPROTOOPT - distinct from STATUS_NOT_SUPPORTED, which stays
+// WSAEOPNOTSUPP for unsupported operations/IOCTLs
+#define STATUS_NOT_IMPLEMENTED ((NTSTATUS)0xC0000002L)
+#endif
+
 #ifndef STATUS_INVALID_HANDLE
 #define STATUS_INVALID_HANDLE ((NTSTATUS)0xC0000008L)
 #endif
@@ -139,6 +146,9 @@ INT NtStatusToWsaError(_In_ NTSTATUS Status)
             break;
         case STATUS_NOT_SUPPORTED:
             wsaError = WSAEOPNOTSUPP;
+            break;
+        case STATUS_NOT_IMPLEMENTED:
+            wsaError = WSAENOPROTOOPT;
             break;
         case STATUS_INVALID_DEVICE_REQUEST:
         case STATUS_NOT_SOCKET:
