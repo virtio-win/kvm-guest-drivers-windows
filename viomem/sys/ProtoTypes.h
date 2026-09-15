@@ -77,6 +77,18 @@ typedef struct _DEVICE_CONTEXT
     PKTHREAD Thread;
     BOOLEAN finishProcessing;
 
+    //
+    // stateLock serializes the shutdown request (finishProcessing) against the
+    // admission of a memory hot-remove (hotRemoveInProgress). It guarantees that
+    // a hot-remove is either committed before shutdown starts (in which case the
+    // shutdown path waits for the worker thread to finish it) or is rejected once
+    // shutdown has started. See ViomemWorkerThread / VirtioMemRemovePhysicalMemory
+    // and ViomemCloseWorkerThread.
+    //
+
+    WDFSPINLOCK stateLock;
+    BOOLEAN hotRemoveInProgress;
+
     UINT state;
 
     RTL_BITMAP memoryBitmapHandle;
