@@ -79,6 +79,43 @@ static void test_stream_connection_reset(const struct test_opts *opts)
         fprintf(stderr, "unexpected connect(2) errno %d\n", errno);
         exit(EXIT_FAILURE);
     }
+    /*
+     * SO_ERROR carries the same failure, per socket.  It is read-and-clear:
+     * the first read returns the connect() error (translated through the same
+     * table as the rest of the posix layer), and a second read returns 0
+     * because reading it - not a later successful call - is what clears it.
+     */
+    {
+        int so_error = -1;
+        int so_len = sizeof(so_error);
+
+        if (getsockopt(fd, SOL_SOCKET, SO_ERROR, (char *)&so_error, &so_len))
+        {
+            perror("getsockopt(SO_ERROR)");
+            exit(EXIT_FAILURE);
+        }
+        errno = 0;
+        WSASetLastError(so_error);
+        wsa_set_errno();
+        if (errno != ECONNRESET && errno != ECONNREFUSED)
+        {
+            fprintf(stderr, "unexpected SO_ERROR %d (errno %d)\n", so_error, errno);
+            exit(EXIT_FAILURE);
+        }
+
+        so_error = -1;
+        so_len = sizeof(so_error);
+        if (getsockopt(fd, SOL_SOCKET, SO_ERROR, (char *)&so_error, &so_len))
+        {
+            perror("getsockopt(SO_ERROR) reread");
+            exit(EXIT_FAILURE);
+        }
+        if (so_error != 0)
+        {
+            fprintf(stderr, "SO_ERROR not cleared by read: %d\n", so_error);
+            exit(EXIT_FAILURE);
+        }
+    }
 
     close(fd);
 }
