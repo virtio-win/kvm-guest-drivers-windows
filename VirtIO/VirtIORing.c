@@ -496,6 +496,7 @@ vring_new_virtqueue_split(unsigned int index,       /* virtqueue index */
     vq->vq.vdev = vdev;
     vq->vq.notification_cb = notify;
     vq->vq.index = index;
+    vq->vq.vring_size = num;
 
     /* Build a linked list of unused descriptors */
     vq->num_unused = num;

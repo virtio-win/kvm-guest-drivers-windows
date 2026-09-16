@@ -599,6 +599,7 @@ vring_new_virtqueue_packed(unsigned int index,       /* virtqueue index */
     vq->vq.vdev = vdev;
     vq->vq.notification_cb = notify;
     vq->vq.index = index;
+    vq->vq.vring_size = num;
 
     vq->vq.avail_va = (u8 *)pages + num * sizeof(struct vring_packed_desc);
     vq->vq.used_va = (u8 *)vq->vq.avail_va + sizeof(struct vring_packed_desc_event);
