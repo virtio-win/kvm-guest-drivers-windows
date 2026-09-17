@@ -512,7 +512,11 @@ _Requires_lock_held_(pSocket->StateLock) VIOSOCK_STATE VIOSockStateSet(IN PSOCKE
     // -> CLOSE). Removing on CLOSING - not only on CLOSE - stops a dying socket
     // from shadowing a new connect() that reuses the same 4-tuple: the OP_REQUEST
     // would otherwise be matched to it and dropped instead of reaching the listener.
-    if (PrevState != NewState && !IsLoopbackSocket(pSocket))
+    // Loopback sockets are members too: the connected list is the handle-lookup
+    // path used by select/poll (VIOSockGetSocketFromHandle), and an accepted
+    // loopback socket must be findable there. The Rx and transport-reset consumers
+    // filter loopback out at their own callsites.
+    if (PrevState != NewState)
     {
         switch (NewState)
         {
@@ -3083,17 +3087,31 @@ VIOSockGetSocketFromHandle(IN PDEVICE_CONTEXT pContext, IN ULONGLONG uSocket, IN
 
 VOID VIOSockHandleTransportReset(IN PDEVICE_CONTEXT pContext)
 {
-    WDFFILEOBJECT Socket;
+    ULONG i;
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
-    while (WDF_NO_HANDLE != (Socket = WdfCollectionGetFirstItem(pContext->ConnectedList)))
+    // Loopback sockets stay in the connected list for handle lookup but must not
+    // be reset here: they don't ride the transport. Index-based iteration with a
+    // filter — the first-item + StateSet(CLOSE) loop can no longer terminate,
+    // because loopback entries are skipped and remain at the head.
+    i = 0;
+    while (i < WdfCollectionGetCount(pContext->ConnectedList))
     {
+        WDFFILEOBJECT Socket = WdfCollectionGetItem(pContext->ConnectedList, i);
         PSOCKET_CONTEXT pCurrentSocket = GetSocketContext(Socket);
+
+        if (IsLoopbackSocket(pCurrentSocket))
+        {
+            ++i;
+            continue;
+        }
 
         ASSERT(VIOSockStateGet(pCurrentSocket) == VIOSOCK_STATE_CONNECTED);
 
         VIOSockStateSet(pCurrentSocket, VIOSOCK_STATE_CLOSE);
         VIOSockEventSetBit(pCurrentSocket, FD_CLOSE_BIT, STATUS_CONNECTION_RESET);
+        // Do not advance i: StateSet(CLOSE) drops the entry, next non-loopback
+        // slides into slot i.
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);

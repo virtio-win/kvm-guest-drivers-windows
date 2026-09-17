@@ -908,6 +908,10 @@ _Requires_lock_not_held_(pContext->RxLock) VOID VIOSockRxVqProcess(IN PDEVICE_CO
 
         // find socket
         pSocket = VIOSockConnectedFindByRxPktLocked(pContext, pPktHdr);
+        // Loopback sockets live in the same list (for handle lookup) but never
+        // deliver via the Rx path — a packet matched to one here would be a
+        // 4-tuple collision, not real traffic.
+        ASSERT(!pSocket || !IsLoopbackSocket(pSocket));
         if (!pSocket)
         {
             // no connected socket for incoming packet
