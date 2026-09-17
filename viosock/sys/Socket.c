@@ -1231,7 +1231,8 @@ NTSTATUS VIOSockCreate(IN WDFDEVICE WdfDevice, IN WDFREQUEST Request)
                 {
                     WDFFILEOBJECT ListenSocket = VIOSockGetSocketFromHandle(pContext,
                                                                             pParams->Socket,
-                                                                            WdfRequestIsFrom32BitProcess(Request));
+                                                                            WdfRequestIsFrom32BitProcess(Request),
+                                                                            WdfRequestGetRequestorMode(Request));
 
                     if (ListenSocket != WDF_NO_HANDLE)
                     {
@@ -1836,18 +1837,15 @@ static NTSTATUS VIOSockListen(IN WDFREQUEST Request)
     return status;
 }
 
-__inline NTSTATUS VIOSockGetEventFromHandle(IN HANDLE hEvent, OUT PKEVENT *pEvent)
+__inline NTSTATUS VIOSockGetEventFromHandle(IN HANDLE hEvent, IN KPROCESSOR_MODE AccessMode, OUT PKEVENT *pEvent)
 {
-    NTSTATUS status = STATUS_UNSUCCESSFUL;
-
-    status = ObReferenceObjectByHandle(hEvent,
-                                       STANDARD_RIGHTS_REQUIRED,
-                                       *ExEventObjectType,
-                                       KernelMode,
-                                       (PVOID)pEvent,
-                                       NULL);
-
-    return status;
+    // hEvent normally arrives from user mode (WSAEventSelect / WSAEnumNetworkEvents
+    // IOCTL input buffer); the caller passes its requestor mode so the lookup goes
+    // through the right domain and does not trip Driver Verifier's 0xC4/0xF6 check.
+    // DesiredAccess=0 keeps the reference alive without the full-access rights the
+    // event's user opener typically does not grant; KeSetEvent/KeClearEvent operate
+    // on the raw object pointer and do not re-check.
+    return ObReferenceObjectByHandle(hEvent, 0, *ExEventObjectType, AccessMode, (PVOID)pEvent, NULL);
 }
 
 _Requires_lock_not_held_(pSocket->StateLock) static VOID VIOSockEventUnregister(IN PSOCKET_CONTEXT pSocket,
@@ -1935,7 +1933,7 @@ static NTSTATUS VIOSockEnumNetEvents(IN WDFREQUEST Request, OUT size_t *pLength)
 
     if (hEvent)
     {
-        status = VIOSockGetEventFromHandle(hEvent, &pEvent);
+        status = VIOSockGetEventFromHandle(hEvent, WdfRequestGetRequestorMode(Request), &pEvent);
         if (!NT_SUCCESS(status))
         {
             TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockGetEventFromHandle failed: 0x%x\n", status);
@@ -2094,7 +2092,7 @@ static NTSTATUS VIOSockEventSelect(IN WDFREQUEST Request)
             return STATUS_INVALID_PARAMETER;
         }
 
-        status = VIOSockGetEventFromHandle(hEvent, &pEvent);
+        status = VIOSockGetEventFromHandle(hEvent, WdfRequestGetRequestorMode(Request), &pEvent);
         if (!NT_SUCCESS(status))
         {
             TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockGetEventFromHandle failed: 0x%x\n", status);
@@ -3042,7 +3040,10 @@ _Requires_lock_not_held_(pSocket->StateLock) NTSTATUS VIOSockStateValidate(PSOCK
 }
 
 WDFFILEOBJECT
-VIOSockGetSocketFromHandle(IN PDEVICE_CONTEXT pContext, IN ULONGLONG uSocket, IN BOOLEAN bIs32BitProcess)
+VIOSockGetSocketFromHandle(IN PDEVICE_CONTEXT pContext,
+                           IN ULONGLONG uSocket,
+                           IN BOOLEAN bIs32BitProcess,
+                           IN KPROCESSOR_MODE AccessMode)
 {
     NTSTATUS status;
     PFILE_OBJECT pFileObj;
@@ -3059,12 +3060,15 @@ VIOSockGetSocketFromHandle(IN PDEVICE_CONTEXT pContext, IN ULONGLONG uSocket, IN
         hSocket = (HANDLE)uSocket;
     }
 
-    status = ObReferenceObjectByHandle(hSocket,
-                                       STANDARD_RIGHTS_REQUIRED,
-                                       *IoFileObjectType,
-                                       KernelMode,
-                                       (PVOID)&pFileObj,
-                                       NULL);
+    // hSocket may come from an IOCTL input buffer (UserMode) or from an in-driver
+    // caller (KernelMode); the caller passes its requestor mode so the per-process
+    // handle-table lookup + access check is done against the right domain. Driver
+    // Verifier catches KernelMode dereferences of user-scoped HANDLEs as 0xC4/0xF6.
+    // Request no specific access — a socket file object grants only SYNCHRONIZE
+    // to its user opener, so STANDARD_RIGHTS_REQUIRED under UserMode is refused.
+    // The lookup itself is what we need; we do not use the reference for any
+    // access-checked operation.
+    status = ObReferenceObjectByHandle(hSocket, 0, *IoFileObjectType, AccessMode, (PVOID)&pFileObj, NULL);
 
     if (NT_SUCCESS(status))
     {
