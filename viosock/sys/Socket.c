@@ -77,7 +77,6 @@ WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIOSOCK_PENDED_CONTEXT, GetRequestPendedConte
 
 EVT_WDF_REQUEST_CANCEL VIOSockPendedRequestCancel;
 EVT_WDF_TIMER VIOSockPendedTimerFunc;
-EVT_WDF_IO_QUEUE_IO_CANCELED_ON_QUEUE VIOSockAcceptIoCanceledOnQueue;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, VIOSockBoundListInit)
@@ -902,12 +901,6 @@ _Requires_lock_not_held_(pListenSocket->RxLock) static BOOLEAN VIOSockAcceptDequ
     return bAccepted;
 }
 
-VOID VIOSockAcceptIoCanceledOnQueue(IN WDFQUEUE Queue, IN WDFREQUEST Request)
-{
-    UNREFERENCED_PARAMETER(Queue);
-    WdfRequestComplete(Request, STATUS_CANCELLED);
-}
-
 static NTSTATUS VIOSockListenSocketInit(IN PSOCKET_CONTEXT pListenSocket, IN int Backlog)
 {
     WDFDEVICE hDevice = WdfFileObjectGetDevice(pListenSocket->ThisSocket);
@@ -921,7 +914,6 @@ static NTSTATUS VIOSockListenSocketInit(IN PSOCKET_CONTEXT pListenSocket, IN int
     pListenSocket->AcceptMatchInProgress = 0;
 
     WDF_IO_QUEUE_CONFIG_INIT(&queueConfig, WdfIoQueueDispatchManual);
-    queueConfig.EvtIoCanceledOnQueue = VIOSockAcceptIoCanceledOnQueue;
 
     // Power-managed: a parked accept is framework-owned, so it does not hold the
     // D0->Dx transition (no EvtIoStop needed - same rationale as the read queue).
@@ -1041,8 +1033,8 @@ _Requires_lock_not_held_(pListenSocket->RxLock) static VOID VIOSockAcceptCleanup
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
-    // Cancel every parked accept request (framework completes each STATUS_CANCELLED
-    // via VIOSockAcceptIoCanceledOnQueue) and wait for them to drain.
+    // Cancel every parked accept request (the framework completes each with
+    // STATUS_CANCELLED) and wait for them to drain.
     if (pListenSocket->AcceptQueue != WDF_NO_HANDLE)
     {
         WdfIoQueuePurgeSynchronously(pListenSocket->AcceptQueue);
