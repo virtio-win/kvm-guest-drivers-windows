@@ -427,7 +427,10 @@ NTSTATUS
 VIOSockDeviceControl(IN WDFREQUEST Request, IN ULONG IoControlCode, IN OUT size_t *pLength);
 
 WDFFILEOBJECT
-VIOSockGetSocketFromHandle(IN PDEVICE_CONTEXT pContext, IN ULONGLONG uSocket, IN BOOLEAN bIs32BitProcess);
+VIOSockGetSocketFromHandle(IN PDEVICE_CONTEXT pContext,
+                           IN ULONGLONG uSocket,
+                           IN BOOLEAN bIs32BitProcess,
+                           IN KPROCESSOR_MODE AccessMode);
 
 VOID VIOSockHandleTransportReset(IN PDEVICE_CONTEXT pContext);
 
