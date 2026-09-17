@@ -134,6 +134,7 @@ USHORT VIOSockMapEventsToPollRevents(IN PSOCKET_CONTEXT pSocket, IN USHORT event
 BOOLEAN
 VIOSockSelectCopyFds(IN PDEVICE_CONTEXT pContext,
                      IN BOOLEAN bIs32BitProcess,
+                     IN KPROCESSOR_MODE AccessMode,
                      IN PVIRTIO_VSOCK_SELECT pSelect,
                      IN PVIOSOCK_SELECT_PKT pPkt,
                      IN VIRTIO_VSOCK_FDSET_TYPE iFdSet,
@@ -141,6 +142,7 @@ VIOSockSelectCopyFds(IN PDEVICE_CONTEXT pContext,
 
 NTSTATUS VIOSockPollCopyFds(IN PDEVICE_CONTEXT pContext,
                             IN BOOLEAN bIs32BitProcess,
+                            IN KPROCESSOR_MODE AccessMode,
                             IN PVIOSOCK_POLL_DATA pPollData,
                             IN PVIOSOCK_SELECT_PKT pPkt);
 
@@ -1622,6 +1624,7 @@ _IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockSelectRun(IN PSOCKET_CONTEXT pSo
 
 static BOOLEAN VIOSockSelectCopyFds(IN PDEVICE_CONTEXT pContext,
                                     IN BOOLEAN bIs32BitProcess,
+                                    IN KPROCESSOR_MODE AccessMode,
                                     IN PVIRTIO_VSOCK_SELECT pSelect,
                                     IN PVIOSOCK_SELECT_PKT pPkt,
                                     IN VIRTIO_VSOCK_FDSET_TYPE iFdSet,
@@ -1637,7 +1640,7 @@ static BOOLEAN VIOSockSelectCopyFds(IN PDEVICE_CONTEXT pContext,
         ULONGLONG hSocket = pSelect->Fdss[iFdSet].fd_array[i];
         if (hSocket)
         {
-            WDFFILEOBJECT Socket = VIOSockGetSocketFromHandle(pContext, hSocket, bIs32BitProcess);
+            WDFFILEOBJECT Socket = VIOSockGetSocketFromHandle(pContext, hSocket, bIs32BitProcess, AccessMode);
             if (Socket != WDF_NO_HANDLE)
             {
                 PSOCKET_CONTEXT pSocket = GetSocketContext(Socket);
@@ -1680,6 +1683,7 @@ static VOID VIOSockSelectClearFdss(IN PVIRTIO_VSOCK_SELECT pSelect)
 
 static NTSTATUS VIOSockPollCopyFds(IN PDEVICE_CONTEXT pContext,
                                    IN BOOLEAN bIs32BitProcess,
+                                   IN KPROCESSOR_MODE AccessMode,
                                    IN PVIOSOCK_POLL_DATA pPollData,
                                    IN PVIOSOCK_SELECT_PKT pPkt)
 {
@@ -1706,7 +1710,7 @@ static NTSTATUS VIOSockPollCopyFds(IN PDEVICE_CONTEXT pContext,
 
         if (hSocket != 0 && hSocket != INVALID_HANDLE)
         {
-            Socket = VIOSockGetSocketFromHandle(pContext, hSocket, bIs32BitProcess);
+            Socket = VIOSockGetSocketFromHandle(pContext, hSocket, bIs32BitProcess, AccessMode);
             if (Socket != WDF_NO_HANDLE)
             {
                 PSOCKET_CONTEXT pSocket = GetSocketContext(Socket);
@@ -1751,6 +1755,7 @@ static NTSTATUS VIOSockSelect(IN WDFREQUEST Request, IN OUT size_t *pLength)
     SIZE_T stSelectLen;
     NTSTATUS status;
     BOOLEAN bIs32BitProcess = FALSE;
+    KPROCESSOR_MODE AccessMode;
     WDF_OBJECT_ATTRIBUTES Attributes;
     PVIOSOCK_SELECT_PKT pPkt = NULL;
     ULONG fdRead, fdWrite, fdExcpt, uTotalFdCount;
@@ -1820,14 +1825,30 @@ static NTSTATUS VIOSockSelect(IN WDFREQUEST Request, IN OUT size_t *pLength)
     VIOSockTimerEntryInit(&pPkt->TimerEntry);
     pPkt->pSelect = pSelect;
 
-    if (!VIOSockSelectCopyFds(pContext, bIs32BitProcess, pSelect, pPkt, FDSET_READ, VIOSockSelectGetFdsReadSet(pPkt)) ||
+    // Requestor mode drives the ObReferenceObjectByHandle domain: user IOCTL →
+    // per-process user handle table, driver-issued Request → kernel table.
+    AccessMode = WdfRequestGetRequestorMode(Request);
+    if (!VIOSockSelectCopyFds(pContext,
+                              bIs32BitProcess,
+                              AccessMode,
+                              pSelect,
+                              pPkt,
+                              FDSET_READ,
+                              VIOSockSelectGetFdsReadSet(pPkt)) ||
         !VIOSockSelectCopyFds(pContext,
                               bIs32BitProcess,
+                              AccessMode,
                               pSelect,
                               pPkt,
                               FDSET_WRITE,
                               VIOSockSelectGetFdsWriteSet(pPkt)) ||
-        !VIOSockSelectCopyFds(pContext, bIs32BitProcess, pSelect, pPkt, FDSET_EXCPT, VIOSockSelectGetFdsExcptSet(pPkt)))
+        !VIOSockSelectCopyFds(pContext,
+                              bIs32BitProcess,
+                              AccessMode,
+                              pSelect,
+                              pPkt,
+                              FDSET_EXCPT,
+                              VIOSockSelectGetFdsExcptSet(pPkt)))
     {
         TraceEvents(TRACE_LEVEL_WARNING, DBG_SELECT, "VIOSockSelectCopyFds failed\n");
         status = STATUS_INVALID_HANDLE;
@@ -1957,7 +1978,7 @@ VIOSockPoll(IN WDFREQUEST Request,
     pPkt->Type = VIOSOCK_PKT_TYPE_POLL;
     VIOSockTimerEntryInit(&pPkt->TimerEntry);
 
-    status = VIOSockPollCopyFds(pContext, bIs32BitProcess, pPollDataOut, pPkt);
+    status = VIOSockPollCopyFds(pContext, bIs32BitProcess, WdfRequestGetRequestorMode(Request), pPollDataOut, pPkt);
     if (!NT_SUCCESS(status))
     {
         return status;
