@@ -500,23 +500,13 @@ VIOSockRxVqInit(IN PDEVICE_CONTEXT pContext)
 {
     NTSTATUS status = STATUS_SUCCESS;
     USHORT uNumEntries;
-    ULONG uRingSize, uHeapSize, uBufferSize;
+    ULONG uBufferSize;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
     pContext->RxPktList.Next = NULL;
 
-    status = virtio_query_queue_allocation(&pContext->VDevice.VIODevice,
-                                           VIOSOCK_VQ_RX,
-                                           &uNumEntries,
-                                           &uRingSize,
-                                           &uHeapSize);
-    if (!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "virtio_query_queue_allocation(VIOSOCK_VQ_RX) failed\n");
-        pContext->RxVq = NULL;
-        return status;
-    }
+    uNumEntries = (USHORT)virtio_get_queue_size(pContext->RxVq);
 
     pContext->RxPktNum = uNumEntries;
 
