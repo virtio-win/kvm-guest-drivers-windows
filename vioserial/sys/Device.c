@@ -203,9 +203,7 @@ VIOSerialEvtDevicePrepareHardware(IN WDFDEVICE Device,
                            sizeof(pContext->consoleConfig.max_nr_ports));
         if (pContext->consoleConfig.max_nr_ports == 0)
         {
-            TraceEvents(TRACE_LEVEL_ERROR,
-                        DBG_INIT,
-                        "Invalid max_nr_ports from device config: 0, using 1\n");
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "Invalid max_nr_ports from device config: 0, using 1\n");
             pContext->consoleConfig.max_nr_ports = 1;
         }
         TraceEvents(TRACE_LEVEL_INFORMATION,
