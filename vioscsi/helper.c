@@ -619,6 +619,21 @@ VOID FirmwareRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
         case FIRMWARE_FUNCTION_GET_INFO:
             {
                 PSTORAGE_FIRMWARE_INFO_V2 firmwareInfo;
+                ULONG availableLen;
+
+                if ((firmwareRequest->DataBufferOffset > dataLen) ||
+                    ((dataLen - firmwareRequest->DataBufferOffset) < sizeof(STORAGE_FIRMWARE_INFO_V2)))
+                {
+                    srbControl->ReturnCode = FIRMWARE_STATUS_INVALID_PARAMETER;
+                    SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BAD_SRB_BLOCK_LENGTH);
+                    RhelDbgPrint(TRACE_LEVEL_ERROR,
+                                 " FirmwareRequest GET_INFO DataBufferOffset %lu exceeds buffer length %lu\n",
+                                 firmwareRequest->DataBufferOffset,
+                                 dataLen);
+                    break;
+                }
+                availableLen = dataLen - firmwareRequest->DataBufferOffset;
+
                 firmwareInfo = (PSTORAGE_FIRMWARE_INFO_V2)((PUCHAR)srbControl + firmwareRequest->DataBufferOffset);
                 RhelDbgPrint(TRACE_LEVEL_INFORMATION, " FIRMWARE_FUNCTION_GET_INFO \n");
                 if ((firmwareInfo->Version >= STORAGE_FIRMWARE_INFO_STRUCTURE_VERSION_V2) ||
@@ -636,8 +651,9 @@ VOID FirmwareRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
                     firmwareInfo->ImagePayloadAlignment = PAGE_SIZE;
                     firmwareInfo->ImagePayloadMaxSize = PAGE_SIZE;
 
-                    if (firmwareRequest->DataBufferLength >=
-                        (sizeof(STORAGE_FIRMWARE_INFO_V2) + sizeof(STORAGE_FIRMWARE_SLOT_INFO_V2)))
+                    if ((firmwareRequest->DataBufferLength >=
+                         (sizeof(STORAGE_FIRMWARE_INFO_V2) + sizeof(STORAGE_FIRMWARE_SLOT_INFO_V2))) &&
+                        (availableLen >= (sizeof(STORAGE_FIRMWARE_INFO_V2) + sizeof(STORAGE_FIRMWARE_SLOT_INFO_V2))))
                     {
                         firmwareInfo->Slot[0].SlotNumber = 0;
                         firmwareInfo->Slot[0].ReadOnly = FALSE;
@@ -668,6 +684,19 @@ VOID FirmwareRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
         case FIRMWARE_FUNCTION_DOWNLOAD:
             {
                 PSTORAGE_FIRMWARE_DOWNLOAD_V2 firmwareDwnld;
+
+                if ((firmwareRequest->DataBufferOffset > dataLen) ||
+                    ((dataLen - firmwareRequest->DataBufferOffset) < sizeof(STORAGE_FIRMWARE_DOWNLOAD_V2)))
+                {
+                    srbControl->ReturnCode = FIRMWARE_STATUS_INVALID_PARAMETER;
+                    SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BAD_SRB_BLOCK_LENGTH);
+                    RhelDbgPrint(TRACE_LEVEL_ERROR,
+                                 " FirmwareRequest DOWNLOAD DataBufferOffset %lu exceeds buffer length %lu\n",
+                                 firmwareRequest->DataBufferOffset,
+                                 dataLen);
+                    break;
+                }
+
                 firmwareDwnld = (PSTORAGE_FIRMWARE_DOWNLOAD_V2)((PUCHAR)srbControl + firmwareRequest->DataBufferOffset);
                 RhelDbgPrint(TRACE_LEVEL_INFORMATION, " FIRMWARE_FUNCTION_DOWNLOAD \n");
                 if ((firmwareDwnld->Version >= STORAGE_FIRMWARE_DOWNLOAD_STRUCTURE_VERSION_V2) ||
@@ -693,6 +722,19 @@ VOID FirmwareRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
         case FIRMWARE_FUNCTION_ACTIVATE:
             {
                 PSTORAGE_FIRMWARE_ACTIVATE firmwareActivate;
+
+                if ((firmwareRequest->DataBufferOffset > dataLen) ||
+                    ((dataLen - firmwareRequest->DataBufferOffset) < sizeof(STORAGE_FIRMWARE_ACTIVATE)))
+                {
+                    srbControl->ReturnCode = FIRMWARE_STATUS_INVALID_PARAMETER;
+                    SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BAD_SRB_BLOCK_LENGTH);
+                    RhelDbgPrint(TRACE_LEVEL_ERROR,
+                                 " FirmwareRequest ACTIVATE DataBufferOffset %lu exceeds buffer length %lu\n",
+                                 firmwareRequest->DataBufferOffset,
+                                 dataLen);
+                    break;
+                }
+
                 firmwareActivate = (PSTORAGE_FIRMWARE_ACTIVATE)((PUCHAR)srbControl + firmwareRequest->DataBufferOffset);
                 if ((firmwareActivate->Version == STORAGE_FIRMWARE_ACTIVATE_STRUCTURE_VERSION) ||
                     (firmwareActivate->Size >= sizeof(STORAGE_FIRMWARE_ACTIVATE)))
