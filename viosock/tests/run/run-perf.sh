@@ -17,6 +17,12 @@ _here=$(cd "$(dirname "$0")" && pwd)
 # shellcheck source=./_lib.sh
 . "$_here/_lib.sh"
 
+_perf_cleanup() {
+    [ -n "${rx_pid:-}" ] && kill "$rx_pid" 2>/dev/null || true
+    [ -n "${rx_ssh_pid:-}" ] && kill "$rx_ssh_pid" 2>/dev/null || true
+}
+trap _perf_cleanup EXIT
+
 # --- tunables (env-overridable) ------------------------------------------
 PERF_BYTES=${PERF_BYTES:-1G}
 PERF_BUF_DEFAULT=${PERF_BUF_DEFAULT:-64K}
@@ -124,10 +130,11 @@ run_forward() {
 
     # Windows sender.  host_cid is what the guest sees as our vsock CID.
     ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" \
-        "$GUEST_CMD --sender $host_cid --port $PERF_PORT --bytes $PERF_BYTES --buf-size $buf_val" \
+        "$GUEST_CMD --sender $host_cid --port $PERF_PORT --bytes $PERF_BYTES --buf-size $buf_val${PERF_VSK_SIZE:+ --vsk-size $PERF_VSK_SIZE}" \
         > "$tx_log" 2>&1
     local tx_rc=$?
 
+    [ "$tx_rc" -ne 0 ] && kill "$rx_pid" 2>/dev/null || true
     wait "$rx_pid" 2>/dev/null
     local rx_rc=$?
 
@@ -151,7 +158,7 @@ run_reverse() {
     # Windows receiver: background ssh session so its job object owns the
     # guest-side process; killing the local ssh pid tears it down cleanly.
     ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" \
-        "$GUEST_CMD --port $PERF_PORT --buf-size $buf_val$no_poll" \
+        "$GUEST_CMD --port $PERF_PORT --buf-size $buf_val${PERF_VSK_SIZE:+ --vsk-size $PERF_VSK_SIZE}${PERF_RCVLOWAT:+ --rcvlowat $PERF_RCVLOWAT}$no_poll" \
         > "$rx_log" 2>&1 &
     local rx_ssh_pid=$!
     sleep "$SERVER_GRACE_SECS"
@@ -162,6 +169,7 @@ run_reverse() {
         > "$tx_log" 2>&1
     local tx_rc=$?
 
+    [ "$tx_rc" -ne 0 ] && kill "$rx_ssh_pid" 2>/dev/null || true
     wait "$rx_ssh_pid" 2>/dev/null
     local rx_rc=$?
 

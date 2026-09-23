@@ -16,6 +16,12 @@ _here=$(cd "$(dirname "$0")" && pwd)
 # shellcheck source=./_lib.sh
 . "$_here/_lib.sh"
 
+_perf_cleanup() {
+    [ -n "${rx_pid:-}" ] && kill "$rx_pid" 2>/dev/null || true
+    [ -n "${rx_ssh_pid:-}" ] && kill "$rx_ssh_pid" 2>/dev/null || true
+}
+trap _perf_cleanup EXIT
+
 # --- defaults ------------------------------------------------------------
 DIRECTION=""
 BYTES=${PERF_BYTES:-1G}
@@ -126,6 +132,7 @@ if [ "$DIRECTION" = forward ]; then
     ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" \
         "$GUEST_CMD --sender $host_cid $(printf '%s ' "${send_args[@]}")" > "$tx_log" 2>&1
     tx_rc=$?
+    [ "$tx_rc" -ne 0 ] && kill "$rx_pid" 2>/dev/null || true
     wait "$rx_pid" 2>/dev/null; rx_rc=$?
     tr -d '\r' < "$tx_log" > "$tx_log.tmp" && mv "$tx_log.tmp" "$tx_log"
 else
@@ -135,6 +142,7 @@ else
     sleep "$GRACE"
     "$LOCAL_BIN" --sender "$guest_cid" "${send_args[@]}" > "$tx_log" 2>&1
     tx_rc=$?
+    [ "$tx_rc" -ne 0 ] && kill "$rx_ssh_pid" 2>/dev/null || true
     wait "$rx_ssh_pid" 2>/dev/null; rx_rc=$?
     [ -f "$rx_log" ] && { tr -d '\r' < "$rx_log" > "$rx_log.tmp" && mv "$rx_log.tmp" "$rx_log"; }
 fi
