@@ -171,6 +171,20 @@ wait_guest_port() {
     return 1
 }
 
+# wait_local_port <port> [<max-seconds>]
+#   Poll ss for a local TCP LISTEN on <port>, up to <max-seconds>
+#   (default 15).  Returns 0 as soon as the port is up, 1 on timeout.
+wait_local_port() {
+    local port="$1" max="${2:-15}" i
+    for i in $(seq 1 $(( max * 2 ))); do
+        if ss -H -t -l -n "sport = :$port" 2>/dev/null | grep -q '.'; then
+            return 0
+        fi
+        sleep 0.5
+    done
+    return 1
+}
+
 # variant_to_cmd <variant> <bits> [<bin-dir>]  --> stdout: guest command
 #   The returned string is prepended verbatim before the runner's
 #   --mode=client/server, --control-host/-port, --peer-cid, --pick args.
@@ -244,6 +258,7 @@ junit_case_ok() {
 # junit_case_skipped <path> <name> <time-seconds> <message>
 junit_case_skipped() {
     local path="$1" name="$2" time="$3" msg="$4"
+    msg="${msg:- }"
     printf 'skipped\t%s\t%s\t%s\n' "$time" "$name" "$msg" >> "$path.raw"
 }
 
@@ -251,6 +266,7 @@ junit_case_skipped() {
 #   detail-file is embedded verbatim inside <failure>...</failure> (CDATA).
 junit_case_failed() {
     local path="$1" name="$2" time="$3" msg="$4" detail_file="${5:-}"
+    msg="${msg:- }"
     printf 'failed\t%s\t%s\t%s\t%s\n' "$time" "$name" "$msg" "$detail_file" >> "$path.raw"
 }
 

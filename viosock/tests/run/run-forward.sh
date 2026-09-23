@@ -144,7 +144,8 @@ for row in "${ROWS[@]}"; do
     "$LOCAL_BIN" --mode=server --control-port="$CONTROL_PORT" --peer-cid="$guest_cid" --pick "$N" \
         >"$srv_log" 2>&1 &
     srv_pid=$!
-    sleep 1
+    wait_local_port "$CONTROL_PORT" 10 \
+        || { warn "[$tag] control port $CONTROL_PORT did not come up"; kill "$srv_pid" 2>/dev/null; FAIL=$((FAIL+1)); FAILED_ENTRIES+=("$N/$V"); continue; }
 
     log "[$tag] client: ssh $_guest_ssh_host $guest_cmd --mode=client --control-host=$host_ip --pick $N"
     t_start=$(date +%s.%N)
