@@ -64,7 +64,9 @@
 # 20 posix  SOCK_STREAM MSG_ZEROCOPY empty MSG_ERRQUEUE     — disabled: run_client/run_server = NULL (no MSG_ERRQUEUE)
 21   posix  SOCK_STREAM double bind connect
 22   posix  SOCK_STREAM virtio credit update + SO_RCVLOWAT
-# 23 posix  SOCK_STREAM virtio credit update + low rx_bytes  — disabled: physical body passes on new TX but harness misreads due to isolated-pick control-bleed with test 24
+23   posix  SOCK_STREAM virtio credit update + low rx_bytes
+23   wsa    SOCK_STREAM virtio credit update + low rx_bytes
+23   overlapped SOCK_STREAM virtio credit update + low rx_bytes
 24   posix  SOCK_STREAM ioctl(SIOCOUTQ) 0 unsent bytes
 # 25 posix  SOCK_SEQPACKET ioctl(SIOCOUTQ) 0 unsent bytes   — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
 # 26 posix  SOCK_STREAM leak accept queue  — disabled: run_client/run_server = NULL (kmemleak); isolated-pick harness artifact

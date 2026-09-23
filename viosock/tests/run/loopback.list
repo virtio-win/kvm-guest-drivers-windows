@@ -55,8 +55,12 @@
 21   posix  SOCK_STREAM double bind connect
 21   wsa    SOCK_STREAM double bind connect
 21   overlapped SOCK_STREAM double bind connect
-# 22 posix  SOCK_STREAM virtio credit update + SO_RCVLOWAT  — disabled: still fails on new TX loopback (pre-existing driver/compat issue, not TX regression)
-# 23 posix  SOCK_STREAM virtio credit update + low rx_bytes — disabled: still fails on new TX loopback (pre-existing driver/compat issue, not TX regression)
+22   posix  SOCK_STREAM virtio credit update + SO_RCVLOWAT
+22   wsa    SOCK_STREAM virtio credit update + SO_RCVLOWAT
+22   overlapped SOCK_STREAM virtio credit update + SO_RCVLOWAT
+23   posix  SOCK_STREAM virtio credit update + low rx_bytes
+23   wsa    SOCK_STREAM virtio credit update + low rx_bytes
+23   overlapped SOCK_STREAM virtio credit update + low rx_bytes
 24   posix  SOCK_STREAM ioctl(SIOCOUTQ) 0 unsent bytes
 24   wsa    SOCK_STREAM ioctl(SIOCOUTQ) 0 unsent bytes
 24   overlapped SOCK_STREAM ioctl(SIOCOUTQ) 0 unsent bytes
