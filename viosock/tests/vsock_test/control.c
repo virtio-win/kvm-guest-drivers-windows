@@ -93,32 +93,48 @@ void control_cleanup(void)
 
 void control_writeln(const char *str)
 {
-    ssize_t len = (ssize_t)strlen(str);
+    size_t len = strlen(str);
+    const char *p = str;
     ssize_t ret;
 
     timeout_begin(TIMEOUT);
 
-    /* Send body then newline as two separate sends (no MSG_MORE on Windows). */
-    do
+    /* Send body then newline as two separate sends (no MSG_MORE on
+     * Windows).  Winsock send() can return fewer bytes than requested
+     * without error, so loop until the whole buffer is sent. */
+    while (len > 0)
     {
-        ret = send(control_fd, str, (size_t)len, 0);
+        ret = send(control_fd, p, len, 0);
         timeout_check("send");
-    } while (ret < 0 && errno == EINTR);
 
-    if (ret != len)
-    {
-        perror("send");
-        exit(EXIT_FAILURE);
+        if (ret < 0)
+        {
+            if (errno == EINTR)
+            {
+                continue;
+            }
+            perror("send");
+            exit(EXIT_FAILURE);
+        }
+        p += ret;
+        len -= (size_t)ret;
     }
 
-    do
+    /* newline terminator, one byte -- the short-send loop above collapses
+     * to a no-op for a 1-byte send. */
+    for (;;)
     {
         ret = send(control_fd, "\n", 1, 0);
         timeout_check("send");
-    } while (ret < 0 && errno == EINTR);
 
-    if (ret != 1)
-    {
+        if (ret == 1)
+        {
+            break;
+        }
+        if (ret < 0 && errno == EINTR)
+        {
+            continue;
+        }
         perror("send");
         exit(EXIT_FAILURE);
     }

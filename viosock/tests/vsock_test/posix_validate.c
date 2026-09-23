@@ -117,9 +117,7 @@ static void validate_so_protocol_info_short(void)
     }
     if (got != WSAEFAULT)
     {
-        fprintf(stderr,
-                "posix-validate: SO_PROTOCOL_INFOW(short buffer): expected WSAEFAULT, got WSA %d\n",
-                got);
+        fprintf(stderr, "posix-validate: SO_PROTOCOL_INFOW(short buffer): expected WSAEFAULT, got WSA %d\n", got);
         exit(EXIT_FAILURE);
     }
     if (len_out != (int)sizeof(WSAPROTOCOL_INFOW))

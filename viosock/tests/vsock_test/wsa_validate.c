@@ -25,21 +25,13 @@ static void expect_wsa_err(int rc, int expected, const char *what)
 {
     if (rc != SOCKET_ERROR)
     {
-        fprintf(stderr,
-                "wsa-validate: %s: expected SOCKET_ERROR + WSA %d, got rc=%d success\n",
-                what,
-                expected,
-                rc);
+        fprintf(stderr, "wsa-validate: %s: expected SOCKET_ERROR + WSA %d, got rc=%d success\n", what, expected, rc);
         exit(EXIT_FAILURE);
     }
     int got = WSAGetLastError();
     if (got != expected)
     {
-        fprintf(stderr,
-                "wsa-validate: %s: expected WSA %d, got WSA %d\n",
-                what,
-                expected,
-                got);
+        fprintf(stderr, "wsa-validate: %s: expected WSA %d, got WSA %d\n", what, expected, got);
         exit(EXIT_FAILURE);
     }
     WSASetLastError(0);
@@ -49,21 +41,14 @@ static void expect_wsa_err_sock(SOCKET s, int expected, const char *what)
 {
     if (s != INVALID_SOCKET)
     {
-        fprintf(stderr,
-                "wsa-validate: %s: expected INVALID_SOCKET + WSA %d, got a socket\n",
-                what,
-                expected);
+        fprintf(stderr, "wsa-validate: %s: expected INVALID_SOCKET + WSA %d, got a socket\n", what, expected);
         closesocket(s);
         exit(EXIT_FAILURE);
     }
     int got = WSAGetLastError();
     if (got != expected)
     {
-        fprintf(stderr,
-                "wsa-validate: %s: expected WSA %d, got WSA %d\n",
-                what,
-                expected,
-                got);
+        fprintf(stderr, "wsa-validate: %s: expected WSA %d, got WSA %d\n", what, expected, got);
         exit(EXIT_FAILURE);
     }
     WSASetLastError(0);
@@ -158,7 +143,8 @@ static void validate_wsa_event_select_notsock(void)
 
     if (rc != SOCKET_ERROR)
     {
-        fprintf(stderr, "wsa-validate: WSAEventSelect(INVALID_SOCKET): expected SOCKET_ERROR + WSAENOTSOCK, got success\n");
+        fprintf(stderr,
+                "wsa-validate: WSAEventSelect(INVALID_SOCKET): expected SOCKET_ERROR + WSAENOTSOCK, got success\n");
         exit(EXIT_FAILURE);
     }
     if (got != WSAENOTSOCK)
@@ -239,9 +225,7 @@ void wsa_validate_all(void)
     SOCKET s = WSASocketW(g_vsock_af, SOCK_STREAM, 0, NULL, 0, 0);
     if (s == INVALID_SOCKET)
     {
-        fprintf(stderr,
-                "wsa-validate: cannot create scaffolding vsock socket: WSA %d\n",
-                WSAGetLastError());
+        fprintf(stderr, "wsa-validate: cannot create scaffolding vsock socket: WSA %d\n", WSAGetLastError());
         exit(EXIT_FAILURE);
     }
 
