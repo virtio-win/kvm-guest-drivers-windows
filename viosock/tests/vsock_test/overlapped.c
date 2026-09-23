@@ -38,10 +38,7 @@ struct overlapped_apc_ctx
     HANDLE done_ev;
 };
 
-static void CALLBACK overlapped_apc_cb(DWORD dwError,
-                                        DWORD cbTransferred,
-                                        LPWSAOVERLAPPED lpOverlapped,
-                                        DWORD dwFlags)
+static void CALLBACK overlapped_apc_cb(DWORD dwError, DWORD cbTransferred, LPWSAOVERLAPPED lpOverlapped, DWORD dwFlags)
 {
     struct overlapped_apc_ctx *c = (struct overlapped_apc_ctx *)lpOverlapped->hEvent;
     (void)dwFlags;
@@ -62,9 +59,13 @@ static bool overlapped_wait_apc(struct overlapped_apc_ctx *ctx)
     {
         DWORD dw = WaitForSingleObjectEx(ctx->done_ev, INFINITE, TRUE);
         if (dw == WAIT_OBJECT_0)
+        {
             return true;
+        }
         if (dw == WAIT_IO_COMPLETION)
+        {
             continue;
+        }
         ctx->err = WSAGetLastError();
         return false;
     }
@@ -108,12 +109,16 @@ static int overlapped_accept(int fd, struct sockaddr *addr, socklen_t *addrlen)
  * per-request ctx.  WSABUF split mirrors wsa_send so the LSP's
  * scatter-send path is exercised with the same call shape.
  */
+/* MSG_DONTWAIT emulation: Winsock WSASend/WSARecv have no per-call
+ * non-blocking flag, so we toggle FIONBIO around the call. Not on any
+ * hot path - MSG_DONTWAIT appears in a handful of vsock_test recv sites
+ * only, no test issues send + MSG_DONTWAIT. */
 static ssize_t overlapped_send(int fd, const void *buf, size_t len, int flags)
 {
-    bool dontwait = (flags & 0x40) != 0; /* MSG_DONTWAIT */
+    bool dontwait = (flags & MSG_DONTWAIT) != 0;
     /* Strip Linux-only flags; MSG_ZEROCOPY stays - viosocklib
      * (see vio_sockets.h) routes it to SEND_EX / MDL. */
-    flags &= ~(0x40 | 0x8000); /* strip MSG_DONTWAIT | MSG_MORE */
+    flags &= ~(MSG_DONTWAIT | MSG_MORE);
 
     if (dontwait)
     {
@@ -202,8 +207,9 @@ static ssize_t overlapped_send(int fd, const void *buf, size_t len, int flags)
  */
 static ssize_t overlapped_recv(int fd, void *buf, size_t len, int flags)
 {
-    bool dontwait = (flags & 0x40) != 0; /* MSG_DONTWAIT */
-    flags &= ~0x40;
+    /* MSG_DONTWAIT: see overlapped_send for the FIONBIO toggle rationale. */
+    bool dontwait = (flags & MSG_DONTWAIT) != 0;
+    flags &= ~MSG_DONTWAIT;
 
     if (dontwait)
     {
@@ -325,12 +331,12 @@ static int overlapped_close(int fd)
 extern int wsa_poll_dispatch(WSAPOLLFD *fds, ULONG nfds, INT timeout);
 
 const struct sock_ops ops_overlapped = {
-    .sock_socket = overlapped_socket,
-    .sock_connect = overlapped_connect,
-    .sock_accept = overlapped_accept,
-    .sock_send = overlapped_send,
-    .sock_recv = overlapped_recv,
-    .sock_read = overlapped_read,
-    .sock_close = overlapped_close,
-    .sock_poll = wsa_poll_dispatch,
+                                                                                                    .sock_socket = overlapped_socket,
+                                                                                                    .sock_connect = overlapped_connect,
+                                                                                                    .sock_accept = overlapped_accept,
+                                                                                                    .sock_send = overlapped_send,
+                                                                                                    .sock_recv = overlapped_recv,
+                                                                                                    .sock_read = overlapped_read,
+                                                                                                    .sock_close = overlapped_close,
+                                                                                                    .sock_poll = wsa_poll_dispatch,
 };
