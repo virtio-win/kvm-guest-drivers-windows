@@ -18,9 +18,64 @@
 #include "compat.h"
 #include "sock_ops.h"
 
+SOCKET wsa_socket_new(int af, int type, int proto)
+{
+    return WSASocketW(af, type, proto, NULL, 0, 0);
+}
+
+int wsa_connect_new(SOCKET s, const struct sockaddr *addr, int len)
+{
+    return WSAConnect(s, addr, len, NULL, NULL, NULL, NULL);
+}
+
+SOCKET wsa_accept_new(SOCKET s, struct sockaddr *addr, int *addrlen)
+{
+    return WSAAccept(s, addr, addrlen, NULL, 0);
+}
+
+ssize_t wsa_send_new(SOCKET s, LPWSABUF wb, DWORD count, DWORD flags)
+{
+    DWORD sent = 0;
+    if (WSASend(s, wb, count, &sent, flags, NULL, NULL) == SOCKET_ERROR)
+    {
+        return -1;
+    }
+    return (ssize_t)sent;
+}
+
+ssize_t wsa_recv_new(SOCKET s, LPWSABUF wb, DWORD count, DWORD flags)
+{
+    DWORD got = 0;
+    DWORD f = flags;
+    if (WSARecv(s, wb, count, &got, &f, NULL, NULL) == SOCKET_ERROR)
+    {
+        return -1;
+    }
+    return (ssize_t)got;
+}
+
+/* Split a flat buffer into two WSABUFs to exercise the LSP + driver
+ * scatter-gather path in the wsa variant. len < 2 falls back to one
+ * WSABUF (a 0-length entry would be rejected by some providers). */
+static ULONG wsa_split_bufs(void *buf, size_t len, WSABUF wb[2])
+{
+    if (len >= 2)
+    {
+        size_t half = len / 2;
+        wb[0].len = (ULONG)half;
+        wb[0].buf = (CHAR *)buf;
+        wb[1].len = (ULONG)(len - half);
+        wb[1].buf = (CHAR *)buf + half;
+        return 2;
+    }
+    wb[0].len = (ULONG)len;
+    wb[0].buf = (CHAR *)buf;
+    return 1;
+}
+
 static int wsa_socket(int af, int type, int proto)
 {
-    SOCKET s = WSASocketW(af, type, proto, NULL, 0, 0);
+    SOCKET s = wsa_socket_new(af, type, proto);
     if (s == INVALID_SOCKET)
     {
         wsa_set_errno();
@@ -31,7 +86,7 @@ static int wsa_socket(int af, int type, int proto)
 
 static int wsa_connect(int fd, const struct sockaddr *addr, socklen_t len)
 {
-    if (WSAConnect((SOCKET)fd, addr, len, NULL, NULL, NULL, NULL) == SOCKET_ERROR)
+    if (wsa_connect_new((SOCKET)fd, addr, len) == SOCKET_ERROR)
     {
         wsa_set_errno();
         return -1;
@@ -41,7 +96,7 @@ static int wsa_connect(int fd, const struct sockaddr *addr, socklen_t len)
 
 static int wsa_accept(int fd, struct sockaddr *addr, socklen_t *addrlen)
 {
-    SOCKET s = WSAAccept((SOCKET)fd, addr, addrlen, NULL, 0);
+    SOCKET s = wsa_accept_new((SOCKET)fd, addr, addrlen);
     if (s == INVALID_SOCKET)
     {
         wsa_set_errno();
@@ -50,12 +105,16 @@ static int wsa_accept(int fd, struct sockaddr *addr, socklen_t *addrlen)
     return (int)s;
 }
 
+/* MSG_DONTWAIT emulation: Winsock WSASend/WSARecv have no per-call
+ * non-blocking flag, so we toggle FIONBIO around the call. Not on any
+ * hot path - MSG_DONTWAIT appears in a handful of vsock_test recv sites
+ * only, no test issues send + MSG_DONTWAIT. */
 static ssize_t wsa_send(int fd, const void *buf, size_t len, int flags)
 {
-    bool dontwait = (flags & 0x40) != 0; /* MSG_DONTWAIT */
+    bool dontwait = (flags & MSG_DONTWAIT) != 0;
     /* Strip Linux-only flags; MSG_ZEROCOPY stays - viosocklib
      * (see vio_sockets.h) routes it to SEND_EX / MDL. */
-    flags &= ~(0x40 | 0x8000); /* strip MSG_DONTWAIT | MSG_MORE */
+    flags &= ~(MSG_DONTWAIT | MSG_MORE);
 
     if (dontwait)
     {
@@ -64,26 +123,9 @@ static ssize_t wsa_send(int fd, const void *buf, size_t len, int flags)
     }
 
     WSABUF wb[2];
-    ULONG count;
-    if (len >= 2)
-    {
-        size_t half = len / 2;
-        wb[0].len = (ULONG)half;
-        wb[0].buf = (CHAR *)buf;
-        wb[1].len = (ULONG)(len - half);
-        wb[1].buf = (CHAR *)buf + half;
-        count = 2;
-    }
-    else
-    {
-        wb[0].len = (ULONG)len;
-        wb[0].buf = (CHAR *)buf;
-        count = 1;
-    }
-
-    DWORD sent = 0;
-    int r = WSASend((SOCKET)fd, wb, count, &sent, (DWORD)flags, NULL, NULL);
-    int saved_err = (r == SOCKET_ERROR) ? WSAGetLastError() : 0;
+    ULONG count = wsa_split_bufs((void *)buf, len, wb);
+    ssize_t sent = wsa_send_new((SOCKET)fd, wb, count, (DWORD)flags);
+    int saved_err = (sent < 0) ? WSAGetLastError() : 0;
 
     if (dontwait)
     {
@@ -91,13 +133,13 @@ static ssize_t wsa_send(int fd, const void *buf, size_t len, int flags)
         ioctlsocket((SOCKET)fd, FIONBIO, &nb);
     }
 
-    if (r == SOCKET_ERROR)
+    if (sent < 0)
     {
         WSASetLastError(saved_err);
         wsa_set_errno();
         return -1;
     }
-    return (ssize_t)sent;
+    return sent;
 }
 
 /*
@@ -113,8 +155,9 @@ static ssize_t wsa_send(int fd, const void *buf, size_t len, int flags)
  */
 static ssize_t wsa_recv(int fd, void *buf, size_t len, int flags)
 {
-    bool dontwait = (flags & 0x40) != 0; /* MSG_DONTWAIT */
-    flags &= ~0x40;
+    /* MSG_DONTWAIT: see wsa_send for the FIONBIO toggle rationale. */
+    bool dontwait = (flags & MSG_DONTWAIT) != 0;
+    flags &= ~MSG_DONTWAIT;
 
     if (dontwait)
     {
@@ -123,27 +166,9 @@ static ssize_t wsa_recv(int fd, void *buf, size_t len, int flags)
     }
 
     WSABUF wb[2];
-    ULONG count;
-    if (len >= 2)
-    {
-        size_t half = len / 2;
-        wb[0].len = (ULONG)half;
-        wb[0].buf = (CHAR *)buf;
-        wb[1].len = (ULONG)(len - half);
-        wb[1].buf = (CHAR *)buf + half;
-        count = 2;
-    }
-    else
-    {
-        wb[0].len = (ULONG)len;
-        wb[0].buf = (CHAR *)buf;
-        count = 1;
-    }
-
-    DWORD got = 0;
-    DWORD dwFlags = (DWORD)flags;
-    int r = WSARecv((SOCKET)fd, wb, count, &got, &dwFlags, NULL, NULL);
-    int saved_err = (r == SOCKET_ERROR) ? WSAGetLastError() : 0;
+    ULONG count = wsa_split_bufs(buf, len, wb);
+    ssize_t got = wsa_recv_new((SOCKET)fd, wb, count, (DWORD)flags);
+    int saved_err = (got < 0) ? WSAGetLastError() : 0;
 
     if (dontwait)
     {
@@ -151,13 +176,13 @@ static ssize_t wsa_recv(int fd, void *buf, size_t len, int flags)
         ioctlsocket((SOCKET)fd, FIONBIO, &nb);
     }
 
-    if (r == SOCKET_ERROR)
+    if (got < 0)
     {
         WSASetLastError(saved_err);
         wsa_set_errno();
         return -1;
     }
-    return (ssize_t)got;
+    return got;
 }
 
 static ssize_t wsa_read(int fd, void *buf, size_t len)
@@ -199,12 +224,12 @@ int wsa_poll_dispatch(WSAPOLLFD *fds, ULONG nfds, INT timeout)
 }
 
 const struct sock_ops ops_wsa = {
-    .sock_socket = wsa_socket,
-    .sock_connect = wsa_connect,
-    .sock_accept = wsa_accept,
-    .sock_send = wsa_send,
-    .sock_recv = wsa_recv,
-    .sock_read = wsa_read,
-    .sock_close = wsa_close,
-    .sock_poll = wsa_poll_dispatch,
+                                                                                                    .sock_socket = wsa_socket,
+                                                                                                    .sock_connect = wsa_connect,
+                                                                                                    .sock_accept = wsa_accept,
+                                                                                                    .sock_send = wsa_send,
+                                                                                                    .sock_recv = wsa_recv,
+                                                                                                    .sock_read = wsa_read,
+                                                                                                    .sock_close = wsa_close,
+                                                                                                    .sock_poll = wsa_poll_dispatch,
 };

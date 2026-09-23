@@ -192,7 +192,7 @@ static void run_receiver(int rcvlowat_bytes, bool use_poll)
         error("setsockopt(SO_RCVLOWAT)");
     }
 
-    data = malloc(buf_size_bytes);
+    data = malloc((size_t)buf_size_bytes);
 
     if (!data)
     {
@@ -239,7 +239,7 @@ static void run_receiver(int rcvlowat_bytes, bool use_poll)
         }
 
         t = current_nsec();
-        bytes_read = read(client_fd, data, buf_size_bytes);
+        bytes_read = read(client_fd, data, (size_t)buf_size_bytes);
         in_read_ns += (current_nsec() - t);
         read_cnt++;
 
@@ -293,7 +293,7 @@ static void run_sender(int peer_cid, unsigned long long to_send_bytes)
         exit(EXIT_FAILURE);
     }
 
-    data = malloc(buf_size_bytes);
+    data = malloc((size_t)buf_size_bytes);
 
     if (!data)
     {
@@ -301,7 +301,7 @@ static void run_sender(int peer_cid, unsigned long long to_send_bytes)
         exit(EXIT_FAILURE);
     }
 
-    memset(data, 0, buf_size_bytes);
+    memset(data, 0, (size_t)buf_size_bytes);
     total_send = 0;
     time_in_send = 0;
     tx_begin_ns = current_nsec();
@@ -309,7 +309,7 @@ static void run_sender(int peer_cid, unsigned long long to_send_bytes)
     while (total_send < to_send_bytes)
     {
         ssize_t sent;
-        size_t rest_bytes;
+        unsigned long long rest_bytes;
         long long before;
 
         rest_bytes = to_send_bytes - total_send;
@@ -317,7 +317,7 @@ static void run_sender(int peer_cid, unsigned long long to_send_bytes)
         before = current_nsec();
         sent = send(fd,
                     data,
-                    (rest_bytes > buf_size_bytes) ? buf_size_bytes : rest_bytes,
+                    (int)((rest_bytes > buf_size_bytes) ? buf_size_bytes : rest_bytes),
                     msg_zerocopy ? MSG_ZEROCOPY : 0);
         time_in_send += (current_nsec() - before);
 
@@ -616,7 +616,7 @@ static long strtolx(const char *arg)
     return value;
 }
 
-int main(int argc, char **argv)
+int __cdecl main(int argc, char **argv)
 {
     unsigned long long to_send_bytes = DEFAULT_TO_SEND_BYTES;
     int rcvlowat_bytes = DEFAULT_RCVLOWAT_BYTES;

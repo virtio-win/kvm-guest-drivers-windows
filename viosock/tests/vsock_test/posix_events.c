@@ -48,47 +48,67 @@ static void pair_make(struct pair *p)
 {
     p->listener = socket(g_vsock_af, SOCK_STREAM, 0);
     if (p->listener == INVALID_SOCKET)
+    {
         die("pair listener socket");
+    }
 
     struct sockaddr_vm laddr = {0};
     laddr.svm_family = (unsigned short)g_vsock_af;
     laddr.svm_cid = VMADDR_CID_ANY;
     laddr.svm_port = VMADDR_PORT_ANY;
     if (bind(p->listener, (const struct sockaddr *)&laddr, sizeof(laddr)) == SOCKET_ERROR)
+    {
         die("pair listener bind");
+    }
     if (listen(p->listener, 1) == SOCKET_ERROR)
+    {
         die("pair listener listen");
+    }
 
     struct sockaddr_vm bound = {0};
     int blen = sizeof(bound);
     if (getsockname(p->listener, (struct sockaddr *)&bound, &blen) == SOCKET_ERROR)
+    {
         die("pair listener getsockname");
+    }
     p->port = bound.svm_port;
 
     p->client = socket(g_vsock_af, SOCK_STREAM, 0);
     if (p->client == INVALID_SOCKET)
+    {
         die("pair client socket");
+    }
 
     struct sockaddr_vm caddr = {0};
     caddr.svm_family = (unsigned short)g_vsock_af;
     caddr.svm_cid = g_self_cid;
     caddr.svm_port = p->port;
     if (connect(p->client, (const struct sockaddr *)&caddr, sizeof(caddr)) == SOCKET_ERROR)
+    {
         die("pair client connect");
+    }
 
     p->accepted = accept(p->listener, NULL, NULL);
     if (p->accepted == INVALID_SOCKET)
+    {
         die("pair accept");
+    }
 }
 
 static void pair_close(struct pair *p)
 {
     if (p->accepted != INVALID_SOCKET)
+    {
         closesocket(p->accepted);
+    }
     if (p->client != INVALID_SOCKET)
+    {
         closesocket(p->client);
+    }
     if (p->listener != INVALID_SOCKET)
+    {
         closesocket(p->listener);
+    }
 }
 
 /*
@@ -100,13 +120,17 @@ static void ev_select_zero_timeout_polls(void)
 {
     SOCKET s = socket(g_vsock_af, SOCK_STREAM, 0);
     if (s == INVALID_SOCKET)
+    {
         die("zero-timeout socket");
+    }
     struct sockaddr_vm addr = {0};
     addr.svm_family = (unsigned short)g_vsock_af;
     addr.svm_cid = VMADDR_CID_ANY;
     addr.svm_port = VMADDR_PORT_ANY;
     if (bind(s, (const struct sockaddr *)&addr, sizeof(addr)) == SOCKET_ERROR)
+    {
         die("zero-timeout bind");
+    }
 
     fd_set rfds;
     FD_ZERO(&rfds);
@@ -143,11 +167,15 @@ static void ev_select_exceptfds_on_failed_connect(void)
 {
     SOCKET s = socket(g_vsock_af, SOCK_STREAM, 0);
     if (s == INVALID_SOCKET)
+    {
         die("exceptfds socket");
+    }
 
     u_long nb = 1;
     if (ioctlsocket(s, FIONBIO, &nb) == SOCKET_ERROR)
+    {
         die("exceptfds FIONBIO");
+    }
 
     struct sockaddr_vm addr = {0};
     addr.svm_family = (unsigned short)g_vsock_af;
@@ -184,9 +212,7 @@ static void ev_select_exceptfds_on_failed_connect(void)
 
     if (rc <= 0 || !FD_ISSET(s, &efds))
     {
-        fprintf(stderr,
-                "posix-events: select(exceptfds) skipped: LSP did not raise exceptfds within 2s (rc=%d)\n",
-                rc);
+        fprintf(stderr, "posix-events: select(exceptfds) skipped: LSP did not raise exceptfds within 2s (rc=%d)\n", rc);
         closesocket(s);
         return;
     }
@@ -237,7 +263,9 @@ static bool self_loopback_works(void)
 {
     SOCKET listener = socket(g_vsock_af, SOCK_STREAM, 0);
     if (listener == INVALID_SOCKET)
+    {
         return false;
+    }
     struct sockaddr_vm laddr = {0};
     laddr.svm_family = (unsigned short)g_vsock_af;
     laddr.svm_cid = VMADDR_CID_ANY;
@@ -299,16 +327,4 @@ void posix_events_all(unsigned int self_cid)
     fprintf(stderr,
             "posix-events: pair-based check disabled pending accept/loopback rework "
             "(self-CID connect not routed on current driver)\n");
-
-#if 0 /* pending accept/loopback rework */
-    if (!self_loopback_works())
-    {
-        fprintf(stderr,
-                "posix-events: skipped pair-based check (self-loopback via CID=%u not reachable)\n",
-                self_cid);
-        return;
-    }
-
-    ev_select_writefds_ready();
-#endif
 }

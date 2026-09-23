@@ -88,4 +88,28 @@ void wsa_validate_all(void);
 void posix_events_all(unsigned int self_cid);
 void wsa_events_all(unsigned int self_cid);
 
+/*
+ * WSA-variant primitives shared with wsa_events.c so its probes hit
+ * the same LSP entries as the rest of the WSA-variant surface. All
+ * three return the native Winsock indicator (INVALID_SOCKET / socket
+ * SOCKET / SOCKET_ERROR) without touching errno — the caller uses
+ * WSAGetLastError().
+ *
+ *  wsa_socket_new  — WSASocketW with dwFlags==0 (no WSA_FLAG_OVERLAPPED,
+ *                    unlike the CRT `socket()`).
+ *  wsa_connect_new — WSAConnect with no QoS / callerdata / calleedata.
+ *  wsa_accept_new  — WSAAccept with no condition callback / cookie.
+ *  wsa_send_new    — WSASend on an LPWSABUF array (callers pass 1 or more
+ *                    entries; multi-buffer is the reason to prefer this
+ *                    over the CRT `send()`).
+ *  wsa_recv_new    — WSARecv on an LPWSABUF array; same rationale as send.
+ *
+ * send/recv return bytes transferred, or -1 (SOCKET_ERROR) on failure.
+ */
+SOCKET wsa_socket_new(int af, int type, int proto);
+int wsa_connect_new(SOCKET s, const struct sockaddr *addr, int len);
+SOCKET wsa_accept_new(SOCKET s, struct sockaddr *addr, int *addrlen);
+ssize_t wsa_send_new(SOCKET s, LPWSABUF wb, DWORD count, DWORD flags);
+ssize_t wsa_recv_new(SOCKET s, LPWSABUF wb, DWORD count, DWORD flags);
+
 #endif /* SOCK_OPS_H */
