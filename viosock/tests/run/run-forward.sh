@@ -13,7 +13,7 @@ _here=$(cd "$(dirname "$0")" && pwd)
 
 CFG=""; LIST="$_here/forward.list"; PER_TEST_TIMEOUT=40
 CONTROL_PORT=12345
-LOCAL_BIN="/ssd/vsock_test"       # vsock_test on the Linux host (this box)
+LOCAL_BIN="/opt/vsock-test/vsock_test"       # vsock_test on the Linux host (this box)
 LOGDIR=""; VARIANT=""; BITS="x64"; JUNIT=""; PICK_IDS=(); MAX_ID=""
 
 while [ $# -gt 0 ]; do
@@ -67,7 +67,7 @@ case "$BITS" in
     *) die "--bits must be x64 or x86, got: $BITS" ;;
 esac
 
-CFG=$(discover_config "$CFG")
+CFG=$(discover_config "$CFG") || exit $?
 guest_load "$CFG"
 host_cid=$(config_read "$CFG" host_cid);   [ -n "$host_cid" ]    || die "config has no host_cid="
 guest_cid=$(config_read "$CFG" guest_cid); [ -n "$guest_cid" ]   || die "config has no guest_cid="

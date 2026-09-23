@@ -72,7 +72,7 @@ done
 
 [ "$MIGR_N" -gt 0 ] 2>/dev/null || die "--connections must be a positive integer"
 
-CFG=$(discover_config "$CFG")
+CFG=$(discover_config "$CFG") || exit $?
 guest_load "$CFG"
 guest_cid=$(config_read  "$CFG" guest_cid);  [ -n "$guest_cid"  ] || die "config has no guest_cid="
 host_cid=$(config_read   "$CFG" host_cid);   [ -n "$host_cid"   ] || die "config has no host_cid="

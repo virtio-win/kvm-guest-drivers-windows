@@ -42,7 +42,7 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-CFG=$(discover_config "$CFG")
+CFG=$(discover_config "$CFG") || exit $?
 guest_load "$CFG"
 
 if [ -n "$CERT_CER" ]; then

@@ -54,7 +54,7 @@ done
 [ -r "$PKG/viosock.inf" ] || die "$PKG/viosock.inf not found"
 [ -r "$PKG/viosock.sys" ] || die "$PKG/viosock.sys not found"
 
-CFG=$(discover_config "$CFG")
+CFG=$(discover_config "$CFG") || exit $?
 guest_load "$CFG"
 
 # 1) Stage directory on guest.
