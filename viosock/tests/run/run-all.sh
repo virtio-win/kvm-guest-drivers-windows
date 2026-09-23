@@ -70,7 +70,7 @@ case "$BITS" in
     *) die "--bits must be x64 or x86, got: $BITS" ;;
 esac
 
-CFG=$(discover_config "$CFG")
+CFG=$(discover_config "$CFG") || exit $?
 
 # Which sweeps to run.
 run_forward=1; run_reverse=1; run_loopback=1

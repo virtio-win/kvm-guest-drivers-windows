@@ -40,7 +40,7 @@ done
 [ -d "$FROM" ] || die "not a directory: $FROM"
 [ -r "$FROM/vsock_perf.exe" ] || die "$FROM/vsock_perf.exe not found"
 
-CFG=$(discover_config "$CFG")
+CFG=$(discover_config "$CFG") || exit $?
 guest_load "$CFG"
 
 scp_dir="${guest_bin_dir//\\//}"

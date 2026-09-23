@@ -32,7 +32,7 @@ done
 [ -d "$FROM" ] || die "not a directory: $FROM"
 [ -r "$FROM/vsock_test.exe" ] || die "$FROM/vsock_test.exe not found"
 
-CFG=$(discover_config "$CFG")
+CFG=$(discover_config "$CFG") || exit $?
 guest_load "$CFG"
 
 # scp/sftp on Windows accepts forward slashes; normalize the config's
