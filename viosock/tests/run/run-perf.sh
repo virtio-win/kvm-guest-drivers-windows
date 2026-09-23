@@ -31,30 +31,20 @@ PERF_PORT=${PERF_PORT:-12347}
 PERF_NO_POLL=${PERF_NO_POLL:-}
 SERVER_GRACE_SECS=${SERVER_GRACE_SECS:-1}
 
-# Guest-side paths used only by the --as-system code path.  Grouped
-# here so a future move (e.g. to C:\ci-scratch\) is a one-line edit.
-GUEST_SRV_BAT='C:\srv_perf.bat'
-GUEST_SRV_LOG='C:\srv_perf.log'
-SCHTASKS_NAME='vsock_perf_srv'
-
 # --- args ----------------------------------------------------------------
-CFG=""; LOGDIR=""; BITS="x64"; DIRS=""; AS_SYSTEM=0
+CFG=""; LOGDIR=""; DIRS=""
 LOCAL_BIN="/opt/vsock-test/vsock_perf"
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --config)      CFG="$2";       shift 2 ;;
         --logdir)      LOGDIR="$2";    shift 2 ;;
-        --bits)        BITS="$2";      shift 2 ;;
-        --x86)         BITS="x86";     shift ;;
         --only)        DIRS="$2";      shift 2 ;;
-        --as-system)   AS_SYSTEM=1;    shift ;;
         --local-bin)   LOCAL_BIN="$2"; shift 2 ;;
         -h|--help)
             cat >&2 <<EOF
 Usage: $0 [--config <cfg>] [--logdir <dir>]
-          [--bits x64|x86 | --x86]
-          [--only forward,reverse] [--as-system] [--local-bin <path>]
+          [--only forward,reverse] [--local-bin <path>]
 
 Runs vsock_perf in every enabled direction × two buffer sizes.
 
@@ -73,10 +63,7 @@ Tunables (env-overridable, defaults in [brackets]):
   SERVER_GRACE_SECS [1]       Sleep between receiver launch and sender start.
 
 Flags:
-  --bits          Guest binary bit-width (default: x64).
   --only          Comma-separated subset: forward, reverse.
-  --as-system     For the reverse direction: launch the Windows receiver via
-                  schtasks /ru SYSTEM instead of a background ssh session.
   --local-bin     Path to the Linux vsock_perf on this host (default:
                   $LOCAL_BIN — the one prepare-perf.sh installs).
 EOF
@@ -84,8 +71,6 @@ EOF
         *) die "unknown arg: $1" ;;
     esac
 done
-
-case "$BITS" in x64|x86) ;; *) die "--bits must be x64 or x86" ;; esac
 
 CFG=$(discover_config "$CFG")
 guest_load "$CFG"
@@ -98,16 +83,7 @@ guest_cid=$(config_read "$CFG" guest_cid); [ -n "$guest_cid" ] || die "config ha
 mkdir -p "$LOGDIR"
 
 # vsock_perf.exe has no variant flag — always compat.h POSIX shim.
-guest_perf_cmd() {
-    local bits="$1" bin_dir="$2"
-    local exe
-    case "$bits" in
-        x64) exe='vsock_perf.exe' ;;
-        x86) exe='vsock_perf_x86.exe' ;;
-    esac
-    printf '%s\\%s\n' "$bin_dir" "$exe"
-}
-GUEST_CMD=$(guest_perf_cmd "$BITS" "$guest_bin_dir")
+GUEST_CMD="${guest_bin_dir}\\vsock_perf.exe"
 
 # What directions to run
 run_fwd=1; run_rev=1
@@ -172,21 +148,12 @@ run_reverse() {
     local no_poll=''
     [ -n "$PERF_NO_POLL" ] && no_poll=' --no-poll'
 
-    # Windows receiver: same launch pattern as run-reverse.sh — background
-    # ssh session so its job object owns the guest-side process; killing
-    # the local ssh pid tears the process down cleanly.
-    local rx_rc=0
-    if [ "$AS_SYSTEM" -eq 1 ]; then
-        _guest_ssh "(echo @echo off & echo $GUEST_CMD --port $PERF_PORT --buf-size $buf_val$no_poll ^> $GUEST_SRV_LOG 2^>^&1) > $GUEST_SRV_BAT"
-        _guest_ssh "schtasks /create /tn $SCHTASKS_NAME /tr $GUEST_SRV_BAT /sc once /st 00:00 /ru SYSTEM /f" >/dev/null 2>&1
-        _guest_ssh "schtasks /run /tn $SCHTASKS_NAME" >/dev/null 2>&1
-        local rx_ssh_pid=""
-    else
-        ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" \
-            "$GUEST_CMD --port $PERF_PORT --buf-size $buf_val$no_poll" \
-            > "$rx_log" 2>&1 &
-        local rx_ssh_pid=$!
-    fi
+    # Windows receiver: background ssh session so its job object owns the
+    # guest-side process; killing the local ssh pid tears it down cleanly.
+    ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" \
+        "$GUEST_CMD --port $PERF_PORT --buf-size $buf_val$no_poll" \
+        > "$rx_log" 2>&1 &
+    local rx_ssh_pid=$!
     sleep "$SERVER_GRACE_SECS"
 
     # Linux sender.  guest_cid is what this host sees as the guest.
@@ -195,13 +162,8 @@ run_reverse() {
         > "$tx_log" 2>&1
     local tx_rc=$?
 
-    if [ -n "$rx_ssh_pid" ]; then
-        wait "$rx_ssh_pid" 2>/dev/null
-        rx_rc=$?
-    else
-        _guest_scp_from "$GUEST_SRV_LOG" "$rx_log" 2>/dev/null || true
-        _guest_ssh "del $GUEST_SRV_LOG 2>nul & schtasks /end /tn $SCHTASKS_NAME /f 2>nul & schtasks /delete /tn $SCHTASKS_NAME /f 2>nul & exit 0" >/dev/null 2>&1
-    fi
+    wait "$rx_ssh_pid" 2>/dev/null
+    local rx_rc=$?
 
     [ -f "$rx_log" ] && { tr -d '\r' < "$rx_log" > "$rx_log.tmp" && mv "$rx_log.tmp" "$rx_log"; }
 

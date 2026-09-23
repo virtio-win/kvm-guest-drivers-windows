@@ -36,7 +36,7 @@ SERVER_GRACE_SECS=${SERVER_GRACE_SECS:-3}
 GUEST_STRESS_DIR=${GUEST_STRESS_DIR:-'C:\stress'}
 
 # --- args ----------------------------------------------------------------
-CFG=""; LOGDIR=""; VARIANT="posix"; BITS="x64"; DIRS=""
+CFG=""; LOGDIR=""; VARIANT="posix"; DIRS=""
 LOCAL_BIN="/opt/vsock-test/vsock_perf"
 LOOPBACK=${STRESS_LOOPBACK:-0}
 
@@ -45,8 +45,6 @@ while [ $# -gt 0 ]; do
         --config)       CFG="$2";       shift 2 ;;
         --logdir)       LOGDIR="$2";    shift 2 ;;
         --variant)      VARIANT="$2";   shift 2 ;;
-        --bits)         BITS="$2";      shift 2 ;;
-        --x86)          BITS="x86";     shift ;;
         --connections)  STRESS_N="$2";  shift 2 ;;
         --bytes)        STRESS_BYTES="$2"; shift 2 ;;
         --buf-size)     STRESS_BUF="$2";   shift 2 ;;
@@ -56,7 +54,7 @@ while [ $# -gt 0 ]; do
         -h|--help)
             cat >&2 <<EOF
 Usage: $0 [--config <cfg>] [--logdir <dir>]
-          [--variant posix|wsa|overlapped] [--bits x64|x86 | --x86]
+          [--variant posix|wsa|overlapped]
           [--connections N] [--bytes <sz>] [--buf-size <sz>]
           [--only forward,reverse] [--local-bin <path>]
 
@@ -80,7 +78,6 @@ EOF
     esac
 done
 
-case "$BITS"    in x64|x86) ;;             *) die "--bits must be x64 or x86" ;; esac
 case "$VARIANT" in posix|wsa|overlapped) ;; *) die "--variant must be posix|wsa|overlapped" ;; esac
 [ "$STRESS_N" -gt 0 ] 2>/dev/null || die "--connections must be a positive integer"
 
@@ -104,16 +101,12 @@ fi
 mkdir -p "$LOGDIR"
 
 # Guest binary path + variant flag. Same dispatch as run-perf.sh.
-case "$BITS" in
-    x64) guest_exe='vsock_perf.exe' ;;
-    x86) guest_exe='vsock_perf_x86.exe' ;;
-esac
 guest_variant_flag=''
 case "$VARIANT" in
     wsa)        guest_variant_flag='--variant wsa' ;;
     overlapped) guest_variant_flag='--variant overlapped' ;;
 esac
-guest_exe_path="${guest_bin_dir}\\${guest_exe}"
+guest_exe_path="${guest_bin_dir}\\vsock_perf.exe"
 
 # What directions to run
 run_fwd=1; run_rev=1
@@ -279,7 +272,7 @@ start_local_reverse_senders() {
 }
 
 # --- go ------------------------------------------------------------------
-info "== vsock stress: N=$STRESS_N per direction, bytes=$STRESS_BYTES, buf=$STRESS_BUF, variant=$VARIANT, bits=$BITS =="
+info "== vsock stress: N=$STRESS_N per direction, bytes=$STRESS_BYTES, buf=$STRESS_BUF, variant=$VARIANT =="
 info "   logs in $LOGDIR"
 
 # Phase 1: fan-out receivers on both sides in parallel.
