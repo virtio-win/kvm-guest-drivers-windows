@@ -24,16 +24,10 @@ VSK_SIZE=${PERF_VSK_SIZE:-}
 RCVLOWAT=${PERF_RCVLOWAT:-}
 PORT=${PERF_PORT:-12347}
 GRACE=${SERVER_GRACE_SECS:-1}
-CFG=""; VARIANT="posix"; BITS="x64"; AS_SYSTEM=0
+CFG=""; VARIANT="posix"
 NO_POLL=${PERF_NO_POLL:-}
 ZEROCOPY=${PERF_ZEROCOPY:-}
 LOCAL_BIN="/opt/vsock-test/vsock_perf"
-
-# Guest-side paths used only by the --as-system code path.  Grouped
-# here so a future move (e.g. to C:\ci-scratch\) is a one-line edit.
-GUEST_SRV_BAT='C:\srv_perf_one.bat'
-GUEST_SRV_LOG='C:/srv_perf_one.log'
-SCHTASKS_NAME='vsock_perf_one'
 
 usage() {
     cat >&2 <<EOF
@@ -55,15 +49,11 @@ Perf knobs (defaults show current env or hard-coded fallback):
 Other:
   --config <path>           config file (auto-discovered otherwise)
   --variant posix|wsa|overlapped   Windows-side binary variant         [$VARIANT]
-  --bits    x64|x86         Guest binary bit-width                     [$BITS]
-  --x86                     shorthand for --bits x86
   --no-poll                 reverse only: pass --no-poll to Windows
                             receiver (blocking read() instead of WSAPoll;
                             needed on viosock builds lacking WSAPoll on
                             accept()ed sockets). Also settable via env
                             PERF_NO_POLL=1.
-  --as-system               reverse only: launch Windows receiver via
-                            schtasks /ru SYSTEM instead of bg-ssh
   --zerocopy                pass --zerocopy (MSG_ZEROCOPY on every
                             send()) to whichever side is the sender:
                             Windows in forward, Linux in reverse. Also
@@ -84,10 +74,7 @@ while [ $# -gt 0 ]; do
         --grace)       GRACE="$2";     shift 2 ;;
         --config)      CFG="$2";       shift 2 ;;
         --variant)     VARIANT="$2";   shift 2 ;;
-        --bits)        BITS="$2";      shift 2 ;;
-        --x86)         BITS="x86";     shift ;;
         --no-poll)     NO_POLL=1;      shift ;;
-        --as-system)   AS_SYSTEM=1;    shift ;;
         --zerocopy)    ZEROCOPY=1;     shift ;;
         --local-bin)   LOCAL_BIN="$2"; shift 2 ;;
         -h|--help)     usage ;;
@@ -96,7 +83,6 @@ while [ $# -gt 0 ]; do
 done
 
 case "$DIRECTION" in forward|reverse) ;; *) usage ;; esac
-case "$BITS"      in x64|x86) ;;             *) die "--bits must be x64 or x86" ;; esac
 case "$VARIANT"   in posix|wsa|overlapped) ;; *) die "--variant must be posix|wsa|overlapped" ;; esac
 
 CFG=$(discover_config "$CFG")
@@ -106,14 +92,12 @@ guest_cid=$(config_read "$CFG" guest_cid); [ -n "$guest_cid" ] || die "config ha
 [ -x "$LOCAL_BIN" ] || die "no vsock_perf at $LOCAL_BIN — run prepare-perf.sh first"
 
 # Windows-side command
-exe='vsock_perf.exe'
-[ "$BITS" = x86 ] && exe='vsock_perf_x86.exe'
 guest_flags=''
 case "$VARIANT" in
     wsa)        guest_flags=' --variant wsa' ;;
     overlapped) guest_flags=' --variant overlapped' ;;
 esac
-GUEST_CMD="${guest_bin_dir}\\${exe}${guest_flags}"
+GUEST_CMD="${guest_bin_dir}\\vsock_perf.exe${guest_flags}"
 
 # Shared receiver / sender argument tails
 recv_args=(--port "$PORT" --buf-size "$BUF")
@@ -133,7 +117,7 @@ LOGDIR="/tmp/vsock-perf-one-$$"; mkdir -p "$LOGDIR"
 rx_log="$LOGDIR/rx.log"
 tx_log="$LOGDIR/tx.log"
 
-info "== perf-one: $DIRECTION  bytes=$BYTES  buf=$BUF${VSK_SIZE:+  vsk=$VSK_SIZE}${RCVLOWAT:+  rcvlowat=$RCVLOWAT}${NO_POLL:+  no-poll}${ZEROCOPY:+  zerocopy}  variant=$VARIANT  bits=$BITS =="
+info "== perf-one: $DIRECTION  bytes=$BYTES  buf=$BUF${VSK_SIZE:+  vsk=$VSK_SIZE}${RCVLOWAT:+  rcvlowat=$RCVLOWAT}${NO_POLL:+  no-poll}${ZEROCOPY:+  zerocopy}  variant=$VARIANT =="
 
 if [ "$DIRECTION" = forward ]; then
     "$LOCAL_BIN" "${recv_args[@]}" > "$rx_log" 2>&1 &
@@ -145,26 +129,13 @@ if [ "$DIRECTION" = forward ]; then
     wait "$rx_pid" 2>/dev/null; rx_rc=$?
     tr -d '\r' < "$tx_log" > "$tx_log.tmp" && mv "$tx_log.tmp" "$tx_log"
 else
-    if [ "$AS_SYSTEM" -eq 1 ]; then
-        _guest_ssh "(echo @echo off & echo $GUEST_CMD $(printf '%s ' "${recv_args[@]}") ^> $GUEST_SRV_LOG 2^>^&1) > $GUEST_SRV_BAT"
-        _guest_ssh "schtasks /create /tn $SCHTASKS_NAME /tr $GUEST_SRV_BAT /sc once /st 00:00 /ru SYSTEM /f" >/dev/null 2>&1
-        _guest_ssh "schtasks /run /tn $SCHTASKS_NAME" >/dev/null 2>&1
-        rx_ssh_pid=""
-    else
-        ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" \
-            "$GUEST_CMD $(printf '%s ' "${recv_args[@]}")" > "$rx_log" 2>&1 &
-        rx_ssh_pid=$!
-    fi
+    ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" \
+        "$GUEST_CMD $(printf '%s ' "${recv_args[@]}")" > "$rx_log" 2>&1 &
+    rx_ssh_pid=$!
     sleep "$GRACE"
     "$LOCAL_BIN" --sender "$guest_cid" "${send_args[@]}" > "$tx_log" 2>&1
     tx_rc=$?
-    if [ -n "${rx_ssh_pid:-}" ]; then
-        wait "$rx_ssh_pid" 2>/dev/null; rx_rc=$?
-    else
-        _guest_scp_from "$GUEST_SRV_LOG" "$rx_log" 2>/dev/null || true
-        _guest_ssh "del $GUEST_SRV_LOG 2>nul & schtasks /end /tn $SCHTASKS_NAME /f 2>nul & schtasks /delete /tn $SCHTASKS_NAME /f 2>nul & exit 0" >/dev/null 2>&1
-        rx_rc=0
-    fi
+    wait "$rx_ssh_pid" 2>/dev/null; rx_rc=$?
     [ -f "$rx_log" ] && { tr -d '\r' < "$rx_log" > "$rx_log.tmp" && mv "$rx_log.tmp" "$rx_log"; }
 fi
 
