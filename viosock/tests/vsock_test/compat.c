@@ -13,98 +13,79 @@
 #include "compat.h"
 #include "sock_ops.h"
 
-void wsa_set_errno(void)
+int wsa_to_errno(int wsa_err)
 {
-    switch (WSAGetLastError())
+    switch (wsa_err)
     {
         case WSAEWOULDBLOCK:
-            errno = EAGAIN;
-            break;
-        /* SO_RCVTIMEO expiry: map to EAGAIN to match Linux POSIX behavior */
+            return EAGAIN;
+        /* Winsock keeps WSAEWOULDBLOCK (non-blocking) and WSAETIMEDOUT
+         * (SO_RCVTIMEO/SO_SNDTIMEO expiry) as distinct errors; map each
+         * to its own errno.  Tests that check timeout must look for
+         * ETIMEDOUT specifically (upstream POSIX uses EAGAIN there —
+         * flag the divergence at the check site). */
         case WSAETIMEDOUT:
-            errno = EAGAIN;
-            break;
+            return ETIMEDOUT;
         case WSAEINPROGRESS:
-            errno = EINPROGRESS;
-            break;
+            return EINPROGRESS;
         case WSAEALREADY:
-            errno = EALREADY;
-            break;
+            return EALREADY;
         case WSAENOTSOCK:
-            errno = ENOTSOCK;
-            break;
+            return ENOTSOCK;
         case WSAEDESTADDRREQ:
-            errno = EDESTADDRREQ;
-            break;
+            return EDESTADDRREQ;
         case WSAEMSGSIZE:
-            errno = EMSGSIZE;
-            break;
+            return EMSGSIZE;
         case WSAEPROTOTYPE:
-            errno = EPROTOTYPE;
-            break;
+            return EPROTOTYPE;
         case WSAENOPROTOOPT:
-            errno = ENOPROTOOPT;
-            break;
+            return ENOPROTOOPT;
         case WSAEPROTONOSUPPORT:
-            errno = EPROTONOSUPPORT;
-            break;
+            return EPROTONOSUPPORT;
         case WSAEOPNOTSUPP:
-            errno = EOPNOTSUPP;
-            break;
+            return EOPNOTSUPP;
         case WSAEAFNOSUPPORT:
-            errno = EAFNOSUPPORT;
-            break;
+            return EAFNOSUPPORT;
         case WSAEADDRINUSE:
-            errno = EADDRINUSE;
-            break;
+            return EADDRINUSE;
         case WSAEADDRNOTAVAIL:
-            errno = EADDRNOTAVAIL;
-            break;
+            return EADDRNOTAVAIL;
         case WSAENETDOWN:
-            errno = ENETDOWN;
-            break;
+            return ENETDOWN;
         case WSAENETUNREACH:
-            errno = ENETUNREACH;
-            break;
+            return ENETUNREACH;
         case WSAENETRESET:
-            errno = ENETRESET;
-            break;
+            return ENETRESET;
         case WSAECONNABORTED:
-            errno = ECONNABORTED;
-            break;
+            return ECONNABORTED;
         case WSAECONNRESET:
-            errno = ECONNRESET;
-            break;
+            return ECONNRESET;
         case WSAESHUTDOWN:
-            errno = EPIPE;
-            break;
+            return EPIPE;
         case WSAENOBUFS:
-            errno = ENOBUFS;
-            break;
+            return ENOBUFS;
         case WSAEISCONN:
-            errno = EISCONN;
-            break;
+            return EISCONN;
         case WSAENOTCONN:
-            errno = ENOTCONN;
-            break;
+            return ENOTCONN;
         case WSAECONNREFUSED:
-            errno = ECONNREFUSED;
-            break;
+            return ECONNREFUSED;
         case WSAEHOSTUNREACH:
-            errno = EHOSTUNREACH;
-            break;
+            return EHOSTUNREACH;
         case WSAEINTR:
-            errno = EINTR;
-            break;
+            return EINTR;
         case WSAEFAULT:
-            errno = EFAULT;
-            break;
+            return EFAULT;
         case 0:
-            break;
+            return 0;
         default:
-            errno = WSAGetLastError();
-            break;
+            return wsa_err;
     }
+}
+
+void wsa_set_errno(void)
+{
+    errno = wsa_to_errno(WSAGetLastError());
 }
 
 int compat_socket(int af, int type, int proto)
@@ -139,15 +120,19 @@ int compat_accept(int fd, struct sockaddr *addr, socklen_t *addrlen)
     return (int)s;
 }
 
+/* MSG_DONTWAIT emulation: Winsock send/recv have no per-call non-blocking
+ * flag, so we toggle FIONBIO around the call and restore it after. Not on
+ * any hot path - MSG_DONTWAIT appears in a handful of vsock_test recv
+ * sites only, no test issues send + MSG_DONTWAIT. */
 ssize_t compat_send(int fd, const void *buf, size_t len, int flags)
 {
-    bool dontwait = (flags & 0x40) != 0; /* MSG_DONTWAIT */
+    bool dontwait = (flags & MSG_DONTWAIT) != 0;
     /* Strip Linux-only send flags that Winsock2 does not know.
      * MSG_ZEROCOPY stays - viosocklib recognises it (see
      * vio_sockets.h) and routes the send through SEND_EX (MDL /
      * zero-copy tract).  compat.c uses the CRT `send()` which
      * forwards flags to WSASend under the hood. */
-    flags &= ~(0x40 | 0x8000); /* MSG_DONTWAIT | MSG_MORE */
+    flags &= ~(MSG_DONTWAIT | MSG_MORE);
     /* MSG_NOSIGNAL is 0 on Windows (no SIGPIPE) */
 
     if (dontwait)
@@ -180,8 +165,9 @@ ssize_t compat_send(int fd, const void *buf, size_t len, int flags)
 
 ssize_t compat_recv(int fd, void *buf, size_t len, int flags)
 {
-    bool dontwait = (flags & 0x40) != 0; /* MSG_DONTWAIT */
-    flags &= ~0x40;
+    /* MSG_DONTWAIT: see compat_send for the FIONBIO toggle rationale. */
+    bool dontwait = (flags & MSG_DONTWAIT) != 0;
+    flags &= ~MSG_DONTWAIT;
 
     if (dontwait)
     {
@@ -228,14 +214,14 @@ static int compat_poll(WSAPOLLFD *fds, ULONG nfds, INT timeout)
 }
 
 const struct sock_ops ops_posix = {
-    .sock_socket = compat_socket,
-    .sock_connect = compat_connect,
-    .sock_accept = compat_accept,
-    .sock_send = compat_send,
-    .sock_recv = compat_recv,
-    .sock_read = compat_read,
-    .sock_close = compat_closesocket,
-    .sock_poll = compat_poll,
+                                                                                                    .sock_socket = compat_socket,
+                                                                                                    .sock_connect = compat_connect,
+                                                                                                    .sock_accept = compat_accept,
+                                                                                                    .sock_send = compat_send,
+                                                                                                    .sock_recv = compat_recv,
+                                                                                                    .sock_read = compat_read,
+                                                                                                    .sock_close = compat_closesocket,
+                                                                                                    .sock_poll = compat_poll,
 };
 
 const struct sock_ops *g_ops = &ops_posix;
