@@ -84,9 +84,11 @@ static inline void wsa_set_errno(void)
         case WSAEWOULDBLOCK:
             errno = EAGAIN;
             break;
-        /* SO_RCVTIMEO expiry: map to EAGAIN to match Linux POSIX behavior */
+        /* Winsock keeps WSAEWOULDBLOCK (non-blocking) and WSAETIMEDOUT
+         * (SO_RCVTIMEO/SO_SNDTIMEO expiry) as distinct errors; map each
+         * to its own errno. */
         case WSAETIMEDOUT:
-            errno = EAGAIN;
+            errno = ETIMEDOUT;
             break;
         case WSAEINPROGRESS:
             errno = EINPROGRESS;
@@ -228,11 +230,27 @@ static inline int compat_accept(int fd, struct sockaddr *addr, socklen_t *addrle
     return (int)s;
 }
 
+/* Linux MSG_* values used by the send/recv strip below. The full set is
+ * redefined later in the file (search "MSG_MORE"); duplicated here so the
+ * wrappers can use the symbolic names without pulling that block up
+ * (which would put it before the compat wrappers deliberately shielded
+ * from macro redirections). Guarded with ifndef; harmless. */
+#ifndef MSG_DONTWAIT
+#define MSG_DONTWAIT 0x40
+#endif
+#ifndef MSG_MORE
+#define MSG_MORE 0x8000
+#endif
+
+/* MSG_DONTWAIT emulation: Winsock send/recv have no per-call non-blocking
+ * flag, so we toggle FIONBIO around the call and restore it after. Not on
+ * any hot path - MSG_DONTWAIT appears in a handful of vsock_test recv
+ * sites only; vsock_perf's send loop never uses it. */
 static inline ssize_t compat_send(int fd, const void *buf, size_t len, int flags)
 {
-    bool dontwait = (flags & 0x40) != 0; /* MSG_DONTWAIT */
+    bool dontwait = (flags & MSG_DONTWAIT) != 0;
     /* Strip flags that Winsock2 doesn't know */
-    flags &= ~(0x40 | 0x8000); /* MSG_DONTWAIT | MSG_MORE */
+    flags &= ~(MSG_DONTWAIT | MSG_MORE);
     /* MSG_NOSIGNAL is 0 on Windows (no SIGPIPE) */
 
     if (dontwait)
@@ -264,8 +282,9 @@ static inline ssize_t compat_send(int fd, const void *buf, size_t len, int flags
 
 static inline ssize_t compat_recv(int fd, void *buf, size_t len, int flags)
 {
-    bool dontwait = (flags & 0x40) != 0; /* MSG_DONTWAIT */
-    flags &= ~0x40;
+    /* MSG_DONTWAIT: see compat_send for the FIONBIO toggle rationale. */
+    bool dontwait = (flags & MSG_DONTWAIT) != 0;
+    flags &= ~MSG_DONTWAIT;
 
     if (dontwait)
     {

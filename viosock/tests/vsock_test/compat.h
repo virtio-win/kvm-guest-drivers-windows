@@ -44,6 +44,15 @@
 #include "..\\..\\inc\\vio_sockets.h"
 #include "sock_ops.h"
 
+/* Fallback for an upstream vio_sockets.h that doesn't yet expose
+ * SIO_VSOCK_OUTQ (the vsock analog of Linux SIOCOUTQ, WSAIoctl'd through
+ * the LSP).  The IOCTL code stays the same; on drivers that don't
+ * implement it, WSAIoctl fails at runtime and the SIOCOUTQ test skips
+ * gracefully with "not supported". */
+#ifndef SIO_VSOCK_OUTQ
+#define SIO_VSOCK_OUTQ _WSAIOR(IOC_VENDOR, 1)
+#endif
+
 /* ------------------------------------------------------------------ */
 /* Type compatibility                                                   */
 /* ------------------------------------------------------------------ */
@@ -80,6 +89,12 @@ extern ADDRESS_FAMILY g_vsock_af;
 /* WSA error -> errno mapping                                           */
 /* ------------------------------------------------------------------ */
 
+/* Pure translation: WSA* code -> POSIX errno. Use when the WSA value is
+ * carried in an out-parameter (SO_ERROR, WSAEnumNetworkEvents.iErrorCode[],
+ * WSAOVERLAPPED.Internal) rather than in thread-local WSAGetLastError. */
+int wsa_to_errno(int wsa_err);
+
+/* Same table, applied to the current thread's WSAGetLastError. */
 void wsa_set_errno(void);
 
 /* ------------------------------------------------------------------ */
