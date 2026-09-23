@@ -17,7 +17,7 @@ _here=$(cd "$(dirname "$0")" && pwd)
 . "$_here/_lib.sh"
 
 GUEST=""; CFG=""; CFG_OUT=""
-SSH_KEY=""; SSH_USER=""
+SSH_KEY=""; SSH_USER=""; GUEST_IP=""
 PKG=""
 CERT_CER=""
 SKIP_CERT=0; SKIP_TS=0; SKIP_REBOOT=0
@@ -32,6 +32,7 @@ while [ $# -gt 0 ]; do
         --config-out)        CFG_OUT="$2";   shift 2 ;;
         --ssh-key)           SSH_KEY="$2";   shift 2 ;;
         --ssh-user)          SSH_USER="$2";  shift 2 ;;
+        --guest-ip)          GUEST_IP="$2";  shift 2 ;;
         --package)           PKG="$2";       shift 2 ;;
         --cert-cer)          CERT_CER="$2";  shift 2 ;;
         --skip-cert)         SKIP_CERT=1;    shift ;;
@@ -63,10 +64,13 @@ Artifact drop:
 
 Config bookkeeping (only when --guest is used):
   --config-out <path>    Where to save the resolved config. Defaults to
-                         /tmp/vsock-ci/<guest>.config.
+                         ./<guest>.config (current working directory).
   --ssh-key <path>       Written into the emitted config; downstream scripts
                          use it to reach the guest. Required with --guest.
   --ssh-user <name>      SSH login (default: Administrator).
+  --guest-ip <ip>        Forwarded to resolve-guest.sh when 'virsh domifaddr'
+                         cannot see the guest's lease (no qemu-guest-agent,
+                         isolated network, static addressing).
 
 Prepare-guest tuning:
   --cert-cer <path>      Publisher cert to import into the guest.  Defaults
@@ -124,11 +128,12 @@ fi
 if [ -n "$GUEST" ]; then
     [ -n "$SSH_KEY" ] || die "--ssh-key is required together with --guest"
     if [ -z "$CFG_OUT" ]; then
-        CFG_OUT="/tmp/vsock-ci/${GUEST}.config"
+        CFG_OUT="$PWD/${GUEST}.config"
     fi
     info "==== resolve-guest ($GUEST → $CFG_OUT) ===="
     resolve_args=(--guest "$GUEST" --ssh-key "$SSH_KEY" --out "$CFG_OUT")
     [ -n "$SSH_USER" ] && resolve_args+=(--ssh-user "$SSH_USER")
+    [ -n "$GUEST_IP" ] && resolve_args+=(--guest-ip "$GUEST_IP")
     "$_here/resolve-guest.sh" "${resolve_args[@]}" || die "resolve-guest failed"
     CFG="$CFG_OUT"
 fi

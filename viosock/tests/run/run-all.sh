@@ -14,7 +14,7 @@ _here=$(cd "$(dirname "$0")" && pwd)
 . "$_here/_lib.sh"
 
 CFG=""; SKIP_SETUP=0
-ONLY=""; VARIANT=""; BITS="x64"; JUNIT_DIR=""; LOGDIR=""; AS_SYSTEM=0
+ONLY=""; VARIANT=""; BITS="x64"; JUNIT_DIR=""; LOGDIR=""; MAX_ID=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -26,7 +26,7 @@ while [ $# -gt 0 ]; do
         --x86)          BITS="x86"; shift ;;
         --junit-dir)    JUNIT_DIR="$2"; shift 2 ;;
         --logdir)       LOGDIR="$2"; shift 2 ;;
-        --as-system)    AS_SYSTEM=1; shift ;;
+        --max-id)       MAX_ID="$2"; shift 2 ;;
         -h|--help)
             cat >&2 <<EOF
 Usage: $0 [--config <cfg>] [--skip-setup]
@@ -34,12 +34,12 @@ Usage: $0 [--config <cfg>] [--skip-setup]
           [--variant <name>]
           [--bits x64|x86 | --x86]
           [--junit-dir <dir>] [--logdir <dir>]
-          [--as-system]
+          [--max-id <n>]
 
 Runs the sweep pipeline in order:
     setup-env -> forward -> reverse -> loopback
 
---skip-setup       Do not touch schtasks / vsock_test.exe cleanup.
+--skip-setup       Skip the per-run guest cleanup step (setup-env.sh).
 --only <list>      Comma-separated subset: forward, reverse, loopback.
                    (default: all three)
 --variant <name>   Restrict to rows of that variant in every list file.
@@ -51,9 +51,10 @@ Runs the sweep pipeline in order:
 --logdir <dir>     Shared log dir for all sweeps
                      (default: /tmp/vsock-run-<pid>).  Only failed-test
                      logs are kept.
---as-system        Forward to run-reverse/run-loopback: launch the Windows
-                   server via schtasks /ru SYSTEM instead of a background
-                   ssh session as the configured guest user.
+--max-id <n>       Cap the test ids sent to each sweep at <n>. Forwarded
+                   to forward/reverse (loopback is guest-only, both bins
+                   are always in sync). Use when the Linux-side host
+                   vsock_test is older than our 6.19-based guest binary.
 
 To install driver + tests first, use prepare-ci.sh (which chains
 resolve-guest -> prepare-host -> prepare-guest -> install-driver ->
@@ -99,7 +100,9 @@ fi
 # Assemble common flags forwarded to every sweep script.
 common=(--config "$CFG" --bits "$BITS" --logdir "$LOGDIR")
 [ -n "$VARIANT" ]     && common+=(--variant "$VARIANT")
-[ "$AS_SYSTEM" -eq 1 ] && common+=(--as-system)
+# --max-id goes only to forward/reverse below (loopback is guest-only).
+fwd_rev_extra=()
+[ -n "$MAX_ID" ]      && fwd_rev_extra=(--max-id "$MAX_ID")
 
 _junit_arg() {
     local suite="$1"
@@ -109,13 +112,13 @@ _junit_arg() {
 if [ "$run_forward" -eq 1 ]; then
     echo; info "==== FORWARD ===="
     mapfile -t junit_args < <(_junit_arg forward)
-    "$_here/run-forward.sh" "${common[@]}" "${junit_args[@]}" || rc=1
+    "$_here/run-forward.sh" "${common[@]}" "${fwd_rev_extra[@]}" "${junit_args[@]}" || rc=1
 fi
 
 if [ "$run_reverse" -eq 1 ]; then
     echo; info "==== REVERSE ===="
     mapfile -t junit_args < <(_junit_arg reverse)
-    "$_here/run-reverse.sh" "${common[@]}" "${junit_args[@]}" || rc=1
+    "$_here/run-reverse.sh" "${common[@]}" "${fwd_rev_extra[@]}" "${junit_args[@]}" || rc=1
 fi
 
 if [ "$run_loopback" -eq 1 ]; then

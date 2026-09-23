@@ -37,28 +37,28 @@
 5    posix  SOCK_STREAM MSG_PEEK
 5    wsa    SOCK_STREAM MSG_PEEK
 5    overlapped SOCK_STREAM MSG_PEEK
-# 6  posix  SOCK_SEQPACKET msg bounds                       — disabled: run_client/run_server = NULL (needs SEQPACKET + recvmsg(MSG_EOR))
-# 7  posix  SOCK_SEQPACKET MSG_TRUNC flag                   — disabled: run_client/run_server = NULL (needs SEQPACKET + recvmsg)
-# 8  posix  SOCK_SEQPACKET timeout                          — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
-# 9  posix  SOCK_SEQPACKET invalid receive buffer           — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
-# 10 posix  SOCK_STREAM poll() + SO_RCVLOWAT  — disabled: Windows has no native POSIX poll(); the compat shim reaches WSAPoll, so this test conceptually lives in the wsa variant.
+# 6  posix  SOCK_SEQPACKET msg bounds                       — disabled: SEQPACKET body needs recvmsg(MSG_EOR); missing from vsock_test.c — copy from upstream + driver SEQPACKET
+# 7  posix  SOCK_SEQPACKET MSG_TRUNC flag                   — disabled: SEQPACKET body needs recvmsg; missing — copy from upstream + driver SEQPACKET
+# 8  posix  SOCK_SEQPACKET timeout                          — disabled: SEQPACKET body missing from vsock_test.c — copy from upstream + driver SEQPACKET
+# 9  posix  SOCK_SEQPACKET invalid receive buffer           — disabled: SEQPACKET body missing from vsock_test.c — copy from upstream + driver SEQPACKET
+10   posix  SOCK_STREAM poll() + SO_RCVLOWAT
 10   wsa    SOCK_STREAM poll() + SO_RCVLOWAT
 10   overlapped SOCK_STREAM poll() + SO_RCVLOWAT
-# 11 posix  SOCK_SEQPACKET big message                      — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
+# 11 posix  SOCK_SEQPACKET big message                      — disabled: SEQPACKET body missing from vsock_test.c — copy from upstream + driver SEQPACKET
 12   posix  SOCK_STREAM test invalid buffer
 12   wsa    SOCK_STREAM test invalid buffer
 12   overlapped SOCK_STREAM test invalid buffer
-# 13 posix  SOCK_SEQPACKET test invalid buffer              — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
+# 13 posix  SOCK_SEQPACKET test invalid buffer              — disabled: shared body ready via test_inv_buf_*(bool stream); needs seqpacket wrapper + wiring + driver SEQPACKET
 14   posix  SOCK_STREAM virtio skb merge
 14   wsa    SOCK_STREAM virtio skb merge
 14   overlapped SOCK_STREAM virtio skb merge
-# 15 posix  SOCK_SEQPACKET MSG_PEEK                         — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
-# 16 posix  SOCK_STREAM SHUT_WR  — disabled: run_client/run_server = NULL (Linux-only SIGPIPE); isolated-pick harness artifact
-# 17 posix  SOCK_STREAM SHUT_RD  — disabled: run_client/run_server = NULL (Linux-only SIGPIPE); isolated-pick harness artifact
+# 15 posix  SOCK_SEQPACKET MSG_PEEK                         — disabled: shared body ready via test_msg_peek_*(bool seqpacket); needs seqpacket wrapper + wiring + driver SEQPACKET
+# 16 posix  SOCK_STREAM SHUT_WR  — disabled: run_client/run_server = NULL (Linux-only SIGPIPE);
+# 17 posix  SOCK_STREAM SHUT_RD  — disabled: run_client/run_server = NULL (Linux-only SIGPIPE);
 18   posix  SOCK_STREAM MSG_ZEROCOPY
 18   wsa    SOCK_STREAM MSG_ZEROCOPY
 18   overlapped SOCK_STREAM MSG_ZEROCOPY
-# 19 posix  SOCK_SEQPACKET MSG_ZEROCOPY                     — disabled: run_client/run_server = NULL (no MSG_ERRQUEUE + SEQPACKET)
+# 19 posix  SOCK_SEQPACKET MSG_ZEROCOPY                     — disabled: SEQPACKET body missing AND blocked by no Winsock MSG_ERRQUEUE
 # 20 posix  SOCK_STREAM MSG_ZEROCOPY empty MSG_ERRQUEUE     — disabled: run_client/run_server = NULL (no MSG_ERRQUEUE)
 21   posix  SOCK_STREAM double bind connect
 21   wsa    SOCK_STREAM double bind connect
@@ -72,7 +72,7 @@
 24   posix  SOCK_STREAM ioctl(SIOCOUTQ) 0 unsent bytes
 24   wsa    SOCK_STREAM ioctl(SIOCOUTQ) 0 unsent bytes
 24   overlapped SOCK_STREAM ioctl(SIOCOUTQ) 0 unsent bytes
-# 25 posix  SOCK_SEQPACKET ioctl(SIOCOUTQ) 0 unsent bytes   — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
+# 25 posix  SOCK_SEQPACKET ioctl(SIOCOUTQ) 0 unsent bytes   — disabled: shared body ready via test_unsent_bytes_*(int type); needs seqpacket wrapper + wiring + driver SEQPACKET
 # 26 posix  SOCK_STREAM leak accept queue  — disabled: run_client/run_server = NULL (Linux-only)
 # 27 posix  SOCK_STREAM MSG_ZEROCOPY leak MSG_ERRQUEUE      — disabled: run_client/run_server = NULL (no MSG_ERRQUEUE + kmemleak)
 # 28 posix  SOCK_STREAM MSG_ZEROCOPY leak completion skb    — disabled: run_client/run_server = NULL (no MSG_ERRQUEUE + kmemleak)
@@ -88,7 +88,9 @@
 32   overlapped SOCK_STREAM SO_LINGER close() on unread
 # 33 posix  SOCK_STREAM transport change null-ptr-deref, lockdep warn — disabled: run_client/run_server = NULL (Linux-only: pthread + kill(SIGUSR1))
 34   posix  SOCK_STREAM ioctl(SIOCINQ) functionality
-# 35 posix  SOCK_SEQPACKET ioctl(SIOCINQ) functionality     — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
+34   wsa    SOCK_STREAM ioctl(SIOCINQ) functionality
+34   overlapped SOCK_STREAM ioctl(SIOCINQ) functionality
+# 35 posix  SOCK_SEQPACKET ioctl(SIOCINQ) functionality     — disabled: shared body ready via test_unread_bytes_*(int type); needs seqpacket wrapper + wiring + driver SEQPACKET
 # 36 posix  SOCK_STREAM accept()ed socket custom setsockopt() — disabled: run_client/run_server = NULL (no Winsock SO_ZEROCOPY)
 # 37 posix  SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption — disabled: run_client/run_server = NULL (no MSG_ERRQUEUE)
 38   posix  SOCK_STREAM TX credit bounds

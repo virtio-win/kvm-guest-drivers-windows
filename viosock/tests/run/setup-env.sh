@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # setup-env.sh — inter-run cleanup on the guest:
 #   * Kill any leftover vsock_test.exe / vsock_test_x86.exe.
-#   * Remove stale scheduled tasks left by --as-system runs.
 #   * Verify the viosock PnP device is present and OK.
 #
 # This step is called between sweeps to give each fresh sweep a clean
@@ -21,9 +20,8 @@ while [ $# -gt 0 ]; do
             cat >&2 <<EOF
 Usage: $0 [--config <path>]
 
-Kills stale vsock_test processes on the guest, removes the vsock_rev /
-vsock_loopback scheduled tasks left over by --as-system runs, and
-verifies that the viosock PnP device is loaded and started.
+Kills stale vsock_test processes on the guest and verifies that the
+viosock PnP device is loaded and started.
 EOF
             exit 0 ;;
         *) die "unknown arg: $1" ;;
@@ -34,16 +32,10 @@ CFG=$(discover_config "$CFG")
 guest_load "$CFG"
 
 info "== setup-env: cleaning up guest =="
-# Best-effort cleanup; schtasks /delete of a missing task returns
-# non-zero, so wrap everything and force exit 0.
 _guest_ps '
 $ProgressPreference = "SilentlyContinue"
 Get-Process vsock_test     -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 Get-Process vsock_test_x86 -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-foreach ($t in "vsock_rev","vsock_loopback") {
-    & schtasks /end    /tn $t /f 2>$null | Out-Null
-    & schtasks /delete /tn $t /f 2>$null | Out-Null
-}
 exit 0
 '
 

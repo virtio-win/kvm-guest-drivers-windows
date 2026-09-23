@@ -1,0 +1,5 @@
+# Harness scripts and per-direction test lists live on the Linux host.
+# Enforce LF endings so a Windows checkout + scp to Linux doesn't leave
+# CRLF in shell shebangs (`/usr/bin/env: 'bash\r': No such file`).
+*.sh   text eol=lf
+*.list text eol=lf

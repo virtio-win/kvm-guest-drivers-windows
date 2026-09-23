@@ -8,6 +8,10 @@
 #                          guest. Written into the config verbatim.
 #                          Optional here — but downstream scripts require it.
 #   --ssh-user <name>      SSH login user on the guest (default: Administrator).
+#   --guest-ip <ip>        IPv4 override. Use when the guest does not
+#                          publish a lease libvirt can see (no qemu-guest-
+#                          agent, isolated network, static addressing on
+#                          a host-only bridge).
 #   --out <path>           write the config to a file (default: stdout).
 #
 # Output config (in key=value format that config_read understands):
@@ -30,17 +34,19 @@ _here=$(cd "$(dirname "$0")" && pwd)
 # shellcheck source=./_lib.sh
 . "$_here/_lib.sh"
 
-GUEST=""; SSH_KEY=""; SSH_USER=""; OUT=""
+GUEST=""; SSH_KEY=""; SSH_USER=""; OUT=""; GUEST_IP_OVERRIDE=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        --guest)      GUEST="$2";     shift 2 ;;
-        --ssh-key)    SSH_KEY="$2";   shift 2 ;;
-        --ssh-user)   SSH_USER="$2";  shift 2 ;;
-        --out)        OUT="$2";       shift 2 ;;
+        --guest)      GUEST="$2";              shift 2 ;;
+        --ssh-key)    SSH_KEY="$2";            shift 2 ;;
+        --ssh-user)   SSH_USER="$2";           shift 2 ;;
+        --guest-ip)   GUEST_IP_OVERRIDE="$2";  shift 2 ;;
+        --out)        OUT="$2";                shift 2 ;;
         -h|--help)
             cat >&2 <<EOF
-Usage: $0 --guest <domain> [--ssh-key <path>] [--ssh-user <name>] [--out <path>]
+Usage: $0 --guest <domain> [--ssh-key <path>] [--ssh-user <name>]
+          [--guest-ip <ip>] [--out <path>]
 
 Probes a running libvirt guest via virsh and emits a harness config.
 The domain must be running and have a <vsock> device with a static CID.
@@ -48,6 +54,9 @@ The domain must be running and have a <vsock> device with a static CID.
   --ssh-key <path>   Written into the config verbatim so downstream
                      scripts can talk to the guest.
   --ssh-user <name>  SSH login (default: Administrator).
+  --guest-ip <ip>    IPv4 override. Use when the guest does not publish
+                     a lease libvirt can see; otherwise auto-detected
+                     via 'virsh domifaddr'.
 EOF
             exit 0 ;;
         *) die "unknown arg: $1" ;;
@@ -80,10 +89,15 @@ guest_cid=$(printf '%s' "$xml" | awk '
 ')
 [ -n "$guest_cid" ] || die "cannot find vsock CID in domain '$GUEST' XML"
 
-# 3) Guest IP: first IPv4 from `virsh domifaddr` (best-effort; may be empty
-#    if the guest has not published a lease yet or QEMU-agent is off).
-guest_ip=$(virsh domifaddr "$GUEST" 2>/dev/null \
-    | awk '$4 ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/ { split($4, a, "/"); print a[1]; exit }')
+# 3) Guest IP: CLI override wins; else first IPv4 from `virsh domifaddr`.
+#    Fail-fast if still unresolved — downstream scripts require guest_ip.
+if [ -n "$GUEST_IP_OVERRIDE" ]; then
+    guest_ip="$GUEST_IP_OVERRIDE"
+else
+    guest_ip=$(virsh domifaddr "$GUEST" 2>/dev/null \
+        | awk '$4 ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/ { split($4, a, "/"); print a[1]; exit }')
+fi
+[ -n "$guest_ip" ] || die "cannot determine guest IPv4 for '$GUEST' (virsh domifaddr returned nothing). Pass --guest-ip <ip> explicitly, or install qemu-guest-agent in the guest so libvirt sees a lease."
 
 # 4) Emit config.
 emit() {
@@ -92,8 +106,8 @@ emit() {
 guest_name  = $GUEST
 guest_cid   = $guest_cid
 host_cid    = 2
+guest_ip    = $guest_ip
 EOF
-    [ -n "$guest_ip" ] && printf 'guest_ip    = %s\n' "$guest_ip"
     printf 'guest_user  = %s\n' "$SSH_USER"
     [ -n "$SSH_KEY" ]  && printf 'ssh_key     = %s\n' "$SSH_KEY"
 }

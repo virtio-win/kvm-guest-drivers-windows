@@ -14,7 +14,7 @@ _here=$(cd "$(dirname "$0")" && pwd)
 CFG=""; LIST="$_here/forward.list"; PER_TEST_TIMEOUT=40
 CONTROL_PORT=12345
 LOCAL_BIN="/ssd/vsock_test"       # vsock_test on the Linux host (this box)
-LOGDIR=""; VARIANT=""; BITS="x64"; JUNIT=""; PICK_IDS=()
+LOGDIR=""; VARIANT=""; BITS="x64"; JUNIT=""; PICK_IDS=(); MAX_ID=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -31,11 +31,13 @@ while [ $# -gt 0 ]; do
             IFS=',' read -ra _picks <<< "$2"
             for p in "${_picks[@]}"; do PICK_IDS+=("$p"); done
             shift 2 ;;
+        --max-id) MAX_ID="$2"; shift 2 ;;
         -h|--help)
             cat >&2 <<EOF
 Usage: $0 [--config <cfg>] [--list <path>] [--timeout <s>] [--port <p>]
           [--logdir <dir>] [--variant <name>]
           [--bits x64|x86 | --x86] [--junit <path>]
+          [--pick <id[,id,...]>] [--max-id <n>]
 
   --list       Which forward.list to read (default: forward.list next to script).
   --timeout    Per-test hard timeout in seconds (default: 40).
@@ -51,6 +53,9 @@ Usage: $0 [--config <cfg>] [--list <path>] [--timeout <s>] [--port <p>]
                Examples: --pick 22
                          --pick 18,20,27,28,37
                          --pick 18 --pick 20 --pick 27
+  --max-id <n> Skip every row whose id > n. Use when the Linux-side host
+               vsock_test is older than our 6.19-based guest binary: cap n
+               to the last id that stock host binary knows (26 for v6.12).
 EOF
             exit 0 ;;
         *) die "unknown arg: $1" ;;
@@ -93,6 +98,20 @@ if [ "${#PICK_IDS[@]}" -gt 0 ]; then
 else
     mapfile -t ROWS < <(read_list "$LIST" "$VARIANT")
     [ "${#ROWS[@]}" -gt 0 ] || die "no enabled tests in $LIST${VARIANT:+ (variant=$VARIANT)}"
+fi
+
+# --max-id fallback: CLI > MAX_TEST_ID env > config 'max_test_id' > unlimited.
+[ -z "$MAX_ID" ] && MAX_ID=${MAX_TEST_ID:-}
+[ -z "$MAX_ID" ] && MAX_ID=$(config_read "$CFG" max_test_id)
+if [ -n "$MAX_ID" ]; then
+    [[ "$MAX_ID" =~ ^[0-9]+$ ]] || die "--max-id must be a positive integer, got: $MAX_ID"
+    FILTERED=()
+    for row in "${ROWS[@]}"; do
+        IFS=$'\t' read -r _id _ <<< "$row"
+        [ "$_id" -le "$MAX_ID" ] && FILTERED+=("$row")
+    done
+    ROWS=("${FILTERED[@]}")
+    [ "${#ROWS[@]}" -gt 0 ] || die "no rows with id <= $MAX_ID"
 fi
 
 info "== forward sweep: ${#ROWS[@]} test(s), bits=$BITS, timeout ${PER_TEST_TIMEOUT}s, logs in $LOGDIR =="

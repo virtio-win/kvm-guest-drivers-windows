@@ -34,17 +34,21 @@ Usage: $0 [--config <path>] [--linux-ver <ver>] [--out-dir <dir>] [--tarball-url
 Builds vsock_test from tools/testing/vsock of a pinned Linux kernel release.
 Idempotent — skips when <out-dir>/vsock_test already exists at <ver>.
 
-  --linux-ver     Kernel version to build (default: $DEFAULT_VER).
+  --linux-ver     Kernel version to build. Order: CLI > config 'linux_ver'
+                  > default ($DEFAULT_VER).
   --out-dir       Install prefix (default: $DEFAULT_OUT).
                   Final binary lives at <out-dir>/vsock_test.
   --tarball-url   Full URL override for the tarball.
-  --config        Optional; only consulted for 'linux_tarball_mirror'.
+  --config        Optional; consulted for 'linux_ver' and 'linux_tarball_mirror'.
 EOF
             exit 0 ;;
         *) die "unknown arg: $1" ;;
     esac
 done
 
+if [ -z "$VER" ] && [ -n "$CFG" ]; then
+    VER=$(config_read "$CFG" linux_ver)
+fi
 [ -n "$VER" ]     || VER="$DEFAULT_VER"
 [ -n "$OUT_DIR" ] || OUT_DIR="$DEFAULT_OUT"
 

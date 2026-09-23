@@ -284,17 +284,17 @@ junit_finalize() {
         while IFS=$'\t' read -r kind t name msg detail_file; do
             case "$kind" in
                 ok)
-                    printf '    <testcase name="%s" classname="%s" time="%s"/>\n' \
+                    printf '    <testcase name="%s" classname="%s" time="%s" result="passed"/>\n' \
                         "$(_junit_xml_escape "$name")" "$(_junit_xml_escape "$suite")" "$t"
                     ;;
                 skipped)
-                    printf '    <testcase name="%s" classname="%s" time="%s">\n' \
+                    printf '    <testcase name="%s" classname="%s" time="%s" result="skipped">\n' \
                         "$(_junit_xml_escape "$name")" "$(_junit_xml_escape "$suite")" "$t"
                     printf '      <skipped message="%s"/>\n' "$(_junit_xml_escape "$msg")"
                     printf '    </testcase>\n'
                     ;;
                 failed)
-                    printf '    <testcase name="%s" classname="%s" time="%s">\n' \
+                    printf '    <testcase name="%s" classname="%s" time="%s" result="failed">\n' \
                         "$(_junit_xml_escape "$name")" "$(_junit_xml_escape "$suite")" "$t"
                     printf '      <failure message="%s">' "$(_junit_xml_escape "$msg")"
                     if [ -n "$detail_file" ] && [ -r "$detail_file" ]; then

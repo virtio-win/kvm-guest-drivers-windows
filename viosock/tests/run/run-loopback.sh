@@ -3,24 +3,17 @@
 # on the same Windows guest, control channel over 127.0.0.1, vsock
 # peer-cid = own guest_cid).
 #
-# The server is detached via schtasks /ru SYSTEM /sc once; the client
-# is invoked from a separate SSH session.
+# The server is launched over a background SSH session and lives in
+# sshd's job object; the client runs in a separate SSH session.
 
 set -uo pipefail
 _here=$(cd "$(dirname "$0")" && pwd)
 # shellcheck source=./_lib.sh
 . "$_here/_lib.sh"
 
-# Guest-side paths used only by the --as-system code path.  Kept as
-# top-of-script constants so a future move (e.g. to C:\ci-scratch\)
-# is one line.
-GUEST_SRV_BAT='C:\srv_lb.bat'
-GUEST_SRV_LOG_FMT='C:\srv_lb_%s_%s.log'   # printf format: N, V
-SCHTASKS_NAME='vsock_loopback'
-
 CFG=""; LIST="$_here/loopback.list"; PER_TEST_TIMEOUT=40
 CONTROL_PORT=12346
-LOGDIR=""; VARIANT=""; BITS="x64"; JUNIT=""; PICK_IDS=(); AS_SYSTEM=0
+LOGDIR=""; VARIANT=""; BITS="x64"; JUNIT=""; PICK_IDS=()
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -37,8 +30,7 @@ while [ $# -gt 0 ]; do
             IFS=',' read -ra _picks <<< "$2"
             for p in "${_picks[@]}"; do PICK_IDS+=("$p"); done
             shift 2 ;;
-        --as-system) AS_SYSTEM=1; shift ;;
-        -h|--help) sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help) sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) die "unknown arg: $1" ;;
     esac
 done
@@ -73,20 +65,10 @@ info "== loopback sweep: ${#ROWS[@]} test(s), bits=$BITS, timeout ${PER_TEST_TIM
 _cleanup() {
     local kill=""
     while IFS= read -r img; do kill+="taskkill /F /IM $img 2>nul & "; done < <(variant_all_images)
-    if [ "$AS_SYSTEM" -eq 1 ]; then
-        _guest_ssh "$kill schtasks /end /tn $SCHTASKS_NAME /f 2>nul & schtasks /delete /tn $SCHTASKS_NAME /f 2>nul & exit 0" >/dev/null 2>&1 || true
-    else
-        _guest_ssh "$kill exit 0" >/dev/null 2>&1 || true
-    fi
+    _guest_ssh "$kill exit 0" >/dev/null 2>&1 || true
 }
 trap _cleanup EXIT
 _cleanup
-
-_pull_guest_log() {
-    local remote="$1" local_path="$2"
-    _guest_scp_from "$remote" "$local_path" 2>/dev/null || true
-    _guest_ssh "del $remote 2>nul & exit 0" >/dev/null 2>&1 || true
-}
 
 PASS=0; FAIL=0; HUNG=0
 FAILED_ENTRIES=()
@@ -101,23 +83,14 @@ for row in "${ROWS[@]}"; do
     _cleanup
 
     srv_log="$LOGDIR/srv_${N}_${V}.log"
-    if [ "$AS_SYSTEM" -eq 1 ]; then
-        srv_log_guest=$(printf "$GUEST_SRV_LOG_FMT" "$N" "$V")
-        log "[$tag] server: schtasks $SCHTASKS_NAME ($guest_cmd --pick $N as SYSTEM)"
-        _guest_ssh "(echo @echo off & echo $guest_cmd --mode=server --control-port=$CONTROL_PORT --peer-cid=$guest_cid --pick $N ^> $srv_log_guest 2^>^&1) > $GUEST_SRV_BAT"
-        _guest_ssh "schtasks /create /tn $SCHTASKS_NAME /tr $GUEST_SRV_BAT /sc once /st 00:00 /ru SYSTEM /f" >/dev/null 2>&1
-        _guest_ssh "schtasks /run /tn $SCHTASKS_NAME" >/dev/null 2>&1
-        srv_ssh_pid=""
-    else
-        log "[$tag] server: ssh $_guest_ssh_host $guest_cmd --mode=server --pick $N"
-        ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" \
-            "$guest_cmd --mode=server --control-port=$CONTROL_PORT --peer-cid=$guest_cid --pick $N" \
-            >"$srv_log" 2>&1 &
-        srv_ssh_pid=$!
-    fi
+    log "[$tag] server: ssh $_guest_ssh_host $guest_cmd --mode=server --pick $N"
+    ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" \
+        "$guest_cmd --mode=server --control-port=$CONTROL_PORT --peer-cid=$guest_cid --pick $N" \
+        >"$srv_log" 2>&1 &
+    srv_ssh_pid=$!
     log "[$tag] waiting for server to bind :$CONTROL_PORT..."
     if ! wait_guest_port "$CONTROL_PORT" 20; then
-        [ -n "$srv_ssh_pid" ] && { kill "$srv_ssh_pid" 2>/dev/null; wait "$srv_ssh_pid" 2>/dev/null || true; }
+        kill "$srv_ssh_pid" 2>/dev/null; wait "$srv_ssh_pid" 2>/dev/null || true
         LINE="$N -  (server never bound port $CONTROL_PORT)"
         printf '[%s] %s\n' "$tag" "$LINE"
         FAIL=$((FAIL+1)); FAILED_ENTRIES+=("$tag")
@@ -141,14 +114,9 @@ for row in "${ROWS[@]}"; do
     printf '%s\n' "$CLIENT" > "$cli_log"
     log "[$tag] client returned rc=$RC in ${elapsed}s"
 
-    # Tear down the server.
-    if [ -n "$srv_ssh_pid" ]; then
-        kill "$srv_ssh_pid" 2>/dev/null || true
-        wait "$srv_ssh_pid" 2>/dev/null || true
-    else
-        _pull_guest_log "$srv_log_guest" "$srv_log"
-        _guest_ssh "schtasks /end /tn $SCHTASKS_NAME /f 2>nul & schtasks /delete /tn $SCHTASKS_NAME /f 2>nul & exit 0" >/dev/null 2>&1
-    fi
+    # Tear down the server: killing local ssh closes sshd's job object → server dies.
+    kill "$srv_ssh_pid" 2>/dev/null || true
+    wait "$srv_ssh_pid" 2>/dev/null || true
     # Strip Windows CRLF from srv_log (both sides are Windows in loopback).
     [ -f "$srv_log" ] && { tr -d '\r' < "$srv_log" > "$srv_log.tmp" && mv "$srv_log.tmp" "$srv_log"; }
 
