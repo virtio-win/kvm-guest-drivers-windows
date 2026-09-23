@@ -16,16 +16,17 @@ _here=$(cd "$(dirname "$0")" && pwd)
 # shellcheck source=./_lib.sh
 . "$_here/_lib.sh"
 
-CFG=""; PKG=""; DEST='C:/viosock-pkg'
+CFG=""; PKG=""; DEST='C:/viosock-pkg'; REINSTALL=0
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        --config)   CFG="$2";  shift 2 ;;
-        --package)  PKG="$2";  shift 2 ;;
-        --dest)     DEST="$2"; shift 2 ;;
+        --config)     CFG="$2";  shift 2 ;;
+        --package)    PKG="$2";  shift 2 ;;
+        --dest)       DEST="$2"; shift 2 ;;
+        --reinstall)  REINSTALL=1; shift ;;
         -h|--help)
             cat >&2 <<EOF
-Usage: $0 --config <path> --package <dir> [--dest <win-path>]
+Usage: $0 --config <path> --package <dir> [--dest <win-path>] [--reinstall]
 
 Copies pre-signed viosock package files to <win-path> on the guest,
 places viosocklib DLLs into System32/SysWOW64, then runs
@@ -34,6 +35,14 @@ pnputil /add-driver /install.
   --package <dir>    Directory with viosock.inf/sys/dll/cat.
                      Must be pre-signed.
   --dest <win-path>  Staging path on the guest (default: C:/viosock-pkg).
+  --reinstall        Before /add-driver, run pnputil /delete-driver
+                     /uninstall /force on every DriverStore entry whose
+                     Original Name is viosock.inf.  Off by default; only
+                     needed when the .sys bytes changed but viosock.inf's
+                     DriverVer did NOT, since pnputil /add-driver dedupes
+                     by INF metadata and would otherwise report the new
+                     package as "already up-to-date" and leave the old
+                     DriverStore copy bound to the device.
 EOF
             exit 0 ;;
         *) die "unknown arg: $1" ;;
@@ -58,6 +67,26 @@ for f in "$PKG"/*; do
     [ -f "$f" ] || continue
     _guest_scp_to "$f" "$DEST/$(basename "$f")" || die "scp failed: $f"
 done
+
+# 3a) Optional pre-purge: opt-in via --reinstall.  See the flag's help
+#     text above for why this exists.
+if [ "$REINSTALL" -eq 1 ]; then
+    info "== --reinstall: enumerate existing viosock oem*.inf =="
+    oem_list=$(_guest_ssh "pnputil /enum-drivers" 2>/dev/null | tr -d '\r' | awk '
+        /^Published Name:/ { pub = $3 }
+        /^Original Name:[[:space:]]+viosock\.inf/ { print pub }
+    ')
+    if [ -z "$oem_list" ]; then
+        info "no existing viosock package in DriverStore"
+    else
+        while IFS= read -r oem; do
+            [ -n "$oem" ] || continue
+            info "== pnputil /delete-driver $oem /uninstall /force =="
+            _guest_ssh "pnputil /delete-driver $oem /uninstall /force" \
+                || warn "pnputil /delete-driver $oem returned non-zero (continuing)"
+        done <<<"$oem_list"
+    fi
+fi
 
 # 3) Install/update the driver package.  pnputil reads viosock.inf and
 #    places both viosock.sys (DriverStore) and viosocklib.dll (System32/
