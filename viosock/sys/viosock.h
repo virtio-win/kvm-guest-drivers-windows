@@ -301,7 +301,6 @@ typedef struct _VIOSOCK_ACCEPT_ENTRY
 {
     LIST_ENTRY ListEntry;
     WDFMEMORY Memory;
-    WDFFILEOBJECT ConnectSocket;
     ULONG32 dst_cid;
     ULONG32 dst_port;
     ULONG32 peer_buf_alloc;
@@ -384,7 +383,6 @@ typedef struct _SOCKET_CONTEXT
     _Guarded_by_(StateLock) ULONG32 tx_cnt;
 
     USHORT LingerTime;
-    WDFFILEOBJECT LoopbackSocket;
 
     volatile LONG SelectRefs[FDSET_MAX];
 } SOCKET_CONTEXT, *PSOCKET_CONTEXT;
@@ -500,8 +498,7 @@ _Requires_lock_not_held_(pListenSocket->StateLock) NTSTATUS VIOSockAcceptInitSoc
                                                                                     PSOCKET_CONTEXT pListenSocket);
 
 _Requires_lock_not_held_(pListenSocket->RxLock) NTSTATUS VIOSockAcceptEnqueuePkt(IN PSOCKET_CONTEXT pListenSocket,
-                                                                                 IN PVIRTIO_VSOCK_HDR pPkt,
-                                                                                 IN WDFFILEOBJECT LoopbackSocket OPTIONAL);
+                                                                                 IN PVIRTIO_VSOCK_HDR pPkt);
 
 _Requires_lock_not_held_(pListenSocket->RxLock) VOID VIOSockAcceptRemovePkt(IN PSOCKET_CONTEXT pListenSocket,
                                                                             IN PVIRTIO_VSOCK_HDR pPkt);
@@ -606,21 +603,8 @@ typedef struct _VIOSOCK_TX_ENTRY
     PVOID Buffer;           // skb copy buffer VA, NULL otherwise
     WDFMEMORY BufferMemory; // lookaside handle of Buffer, WDF_NO_HANDLE otherwise
 
-    ULONG64 dst_cid;
-    ULONG32 src_port;
-    ULONG32 dst_port;
-
-    ULONG32 len;
-    USHORT op;
-    BOOLEAN reply;
-    ULONG32 flags;
-    USHORT type;
-
-    // Credit snapshot taken at entry creation (Linux inc_tx_pkt parity): the
-    // entry is fully self-contained afterwards and never touches the socket
-    // again, so it may legally outlive it while draining through the TxList.
-    ULONG32 buf_alloc;
-    ULONG32 fwd_cnt;
+    VIRTIO_VSOCK_HDR PacketHeader;
+    BOOLEAN Reply;
 
     ULONG SgCount; // filled SgList elements (0 for command entries)
     union {
@@ -642,11 +626,15 @@ VIOSockWriteSocketQueueInit(IN PSOCKET_CONTEXT pSocket);
 
 // Per-socket Tx pump, common for wire and loopback sockets — the paths diverge
 // at VIOSockTxInsertEntry (wire → TxList/vq, loopback → synchronous delivery
-// via VIOSockLoopbackInsertEntry).
+// via VIOSockRxPktHandle).
 _Requires_lock_not_held_(pSocket->TxLock) VOID VIOSockWriteProcessQueue(IN PSOCKET_CONTEXT pSocket);
 
-VOID VIOSockLoopbackProcessTxEntry(IN PVIOSOCK_TX_ENTRY pTxEntry);
-VOID VIOSockLoopbackSendReset(IN PSOCKET_CONTEXT pLoopbackSocket);
+// Both the guest's own CID and VMADDR_CID_LOCAL address the guest itself
+// (loopback), mirroring Linux vsock_use_local_transport().
+__inline BOOLEAN VIOSockIsLocalCid(IN ULONG32 ulCid, IN ULONG32 ulGuestCid)
+{
+    return ulCid == ulGuestCid || ulCid == VMADDR_CID_LOCAL;
+}
 
 NTSTATUS
 VIOSockTxVqInit(IN PDEVICE_CONTEXT pContext);
@@ -773,6 +761,11 @@ _Requires_lock_not_held_(pSocket->StateLock) __inline VOID VIOSockRxIncTxPkt(IN 
 
 _Requires_lock_not_held_(pContext->RxLock) VOID VIOSockRxVqProcess(IN PDEVICE_CONTEXT pContext);
 
+// Unified packet dispatcher. bLoopback selects the containing struct
+// (VIOSOCK_RX_PKT.Header for wire, VIOSOCK_TX_ENTRY.PacketHeader for
+// loopback); the dispatcher CONTAINING_RECORDs it back when needed.
+VOID VIOSockRxPktHandle(IN PDEVICE_CONTEXT pContext, IN PVIRTIO_VSOCK_HDR pPktHdr, IN BOOLEAN bLoopback);
+
 // Loopback delivery: wrap the peer's TX entry into an Rx CB of pSocket.
 _Requires_lock_not_held_(pSocket->RxLock) BOOLEAN VIOSockRxEnqueueTxEntry(IN PSOCKET_CONTEXT pSocket,
                                                                           IN PVIOSOCK_TX_ENTRY pTxEntry);
@@ -864,10 +857,6 @@ _IRQL_requires_max_(PASSIVE_LEVEL) NTSTATUS VIOSockEvtVqInit(IN PDEVICE_CONTEXT 
 _IRQL_requires_max_(PASSIVE_LEVEL) VOID VIOSockEvtVqCleanup(IN PDEVICE_CONTEXT pContext);
 
 _IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockEvtVqProcess(IN PDEVICE_CONTEXT pContext);
-
-//////////////////////////////////////////////////////////////////////////
-BOOLEAN
-VIOSockLoopbackAcceptInitSocket(IN PSOCKET_CONTEXT pAcceptSocket, IN WDFFILEOBJECT ConnectSocket);
 
 //////////////////////////////////////////////////////////////////////////
 __inline LONGLONG VIOSockTimerTimeoutToTicks(IN LONGLONG Timeout)

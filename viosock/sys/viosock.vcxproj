@@ -178,7 +178,6 @@
     <ClCompile Include="Driver.c" />
     <ClCompile Include="Evt.c" />
     <ClCompile Include="IsrDpc.c" />
-    <ClCompile Include="Loopback.c" />
     <ClCompile Include="Socket.c" />
     <ClCompile Include="Rx.c" />
     <ClCompile Include="Tx.c" />

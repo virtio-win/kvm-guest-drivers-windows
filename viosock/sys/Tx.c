@@ -126,16 +126,8 @@ _Requires_lock_held_(pContext->TxLock) static PVIOSOCK_TX_PKT VIOSockTxPktAlloc(
     {
         pPkt->PhysAddr = PA;
         pPkt->TxEntry = NULL;
-        pPkt->Header.buf_alloc = pTxEntry->buf_alloc;
-        pPkt->Header.fwd_cnt = pTxEntry->fwd_cnt;
+        RtlCopyMemory(&pPkt->Header, &pTxEntry->PacketHeader, sizeof(VIRTIO_VSOCK_HDR));
         pPkt->Header.src_cid = pContext->Config.guest_cid;
-        pPkt->Header.dst_cid = pTxEntry->dst_cid;
-        pPkt->Header.src_port = pTxEntry->src_port;
-        pPkt->Header.dst_port = pTxEntry->dst_port;
-        pPkt->Header.len = pTxEntry->len;
-        pPkt->Header.type = pTxEntry->type;
-        pPkt->Header.op = pTxEntry->op;
-        pPkt->Header.flags = pTxEntry->flags;
         InterlockedIncrement(&pContext->TxPktAllocated);
     }
     return pPkt;
@@ -424,7 +416,7 @@ _Requires_lock_not_held_(pContext->TxLock) static VOID VIOSockTxDequeue(PDEVICE_
 
         RemoveHeadList(&pContext->TxList);
 
-        bReply = pTxEntry->reply;
+        bReply = pTxEntry->Reply;
 
         if (!VIOSockTxPktInsert(pContext, pPkt, pTxEntry))
         {
@@ -491,7 +483,7 @@ _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxCleanup(PDEVICE_CONTEXT
 
             InsertTailList(&CompletionList, &pTxEntry->ListEntry); // complete later
 
-            if (pTxEntry->reply)
+            if (pTxEntry->Reply)
             {
                 ++lCnt;
             }
@@ -564,24 +556,24 @@ PVIOSOCK_TX_ENTRY VIOSockTxAllocateEntry(IN PDEVICE_CONTEXT pContext,
     pTxEntry->Buffer = NULL;
     pTxEntry->BufferMemory = WDF_NO_HANDLE;
     pTxEntry->SgCount = 0;
-    pTxEntry->len = BufferLen;
+    pTxEntry->PacketHeader.len = BufferLen;
 
     if (pSocket)
     {
         VIRTIO_VSOCK_HDR CreditHdr;
 
         pTxEntry->Socket = pSocket->ThisSocket;
-        pTxEntry->src_port = pSocket->src_port;
-        pTxEntry->dst_cid = pSocket->dst_cid;
-        pTxEntry->dst_port = pSocket->dst_port;
-        pTxEntry->type = (USHORT)pSocket->type;
+        pTxEntry->PacketHeader.src_port = pSocket->src_port;
+        pTxEntry->PacketHeader.dst_cid = pSocket->dst_cid;
+        pTxEntry->PacketHeader.dst_port = pSocket->dst_port;
+        pTxEntry->PacketHeader.type = (USHORT)pSocket->type;
 
         // Snapshot the credit fields (as Linux does at skb creation): the
         // entry never touches the socket afterwards; the Socket handle above
         // stays a plain cookie (loopback routing at insert, debugging).
         VIOSockRxIncTxPkt(pSocket, &CreditHdr);
-        pTxEntry->buf_alloc = CreditHdr.buf_alloc;
-        pTxEntry->fwd_cnt = CreditHdr.fwd_cnt;
+        pTxEntry->PacketHeader.buf_alloc = CreditHdr.buf_alloc;
+        pTxEntry->PacketHeader.fwd_cnt = CreditHdr.fwd_cnt;
 
         WdfObjectReference(pTxEntry->Socket);
         bSkipSgList = IsLoopbackSocket(pSocket);
@@ -589,8 +581,8 @@ PVIOSOCK_TX_ENTRY VIOSockTxAllocateEntry(IN PDEVICE_CONTEXT pContext,
     else
     {
         pTxEntry->Socket = WDF_NO_HANDLE;
-        pTxEntry->buf_alloc = 0;
-        pTxEntry->fwd_cnt = 0;
+        pTxEntry->PacketHeader.buf_alloc = 0;
+        pTxEntry->PacketHeader.fwd_cnt = 0;
     }
 
     if (BufferLen)
@@ -660,11 +652,12 @@ VOID VIOSockTxFreeEntry(PVIOSOCK_TX_ENTRY pTxEntry)
 // counted and never reach the callers of this helper.
 static VOID VIOSockTxEntryUnsentSub(IN PVIOSOCK_TX_ENTRY pTxEntry)
 {
-    if (pTxEntry->Socket != WDF_NO_HANDLE && pTxEntry->len)
+    if (pTxEntry->Socket != WDF_NO_HANDLE && pTxEntry->PacketHeader.len)
     {
         PSOCKET_CONTEXT pSocket = GetSocketContext(pTxEntry->Socket);
 
-        if (InterlockedExchangeAdd(&pSocket->BytesUnsent, -(LONG)pTxEntry->len) == (LONG)pTxEntry->len)
+        if (InterlockedExchangeAdd(&pSocket->BytesUnsent, -(LONG)pTxEntry->PacketHeader.len) ==
+            (LONG)pTxEntry->PacketHeader.len)
         {
             KeSetEvent(&pSocket->TxIdleEvent, IO_NO_INCREMENT, FALSE);
         }
@@ -684,15 +677,19 @@ static BOOLEAN VIOSockTxInsertEntry(IN PDEVICE_CONTEXT pContext, IN PVIOSOCK_TX_
 {
     // The wire/loopback divergence point: a loopback entry is delivered
     // synchronously and never touches the TxList/vq machinery.
-    if (pTxEntry->Socket != WDF_NO_HANDLE && IsLoopbackSocket(GetSocketContext(pTxEntry->Socket)))
+    if (pTxEntry->Socket != WDF_NO_HANDLE && IsLoopbackSocket(GetSocketContext(pTxEntry->Socket)) ||
+        pTxEntry->Socket == WDF_NO_HANDLE && VIOSockIsLocalCid((ULONG32)pTxEntry->PacketHeader.dst_cid,
+                                                               pContext->Config.guest_cid))
     {
-        VIOSockLoopbackProcessTxEntry(pTxEntry);
+        pTxEntry->PacketHeader.src_cid = pTxEntry->PacketHeader.dst_cid;
+        VIOSockRxPktHandle(pContext, &pTxEntry->PacketHeader, TRUE);
+
         return FALSE;
     }
 
     WdfSpinLockAcquire(pContext->TxLock);
 
-    if (pTxEntry->reply)
+    if (pTxEntry->Reply)
     {
         pContext->TxQueuedReply++;
     }
@@ -917,9 +914,9 @@ static NTSTATUS VIOSockWriteEnqueueRequest(IN PSOCKET_CONTEXT pSocket, IN WDFREQ
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    pTxEntry->op = VIRTIO_VSOCK_OP_RW;
-    pTxEntry->reply = FALSE;
-    pTxEntry->flags = 0;
+    pTxEntry->PacketHeader.op = VIRTIO_VSOCK_OP_RW;
+    pTxEntry->PacketHeader.flags = 0;
+    pTxEntry->Reply = FALSE;
 
     uPlaced = uLen;
     status = VIOSockWriteCopy(pRequest, pTxEntry, &uPlaced);
@@ -935,7 +932,7 @@ static NTSTATUS VIOSockWriteEnqueueRequest(IN PSOCKET_CONTEXT pSocket, IN WDFREQ
         // zero-copy chunk closed short on SG capacity — return the extra credit
         VIOSockTxPutCredit(pSocket, uLen - uPlaced);
     }
-    pTxEntry->len = uPlaced;
+    pTxEntry->PacketHeader.len = uPlaced;
 
     if (pRequest->ZeroCopy)
     {
@@ -952,7 +949,7 @@ static NTSTATUS VIOSockWriteEnqueueRequest(IN PSOCKET_CONTEXT pSocket, IN WDFREQ
         // race the draining side: with nothing in flight there is nobody to
         // decrement, and this entry becomes consumable only after the insert
         // below.
-        if (InterlockedExchangeAdd(&pSocket->BytesUnsent, (LONG)pTxEntry->len) == 0)
+        if (InterlockedExchangeAdd(&pSocket->BytesUnsent, (LONG)pTxEntry->PacketHeader.len) == 0)
         {
             KeClearEvent(&pSocket->TxIdleEvent);
         }
@@ -985,9 +982,9 @@ NTSTATUS VIOSockTxEnqueueCommand(IN PSOCKET_CONTEXT pSocket,
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    pTxEntry->op = Op;
-    pTxEntry->reply = Reply;
-    pTxEntry->flags = Flags;
+    pTxEntry->PacketHeader.op = Op;
+    pTxEntry->Reply = Reply;
+    pTxEntry->PacketHeader.flags = Flags;
 
     if (VIOSockTxInsertEntry(pContext, pTxEntry))
     {
@@ -1542,14 +1539,14 @@ _Requires_lock_not_held_(pContext->TxLock) NTSTATUS VIOSockSendResetNoSock(IN PD
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    pTxEntry->src_port = pHeader->dst_port;
-    pTxEntry->dst_cid = pHeader->src_cid;
-    pTxEntry->dst_port = pHeader->src_port;
-    pTxEntry->type = pHeader->type;
+    pTxEntry->PacketHeader.src_port = pHeader->dst_port;
+    pTxEntry->PacketHeader.dst_cid = pHeader->src_cid;
+    pTxEntry->PacketHeader.dst_port = pHeader->src_port;
+    pTxEntry->PacketHeader.type = pHeader->type;
 
-    pTxEntry->op = VIRTIO_VSOCK_OP_RST;
-    pTxEntry->reply = FALSE;
-    pTxEntry->flags = 0;
+    pTxEntry->PacketHeader.op = VIRTIO_VSOCK_OP_RST;
+    pTxEntry->Reply = FALSE;
+    pTxEntry->PacketHeader.flags = 0;
 
     if (VIOSockTxInsertEntry(pContext, pTxEntry))
     {
