@@ -102,7 +102,7 @@ _cleanup() {
     local kill=""
     while IFS= read -r img; do kill+="taskkill /F /IM $img 2>nul & "; done < <(variant_all_images)
     _guest_ssh "$kill exit 0" >/dev/null 2>&1 || true
-    pkill -f "$LOCAL_BIN" 2>/dev/null || true
+    [ -n "${srv_pid:-}" ] && kill -0 "$srv_pid" 2>/dev/null && kill "$srv_pid" 2>/dev/null || true
 }
 trap _cleanup EXIT
 _cleanup
