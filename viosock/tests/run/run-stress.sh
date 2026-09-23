@@ -38,6 +38,7 @@ GUEST_STRESS_DIR=${GUEST_STRESS_DIR:-'C:\stress'}
 # --- args ----------------------------------------------------------------
 CFG=""; LOGDIR=""; VARIANT="posix"; BITS="x64"; DIRS=""
 LOCAL_BIN="/opt/vsock-test/vsock_perf"
+LOOPBACK=${STRESS_LOOPBACK:-0}
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -51,6 +52,7 @@ while [ $# -gt 0 ]; do
         --buf-size)     STRESS_BUF="$2";   shift 2 ;;
         --only)         DIRS="$2";      shift 2 ;;
         --local-bin)    LOCAL_BIN="$2"; shift 2 ;;
+        --loopback)     LOOPBACK=1;     shift ;;
         -h|--help)
             cat >&2 <<EOF
 Usage: $0 [--config <cfg>] [--logdir <dir>]
@@ -87,7 +89,16 @@ guest_load "$CFG"
 host_cid=$(config_read  "$CFG" host_cid);  [ -n "$host_cid"  ] || die "config has no host_cid="
 guest_cid=$(config_read "$CFG" guest_cid); [ -n "$guest_cid" ] || die "config has no guest_cid="
 
-[ -x "$LOCAL_BIN" ] || die "no vsock_perf at $LOCAL_BIN — run prepare-perf.sh first"
+# --loopback: both ends of every connection live on the guest; senders target
+# VMADDR_CID_LOCAL (1) so the guest driver's loopback path is exercised. The
+# host does not participate — no Linux receivers, no Linux senders.
+if [ "$LOOPBACK" -eq 1 ]; then
+    host_cid=1
+    guest_cid=1
+    info "== stress: --loopback mode: guest ⇄ guest via VMADDR_CID_LOCAL (host_cid=guest_cid=1) =="
+fi
+
+[ "$LOOPBACK" -eq 1 ] || [ -x "$LOCAL_BIN" ] || die "no vsock_perf at $LOCAL_BIN — run prepare-perf.sh first"
 
 [ -z "$LOGDIR" ] && LOGDIR="/tmp/vsock-stress-$$"
 mkdir -p "$LOGDIR"
@@ -183,8 +194,62 @@ EOF
 # --- local (Linux) fan-out ----------------------------------------------
 declare -a LOCAL_PIDS=() LOCAL_NAMES=()
 
+# --loopback mirrors the guest fan-out for the roles normally played by
+# the Linux side: forward receivers listen on FWD_PORT_BASE + i on the
+# guest, reverse senders send to VMADDR_CID_LOCAL:REV_PORT_BASE + i on
+# the guest. Same PowerShell shape as gen_ps_rx / gen_ps_tx, distinct
+# log/port prefixes so the two rx sets and two tx sets don't collide.
+gen_ps_rx_fwd() {
+    local var_flag_prefix=""
+    [ -n "$guest_variant_flag" ] && var_flag_prefix="$guest_variant_flag "
+    cat <<EOF
+\$ErrorActionPreference = 'Continue'
+New-Item -ItemType Directory -Path '$GUEST_STRESS_DIR' -Force | Out-Null
+Get-ChildItem '$GUEST_STRESS_DIR\\fwd_*_rx.log','$GUEST_STRESS_DIR\\fwd_*_rx.err' -ErrorAction SilentlyContinue | Remove-Item
+\$procs = @()
+for (\$i = 0; \$i -lt $STRESS_N; \$i++) {
+    \$port = $FWD_PORT_BASE + \$i
+    \$log  = "$GUEST_STRESS_DIR\\fwd_\${i}_rx.log"
+    \$err  = "$GUEST_STRESS_DIR\\fwd_\${i}_rx.err"
+    \$args = @('${var_flag_prefix}--port'.Split(' ') | Where-Object { \$_ -ne '' }) + @("\$port", '--buf-size', '$STRESS_BUF')
+    \$procs += Start-Process -FilePath '$guest_exe_path' -ArgumentList \$args \`
+        -RedirectStandardOutput \$log -RedirectStandardError \$err \`
+        -NoNewWindow -PassThru
+}
+foreach (\$p in \$procs) { \$p.WaitForExit() }
+[Console]::Out.WriteLine("DONE:$STRESS_N")
+EOF
+}
+
+gen_ps_tx_rev() {
+    local var_flag_prefix=""
+    [ -n "$guest_variant_flag" ] && var_flag_prefix="$guest_variant_flag "
+    cat <<EOF
+\$ErrorActionPreference = 'Continue'
+New-Item -ItemType Directory -Path '$GUEST_STRESS_DIR' -Force | Out-Null
+Get-ChildItem '$GUEST_STRESS_DIR\\rev_*_tx.log','$GUEST_STRESS_DIR\\rev_*_tx.err' -ErrorAction SilentlyContinue | Remove-Item
+\$procs = @()
+for (\$i = 0; \$i -lt $STRESS_N; \$i++) {
+    \$port = $REV_PORT_BASE + \$i
+    \$log  = "$GUEST_STRESS_DIR\\rev_\${i}_tx.log"
+    \$err  = "$GUEST_STRESS_DIR\\rev_\${i}_tx.err"
+    \$args = @('${var_flag_prefix}--sender'.Split(' ') | Where-Object { \$_ -ne '' }) + @('$guest_cid', '--port', "\$port", '--bytes', '$STRESS_BYTES', '--buf-size', '$STRESS_BUF')
+    \$procs += Start-Process -FilePath '$guest_exe_path' -ArgumentList \$args \`
+        -RedirectStandardOutput \$log -RedirectStandardError \$err \`
+        -NoNewWindow -PassThru
+}
+foreach (\$p in \$procs) { \$p.WaitForExit() }
+[Console]::Out.WriteLine("DONE:$STRESS_N")
+EOF
+}
+
 start_local_forward_receivers() {
     local i port name log
+    if [ "$LOOPBACK" -eq 1 ]; then
+        _guest_ps "$(gen_ps_rx_fwd)" > "$LOGDIR/guest_fwd_rx.log" 2>&1 &
+        LOCAL_PIDS+=($!); LOCAL_NAMES+=("guest_fwd_rx")
+        return
+    fi
     for i in $(seq 0 $((STRESS_N - 1))); do
         port=$((FWD_PORT_BASE + i))
         name="fwd_$i"
@@ -197,6 +262,11 @@ start_local_forward_receivers() {
 
 start_local_reverse_senders() {
     local i port name log
+    if [ "$LOOPBACK" -eq 1 ]; then
+        _guest_ps "$(gen_ps_tx_rev)" > "$LOGDIR/guest_rev_tx.log" 2>&1 &
+        LOCAL_PIDS+=($!); LOCAL_NAMES+=("guest_rev_tx")
+        return
+    fi
     for i in $(seq 0 $((STRESS_N - 1))); do
         port=$((REV_PORT_BASE + i))
         name="rev_$i"
