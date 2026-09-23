@@ -554,7 +554,13 @@ _Requires_lock_not_held_(pSocket->StateLock) VOID VIOSockRxPktHandleConnecting(I
                     }
                     break;
                 case VIRTIO_VSOCK_OP_RST:
-                    status = STATUS_CONNECTION_RESET;
+                    /* Peer replied RST while we were connecting: on Windows
+                     * connect() to a non-listening address is WSAECONNREFUSED,
+                     * not WSAECONNRESET (RESET is reserved for an established
+                     * connection getting torn down). Map STATUS_CONNECTION_REFUSED
+                     * so both loopback and wire paths surface the standard
+                     * Winsock error to userland. */
+                    status = STATUS_CONNECTION_REFUSED;
                     break;
                 default:
                     status = STATUS_CONNECTION_INVALID;
@@ -882,9 +888,11 @@ VOID VIOSockRxPktHandle(IN PDEVICE_CONTEXT pContext, IN PVIRTIO_VSOCK_HDR pPktHd
 
         TraceEvents(TRACE_LEVEL_INFORMATION,
                     DBG_SOCKET,
-                    "Socket %d found, state %!State!\n",
+                    "Socket %d found, state %!State!, op %!Op!, loopback %u\n",
                     pSocket->SocketId,
-                    VIOSockStateGet(pSocket));
+                    VIOSockStateGet(pSocket),
+                    pPktHdr->op,
+                    bLoopback);
 
         bTxHasSpace = !!VIOSockTxSpaceUpdate(pSocket, pPktHdr);
 
@@ -1584,6 +1592,12 @@ _Requires_lock_not_held_(pSocket->RxLock) static NTSTATUS VIOSockReadDequeueCb(I
     if (!pRequest->FreeBytes || pRequest->Flags & MSG_PEEK)
     {
         TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "Should complete read request\n");
+    }
+    else if (pSocket->PeerShutdown & VIRTIO_VSOCK_SHUTDOWN_SEND)
+    {
+        // Peer FIN'd: no more data will arrive, so return what we copied
+        // (0 = EOF, or partial < SO_RCVLOWAT / MSG_WAITALL) instead of
+        // requeueing. Mirrors Linux virtio_transport_stream_do_dequeue.
     }
     else if (pRequest->BufferLen == pRequest->FreeBytes || (pRequest->Flags & MSG_WAITALL) ||
              (!VIOSockIsNonBlocking(pSocket) && (pRequest->BufferLen - pRequest->FreeBytes) < uRcvTarget))
