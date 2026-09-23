@@ -1,6 +1,6 @@
 @echo off
 set _cln_tgt_=viosock
-set _cln_subdirs_=lib sys wsk tests\viosock-wsk-test tests\viosock-test tests\viosocklib-test tests\vsock_test ViosockPackage wspsvc
+set _cln_subdirs_=lib sys wsk tests\viosock-wsk-test tests\viosock-test tests\viosocklib-test tests\vsock_test tests\vsock_perf ViosockPackage wspsvc
 call ..\build\clean.bat
 call :subdir %_cln_subdirs_%
 goto :eof

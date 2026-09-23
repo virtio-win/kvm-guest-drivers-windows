@@ -139,10 +139,10 @@
     <LibFiles Include="..\lib\x86\$(ConfigurationName)\viosocklib.pdb">
       <OutLib>viosocklib_x86.pdb</OutLib>
     </LibFiles>
-    <LibFiles Include="..\tests\vsock_test\x64\$(ConfigurationName)\vsock_test\vsock_test.exe">
+    <LibFiles Include="..\tests\vsock_test\$(PlatformTarget)\$(ConfigurationName)\vsock_test\vsock_test.exe">
       <OutLib>vsock_test.exe</OutLib>
     </LibFiles>
-    <LibFiles Include="..\tests\vsock_test\x64\$(ConfigurationName)\vsock_test\vsock_test.pdb">
+    <LibFiles Include="..\tests\vsock_test\$(PlatformTarget)\$(ConfigurationName)\vsock_test\vsock_test.pdb">
       <OutLib>vsock_test.pdb</OutLib>
     </LibFiles>
     <LibFiles Include="..\tests\vsock_test\x86\$(ConfigurationName)\vsock_test\vsock_test_x86.exe">
@@ -151,10 +151,10 @@
     <LibFiles Include="..\tests\vsock_test\x86\$(ConfigurationName)\vsock_test\vsock_test_x86.pdb">
       <OutLib>vsock_test_x86.pdb</OutLib>
     </LibFiles>
-    <LibFiles Include="..\tests\vsock_perf\x64\$(ConfigurationName)\vsock_perf\vsock_perf.exe">
+    <LibFiles Include="..\tests\vsock_perf\$(PlatformTarget)\$(ConfigurationName)\vsock_perf\vsock_perf.exe">
       <OutLib>vsock_perf.exe</OutLib>
     </LibFiles>
-    <LibFiles Include="..\tests\vsock_perf\x64\$(ConfigurationName)\vsock_perf\vsock_perf.pdb">
+    <LibFiles Include="..\tests\vsock_perf\$(PlatformTarget)\$(ConfigurationName)\vsock_perf\vsock_perf.pdb">
       <OutLib>vsock_perf.pdb</OutLib>
     </LibFiles>
   </ItemGroup>
