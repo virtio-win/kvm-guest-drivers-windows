@@ -42,6 +42,9 @@
     <ProjectReference Include="..\tests\vsock_test\vsock_test.vcxproj">
       <Project>{7a3f9b2c-1234-4e42-9e43-a1b2c3d4e5f6}</Project>
     </ProjectReference>
+    <ProjectReference Include="..\tests\vsock_perf\vsock_perf.vcxproj">
+      <Project>{9c4e7a81-6d2b-4f3a-b7e5-2c1d8f6a9b04}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\wspsvc\viosockwspsvc.vcxproj">
       <Project>{b8c784b3-7914-4539-b728-f2eae5c9795e}</Project>
     </ProjectReference>
@@ -138,6 +141,21 @@
     </LibFiles>
     <LibFiles Include="..\tests\vsock_test\x64\$(ConfigurationName)\vsock_test\vsock_test.exe">
       <OutLib>vsock_test.exe</OutLib>
+    </LibFiles>
+    <LibFiles Include="..\tests\vsock_test\x64\$(ConfigurationName)\vsock_test\vsock_test.pdb">
+      <OutLib>vsock_test.pdb</OutLib>
+    </LibFiles>
+    <LibFiles Include="..\tests\vsock_test\x86\$(ConfigurationName)\vsock_test\vsock_test_x86.exe">
+      <OutLib>vsock_test_x86.exe</OutLib>
+    </LibFiles>
+    <LibFiles Include="..\tests\vsock_test\x86\$(ConfigurationName)\vsock_test\vsock_test_x86.pdb">
+      <OutLib>vsock_test_x86.pdb</OutLib>
+    </LibFiles>
+    <LibFiles Include="..\tests\vsock_perf\x64\$(ConfigurationName)\vsock_perf\vsock_perf.exe">
+      <OutLib>vsock_perf.exe</OutLib>
+    </LibFiles>
+    <LibFiles Include="..\tests\vsock_perf\x64\$(ConfigurationName)\vsock_perf\vsock_perf.pdb">
+      <OutLib>vsock_perf.pdb</OutLib>
     </LibFiles>
   </ItemGroup>
   <Target Name="CopyLibFiles" BeforeTargets="InfVerif">
