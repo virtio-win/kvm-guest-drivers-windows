@@ -141,6 +141,11 @@ ssize_t compat_send(int fd, const void *buf, size_t len, int flags)
         ioctlsocket((SOCKET)fd, FIONBIO, &nb);
     }
 
+    if (len > INT_MAX)
+    {
+        len = INT_MAX;
+    }
+
     int r = send((SOCKET)fd, (const char *)buf, (int)len, flags);
     /* Capture WSAGetLastError() BEFORE the FIONBIO reset below - a
      * successful ioctlsocket clears the per-thread error and would
@@ -173,6 +178,11 @@ ssize_t compat_recv(int fd, void *buf, size_t len, int flags)
     {
         u_long nb = 1;
         ioctlsocket((SOCKET)fd, FIONBIO, &nb);
+    }
+
+    if (len > INT_MAX)
+    {
+        len = INT_MAX;
     }
 
     int r = recv((SOCKET)fd, (char *)buf, (int)len, flags);

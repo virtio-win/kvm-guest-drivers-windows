@@ -38,6 +38,7 @@
 #include <errno.h>
 #include <time.h>
 #include <ctype.h>
+#include <limits.h>  /* INT_MAX */
 #include <signal.h>  /* sig_atomic_t, SIG_DFL, SIG_IGN */
 #include <process.h> /* _getpid() */
 
@@ -343,10 +344,16 @@ static inline void (*compat_signal(int sig, void (*handler)(int)))(int)
 
 static inline long long current_nsec(void)
 {
-    LARGE_INTEGER freq, count;
-    QueryPerformanceFrequency(&freq);
+    static LARGE_INTEGER freq;
+    LARGE_INTEGER count;
+    if (freq.QuadPart == 0)
+    {
+        QueryPerformanceFrequency(&freq);
+    }
     QueryPerformanceCounter(&count);
-    return (long long)(count.QuadPart * NSEC_PER_SEC / freq.QuadPart);
+    long long secs = count.QuadPart / freq.QuadPart;
+    long long rem = count.QuadPart - secs * freq.QuadPart;
+    return secs * NSEC_PER_SEC + (rem * NSEC_PER_SEC) / freq.QuadPart;
 }
 
 /* ------------------------------------------------------------------ */
