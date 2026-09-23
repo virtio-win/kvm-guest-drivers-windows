@@ -709,8 +709,7 @@ _Requires_lock_held_(pSocket->RxLock) NTSTATUS VIOSockPendedRequestGet(IN PSOCKE
 
 //////////////////////////////////////////////////////////////////////////
 _Requires_lock_not_held_(pListenSocket->RxLock) NTSTATUS VIOSockAcceptEnqueuePkt(IN PSOCKET_CONTEXT pListenSocket,
-                                                                                 IN PVIRTIO_VSOCK_HDR pPkt,
-                                                                                 IN WDFFILEOBJECT LoopbackSocket OPTIONAL)
+                                                                                 IN PVIRTIO_VSOCK_HDR pPkt)
 {
     PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pListenSocket);
     NTSTATUS status;
@@ -737,11 +736,6 @@ _Requires_lock_not_held_(pListenSocket->RxLock) NTSTATUS VIOSockAcceptEnqueuePkt
         PVIOSOCK_ACCEPT_ENTRY pAccept = WdfMemoryGetBuffer(Memory, NULL);
 
         pAccept->Memory = Memory;
-        if (LoopbackSocket != WDF_NO_HANDLE)
-        {
-            WdfObjectReference(LoopbackSocket);
-        }
-        pAccept->ConnectSocket = LoopbackSocket;
 
         pAccept->dst_cid = (ULONG32)pPkt->src_cid;
         pAccept->dst_port = pPkt->src_port;
@@ -781,7 +775,6 @@ _Requires_lock_not_held_(pListenSocket->RxLock) VOID VIOSockAcceptRemovePkt(IN P
 
         if (pAccept->dst_cid == pPkt->src_cid && pAccept->dst_port == pPkt->src_port)
         {
-            ASSERT(pAccept->ConnectSocket == WDF_NO_HANDLE);
             RemoveEntryList(pCurrentEntry);
             InterlockedDecrement(&pListenSocket->AcceptPended);
             WdfObjectDelete(pAccept->Memory);
@@ -825,6 +818,11 @@ _Requires_lock_not_held_(pListenSocket->StateLock) NTSTATUS VIOSockAcceptInitSoc
     }
     WdfSpinLockRelease(pListenSocket->StateLock);
 
+    if (VIOSockIsLocalCid(pAcceptSocket->dst_cid, GetDeviceContextFromSocket(pAcceptSocket)->Config.guest_cid))
+    {
+        VIOSockSetFlag(pAcceptSocket, SOCK_LOOPBACK);
+    }
+
     // From CONNECTED on the socket is findable by the Rx/loopback paths, so the
     // peer's first packet can already race this bit - take the lock.
     VIOSockStateSet(pAcceptSocket, VIOSOCK_STATE_CONNECTED);
@@ -838,43 +836,28 @@ _Requires_lock_not_held_(pListenSocket->RxLock) static BOOLEAN VIOSockAcceptDequ
                                                                                     IN PSOCKET_CONTEXT pAcceptSocket)
 {
     BOOLEAN bAccepted = FALSE;
+    PLIST_ENTRY pListEntry;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
 
-    do
+    WdfSpinLockAcquire(pListenSocket->RxLock);
+    pListEntry = IsListEmpty(&pListenSocket->AcceptList) ? NULL : RemoveHeadList(&pListenSocket->AcceptList);
+    WdfSpinLockRelease(pListenSocket->RxLock);
+
+    if (pListEntry)
     {
-        PLIST_ENTRY pListEntry;
+        PVIOSOCK_ACCEPT_ENTRY pAccept = CONTAINING_RECORD(pListEntry, VIOSOCK_ACCEPT_ENTRY, ListEntry);
+        LONG lAcceptPended = InterlockedDecrement(&pListenSocket->AcceptPended);
 
-        WdfSpinLockAcquire(pListenSocket->RxLock);
-        pListEntry = IsListEmpty(&pListenSocket->AcceptList) ? NULL : RemoveHeadList(&pListenSocket->AcceptList);
-        WdfSpinLockRelease(pListenSocket->RxLock);
+        pAcceptSocket->dst_cid = pAccept->dst_cid;
+        pAcceptSocket->dst_port = pAccept->dst_port;
+        pAcceptSocket->peer_buf_alloc = pAccept->peer_buf_alloc;
+        pAcceptSocket->peer_fwd_cnt = pAccept->peer_fwd_cnt;
+        VIOSockAcceptInitSocket(pAcceptSocket, pListenSocket);
 
-        if (pListEntry)
-        {
-            PVIOSOCK_ACCEPT_ENTRY pAccept = CONTAINING_RECORD(pListEntry, VIOSOCK_ACCEPT_ENTRY, ListEntry);
-            LONG lAcceptPended = InterlockedDecrement(&pListenSocket->AcceptPended);
-            WDFFILEOBJECT ConnectSocket = pAccept->ConnectSocket;
-
-            // loopback connect
-            if (ConnectSocket == WDF_NO_HANDLE || VIOSockLoopbackAcceptInitSocket(pAcceptSocket, ConnectSocket))
-            {
-                pAcceptSocket->dst_cid = pAccept->dst_cid;
-                pAcceptSocket->dst_port = pAccept->dst_port;
-                pAcceptSocket->peer_buf_alloc = pAccept->peer_buf_alloc;
-                pAcceptSocket->peer_fwd_cnt = pAccept->peer_fwd_cnt;
-                VIOSockAcceptInitSocket(pAcceptSocket, pListenSocket);
-
-                bAccepted = TRUE;
-            }
-
-            WdfObjectDelete(pAccept->Memory);
-        }
-        else
-        {
-            break;
-        }
-
-    } while (!bAccepted);
+        WdfObjectDelete(pAccept->Memory);
+        bAccepted = TRUE;
+    }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s, accepted: %d\n", __FUNCTION__, bAccepted);
 
@@ -1043,22 +1026,13 @@ _Requires_lock_not_held_(pListenSocket->RxLock) static VOID VIOSockAcceptCleanup
                                                           VIOSOCK_ACCEPT_ENTRY,
                                                           ListEntry);
 
-        if (pAccept->ConnectSocket != WDF_NO_HANDLE)
-        {
-            PSOCKET_CONTEXT pSocket = GetSocketContext(pAccept->ConnectSocket);
-            VIOSockLoopbackSendReset(pSocket);
-            WdfObjectDereference(pAccept->ConnectSocket);
-        }
-        else
-        {
-            VIRTIO_VSOCK_HDR PktHdr = {0};
+        VIRTIO_VSOCK_HDR PktHdr = {0};
 
-            PktHdr.type = pListenSocket->type;
-            PktHdr.dst_port = pListenSocket->src_port;
-            PktHdr.src_cid = pAccept->dst_cid;
-            PktHdr.src_port = pAccept->dst_port;
-            VIOSockSendResetNoSock(pContext, &PktHdr);
-        }
+        PktHdr.type = pListenSocket->type;
+        PktHdr.dst_port = pListenSocket->src_port;
+        PktHdr.src_cid = pAccept->dst_cid;
+        PktHdr.src_port = pAccept->dst_port;
+        VIOSockSendResetNoSock(pContext, &PktHdr);
 
         WdfObjectDelete(pAccept->Memory);
     }
@@ -1140,7 +1114,6 @@ static NTSTATUS VIOSockStreamSocketInit(IN PSOCKET_CONTEXT pSocket)
     pSocket->dst_cid = VMADDR_CID_ANY;
 
     pSocket->State = VIOSOCK_STATE_CLOSE;
-    pSocket->LoopbackSocket = WDF_NO_HANDLE;
 
     pSocket->ConnectTimeout = VSOCK_DEFAULT_CONNECT_TIMEOUT;
     pSocket->BufferMinSize = VSOCK_DEFAULT_BUFFER_MIN_SIZE;
@@ -1288,7 +1261,7 @@ VOID VIOSockDoClose(PSOCKET_CONTEXT pSocket)
 
     if (!VIOSockRxHasData(pSocket))
     {
-        VIOSockStateSet(pSocket, VIOSOCK_STATE_CLOSING);
+        VIOSockStateSetLocked(pSocket, VIOSOCK_STATE_CLOSING);
     }
 
     KeSetEvent(&pSocket->CloseEvent, IO_NO_INCREMENT, FALSE);
@@ -1298,7 +1271,6 @@ VOID VIOSockCleanup(IN WDFFILEOBJECT FileObject)
 {
     PSOCKET_CONTEXT pSocket = GetSocketContext(FileObject);
     WDFREQUEST Request;
-    WDFFILEOBJECT LoopbackSocket;
     VIOSOCK_STATE PrevState;
 
     PAGED_CODE();
@@ -1381,12 +1353,7 @@ VOID VIOSockCleanup(IN WDFFILEOBJECT FileObject)
         }
     }
 
-    // Under StateLock: pairs with VIOSockLoopbackAcceptInitSocket, which installs
-    // the loopback cross-links only while the state is still CONNECTING under the
-    // same lock - after this transition no new link can appear.
-    WdfSpinLockAcquire(pSocket->StateLock);
-    PrevState = VIOSockStateSet(pSocket, VIOSOCK_STATE_CLOSE);
-    WdfSpinLockRelease(pSocket->StateLock);
+    PrevState = VIOSockStateSetLocked(pSocket, VIOSOCK_STATE_CLOSE);
 
     VIOSockPendedRequestGetLocked(pSocket, &Request);
     if (Request != WDF_NO_HANDLE)
@@ -1408,22 +1375,11 @@ VOID VIOSockCleanup(IN WDFFILEOBJECT FileObject)
         VIOSockReadCleanupCb(pSocket);
     }
 
-    WdfSpinLockAcquire(pSocket->StateLock);
-    LoopbackSocket = pSocket->LoopbackSocket;
-    pSocket->LoopbackSocket = WDF_NO_HANDLE;
-    WdfSpinLockRelease(pSocket->StateLock);
-
-    if (LoopbackSocket != WDF_NO_HANDLE)
+    // Loopback CONNECTING close: emit RST via the generic path so the pending
+    // accept entry on the listener gets cleaned up (VIOSockRxPktHandleListen).
+    if (IsLoopbackSocket(pSocket) && PrevState == VIOSOCK_STATE_CONNECTING)
     {
-        if (PrevState == VIOSOCK_STATE_CONNECTING)
-        {
-            // The accept match linked us while this close was in flight: the
-            // accepted socket went CONNECTED, but our side will never process
-            // its OP_RESPONSE. Emulate the RST the wire peer would deliver so
-            // the accepted socket doesn't stay half-open.
-            VIOSockLoopbackSendReset(GetSocketContext(LoopbackSocket));
-        }
-        WdfObjectDereference(LoopbackSocket);
+        VIOSockSendReset(pSocket, FALSE);
     }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "Socket %d closed\n", pSocket->SocketId);
@@ -1456,13 +1412,6 @@ __inline BOOLEAN VIOSockIsGuestAddrValid(IN PSOCKADDR_VM pAddr)
 {
     return (pAddr->svm_family == AF_VSOCK) && (pAddr->svm_cid != VMADDR_CID_HYPERVISOR) &&
            (pAddr->svm_cid != VMADDR_CID_LOCAL) && (pAddr->svm_cid != VMADDR_CID_HOST);
-}
-
-// Both the guest's own CID and VMADDR_CID_LOCAL address the guest itself
-// (loopback), mirroring Linux vsock_use_local_transport().
-__inline BOOLEAN VIOSockIsLocalCid(IN ULONG32 ulCid, IN ULONG32 ulGuestCid)
-{
-    return ulCid == ulGuestCid || ulCid == VMADDR_CID_LOCAL;
 }
 
 __inline BOOLEAN VIOSockIsHostAddrValid(IN PSOCKADDR_VM pAddr, IN ULONG32 ulSrcCid)
@@ -1505,7 +1454,8 @@ static NTSTATUS VIOSockBind(IN WDFREQUEST Request)
         return STATUS_INVALID_ADDRESS_COMPONENT;
     }
 
-    if (pAddr->svm_cid != (ULONG32)pContext->Config.guest_cid && pAddr->svm_cid != VMADDR_CID_ANY)
+    if (pAddr->svm_cid != (ULONG32)pContext->Config.guest_cid && pAddr->svm_cid != VMADDR_CID_ANY &&
+        pAddr->svm_cid != VMADDR_CID_LOCAL)
     {
         TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Invalid cid: %u\n", pAddr->svm_cid);
         return STATUS_INVALID_ADDRESS_COMPONENT;
@@ -1601,7 +1551,9 @@ static NTSTATUS VIOSockConnect(IN WDFREQUEST Request)
 
     VIOSockEventClearBitLocked(pSocket, FD_CONNECT_BIT);
 
-    pSocket->dst_cid = pAddr->svm_cid;
+    // Local dst stored as VMADDR_CID_LOCAL: survives Config.guest_cid mutation on migration.
+    pSocket->dst_cid = VIOSockIsLocalCid(pAddr->svm_cid, pContext->Config.guest_cid) ? VMADDR_CID_LOCAL
+                                                                                     : pAddr->svm_cid;
     pSocket->dst_port = pAddr->svm_port;
 
     // Mark this as an outbound socket: FD_CONNECT applies only to a socket that
@@ -1624,7 +1576,7 @@ static NTSTATUS VIOSockConnect(IN WDFREQUEST Request)
         }
     }
 
-    if (VIOSockIsLocalCid(pSocket->dst_cid, (ULONG32)pContext->Config.guest_cid))
+    if (VIOSockIsLocalCid(pSocket->dst_cid, pContext->Config.guest_cid))
     {
         TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "Connect to local socket (loopback)\n");
         VIOSockSetFlag(pSocket, SOCK_LOOPBACK);
@@ -2243,7 +2195,7 @@ static NTSTATUS VIOSockGetSockName(IN WDFREQUEST Request, OUT size_t *pLength)
     {
         RtlZeroBytes(pAddr, sizeof(*pAddr));
         pAddr->svm_family = AF_VSOCK;
-        pAddr->svm_cid = (ULONG32)pContext->Config.guest_cid;
+        pAddr->svm_cid = IsLoopbackSocket(pSocket) ? VMADDR_CID_LOCAL : (ULONG32)pContext->Config.guest_cid;
         pAddr->svm_port = pSocket->src_port;
         *pLength = sizeof(*pAddr);
         status = STATUS_SUCCESS;
