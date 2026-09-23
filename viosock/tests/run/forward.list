@@ -51,7 +51,7 @@
 # 29 posix  SOCK_STREAM transport release use-after-free    — disabled: run_client/run_server = NULL (Linux-only: /proc/kallsyms + multi-transport)
 30   posix  SOCK_STREAM retry failed connect()
 31   posix  SOCK_STREAM SO_LINGER null-ptr-deref
-# 32 posix  SOCK_STREAM SO_LINGER close() on unread         — disabled: "Unexpected lingering" — close() with SO_LINGER blocks past the linger timeout even with SIOCOUTQ drained to 0 (same SO_LINGER close-semantics gap as the reverse direction); the former blockers (SIOCOUTQ compat gap, loopback Tx hang) are fixed
+32   posix  SOCK_STREAM SO_LINGER close() on unread
 # 33 posix  SOCK_STREAM transport change null-ptr-deref, lockdep warn — disabled: run_client/run_server = NULL (Linux-only: pthread + kill(SIGUSR1))
 # 34 posix  SOCK_STREAM ioctl(SIOCINQ) functionality        — disabled: fails on vhi-8.1 HEAD 3ec8ad6a: "Test skipped, SIOCINQ not supported" (compat.h does not route Linux SIOCINQ 0x541B to SIO_VSOCK_INQ)
 # 35 posix  SOCK_SEQPACKET ioctl(SIOCINQ) functionality     — disabled: run_client/run_server = NULL (SEQPACKET not implemented in driver)
