@@ -9,9 +9,9 @@ Two flows are supported from the same set of scripts:
 * **CI drop** — start from a libvirt domain name + an artifact package
   and let `prepare-ci.sh` build everything (Linux `vsock_test`, guest
   cert/testsigning, driver install, test binaries) end-to-end.
-* **Dev bed** — the driver/tests are already deployed by the
-  `viosock-deploy` skill; you just want to re-run the sweeps. Point
-  `run-all.sh` (or an individual `run-*.sh`) at a config file and go.
+* **Dev bed** — the driver and `vsock_test.exe` are already on the
+  guest; you just want to re-run the sweeps. Point `run-all.sh` (or an
+  individual `run-*.sh`) at a config file and go.
 
 ## Layout
 
@@ -24,21 +24,20 @@ Two flows are supported from the same set of scripts:
 | `install-driver.sh`| `scp` the package to `C:\viosock-pkg`, run `pnputil /add-driver /install` (tolerates "up-to-date"). |
 | `install-tests.sh` | `scp` `vsock_test.exe` (+ `vsock_test_x86.exe` if present) into `guest_bin_dir` (default `C:`). |
 | `prepare-ci.sh`    | Orchestrator: `resolve-guest → prepare-host → prepare-guest → install-driver → install-tests`. |
-| `setup-env.sh`     | Inter-run cleanup on the guest (kill stray `vsock_test.exe`, wipe stale schtasks, verify the viosock PnP device). |
+| `setup-env.sh`     | Inter-run cleanup on the guest (kill stray `vsock_test.exe`, verify the viosock PnP device). |
 | `run-forward.sh`   | Forward sweep: Linux = vsock acceptor, Windows = connector. |
 | `run-reverse.sh`   | Reverse sweep: Windows = vsock acceptor, Linux = connector. |
 | `run-loopback.sh`  | Loopback sweep: both roles on the Windows guest. |
 | `run-all.sh`       | Orchestrates `setup-env → forward → reverse → loopback`; aggregates exit code, optionally emits JUnit per suite. |
 | `forward.list` / `reverse.list` / `loopback.list` | Test IDs to run per direction. |
 | `prepare-perf-host.sh` | Build (dev) or install (CI, via `--linux-bin`) the Linux `vsock_perf` at `/opt/vsock-test/vsock_perf`. Reuses the kernel sources `prepare-host.sh` already extracted. Idempotent. |
-| `install-perf.sh`  | scp `vsock_perf.exe` (+ x86 sibling) into `guest_bin_dir` on the guest. Meant to be re-run after every Windows-side rebuild. |
+| `install-perf.sh`  | scp `vsock_perf.exe` into `guest_bin_dir` on the guest. Meant to be re-run after every Windows-side rebuild. |
 | `prepare-perf.sh`  | Thin orchestrator: calls `prepare-perf-host.sh` then `install-perf.sh`. One-shot dev/CI first-time setup. |
 | `run-perf.sh`      | Automated `vsock_perf` sweep: forward + reverse × default and large buffer. Prints an RX/TX-Gbps summary. |
 | `perf-one.sh`      | One-shot manual `vsock_perf` run for interactive tuning — pick direction + any perf knobs on the CLI. |
+| `run-stress.sh`    | Bidirectional multi-connection stress on `vsock_perf`. |
+| `run-migration.sh` | Driver stability across `virsh save`/`virsh restore` under `run-stress.sh` load — verifies the transport-reset path. |
 
-Removed (historical): `guest-exec.sh` (virsh-agent fallback), `update-driver.sh`.
-All guest access now goes through the `_guest_ssh` / `_guest_scp_*` /
-`_guest_ps` helpers in `_lib.sh` — SSH-only, no virtio-serial fallback.
 
 ## Config file
 
@@ -54,10 +53,11 @@ around `=` is ignored. Fields consumed by the runners:
 | `guest_user`    | SSH login (default: `Administrator`).                              |
 | `ssh_key`       | Path to the SSH private key; `~` is expanded.                      |
 | `guest_bin_dir` | Where `vsock_test.exe` lives on the guest (default: `C:`).         |
+| `linux_ver`     | Kernel version `prepare-host.sh` builds `vsock_test` from (default: `6.19.8`). See *Kernel version pin* below. |
+| `max_test_id`   | Cap `test_cases[]` id fed to forward/reverse sweeps. See *Kernel version pin* below. |
 
 `resolve-guest.sh` produces this file from a libvirt domain name and
-an SSH key path. In dev flows you can also write it by hand — see
-`../../dev008.config` for an example.
+an SSH key path. In dev flows you can also write it by hand.
 
 ## Config discovery
 
@@ -89,6 +89,58 @@ Windows-side callbacks are wired to `NULL`; `run_tests()` prints
 `not implemented on this platform` and exits non-zero when it hits one —
 which is exactly the "failure" the list is supposed to filter out.
 
+## Kernel version pin
+
+The Windows-side `vsock_test.exe` is a mirror of a specific upstream
+`tools/testing/vsock/vsock_test.c` release. We pin it to **6.19.x**
+(currently `6.19.8`) rather than an older release because the
+`test_cases[]` table has grown substantially and the extra coverage is
+worth having available:
+
+| Kernel | `test_cases[]` count | New vs previous |
+|--------|----------------------|-----------------|
+| 6.12   | 26                   | baseline        |
+| 6.19   | 36                   | +10 (ids 27..36) |
+
+The 10 additions cover `leak accept queue`, `MSG_ZEROCOPY` leak /
+completion-skb regressions, `transport release use-after-free`,
+`retry failed connect()`, `SO_LINGER` NPD + `close()` on unread,
+`transport change` NPD/lockdep warn, and `SIOCINQ` on both
+`SOCK_STREAM` and `SOCK_SEQPACKET`.
+
+IDs are always appended in upstream, so 1..26 stay stable across
+versions — a 6.19-based guest binary is fully wire-compatible with a
+6.12 host binary for the shared range. Only ids > 26 are unknown to a
+6.12 host, and a `--pick` against them fails immediately on the host
+side.
+
+### Aligning with an older host kernel
+
+When the Linux host runs an older kernel than the guest binary is
+mirrored from (e.g. release ships kernel 6.12), cap the sweep to the
+last id the host binary knows. Two independent knobs, both set once in
+the config file:
+
+```ini
+# viosock/<host>.config
+linux_ver    = 6.12
+max_test_id  = 26
+```
+
+* `linux_ver` — what `prepare-host.sh` builds the Linux-side
+  `vsock_test` from. Idempotency stamp under `<out-dir>/.linux-ver`
+  triggers a rebuild when the version changes. Also settable via the
+  `--linux-ver` CLI flag.
+* `max_test_id` — cap on the ids forward/reverse sweeps send to the
+  host. Rows in `*.list` with id > cap are skipped; the guest-only
+  loopback sweep ignores the cap (both bins are always the same).
+  Fallback order for a run: `--max-id <n>` CLI > `MAX_TEST_ID` env >
+  `max_test_id` from the config file > unlimited.
+
+Loopback is unaffected: both sides run our Windows-side binary, so the
+full `test_cases[]` table is always available regardless of the host
+kernel.
+
 ## Variants (id ↔ Windows command)
 
 Every list row carries a `variant` column. The `<id>` matches upstream
@@ -98,8 +150,8 @@ which **Windows-side** invocation to run:
 | variant       | Guest command                                          | Notes                                                                 |
 |---------------|--------------------------------------------------------|-----------------------------------------------------------------------|
 | `posix`       | `<guest_bin_dir>\vsock_test.exe`                       | The current Linux-source port through `compat.h` (Winsock2 shim).     |
-| `wsa`         | `<guest_bin_dir>\vsock_test.exe --variant wsa`         | (Future.) A native Winsock port with no `compat.h`.                   |
-| `overlapped`  | `<guest_bin_dir>\vsock_test.exe --variant overlapped`  | (Example.) Same exe, overlapped IO mode.                              |
+| `wsa`         | `<guest_bin_dir>\vsock_test.exe --variant wsa`         | A native Winsock port with no `compat.h`.                   |
+| `overlapped`  | `<guest_bin_dir>\vsock_test.exe --variant overlapped`  | Same exe, overlapped IO mode.                              |
 
 Central mapping: `variant_to_cmd()` in `_lib.sh` — a new variant is one
 `case`-branch. `variant_to_image()` returns the exe basename so
@@ -138,7 +190,6 @@ the list and drives one (or several) IDs directly:
 
 ```sh
 ./run-reverse.sh --pick 4                # single test
-./run-reverse.sh --pick 4,5,10           # comma-separated
 ./run-reverse.sh --pick 4 --pick 10      # repeatable
 ./run-reverse.sh --pick 4 --variant wsa  # variant defaults to posix
 ```
@@ -149,22 +200,41 @@ without editing the list.
 
 ## Windows-server launch mode
 
-`run-reverse.sh` and `run-loopback.sh` need the Windows-side server to
-outlive the SSH channel that started it. Two modes are supported:
+`run-reverse.sh` and `run-loopback.sh` launch the Windows-side server
+inside a background SSH session as the configured `guest_user`. The
+server process lives in sshd's per-session job object; killing the
+local SSH PID after the client finishes closes that job on the guest
+and tears the server down — a clean Windows-native shutdown, no
+scheduled tasks or SYSTEM-context tricks.
 
-* **Default (bg-ssh, Administrator).** The server is launched via a
-  background SSH session as the configured `guest_user`. Killing the
-  local SSH PID after the client finishes closes sshd's job object on
-  the guest — a clean Windows-native tear-down.
-* **`--as-system`.** The server is scheduled via `schtasks /ru SYSTEM`
-  (Session 0). Useful when an Administrator-context bug prevents the
-  server from binding vsock (tests 4/31 currently exhibit an
-  `accept: Unknown error` flake under bg-ssh that clears under SYSTEM;
-  root-cause TBD).
+`setup-env.sh` clears any stray `vsock_test.exe` before every sweep so
+a hung server from a previous run doesn't block the port bind.
 
-Whichever mode is used, `setup-env.sh` clears stale
-`vsock_rev` / `vsock_loopback` scheduled tasks and stray `vsock_test.exe`
-processes before every sweep.
+## Current inclusion stance
+
+Every id that has a runnable body on Windows is currently enabled in
+all three lists, and every enabled id runs all three variants
+(`posix` / `wsa` / `overlapped`). The variant selects a different
+sock_ops table — `posix` (compat.h CRT wrappers), `wsa`
+(`WSASend`/`WSARecv`+2-buf split, `WSAConnect`, `WSAAccept`),
+`overlapped` (WSA-family with overlapped completion, send via APC,
+recv via event) — so each variant reaches a distinct LSP + driver
+path, and running all three per id is real coverage, not duplication.
+`reverse.list` only holds fewer ids than forward/loopback because
+some tests have no meaningful server-side body (they exit early or
+NULL out `run_server`); ids that DO have a server body are enabled
+there too, with the full three-variant matrix.
+
+This is deliberately generous for now: the goal is to expose whatever
+fails end-to-end and triage each failure specifically. When a
+particular `(id, variant)` fails for a reason we understand and don't
+plan to fix in the near term (`variant`-specific gap, Linux-only
+assumption, upstream test that doesn't apply), comment that ONE line
+with a `disabled: <reason>` note — do not disable the whole id.
+Longer term this list will be trimmed once patterns emerge (variant
+that offers no unique signal for a given id, tests obsoleted by
+better coverage elsewhere); until that review pass, the sweep runs
+everything that can run.
 
 ### Server-ready grace period (`SERVER_GRACE_SECS`)
 
@@ -254,15 +324,14 @@ Useful `prepare-ci.sh` flags:
 | `--skip-tests`            | Skip `install-tests.sh`. |
 | `--linux-ver <ver>`       | Kernel version to build `vsock_test` from (default hard-coded in `prepare-host.sh`, currently 6.19.8). |
 
-### Dev bed (`viosock-deploy` already ran)
+### Dev bed (driver already deployed)
 
 If the driver and `vsock_test.exe` are already on the guest, skip
 `prepare-ci.sh` entirely and drive the sweeps against your dev config:
 
 ```sh
-./run-all.sh --config viosock/dev008.config
-./run-all.sh --config viosock/dev008.config --only forward,reverse
-./run-all.sh --config viosock/dev008.config --as-system
+./run-all.sh --config viosock/dev.config
+./run-all.sh --config viosock/dev.config --only forward,reverse
 ./run-forward.sh --pick 21
 ```
 
@@ -385,7 +454,7 @@ two buffer sizes:
 ```sh
 ./run-perf.sh                      # both directions, default+large buffer
 ./run-perf.sh --only forward       # forward only
-./run-perf.sh --only reverse --as-system   # reverse under schtasks/SYSTEM
+./run-perf.sh --only reverse
 ```
 
 Everything is env-tunable (defaults shown in brackets):
@@ -432,3 +501,92 @@ overlapped`. Only `posix` works today; `wsa` and `overlapped` are
 placeholders for a future native-Winsock port that will pick a
 different binary or extra flags (mirrors the same knob in
 `variant_to_cmd` for `vsock_test`).
+
+## Stress harness
+
+`run-stress.sh` fans out many concurrent `vsock_perf` pairs in both
+directions at once — each on its own vsock port — to exercise the
+per-socket state machine and the acceptor pending queue in parallel.
+Requires `prepare-perf.sh`. Guest-side receivers and senders each
+fan out inside one PowerShell script, so a run opens two SSH sessions
+regardless of the connection count.
+
+Pass = every child returns exit 0 and the guest driver is still
+Running. Aggregate RX/TX Gbps is printed for reference; per-connection
+best-case belongs in `run-perf.sh`.
+
+`--loopback` (or `STRESS_LOOPBACK=1`) points both ends at
+`VMADDR_CID_LOCAL` on the guest — the host does not participate and
+the driver's loopback path takes the whole load.
+
+```sh
+./run-stress.sh --config <cfg>                    # host <-> guest, 2*64 conns
+./run-stress.sh --config <cfg> --connections 32
+./run-stress.sh --config <cfg> --only forward     # guest is sender only
+./run-stress.sh --config <cfg> --loopback         # guest <-> guest via CID_LOCAL
+```
+
+Env-tunables (defaults in brackets):
+
+| Var                 | Default     | Meaning                                                |
+|---------------------|-------------|--------------------------------------------------------|
+| `STRESS_N`          | `64`        | Connections per direction (2*N total).                 |
+| `STRESS_BYTES`      | `1G`        | Bytes per connection.                                  |
+| `STRESS_BUF`        | `64K`       | Buffer size (both sides).                              |
+| `STRESS_LOOPBACK`   | `0`         | `1` = same as `--loopback`.                            |
+| `FWD_PORT_BASE`     | `20000`     | Base port for Linux receivers (forward).               |
+| `REV_PORT_BASE`     | `30000`     | Base port for Windows receivers (reverse).             |
+| `SERVER_GRACE_SECS` | `3`         | Sleep between receiver launches and sender fan-out.    |
+| `GUEST_STRESS_DIR`  | `C:\stress` | Guest-side scratch dir for per-connection logs.        |
+
+## Migration harness
+
+`run-migration.sh` checks the driver survives a `virsh save` +
+`virsh restore` cycle while vsock traffic is in flight. On restore
+QEMU replays `VIRTIO_VSOCK_EVENT_TRANSPORT_RESET`, exactly like the
+destination side of a live migration — so this exercises the driver's
+transport-reset path with parked recv/poll and per-socket teardown.
+
+By default the restore also assigns the guest a **different CID**
+(`guest_cid+1`, skipping the reserved 0..3): the harness dumps the
+domain XML, sed-swaps `<cid address='N'/>`, and passes the edited XML
+to `virsh restore --xml`. That mirrors the cross-host live-migration
+shape where a colliding CID is remapped on the destination. Set
+`MIGR_CHANGE_CID=0` to keep the current CID, or `MIGR_NEW_CID=<n>` to
+pick one explicitly.
+
+Runs on the libvirt host — needs `virsh` and the local Linux
+`vsock_perf`. Uses `run-stress.sh` as the load generator, so
+`prepare-perf.sh` is a prerequisite.
+
+Pass criterion (stability only):
+
+* `save` and `restore` both succeeded,
+* the guest is reachable again after restore,
+* the guest driver is still Running,
+* a fresh post-restore guest→host `vsock_perf` transfer completes,
+* a fresh post-restore host→guest transfer to the new CID completes
+  (this is the check that proves the guest driver actually adopted the
+  CID we asked for on restore).
+
+The load's own transfers are expected to be reset by the save/restore
+and are **not** part of the pass criterion — they are only there to
+put real in-flight traffic through the reset path.
+
+```sh
+./run-migration.sh --config <cfg>
+./run-migration.sh --config <cfg> --connections 32   # heavier reset
+./run-migration.sh --config <cfg> --ramp 20          # longer warm-up
+MIGR_CHANGE_CID=0 ./run-migration.sh --config <cfg>  # keep the CID
+MIGR_NEW_CID=42   ./run-migration.sh --config <cfg>  # pick the new CID
+```
+
+Env-tunables (defaults in brackets):
+
+| Var               | Default | Meaning                                                    |
+|-------------------|---------|------------------------------------------------------------|
+| `MIGR_N`          | `8`     | Connections per direction for the load.                    |
+| `MIGR_BYTES`      | `4G`    | Bytes per connection (large enough to still be in flight). |
+| `MIGR_RAMP_SECS`  | `12`    | Seconds of transfer before the save is injected.           |
+| `MIGR_CHANGE_CID` | `1`     | `0` = restore with the same CID.                           |
+| `MIGR_NEW_CID`    | unset   | Explicit new CID; empty = `guest_cid+1` (skipping 0..3).   |

@@ -2,20 +2,14 @@
 # Reverse vsock_test sweep (Windows = vsock acceptor / --mode=server,
 # Linux  = vsock connector / --mode=client).
 #
-# The Windows server has to survive the SSH session that starts it,
-# so we launch it via `schtasks /ru SYSTEM /sc once` — a scheduled task
-# that runs detached in the SYSTEM context and keeps running after our
-# SSH channel closes.
+# The Windows server is launched over a background SSH session and stays
+# in sshd's job object as the configured guest user; killing the local
+# ssh PID after the client finishes tears the server down cleanly.
 
 set -uo pipefail
 _here=$(cd "$(dirname "$0")" && pwd)
 # shellcheck source=./_lib.sh
 . "$_here/_lib.sh"
-
-# Guest-side paths used only by the --as-system code path.
-GUEST_SRV_BAT='C:\srv_rev.bat'
-GUEST_SRV_LOG_FMT='C:\srv_rev_%s_%s.log'   # printf format: N, V
-SCHTASKS_NAME='vsock_rev'
 
 # Grace period between "TCP control port listening on guest" (detected by
 # wait_guest_port) and the client connect: the Windows-side vsock listen
@@ -27,7 +21,7 @@ SERVER_GRACE_SECS=${SERVER_GRACE_SECS:-1}
 CFG=""; LIST="$_here/reverse.list"; PER_TEST_TIMEOUT=40
 CONTROL_PORT=12345
 LOCAL_BIN="/ssd/vsock_test"
-LOGDIR=""; VARIANT=""; BITS="x64"; JUNIT=""; PICK_IDS=(); AS_SYSTEM=0
+LOGDIR=""; VARIANT=""; BITS="x64"; JUNIT=""; PICK_IDS=(); MAX_ID=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -44,19 +38,17 @@ while [ $# -gt 0 ]; do
             IFS=',' read -ra _picks <<< "$2"
             for p in "${_picks[@]}"; do PICK_IDS+=("$p"); done
             shift 2 ;;
-        --as-system) AS_SYSTEM=1; shift ;;
+        --max-id) MAX_ID="$2"; shift 2 ;;
         -h|--help)
             cat >&2 <<EOF
 Usage: $0 [--config <cfg>] [--list <path>] [--timeout <s>] [--port <p>]
           [--logdir <dir>] [--variant <name>]
           [--bits x64|x86 | --x86] [--junit <path>]
-          [--pick <id[,id,...]>] [--as-system]
+          [--pick <id[,id,...]>] [--max-id <n>]
 
-  --as-system  Launch the Windows-side server via schtasks /ru SYSTEM
-               (Session 0) instead of a background ssh session as the
-               configured guest user.  Sidesteps some Administrator-context
-               quirks (e.g. flaky vsock accept()), at the cost of running
-               tests under a different security context.
+  --max-id <n> Skip every row whose id > n. Use when the Linux-side host
+               vsock_test is older than our 6.19-based guest binary: cap n
+               to the last id that stock host binary knows (26 for v6.12).
 EOF
             exit 0 ;;
         *) die "unknown arg: $1" ;;
@@ -88,6 +80,20 @@ else
     [ "${#ROWS[@]}" -gt 0 ] || die "no enabled tests in $LIST${VARIANT:+ (variant=$VARIANT)}"
 fi
 
+# --max-id fallback: CLI > MAX_TEST_ID env > config 'max_test_id' > unlimited.
+[ -z "$MAX_ID" ] && MAX_ID=${MAX_TEST_ID:-}
+[ -z "$MAX_ID" ] && MAX_ID=$(config_read "$CFG" max_test_id)
+if [ -n "$MAX_ID" ]; then
+    [[ "$MAX_ID" =~ ^[0-9]+$ ]] || die "--max-id must be a positive integer, got: $MAX_ID"
+    FILTERED=()
+    for row in "${ROWS[@]}"; do
+        IFS=$'\t' read -r _id _ <<< "$row"
+        [ "$_id" -le "$MAX_ID" ] && FILTERED+=("$row")
+    done
+    ROWS=("${FILTERED[@]}")
+    [ "${#ROWS[@]}" -gt 0 ] || die "no rows with id <= $MAX_ID"
+fi
+
 info "== reverse sweep: ${#ROWS[@]} test(s), bits=$BITS, timeout ${PER_TEST_TIMEOUT}s, logs in $LOGDIR =="
 
 [ -n "$JUNIT" ] && junit_begin "$JUNIT" "reverse"
@@ -95,23 +101,11 @@ info "== reverse sweep: ${#ROWS[@]} test(s), bits=$BITS, timeout ${PER_TEST_TIME
 _cleanup() {
     local kill=""
     while IFS= read -r img; do kill+="taskkill /F /IM $img 2>nul & "; done < <(variant_all_images)
-    if [ "$AS_SYSTEM" -eq 1 ]; then
-        _guest_ssh "$kill schtasks /end /tn $SCHTASKS_NAME /f 2>nul & schtasks /delete /tn $SCHTASKS_NAME /f 2>nul & exit 0" >/dev/null 2>&1 || true
-    else
-        _guest_ssh "$kill exit 0" >/dev/null 2>&1 || true
-    fi
+    _guest_ssh "$kill exit 0" >/dev/null 2>&1 || true
     pkill -f "$LOCAL_BIN" 2>/dev/null || true
 }
 trap _cleanup EXIT
 _cleanup
-
-# Fetch the server log written under C:\ on the guest into <local-path>,
-# then delete the guest-side copy. Silent on failure.
-_pull_guest_log() {
-    local remote="$1" local_path="$2"
-    _guest_scp_from "$remote" "$local_path" 2>/dev/null || true
-    _guest_ssh "del $remote 2>nul & exit 0" >/dev/null 2>&1 || true
-}
 
 PASS=0; FAIL=0; HUNG=0
 FAILED_ENTRIES=()
@@ -126,27 +120,18 @@ for row in "${ROWS[@]}"; do
     _cleanup
 
     srv_log="$LOGDIR/srv_${N}_${V}.log"
-    if [ "$AS_SYSTEM" -eq 1 ]; then
-        srv_log_guest=$(printf "$GUEST_SRV_LOG_FMT" "$N" "$V")
-        log "[$tag] server: schtasks $SCHTASKS_NAME ($guest_cmd --pick $N as SYSTEM)"
-        _guest_ssh "(echo @echo off & echo $guest_cmd --mode=server --control-port=$CONTROL_PORT --peer-cid=$host_cid --pick $N ^> $srv_log_guest 2^>^&1) > $GUEST_SRV_BAT"
-        _guest_ssh "schtasks /create /tn $SCHTASKS_NAME /tr $GUEST_SRV_BAT /sc once /st 00:00 /ru SYSTEM /f" >/dev/null 2>&1
-        _guest_ssh "schtasks /run /tn $SCHTASKS_NAME" >/dev/null 2>&1
-        srv_ssh_pid=""
-    else
-        log "[$tag] server: ssh $_guest_ssh_host $guest_cmd --mode=server --pick $N"
-        # Keep the ssh session alive in the background so the guest-side
-        # vsock_test.exe stays in sshd's job object as Administrator (not
-        # SYSTEM).  Killing the ssh PID after the client finishes closes
-        # the job on the guest and terminates the server.
-        ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" \
-            "$guest_cmd --mode=server --control-port=$CONTROL_PORT --peer-cid=$host_cid --pick $N" \
-            >"$srv_log" 2>&1 &
-        srv_ssh_pid=$!
-    fi
+    log "[$tag] server: ssh $_guest_ssh_host $guest_cmd --mode=server --pick $N"
+    # Keep the ssh session alive in the background so the guest-side
+    # vsock_test.exe stays in sshd's job object as Administrator.  Killing
+    # the ssh PID after the client finishes closes the job on the guest
+    # and terminates the server.
+    ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" \
+        "$guest_cmd --mode=server --control-port=$CONTROL_PORT --peer-cid=$host_cid --pick $N" \
+        >"$srv_log" 2>&1 &
+    srv_ssh_pid=$!
     log "[$tag] waiting for server to bind :$CONTROL_PORT on guest..."
     if ! wait_guest_port "$CONTROL_PORT" 20; then
-        [ -n "$srv_ssh_pid" ] && { kill "$srv_ssh_pid" 2>/dev/null; wait "$srv_ssh_pid" 2>/dev/null || true; }
+        kill "$srv_ssh_pid" 2>/dev/null; wait "$srv_ssh_pid" 2>/dev/null || true
         LINE="$N -  (server never bound port $CONTROL_PORT)"
         printf '[%s] %s\n' "$tag" "$LINE"
         FAIL=$((FAIL+1)); FAILED_ENTRIES+=("$tag")
@@ -170,16 +155,9 @@ for row in "${ROWS[@]}"; do
     printf '%s\n' "$CLIENT" > "$cli_log"
     log "[$tag] client returned rc=$RC in ${elapsed}s"
 
-    # Tear down the server.
-    if [ -n "$srv_ssh_pid" ]; then
-        # bg-ssh path: killing local ssh closes sshd's job object → server dies
-        kill "$srv_ssh_pid" 2>/dev/null || true
-        wait "$srv_ssh_pid" 2>/dev/null || true
-    else
-        # --as-system path: pull the guest-side log, then clear schtasks
-        _pull_guest_log "$srv_log_guest" "$srv_log"
-        _guest_ssh "schtasks /end /tn $SCHTASKS_NAME /f 2>nul & schtasks /delete /tn $SCHTASKS_NAME /f 2>nul & exit 0" >/dev/null 2>&1
-    fi
+    # Tear down the server: killing local ssh closes sshd's job object → server dies.
+    kill "$srv_ssh_pid" 2>/dev/null || true
+    wait "$srv_ssh_pid" 2>/dev/null || true
     # Strip Windows CRLF from srv_log (server output came through Windows).
     [ -f "$srv_log" ] && { tr -d '\r' < "$srv_log" > "$srv_log.tmp" && mv "$srv_log.tmp" "$srv_log"; }
 
