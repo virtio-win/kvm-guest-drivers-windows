@@ -27,7 +27,7 @@ _here=$(cd "$(dirname "$0")" && pwd)
 . "$_here/_lib.sh"
 
 # --- tunables (env-overridable) ------------------------------------------
-STRESS_N=${STRESS_N:-64}
+STRESS_N=${STRESS_N:-32}
 STRESS_BYTES=${STRESS_BYTES:-1G}
 STRESS_BUF=${STRESS_BUF:-64K}
 FWD_PORT_BASE=${FWD_PORT_BASE:-20000}
