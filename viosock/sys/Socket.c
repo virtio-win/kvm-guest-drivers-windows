@@ -1615,6 +1615,8 @@ _Requires_lock_not_held_(pSocket->StateLock) BOOLEAN VIOSockShutdownFromPeer(PSO
     BOOLEAN bRes;
     ULONG32 uDrain;
 
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, uFlags: 0x%x\n", __FUNCTION__, uFlags);
+
     WdfSpinLockAcquire(pSocket->StateLock);
     uDrain = ~pSocket->PeerShutdown & uFlags;
     pSocket->PeerShutdown |= uFlags;
