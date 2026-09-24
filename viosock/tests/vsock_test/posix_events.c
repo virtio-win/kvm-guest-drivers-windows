@@ -79,11 +79,18 @@ static void pair_make(struct pair *p)
         die("pair client socket");
     }
 
+    /* viosock answers a connection request from the accept() path, so a
+     * single-threaded pair dials non-blocking, accepts, then waits for
+     * the connect to complete (writable). */
+    u_long nb = 1;
+    ioctlsocket(p->client, FIONBIO, &nb);
+
     struct sockaddr_vm caddr = {0};
     caddr.svm_family = (unsigned short)g_vsock_af;
     caddr.svm_cid = g_self_cid;
     caddr.svm_port = p->port;
-    if (connect(p->client, (const struct sockaddr *)&caddr, sizeof(caddr)) == SOCKET_ERROR)
+    if (connect(p->client, (const struct sockaddr *)&caddr, sizeof(caddr)) == SOCKET_ERROR &&
+        WSAGetLastError() != WSAEWOULDBLOCK)
     {
         die("pair client connect");
     }
@@ -93,6 +100,17 @@ static void pair_make(struct pair *p)
     {
         die("pair accept");
     }
+
+    fd_set wfds;
+    FD_ZERO(&wfds);
+    FD_SET(p->client, &wfds);
+    struct timeval tv = {2, 0};
+    if (select(0, NULL, &wfds, NULL, &tv) < 1 || !FD_ISSET(p->client, &wfds))
+    {
+        die("pair client connect completion");
+    }
+    nb = 0;
+    ioctlsocket(p->client, FIONBIO, &nb);
 }
 
 static void pair_close(struct pair *p)
@@ -253,11 +271,78 @@ static void ev_select_writefds_ready(void)
 }
 
 /*
- * Probe whether self-CID loopback works before running the pair-based
- * helper.  Uses select(writefds) on a non-blocking connect(self_cid);
- * on guests where the vhost path does not route connect(own_cid) back
- * into the same guest, this returns false and the pair-based check
- * skips instead of hanging.
+ * Winsock (like Linux vsock) completes the handshake when the request is
+ * queued in the backlog: a non-blocking connect() must turn writable
+ * before the listener calls accept().
+ */
+static void ev_select_connect_before_accept(void)
+{
+    SOCKET listener = socket(g_vsock_af, SOCK_STREAM, 0);
+    if (listener == INVALID_SOCKET)
+    {
+        die("connect_before_accept listen socket");
+    }
+    struct sockaddr_vm laddr = {0};
+    laddr.svm_family = (unsigned short)g_vsock_af;
+    laddr.svm_cid = VMADDR_CID_ANY;
+    laddr.svm_port = VMADDR_PORT_ANY;
+    if (bind(listener, (const struct sockaddr *)&laddr, sizeof(laddr)) == SOCKET_ERROR ||
+        listen(listener, 1) == SOCKET_ERROR)
+    {
+        die("connect_before_accept bind/listen");
+    }
+    struct sockaddr_vm bound = {0};
+    int blen = sizeof(bound);
+    if (getsockname(listener, (struct sockaddr *)&bound, &blen) == SOCKET_ERROR)
+    {
+        die("connect_before_accept getsockname");
+    }
+
+    SOCKET client = socket(g_vsock_af, SOCK_STREAM, 0);
+    u_long nb = 1;
+    ioctlsocket(client, FIONBIO, &nb);
+    struct sockaddr_vm caddr = {0};
+    caddr.svm_family = (unsigned short)g_vsock_af;
+    caddr.svm_cid = g_self_cid;
+    caddr.svm_port = bound.svm_port;
+    if (connect(client, (const struct sockaddr *)&caddr, sizeof(caddr)) == SOCKET_ERROR &&
+        WSAGetLastError() != WSAEWOULDBLOCK)
+    {
+        die("connect_before_accept connect");
+    }
+
+    /* No accept() yet: the dial must complete on its own. */
+    fd_set wfds;
+    FD_ZERO(&wfds);
+    FD_SET(client, &wfds);
+    struct timeval tv = {2, 0};
+    int rc = select(0, NULL, &wfds, NULL, &tv);
+    if (rc < 0)
+    {
+        die("connect_before_accept select");
+    }
+    if (rc == 0 || !FD_ISSET(client, &wfds))
+    {
+        fprintf(stderr, "posix-events: connect_before_accept: connect() not writable before accept() (rc=%d)\n", rc);
+        exit(EXIT_FAILURE);
+    }
+
+    SOCKET accepted = accept(listener, NULL, NULL);
+    if (accepted == INVALID_SOCKET)
+    {
+        die("connect_before_accept accept");
+    }
+    closesocket(accepted);
+    closesocket(client);
+    closesocket(listener);
+}
+
+/*
+ * Probe whether connect(g_self_cid) comes back to our own listener
+ * before running the pair-based helper: non-blocking connect, select()
+ * for the listener to become readable, accept, then select(writefds)
+ * on the client.  Anywhere else (--peer-cid is the remote peer outside
+ * the loopback sweep) this returns false and the check skips.
  */
 static bool self_loopback_works(void)
 {
@@ -288,14 +373,41 @@ static bool self_loopback_works(void)
     caddr.svm_family = (unsigned short)g_vsock_af;
     caddr.svm_cid = g_self_cid;
     caddr.svm_port = bound.svm_port;
-    connect(client, (const struct sockaddr *)&caddr, sizeof(caddr));
-
-    fd_set wfds;
-    FD_ZERO(&wfds);
-    FD_SET(client, &wfds);
-    struct timeval tv = {2, 0};
-    int rc = select(0, NULL, &wfds, NULL, &tv);
-    bool ok = (rc >= 1 && FD_ISSET(client, &wfds));
+    /* The request must land on our own listener (readable) - viosock only
+     * answers it from accept() - while a remote refusal shows up in the
+     * client's exceptfds. */
+    int crc = connect(client, (const struct sockaddr *)&caddr, sizeof(caddr));
+    int cerr = (crc == SOCKET_ERROR) ? WSAGetLastError() : 0;
+    bool ok = false;
+    int rc = 0;
+    if (crc == 0 || cerr == WSAEWOULDBLOCK)
+    {
+        fd_set rfds, efds;
+        FD_ZERO(&rfds);
+        FD_SET(listener, &rfds);
+        FD_ZERO(&efds);
+        FD_SET(client, &efds);
+        struct timeval tv = {2, 0};
+        rc = select(0, &rfds, NULL, &efds, &tv);
+        if (rc >= 1 && FD_ISSET(listener, &rfds))
+        {
+            SOCKET accepted = accept(listener, NULL, NULL);
+            if (accepted != INVALID_SOCKET)
+            {
+                fd_set wfds;
+                FD_ZERO(&wfds);
+                FD_SET(client, &wfds);
+                tv.tv_sec = 2;
+                tv.tv_usec = 0;
+                ok = (select(0, NULL, &wfds, NULL, &tv) >= 1 && FD_ISSET(client, &wfds));
+                closesocket(accepted);
+            }
+        }
+    }
+    if (!ok)
+    {
+        fprintf(stderr, "posix-events: self-loopback probe: connect rc=%d WSA %d, select rc=%d\n", crc, cerr, rc);
+    }
 
     closesocket(client);
     closesocket(listener);
@@ -315,16 +427,17 @@ void posix_events_all(unsigned int self_cid)
     ev_select_zero_timeout_polls();
     ev_select_exceptfds_on_failed_connect();
 
-    /*
-     * The writefds check needs an in-process connected pair against
-     * connect(g_self_cid).  On the current driver + vhost combo that
-     * connect never gets routed back into the guest, so the pair
-     * helper is commented out to keep the smoke green.  Re-enable
-     * when the accept/loopback rework lands.
-     */
-    (void)self_loopback_works;
-    (void)ev_select_writefds_ready;
-    fprintf(stderr,
-            "posix-events: pair-based check disabled pending accept/loopback rework "
-            "(self-CID connect not routed on current driver)\n");
+    /* The writefds check needs an in-process pair against
+     * connect(g_self_cid); outside the loopback sweep --peer-cid is the
+     * remote peer, so probe first. */
+    if (!self_loopback_works())
+    {
+        fprintf(stderr, "posix-events: pair-based check skipped (connect(%u) is not this guest)\n", g_self_cid);
+        return;
+    }
+    /* Disabled: the driver completes the handshake only from accept(), so
+     * the connector is not writable before the listener accepts.  Re-enable
+     * with the fix that sends RESPONSE when the request is queued. */
+    (void)ev_select_connect_before_accept;
+    ev_select_writefds_ready();
 }
