@@ -143,7 +143,7 @@ static void run_receiver(int rcvlowat_bytes, bool use_poll)
     unsigned int read_cnt;
     long long rx_begin_ns;
     long long in_read_ns;
-    size_t total_recv;
+    unsigned long long total_recv;
     int client_fd;
     char *data;
     int fd;
@@ -257,8 +257,8 @@ static void run_receiver(int rcvlowat_bytes, bool use_poll)
         total_recv += bytes_read;
     }
 
-    printf("total bytes received: %zu\n", total_recv);
-    printf("rx performance: %f Gbits/s\n", get_gbps((unsigned long long)total_recv * 8, current_nsec() - rx_begin_ns));
+    printf("total bytes received: %llu\n", total_recv);
+    printf("rx performance: %f Gbits/s\n", get_gbps(total_recv * 8, current_nsec() - rx_begin_ns));
     printf("total time in 'read()': %f sec\n", (float)in_read_ns / NSEC_PER_SEC);
     printf("average time in 'read()': %f ns\n", read_cnt ? (float)in_read_ns / read_cnt : 0.0f);
     printf("%s: %u\n", use_poll ? "POLLIN wakeups" : "read() calls", read_cnt);
@@ -272,7 +272,7 @@ static void run_sender(int peer_cid, unsigned long long to_send_bytes)
 {
     long long tx_begin_ns;
     long long tx_total_ns;
-    size_t total_send;
+    unsigned long long total_send;
     long long time_in_send;
     void *data;
     int fd;
@@ -317,7 +317,7 @@ static void run_sender(int peer_cid, unsigned long long to_send_bytes)
         before = current_nsec();
         sent = send(fd,
                     data,
-                    (int)((rest_bytes > buf_size_bytes) ? buf_size_bytes : rest_bytes),
+                    (size_t)((rest_bytes > buf_size_bytes) ? buf_size_bytes : rest_bytes),
                     msg_zerocopy ? MSG_ZEROCOPY : 0);
         time_in_send += (current_nsec() - before);
 
@@ -331,8 +331,8 @@ static void run_sender(int peer_cid, unsigned long long to_send_bytes)
 
     tx_total_ns = current_nsec() - tx_begin_ns;
 
-    printf("total bytes sent: %zu\n", total_send);
-    printf("tx performance: %f Gbits/s\n", get_gbps((unsigned long long)total_send * 8, time_in_send));
+    printf("total bytes sent: %llu\n", total_send);
+    printf("tx performance: %f Gbits/s\n", get_gbps(total_send * 8, time_in_send));
     printf("total time in tx loop: %f sec\n", (float)tx_total_ns / NSEC_PER_SEC);
     printf("time in 'send()': %f sec\n", (float)time_in_send / NSEC_PER_SEC);
 
