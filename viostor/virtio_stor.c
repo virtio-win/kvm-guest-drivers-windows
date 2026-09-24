@@ -1838,8 +1838,8 @@ RhelScsiGetInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
         ProvisioningPage->LBPWS10 = 0;
         ProvisioningPage->LBPWS = 0;
         ProvisioningPage->LBPU = CHECKBIT(adaptExt->features, VIRTIO_BLK_F_DISCARD) ? 1 : 0;
-        ProvisioningPage->ProvisioningType = adaptExt->info.discard_sector_alignment ? PROVISIONING_TYPE_THIN
-                                                                                     : PROVISIONING_TYPE_RESOURCE;
+        /* Virtio-blk exposes discard support, but not the backing storage's provisioning type. */
+        ProvisioningPage->ProvisioningType = PROVISIONING_TYPE_UNKNOWN;
     }
 
     else if (dataLen > sizeof(INQUIRYDATA))
@@ -2073,6 +2073,10 @@ RhelScsiGetCapacity(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
     lba.AsULongLong = 0;
     if (cdb->CDB6GENERIC.OperationCode == SCSIOP_READ_CAPACITY16)
     {
+        if (cdb->READ_CAPACITY16.ServiceAction != SERVICE_ACTION_READ_CAPACITY16)
+        {
+            return SRB_STATUS_INVALID_REQUEST;
+        }
         PMI = cdb->READ_CAPACITY16.PMI & 1;
         REVERSE_BYTES_QUAD(&lba, &cdb->READ_CAPACITY16.LogicalBlock[0]);
     }
