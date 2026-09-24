@@ -58,6 +58,12 @@ EOF
     esac
 done
 
+# Fall back to the config's linux_ver so the perf build tracks the same
+# kernel sources prepare-host.sh used.
+if [ -z "$VER" ] && [ -n "$CFG" ] && [ -r "$CFG" ]; then
+    VER=$(config_read "$CFG" linux_ver)
+fi
+
 # --- 1. Host --------------------------------------------------------------
 if [ "$SKIP_HOST" -eq 0 ]; then
     host_args=()

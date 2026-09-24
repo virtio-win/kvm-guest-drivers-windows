@@ -330,8 +330,8 @@ If the driver and `vsock_test.exe` are already on the guest, skip
 `prepare-ci.sh` entirely and drive the sweeps against your dev config:
 
 ```sh
-./run-all.sh --config viosock/dev.config
-./run-all.sh --config viosock/dev.config --only forward,reverse
+./run-all.sh --config ../../dev.config
+./run-all.sh --config ../../dev.config --only forward,reverse
 ./run-forward.sh --pick 21
 ```
 
@@ -418,13 +418,14 @@ host-side script so the pinned kernel tarball is fetched/extracted.
 Typical dev-bench sequence:
 
 ```sh
-./prepare-host.sh                                        # once, ever
-./prepare-perf-host.sh                                   # once, then
-                                                         # only after
-                                                         # kernel bump
-./install-perf.sh \                                      # after every
-    --config /tmp/vsock-ci/x.config \                    # Windows
-    --from   viosock/tests/vsock_perf/x64/Win11Release/vsock_perf   # rebuild
+# once, ever:
+./prepare-host.sh
+# once, then only after a kernel bump:
+./prepare-perf-host.sh
+# after every Windows-side rebuild:
+./install-perf.sh \
+    --config ./x.config \
+    --from   ../vsock_perf/x64/Win11Release/vsock_perf
 ```
 
 Or all in one call for the initial setup:
