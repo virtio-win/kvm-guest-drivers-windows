@@ -34,8 +34,10 @@
  *         the driver.
  *       * 19 additionally hits the MSG_ZEROCOPY gate above.
  *
- *   - SIGPIPE, kmemleak, transport-uaf, transport-change: Linux-side
- *     kernel-debug or POSIX-signal regressions with no Windows analogue.
+ *   - kmemleak, transport-uaf, transport-change: Linux-side kernel-debug
+ *     regressions with no Windows analogue.  The SHUT_WR/SHUT_RD cases
+ *     keep the EPIPE half of their SIGPIPE check (WSAESHUTDOWN maps to
+ *     EPIPE); the signal half has no Windows analogue and is dropped.
  *
  * run_tests() treats a NULL run pointer as a no-op (prints "ok") so a
  * per-side unimplemented direction (e.g. only .run_client set) still
@@ -1065,6 +1067,91 @@ static void test_double_bind_connect_server(const struct test_opts *opts)
     close(listen_fd);
 }
 
+#define SEND_SLEEP_USEC (10 * 1000)
+
+/* errno half of upstream's test_stream_check_sigpipe(): Winsock has no
+ * signals, but send() on a half-closed connection must still fail with
+ * EPIPE (WSAESHUTDOWN through the shim).  Upstream's retry loop stays -
+ * after a peer SHUT_RD the shutdown packet may still be in flight. */
+static void test_stream_check_epipe(int fd)
+{
+    ssize_t res;
+
+    timeout_begin(TIMEOUT);
+    while (1)
+    {
+        res = send(fd, "A", 1, 0);
+        if (res == -1 && errno != EINTR)
+        {
+            break;
+        }
+        timeout_usleep(SEND_SLEEP_USEC);
+        timeout_check("send");
+    }
+    timeout_end();
+
+    if (errno != EPIPE)
+    {
+        fprintf(stderr, "unexpected send(2) errno %d\n", errno);
+        exit(EXIT_FAILURE);
+    }
+}
+
+static void test_stream_shutwr_client(const struct test_opts *opts)
+{
+    int fd;
+
+    fd = vsock_stream_connect(opts->peer_cid, opts->peer_port);
+    if (fd < 0)
+    {
+        perror("connect");
+        exit(EXIT_FAILURE);
+    }
+
+    if (shutdown(fd, SHUT_WR))
+    {
+        perror("shutdown");
+        exit(EXIT_FAILURE);
+    }
+
+    test_stream_check_epipe(fd);
+
+    control_writeln("CLIENTDONE");
+    close(fd);
+}
+
+/* Upstream's server only waits for CLIENTDONE.  The peer's SHUT_WR is a
+ * FIN that lands before our first send(), so also cover the acceptor
+ * side (poc_send_after_fin): recv() reports EOF and a send() must not
+ * stall behind the FIN - it lands while the peer's receive side is open,
+ * or fails with EPIPE/ECONNRESET if the peer has closed meanwhile. */
+static void test_stream_shutwr_server(const struct test_opts *opts)
+{
+    struct timeval snd_timeout = {TIMEOUT, 0};
+    ssize_t res;
+    int fd;
+
+    fd = vsock_stream_accept(VMADDR_CID_ANY, opts->peer_port, NULL);
+    if (fd < 0)
+    {
+        perror("accept");
+        exit(EXIT_FAILURE);
+    }
+
+    recv_byte(fd, 0, 0);
+
+    setsockopt_timeval_check(fd, SOL_SOCKET, SO_SNDTIMEO, snd_timeout, "setsockopt(SO_SNDTIMEO)");
+    res = send(fd, "A", 1, 0);
+    if (res != 1 && !(res == -1 && (errno == EPIPE || errno == ECONNRESET)))
+    {
+        fprintf(stderr, "send after peer SHUT_WR: ret %zd errno %d\n", res, errno);
+        exit(EXIT_FAILURE);
+    }
+
+    control_expectln("CLIENTDONE");
+    close(fd);
+}
+
 static void test_double_bind_connect_client(const struct test_opts *opts)
 {
     int i, client_fd;
@@ -1645,10 +1732,10 @@ static struct test_case test_cases[] = {
         .run_server = NULL,
     },
     {
-        /* Linux-only: test body is a SIGPIPE regression; Windows has no SIGPIPE */
+        /* SIGPIPE half dropped (no signals on Windows); EPIPE half kept. */
         .name = "SOCK_STREAM SHUT_WR",
-        .run_client = NULL,
-        .run_server = NULL,
+        .run_client = test_stream_shutwr_client,
+        .run_server = test_stream_shutwr_server,
     },
     {
         /* Linux-only: same SIGPIPE dependency */
