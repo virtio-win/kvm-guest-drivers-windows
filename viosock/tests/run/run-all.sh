@@ -87,8 +87,11 @@ if [ -n "$ONLY" ]; then
     done
 fi
 
-if [ -z "$LOGDIR" ]; then LOGDIR="/tmp/vsock-run-$$"; fi
-mkdir -p "$LOGDIR"
+if [ -z "$LOGDIR" ]; then
+    LOGDIR=$(mktemp -d /tmp/vsock-run-XXXXXX) || die "mktemp failed"
+else
+    mkdir -p "$LOGDIR"
+fi
 [ -n "$JUNIT_DIR" ] && mkdir -p "$JUNIT_DIR"
 
 rc=0
