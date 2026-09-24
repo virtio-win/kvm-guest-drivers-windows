@@ -76,6 +76,14 @@ int wsa_to_errno(int wsa_err)
             return EINTR;
         case WSAEFAULT:
             return EFAULT;
+        case WSAEINVAL:
+            return EINVAL;
+        case WSAEACCES:
+            return EACCES;
+        case WSAEBADF:
+            return EBADF;
+        case WSAEMFILE:
+            return EMFILE;
         case 0:
             return 0;
         default:
@@ -220,7 +228,12 @@ int compat_closesocket(int fd)
 
 static int compat_poll(WSAPOLLFD *fds, ULONG nfds, INT timeout)
 {
-    return WSAPoll(fds, nfds, timeout);
+    int r = WSAPoll(fds, nfds, timeout);
+    if (r == SOCKET_ERROR)
+    {
+        wsa_set_errno();
+    }
+    return r;
 }
 
 const struct sock_ops ops_posix = {

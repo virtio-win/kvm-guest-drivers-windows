@@ -556,10 +556,12 @@ void wsa_events_all(unsigned int self_cid)
 
     /*
      * All WSAEventSelect helpers below need an in-process connected
-     * pair against connect(g_self_cid).  On the current driver +
-     * vhost combo that connect never gets routed back into the
-     * guest, so the helpers are commented out to keep the smoke
-     * green.  Re-enable when the accept/loopback rework lands.
+     * pair against connect(g_self_cid), i.e. the loopback path.  On the
+     * current driver a loopback send() stays pending until the peer
+     * calls recv() (Tx ownership transfer), which deadlocks these
+     * single-threaded helpers, so they are parked to keep the smoke
+     * green.  Re-enable once loopback Tx completes the sender's
+     * request when the data is queued.
      */
     (void)self_loopback_works;
     (void)ev_fd_write_after_connect;
@@ -568,6 +570,6 @@ void wsa_events_all(unsigned int self_cid)
     (void)ev_fd_read_level_triggered;
     (void)ev_accept_inherits_event;
     fprintf(stderr,
-            "wsa-events: pair-based checks disabled pending accept/loopback rework "
-            "(self-CID connect not routed on current driver)\n");
+            "wsa-events: pair-based checks disabled pending loopback Tx-ownership rework "
+            "(loopback send() pends until peer recv() on current driver)\n");
 }

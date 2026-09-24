@@ -173,7 +173,7 @@ static void validate_wsa_event_select_timeout(void)
     struct sockaddr_vm addr = {0};
     addr.svm_family = g_vsock_af;
     addr.svm_cid = VMADDR_CID_ANY;
-    addr.svm_port = 0;
+    addr.svm_port = VMADDR_PORT_ANY;
     if (bind(s, (const struct sockaddr *)&addr, sizeof(addr)) == SOCKET_ERROR)
     {
         fprintf(stderr, "wsa-validate: WSAEventSelect(timeout): bind failed WSA %d\n", WSAGetLastError());
@@ -198,6 +198,8 @@ static void validate_wsa_event_select_timeout(void)
     }
 
     DWORD wr = WSAWaitForMultipleEvents(1, &ev, FALSE, 50 /* ms */, FALSE);
+    /* Capture before the cleanup calls below clobber the thread's last error. */
+    int wr_err = (wr == WSA_WAIT_FAILED) ? WSAGetLastError() : 0;
 
     /* Dissociate + restore blocking mode + close event. */
     WSAEventSelect(s, NULL, 0);
@@ -211,7 +213,7 @@ static void validate_wsa_event_select_timeout(void)
         fprintf(stderr,
                 "wsa-validate: WSAEventSelect(timeout): expected WSA_WAIT_TIMEOUT, got 0x%lx (WSA %d)\n",
                 (unsigned long)wr,
-                (wr == WSA_WAIT_FAILED) ? WSAGetLastError() : 0);
+                wr_err);
         exit(EXIT_FAILURE);
     }
 }

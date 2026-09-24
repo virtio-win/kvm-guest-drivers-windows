@@ -63,10 +63,13 @@ static void validate_getfiletype_and_osfhandle(void)
         closesocket(s);
         exit(EXIT_FAILURE);
     }
-    /* _open_osfhandle transferred ownership; _close closes both the
-     * CRT fd and the underlying socket.  Do NOT closesocket(s) after
-     * _close - the handle is gone. */
-    _close(fd);
+    /* _open_osfhandle parked the handle in a CRT fd slot, but _close()
+     * would CloseHandle() the SOCKET directly and bypass the Winsock /
+     * provider close path (WSPCloseSocket), leaving ws2_32 and the LSP
+     * with stale state for a handle value a later socket may reuse.
+     * Close through Winsock and deliberately leak the fd slot. */
+    (void)fd;
+    closesocket(s);
 }
 
 /*
@@ -153,10 +156,11 @@ static void validate_select_all_null(void)
 }
 
 /*
- * Positive timeout probe: an unbound vsock socket in readfds with a
- * short finite timeout has nothing readable and must return 0 (timed
- * out).  Complements validate_select_all_null so both the error and
- * the timeout branches of the LSP select entry are exercised.
+ * Positive timeout probe: a vsock socket bound to an ephemeral port,
+ * sitting idle in readfds with a short finite timeout, has nothing
+ * readable and must return 0 (timed out).  Complements
+ * validate_select_all_null so both the error and the timeout branches
+ * of the LSP select entry are exercised.
  */
 static void validate_select_timeout(void)
 {
@@ -164,7 +168,7 @@ static void validate_select_timeout(void)
     struct sockaddr_vm addr = {0};
     addr.svm_family = g_vsock_af;
     addr.svm_cid = VMADDR_CID_ANY;
-    addr.svm_port = 0;
+    addr.svm_port = VMADDR_PORT_ANY;
     if (bind(s, (const struct sockaddr *)&addr, sizeof(addr)) == SOCKET_ERROR)
     {
         fprintf(stderr, "posix-validate: select(timeout): bind failed WSA %d\n", WSAGetLastError());

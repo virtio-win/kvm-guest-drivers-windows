@@ -1125,10 +1125,10 @@ static void test_stream_rcvlowat_def_cred_upd_client(const struct test_opts *opt
     }
 
     buf_size = RCVLOWAT_CREDIT_UPD_BUF_SIZE + 1;
-    buf = malloc(buf_size);
+    buf = calloc(1, buf_size);
     if (!buf)
     {
-        perror("malloc");
+        perror("calloc");
         exit(EXIT_FAILURE);
     }
 
