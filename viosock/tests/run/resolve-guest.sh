@@ -109,7 +109,9 @@ host_cid    = 2
 guest_ip    = $guest_ip
 EOF
     printf 'guest_user  = %s\n' "$SSH_USER"
-    [ -n "$SSH_KEY" ]  && printf 'ssh_key     = %s\n' "$SSH_KEY"
+    if [ -n "$SSH_KEY" ]; then
+        printf 'ssh_key     = %s\n' "$SSH_KEY"
+    fi
 }
 
 if [ -n "$OUT" ]; then
