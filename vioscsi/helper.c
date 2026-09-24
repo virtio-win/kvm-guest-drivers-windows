@@ -593,9 +593,9 @@ VOID VioScsiVQUnlock(IN PVOID DeviceExtension, IN ULONG MessageID, IN PSTOR_LOCK
 }
 
 static BOOLEAN FirmwareRequestBufferValid(IN PFIRMWARE_REQUEST_BLOCK FirmwareRequest,
-                                           IN ULONG DataLen,
-                                           IN ULONG RequiredLen,
-                                           OUT PULONG AvailableLen OPTIONAL)
+                                          IN ULONG DataLen,
+                                          IN ULONG RequiredLen,
+                                          OUT PULONG AvailableLen OPTIONAL)
 {
     ULONG headerLen = sizeof(SRB_IO_CONTROL) + sizeof(FIRMWARE_REQUEST_BLOCK);
 
@@ -646,7 +646,10 @@ VOID FirmwareRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
                 PSTORAGE_FIRMWARE_INFO_V2 firmwareInfo;
                 ULONG availableLen;
 
-                if (!FirmwareRequestBufferValid(firmwareRequest, dataLen, sizeof(STORAGE_FIRMWARE_INFO_V2), &availableLen))
+                if (!FirmwareRequestBufferValid(firmwareRequest,
+                                                dataLen,
+                                                sizeof(STORAGE_FIRMWARE_INFO_V2),
+                                                &availableLen))
                 {
                     srbControl->ReturnCode = FIRMWARE_STATUS_INVALID_PARAMETER;
                     SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BAD_SRB_BLOCK_LENGTH);
