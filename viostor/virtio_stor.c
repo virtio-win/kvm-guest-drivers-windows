@@ -2488,9 +2488,9 @@ VioStorPoolAlloc(IN PVOID DeviceExtension, IN SIZE_T size)
 }
 
 static BOOLEAN FirmwareRequestBufferValid(IN PFIRMWARE_REQUEST_BLOCK FirmwareRequest,
-                                           IN ULONG DataLen,
-                                           IN ULONG RequiredLen,
-                                           OUT PULONG AvailableLen OPTIONAL)
+                                          IN ULONG DataLen,
+                                          IN ULONG RequiredLen,
+                                          OUT PULONG AvailableLen OPTIONAL)
 {
     ULONG headerLen = sizeof(SRB_IO_CONTROL) + sizeof(FIRMWARE_REQUEST_BLOCK);
 
@@ -2542,7 +2542,10 @@ UCHAR FirmwareRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
                 PSTORAGE_FIRMWARE_INFO_V2 firmwareInfo;
                 ULONG availableLen;
 
-                if (!FirmwareRequestBufferValid(firmwareRequest, dataLen, sizeof(STORAGE_FIRMWARE_INFO_V2), &availableLen))
+                if (!FirmwareRequestBufferValid(firmwareRequest,
+                                                dataLen,
+                                                sizeof(STORAGE_FIRMWARE_INFO_V2),
+                                                &availableLen))
                 {
                     srbControl->ReturnCode = FIRMWARE_STATUS_INVALID_PARAMETER;
                     srbStatus = SRB_STATUS_BAD_SRB_BLOCK_LENGTH;
