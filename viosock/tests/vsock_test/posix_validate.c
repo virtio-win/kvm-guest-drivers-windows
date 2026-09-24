@@ -100,7 +100,9 @@ static void validate_getsockname_unbound(void)
 /*
  * poc_protocol_info: getsockopt(SO_PROTOCOL_INFOW) with a buffer too
  * small must fail with WSAEFAULT and update the length pointer to the
- * required size (sizeof(WSAPROTOCOL_INFOW)).
+ * required size (sizeof(WSAPROTOCOL_INFOW)).  A full-size query must
+ * then succeed and describe the provider viosocklib registers
+ * (lib/install.c g_ProtocolInfo).
  */
 static void validate_so_protocol_info_short(void)
 {
@@ -110,6 +112,10 @@ static void validate_so_protocol_info_short(void)
     int rc = getsockopt(s, SOL_SOCKET, SO_PROTOCOL_INFOW, (char *)&info, &info_len);
     int got = (rc == SOCKET_ERROR) ? WSAGetLastError() : 0;
     int len_out = info_len;
+
+    info_len = sizeof(info);
+    int rc_full = getsockopt(s, SOL_SOCKET, SO_PROTOCOL_INFOW, (char *)&info, &info_len);
+    int got_full = (rc_full == SOCKET_ERROR) ? WSAGetLastError() : 0;
     closesocket(s);
 
     if (rc != SOCKET_ERROR)
@@ -129,6 +135,28 @@ static void validate_so_protocol_info_short(void)
                 "posix-validate: SO_PROTOCOL_INFOW(short buffer): expected optlen updated to %d, got %d\n",
                 (int)sizeof(WSAPROTOCOL_INFOW),
                 len_out);
+        exit(EXIT_FAILURE);
+    }
+
+    if (rc_full == SOCKET_ERROR)
+    {
+        fprintf(stderr, "posix-validate: SO_PROTOCOL_INFOW: getsockopt failed WSA %d\n", got_full);
+        exit(EXIT_FAILURE);
+    }
+    if (info.iVersion != 2 || info.iAddressFamily != (int)g_vsock_af || info.iSocketType != SOCK_STREAM ||
+        info.iProtocol != 0 || info.iMinSockAddr != (int)sizeof(struct sockaddr_vm) ||
+        info.iMaxSockAddr < info.iMinSockAddr || !(info.dwServiceFlags1 & XP1_IFS_HANDLES))
+    {
+        fprintf(stderr,
+                "posix-validate: SO_PROTOCOL_INFOW: unexpected provider fields: iVersion=%d iAddressFamily=%d "
+                "iSocketType=%d iProtocol=%d iMinSockAddr=%d iMaxSockAddr=%d dwServiceFlags1=0x%lx\n",
+                info.iVersion,
+                info.iAddressFamily,
+                info.iSocketType,
+                info.iProtocol,
+                info.iMinSockAddr,
+                info.iMaxSockAddr,
+                (unsigned long)info.dwServiceFlags1);
         exit(EXIT_FAILURE);
     }
 }
