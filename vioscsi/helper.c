@@ -592,6 +592,31 @@ VOID VioScsiVQUnlock(IN PVOID DeviceExtension, IN ULONG MessageID, IN PSTOR_LOCK
     EXIT_FN();
 }
 
+static BOOLEAN FirmwareRequestBufferValid(IN PFIRMWARE_REQUEST_BLOCK FirmwareRequest,
+                                           IN ULONG DataLen,
+                                           IN ULONG RequiredLen,
+                                           OUT PULONG AvailableLen OPTIONAL)
+{
+    ULONG headerLen = sizeof(SRB_IO_CONTROL) + sizeof(FIRMWARE_REQUEST_BLOCK);
+
+    if ((FirmwareRequest->DataBufferOffset < headerLen) || (FirmwareRequest->DataBufferOffset > DataLen) ||
+        ((DataLen - FirmwareRequest->DataBufferOffset) < RequiredLen))
+    {
+        RhelDbgPrint(TRACE_LEVEL_ERROR,
+                     " FirmwareRequest invalid DataBufferOffset %lu (buffer length %lu, required %lu)\n",
+                     FirmwareRequest->DataBufferOffset,
+                     DataLen,
+                     RequiredLen);
+        return FALSE;
+    }
+
+    if (AvailableLen != NULL)
+    {
+        *AvailableLen = DataLen - FirmwareRequest->DataBufferOffset;
+    }
+    return TRUE;
+}
+
 VOID FirmwareRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
 {
     PADAPTER_EXTENSION adaptExt;
@@ -621,19 +646,12 @@ VOID FirmwareRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
                 PSTORAGE_FIRMWARE_INFO_V2 firmwareInfo;
                 ULONG availableLen;
 
-                if ((firmwareRequest->DataBufferOffset < (sizeof(SRB_IO_CONTROL) + sizeof(FIRMWARE_REQUEST_BLOCK))) ||
-                    (firmwareRequest->DataBufferOffset > dataLen) ||
-                    ((dataLen - firmwareRequest->DataBufferOffset) < sizeof(STORAGE_FIRMWARE_INFO_V2)))
+                if (!FirmwareRequestBufferValid(firmwareRequest, dataLen, sizeof(STORAGE_FIRMWARE_INFO_V2), &availableLen))
                 {
                     srbControl->ReturnCode = FIRMWARE_STATUS_INVALID_PARAMETER;
                     SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BAD_SRB_BLOCK_LENGTH);
-                    RhelDbgPrint(TRACE_LEVEL_ERROR,
-                                 " FirmwareRequest GET_INFO DataBufferOffset %lu exceeds buffer length %lu\n",
-                                 firmwareRequest->DataBufferOffset,
-                                 dataLen);
                     break;
                 }
-                availableLen = dataLen - firmwareRequest->DataBufferOffset;
 
                 firmwareInfo = (PSTORAGE_FIRMWARE_INFO_V2)((PUCHAR)srbControl + firmwareRequest->DataBufferOffset);
                 RhelDbgPrint(TRACE_LEVEL_INFORMATION, " FIRMWARE_FUNCTION_GET_INFO \n");
@@ -686,16 +704,10 @@ VOID FirmwareRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
             {
                 PSTORAGE_FIRMWARE_DOWNLOAD_V2 firmwareDwnld;
 
-                if ((firmwareRequest->DataBufferOffset < (sizeof(SRB_IO_CONTROL) + sizeof(FIRMWARE_REQUEST_BLOCK))) ||
-                    (firmwareRequest->DataBufferOffset > dataLen) ||
-                    ((dataLen - firmwareRequest->DataBufferOffset) < sizeof(STORAGE_FIRMWARE_DOWNLOAD_V2)))
+                if (!FirmwareRequestBufferValid(firmwareRequest, dataLen, sizeof(STORAGE_FIRMWARE_DOWNLOAD_V2), NULL))
                 {
                     srbControl->ReturnCode = FIRMWARE_STATUS_INVALID_PARAMETER;
                     SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BAD_SRB_BLOCK_LENGTH);
-                    RhelDbgPrint(TRACE_LEVEL_ERROR,
-                                 " FirmwareRequest DOWNLOAD DataBufferOffset %lu exceeds buffer length %lu\n",
-                                 firmwareRequest->DataBufferOffset,
-                                 dataLen);
                     break;
                 }
 
@@ -725,16 +737,10 @@ VOID FirmwareRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
             {
                 PSTORAGE_FIRMWARE_ACTIVATE firmwareActivate;
 
-                if ((firmwareRequest->DataBufferOffset < (sizeof(SRB_IO_CONTROL) + sizeof(FIRMWARE_REQUEST_BLOCK))) ||
-                    (firmwareRequest->DataBufferOffset > dataLen) ||
-                    ((dataLen - firmwareRequest->DataBufferOffset) < sizeof(STORAGE_FIRMWARE_ACTIVATE)))
+                if (!FirmwareRequestBufferValid(firmwareRequest, dataLen, sizeof(STORAGE_FIRMWARE_ACTIVATE), NULL))
                 {
                     srbControl->ReturnCode = FIRMWARE_STATUS_INVALID_PARAMETER;
                     SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BAD_SRB_BLOCK_LENGTH);
-                    RhelDbgPrint(TRACE_LEVEL_ERROR,
-                                 " FirmwareRequest ACTIVATE DataBufferOffset %lu exceeds buffer length %lu\n",
-                                 firmwareRequest->DataBufferOffset,
-                                 dataLen);
                     break;
                 }
 
