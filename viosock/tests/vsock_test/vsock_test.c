@@ -18,7 +18,8 @@
  *   - MSG_ZEROCOPY family (18/19/20/27/28): blocked by the missing
  *     Winsock MSG_ERRQUEUE / sock_extended_err notification path — not
  *     by an absence of zero-copy in the driver tract (WSP already hands
- *     the kernel MDL-based user pages).
+ *     the kernel MDL-based user pages).  Slot 20 keeps upstream's control
+ *     protocol but runs a Windows body (full TX window) instead.
  *
  *   - SOCK_SEQPACKET cases (6/7/8/9/11/13/15/19/25/35): SEQPACKET is
  *     not implemented in the viosock driver. Bodies split three ways:
@@ -890,6 +891,87 @@ static void test_stream_msg_zcopy_server(const struct test_opts *opts)
     }
 }
 
+/* Upstream slot 20 (MSG_ZEROCOPY empty MSG_ERRQUEUE) has no Winsock analogue;
+ * its peer body (accept -> expect "DONE" -> close) is a connected peer that
+ * never reads, so the slot checks the full TX window instead: non-blocking
+ * send() must stall with EAGAIN, and the peer close must still be seen. */
+#define FULL_TX_WINDOW_CAP (64 * 1024 * 1024)
+
+static void test_stream_full_tx_window_client(const struct test_opts *opts)
+{
+    char buf[4096];
+    size_t total = 0;
+    int fd;
+
+    memset(buf, 'A', sizeof(buf));
+
+    fd = vsock_stream_connect(opts->peer_cid, opts->peer_port);
+    if (fd < 0)
+    {
+        perror("connect");
+        exit(EXIT_FAILURE);
+    }
+
+    if (fcntl(fd, F_SETFL, O_NONBLOCK) < 0)
+    {
+        perror("fcntl(F_SETFL)");
+        exit(EXIT_FAILURE);
+    }
+
+    for (;;)
+    {
+        ssize_t sent = send(fd, buf, sizeof(buf), 0);
+
+        if (sent == 0)
+        {
+            fprintf(stderr, "unexpected EOF while filling the TX window\n");
+            exit(EXIT_FAILURE);
+        }
+        if (sent < 0)
+        {
+            if (errno == EINTR)
+            {
+                continue;
+            }
+            if (errno == EAGAIN)
+            {
+                break;
+            }
+            fprintf(stderr, "send on a full TX window: errno %d, expected EAGAIN\n", errno);
+            exit(EXIT_FAILURE);
+        }
+
+        total += sent;
+        if (total > FULL_TX_WINDOW_CAP)
+        {
+            fprintf(stderr, "sent %zu bytes without blocking, is the peer reading?\n", total);
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    /* The peer closes without ever reading; its close must surface
+     * even though our TX window is still full. */
+    control_writeln("DONE");
+    vsock_wait_remote_close(fd);
+    close(fd);
+}
+
+static void test_stream_full_tx_window_server(const struct test_opts *opts)
+{
+    int fd;
+
+    fd = vsock_stream_accept(VMADDR_CID_ANY, opts->peer_port, NULL);
+    if (fd < 0)
+    {
+        perror("accept");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Never read: the connector fills its TX window against us. */
+    control_expectln("DONE");
+    close(fd);
+}
+
 static void test_stream_virtio_skb_merge_client(const struct test_opts *opts)
 {
     int fd;
@@ -1586,10 +1668,10 @@ static struct test_case test_cases[] = {
         .run_server = NULL,
     },
     {
-        /* Same: no MSG_ERRQUEUE — cannot even query the empty state. */
-        .name = "SOCK_STREAM MSG_ZEROCOPY empty MSG_ERRQUEUE",
-        .run_client = NULL,
-        .run_server = NULL,
+        /* No Winsock MSG_ERRQUEUE; same control protocol, Windows body checks the full TX window. */
+        .name = "SOCK_STREAM full TX window (Linux: MSG_ZEROCOPY empty MSG_ERRQUEUE)",
+        .run_client = test_stream_full_tx_window_client,
+        .run_server = test_stream_full_tx_window_server,
     },
     {
         .name = "SOCK_STREAM double bind connect",
