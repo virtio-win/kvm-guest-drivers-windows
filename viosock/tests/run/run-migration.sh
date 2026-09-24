@@ -35,6 +35,7 @@ MIGR_BYTES=${MIGR_BYTES:-4G}          # bytes/conn (large enough to still be in 
 MIGR_RAMP_SECS=${MIGR_RAMP_SECS:-12}  # let transfers run this long before the save
 MIGR_PROBE_PORT=${MIGR_PROBE_PORT:-40000}
 MIGR_PROBE_PORT2=${MIGR_PROBE_PORT2:-40001}
+MIGR_PROBE_TIMEOUT=${MIGR_PROBE_TIMEOUT:-90}  # cap per post-restore probe; a receiver whose sender never connected must not hang the run
 MIGR_CHANGE_CID=${MIGR_CHANGE_CID:-1} # 0 = restore with unchanged CID
 MIGR_NEW_CID=${MIGR_NEW_CID:-}        # explicit new CID; empty = guest_cid+1 (skipping 0..3)
 LOCAL_BIN=${LOCAL_BIN:-/opt/vsock-test/vsock_perf}
@@ -81,8 +82,11 @@ guest_name=$(config_read "$CFG" guest_name); [ -n "$guest_name" ] || die "config
 command -v virsh >/dev/null 2>&1 || die "virsh not found — run-migration.sh must run on the libvirt host"
 [ -x "$LOCAL_BIN" ] || die "no vsock_perf at $LOCAL_BIN — run prepare-perf.sh first (or pass --local-bin)"
 
-[ -z "$LOGDIR" ] && LOGDIR="/tmp/vsock-migration-$$"
-mkdir -p "$LOGDIR"
+if [ -z "$LOGDIR" ]; then
+    LOGDIR=$(mktemp -d /tmp/vsock-migration-XXXXXX) || die "mktemp failed"
+else
+    mkdir -p "$LOGDIR"
+fi
 
 info "== migration stability: N=$MIGR_N/dir, bytes=$MIGR_BYTES, domain=$guest_name, ramp=${MIGR_RAMP_SECS}s =="
 info "   logs in $LOGDIR"
@@ -135,7 +139,11 @@ else
     restore_rc=0; virsh restore "$sr" --running || restore_rc=$?
 fi
 info "  restore rc=$restore_rc state=$(virsh domstate "$guest_name" 2>/dev/null)"
-rm -f "$sr"
+if [ "$restore_rc" -eq 0 ]; then
+    rm -f "$sr"
+else
+    warn "  restore FAILED (rc=$restore_rc) — keeping the saved state for manual recovery: $sr"
+fi
 
 # From now on the guest lives at the (possibly new) CID; subsequent probes target it.
 guest_cid="$new_cid"
@@ -161,8 +169,12 @@ if [ "$guest_up" -eq 1 ]; then
     "$LOCAL_BIN" --port "$MIGR_PROBE_PORT" --buf-size 64K > "$probe_rx" 2>&1 &
     probe_pid=$!
     sleep 2
-    _guest_ssh "${guest_bin_dir}\\vsock_perf.exe --sender $host_cid --port $MIGR_PROBE_PORT --bytes 8M --buf-size 64K" \
+    timeout "$MIGR_PROBE_TIMEOUT" ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" \
+        "${guest_bin_dir}\\vsock_perf.exe --sender $host_cid --port $MIGR_PROBE_PORT --bytes 8M --buf-size 64K" \
         > "$LOGDIR/probe_tx.log" 2>&1 || true
+    # If the sender failed to connect, the receiver is parked in accept(); bound the wait.
+    for _ in $(seq 1 $((MIGR_PROBE_TIMEOUT * 2))); do kill -0 "$probe_pid" 2>/dev/null || break; sleep 0.5; done
+    kill "$probe_pid" 2>/dev/null || true
     wait "$probe_pid" 2>/dev/null || true
     tr -d '\r' < "$probe_rx" > "$probe_rx.tmp" && mv "$probe_rx.tmp" "$probe_rx"
     grep -q 'rx performance:' "$probe_rx" && probe_ok=1
@@ -178,8 +190,12 @@ if [ "$guest_up" -eq 1 ]; then
         > "$probe2_rx" 2>&1 &
     probe2_pid=$!
     sleep 2
-    "$LOCAL_BIN" --sender "$guest_cid" --port "$MIGR_PROBE_PORT2" --bytes 8M --buf-size 64K \
+    timeout "$MIGR_PROBE_TIMEOUT" "$LOCAL_BIN" --sender "$guest_cid" --port "$MIGR_PROBE_PORT2" --bytes 8M --buf-size 64K \
         > "$probe2_tx" 2>&1 || true
+    # Bound the guest receiver's ssh session too; the trailing taskkill reaps a
+    # guest-side vsock_perf still parked in accept().
+    for _ in $(seq 1 $((MIGR_PROBE_TIMEOUT * 2))); do kill -0 "$probe2_pid" 2>/dev/null || break; sleep 0.5; done
+    kill "$probe2_pid" 2>/dev/null || true
     wait "$probe2_pid" 2>/dev/null || true
     tr -d '\r' < "$probe2_rx" > "$probe2_rx.tmp" && mv "$probe2_rx.tmp" "$probe2_rx"
     grep -q 'rx performance:' "$probe2_rx" && probe2_ok=1

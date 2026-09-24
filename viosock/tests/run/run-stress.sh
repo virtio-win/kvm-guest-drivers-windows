@@ -30,6 +30,10 @@ _here=$(cd "$(dirname "$0")" && pwd)
 STRESS_N=${STRESS_N:-32}
 STRESS_BYTES=${STRESS_BYTES:-1G}
 STRESS_BUF=${STRESS_BUF:-64K}
+# Upper bound on any single vsock_perf child (both sides).  A receiver whose
+# sender never connects would otherwise sit in accept() forever and turn a
+# driver fault into a harness hang instead of a FAIL.
+STRESS_TIMEOUT_SECS=${STRESS_TIMEOUT_SECS:-900}
 FWD_PORT_BASE=${FWD_PORT_BASE:-20000}
 REV_PORT_BASE=${REV_PORT_BASE:-30000}
 SERVER_GRACE_SECS=${SERVER_GRACE_SECS:-3}
@@ -65,9 +69,11 @@ are opened per run. Ports are FWD_PORT_BASE+i for forward, REV_PORT_BASE+i
 for reverse. All logs land in --logdir (default: /tmp/vsock-stress-\$\$).
 
 Tunables (env-overridable, defaults in [brackets]):
-  STRESS_N          [64]      Connections per direction.
+  STRESS_N          [32]      Connections per direction.
   STRESS_BYTES      [1G]      Bytes per connection.
   STRESS_BUF        [64K]     Buffer size (both sides).
+  STRESS_TIMEOUT_SECS [900]   Per-connection wall-clock cap; stragglers are
+                              killed and counted as failures.
   FWD_PORT_BASE     [20000]   Forward-connection port base (Linux receivers).
   REV_PORT_BASE     [30000]   Reverse-connection port base (Windows receivers).
   SERVER_GRACE_SECS [3]       Sleep between receiver launches and sender fan-out.
@@ -97,8 +103,11 @@ fi
 
 [ "$LOOPBACK" -eq 1 ] || [ -x "$LOCAL_BIN" ] || die "no vsock_perf at $LOCAL_BIN — run prepare-perf.sh first"
 
-[ -z "$LOGDIR" ] && LOGDIR="/tmp/vsock-stress-$$"
-mkdir -p "$LOGDIR"
+if [ -z "$LOGDIR" ]; then
+    LOGDIR=$(mktemp -d /tmp/vsock-stress-XXXXXX) || die "mktemp failed"
+else
+    mkdir -p "$LOGDIR"
+fi
 
 # Guest binary path + variant flag. Same dispatch as run-perf.sh.
 guest_variant_flag=''
@@ -157,7 +166,7 @@ for (\$i = 0; \$i -lt $STRESS_N; \$i++) {
         -RedirectStandardOutput \$log -RedirectStandardError \$err \`
         -NoNewWindow -PassThru
 }
-foreach (\$p in \$procs) { \$p.WaitForExit() }
+foreach (\$p in \$procs) { if (-not \$p.WaitForExit($((STRESS_TIMEOUT_SECS * 1000)))) { try { \$p.Kill() } catch {} } }
 [Console]::Out.WriteLine("DONE:$STRESS_N")
 EOF
 }
@@ -179,7 +188,7 @@ for (\$i = 0; \$i -lt $STRESS_N; \$i++) {
         -RedirectStandardOutput \$log -RedirectStandardError \$err \`
         -NoNewWindow -PassThru
 }
-foreach (\$p in \$procs) { \$p.WaitForExit() }
+foreach (\$p in \$procs) { if (-not \$p.WaitForExit($((STRESS_TIMEOUT_SECS * 1000)))) { try { \$p.Kill() } catch {} } }
 [Console]::Out.WriteLine("DONE:$STRESS_N")
 EOF
 }
@@ -209,7 +218,7 @@ for (\$i = 0; \$i -lt $STRESS_N; \$i++) {
         -RedirectStandardOutput \$log -RedirectStandardError \$err \`
         -NoNewWindow -PassThru
 }
-foreach (\$p in \$procs) { \$p.WaitForExit() }
+foreach (\$p in \$procs) { if (-not \$p.WaitForExit($((STRESS_TIMEOUT_SECS * 1000)))) { try { \$p.Kill() } catch {} } }
 [Console]::Out.WriteLine("DONE:$STRESS_N")
 EOF
 }
@@ -231,7 +240,7 @@ for (\$i = 0; \$i -lt $STRESS_N; \$i++) {
         -RedirectStandardOutput \$log -RedirectStandardError \$err \`
         -NoNewWindow -PassThru
 }
-foreach (\$p in \$procs) { \$p.WaitForExit() }
+foreach (\$p in \$procs) { if (-not \$p.WaitForExit($((STRESS_TIMEOUT_SECS * 1000)))) { try { \$p.Kill() } catch {} } }
 [Console]::Out.WriteLine("DONE:$STRESS_N")
 EOF
 }
@@ -309,9 +318,18 @@ fi
 
 info "waiting for completion..."
 
-# Wait for local children.
+# Wait for local children, bounded by STRESS_TIMEOUT_SECS so a receiver
+# stuck in accept() (sender never connected) becomes a FAIL, not a hang.
 local_fail=0
+deadline=$(( $(date +%s) + STRESS_TIMEOUT_SECS ))
 for i in "${!LOCAL_PIDS[@]}"; do
+    while kill -0 "${LOCAL_PIDS[$i]}" 2>/dev/null && [ "$(date +%s)" -lt "$deadline" ]; do
+        sleep 1
+    done
+    if kill -0 "${LOCAL_PIDS[$i]}" 2>/dev/null; then
+        err "  ${LOCAL_NAMES[$i]} still running after ${STRESS_TIMEOUT_SECS}s — killing (probable stall)"
+        kill "${LOCAL_PIDS[$i]}" 2>/dev/null || true
+    fi
     wait "${LOCAL_PIDS[$i]}"
     rc=$?
     if [ "$rc" -ne 0 ]; then

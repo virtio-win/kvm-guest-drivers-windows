@@ -85,8 +85,11 @@ guest_cid=$(config_read "$CFG" guest_cid); [ -n "$guest_cid" ] || die "config ha
 
 [ -x "$LOCAL_BIN" ] || die "no vsock_perf at $LOCAL_BIN — run prepare-perf.sh first"
 
-[ -z "$LOGDIR" ] && LOGDIR="/tmp/vsock-perf-$$"
-mkdir -p "$LOGDIR"
+if [ -z "$LOGDIR" ]; then
+    LOGDIR=$(mktemp -d /tmp/vsock-perf-XXXXXX) || die "mktemp failed"
+else
+    mkdir -p "$LOGDIR"
+fi
 
 # vsock_perf.exe has no variant flag — always compat.h POSIX shim.
 GUEST_CMD="${guest_bin_dir}\\vsock_perf.exe"
@@ -188,9 +191,13 @@ _report() {
     printf '[%s/%s] RX=%s Gbps  TX=%s Gbps  rx-rc=%s  tx-rc=%s\n' \
         "$direction" "$buf_label" "$rx_gbps" "$tx_gbps" "$rx_rc" "$tx_rc"
     RESULTS+=("$direction $buf_label $rx_gbps $tx_gbps")
+    if [ "$rx_rc" -ne 0 ] || [ "$tx_rc" -ne 0 ] || [ "$rx_gbps" = '-' ] || [ "$tx_gbps" = '-' ]; then
+        PERF_FAIL=1
+    fi
 }
 
 # --- go ------------------------------------------------------------------
+PERF_FAIL=0
 info "== vsock_perf sweep: bytes=$PERF_BYTES  buffers={$PERF_BUF_DEFAULT, $PERF_BUF_LARGE}  logs in $LOGDIR =="
 
 if [ "$run_fwd" -eq 1 ]; then
@@ -209,3 +216,9 @@ for r in "${RESULTS[@]}"; do
     read -r dir buf rx tx <<< "$r"
     printf '  %-10s %-8s %10s %10s\n' "$dir" "$buf" "$rx" "$tx"
 done
+
+if [ "$PERF_FAIL" -ne 0 ]; then
+    err "== run-perf: at least one run failed or reported no throughput =="
+    exit 1
+fi
+info "== run-perf: all runs green =="
