@@ -45,7 +45,9 @@
 14   wsa    SOCK_STREAM virtio skb merge
 14   overlapped SOCK_STREAM virtio skb merge
 # 15 posix  SOCK_SEQPACKET MSG_PEEK                         — disabled: shared body ready via test_msg_peek_*(bool seqpacket); needs seqpacket wrapper + wiring + driver SEQPACKET
-# 16 posix  SOCK_STREAM SHUT_WR  — disabled: run_client/run_server = NULL (Linux-only SIGPIPE);
+16   posix  SOCK_STREAM SHUT_WR
+16   wsa    SOCK_STREAM SHUT_WR
+16   overlapped SOCK_STREAM SHUT_WR
 # 17 posix  SOCK_STREAM SHUT_RD  — disabled: run_client/run_server = NULL (Linux-only SIGPIPE);
 18   posix  SOCK_STREAM MSG_ZEROCOPY
 18   wsa    SOCK_STREAM MSG_ZEROCOPY
