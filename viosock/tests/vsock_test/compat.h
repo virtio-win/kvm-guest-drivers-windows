@@ -54,6 +54,11 @@
 #define SIO_VSOCK_OUTQ _WSAIOR(IOC_VENDOR, 1)
 #endif
 
+/* Same for an upstream vio_sockets.h without the loopback CID (Linux value). */
+#ifndef VMADDR_CID_LOCAL
+#define VMADDR_CID_LOCAL 1
+#endif
+
 /* ------------------------------------------------------------------ */
 /* Type compatibility                                                   */
 /* ------------------------------------------------------------------ */

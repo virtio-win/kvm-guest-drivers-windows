@@ -92,10 +92,8 @@ void vsock_wait_remote_close(int fd)
      * reported in revents regardless of what we requested. */
     fds.events = POLLIN;
 
-    /* Route through the variant dispatch: posix -> WSAPoll (compat.c),
-     * wsa   -> WSAEventSelect + WSAEnumNetworkEvents (wsa.c).  Both
-     * primitives get runtime coverage from the tests that use this
-     * helper (currently 3 / 21 / 30 / 31). */
+    /* Every variant's sock_poll is WSAPoll today (compat.c / wsa.c); the
+     * WSAEventSelect tract is covered separately by wsa_events.c. */
     nfds = g_ops->sock_poll(&fds, 1, TIMEOUT * 1000);
     if (nfds < 0)
     {
