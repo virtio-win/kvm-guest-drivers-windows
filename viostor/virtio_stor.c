@@ -2517,7 +2517,8 @@ UCHAR FirmwareRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
                 PSTORAGE_FIRMWARE_INFO_V2 firmwareInfo;
                 ULONG availableLen;
 
-                if ((firmwareRequest->DataBufferOffset > dataLen) ||
+                if ((firmwareRequest->DataBufferOffset < (sizeof(SRB_IO_CONTROL) + sizeof(FIRMWARE_REQUEST_BLOCK))) ||
+                    (firmwareRequest->DataBufferOffset > dataLen) ||
                     ((dataLen - firmwareRequest->DataBufferOffset) < sizeof(STORAGE_FIRMWARE_INFO_V2)))
                 {
                     srbControl->ReturnCode = FIRMWARE_STATUS_INVALID_PARAMETER;
@@ -2580,7 +2581,8 @@ UCHAR FirmwareRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
             {
                 PSTORAGE_FIRMWARE_DOWNLOAD_V2 firmwareDwnld;
 
-                if ((firmwareRequest->DataBufferOffset > dataLen) ||
+                if ((firmwareRequest->DataBufferOffset < (sizeof(SRB_IO_CONTROL) + sizeof(FIRMWARE_REQUEST_BLOCK))) ||
+                    (firmwareRequest->DataBufferOffset > dataLen) ||
                     ((dataLen - firmwareRequest->DataBufferOffset) < sizeof(STORAGE_FIRMWARE_DOWNLOAD_V2)))
                 {
                     srbControl->ReturnCode = FIRMWARE_STATUS_INVALID_PARAMETER;
@@ -2617,7 +2619,8 @@ UCHAR FirmwareRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
             {
                 PSTORAGE_FIRMWARE_ACTIVATE firmwareActivate;
 
-                if ((firmwareRequest->DataBufferOffset > dataLen) ||
+                if ((firmwareRequest->DataBufferOffset < (sizeof(SRB_IO_CONTROL) + sizeof(FIRMWARE_REQUEST_BLOCK))) ||
+                    (firmwareRequest->DataBufferOffset > dataLen) ||
                     ((dataLen - firmwareRequest->DataBufferOffset) < sizeof(STORAGE_FIRMWARE_ACTIVATE)))
                 {
                     srbControl->ReturnCode = FIRMWARE_STATUS_INVALID_PARAMETER;
