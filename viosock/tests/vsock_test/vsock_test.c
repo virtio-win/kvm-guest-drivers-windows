@@ -18,8 +18,9 @@
  *   - MSG_ZEROCOPY family (18/19/20/27/28): blocked by the missing
  *     Winsock MSG_ERRQUEUE / sock_extended_err notification path — not
  *     by an absence of zero-copy in the driver tract (WSP already hands
- *     the kernel MDL-based user pages).  Slot 20 keeps upstream's control
- *     protocol but runs a Windows body (full TX window) instead.
+ *     the kernel MDL-based user pages).  Slots 20 and 27 keep upstream's
+ *     control protocol but run Windows bodies instead (full TX window;
+ *     select() under WSAEventSelect + half-close).
  *
  *   - SOCK_SEQPACKET cases (6/7/8/9/11/13/15/19/25/35): SEQPACKET is
  *     not implemented in the viosock driver. Bodies split three ways:
@@ -975,6 +976,96 @@ static void test_stream_full_tx_window_server(const struct test_opts *opts)
     close(fd);
 }
 
+/* Upstream slot 27 (MSG_ZEROCOPY leak MSG_ERRQUEUE) has no Winsock analogue;
+ * its peer bodies - client sends a byte, server reads it, each waits for the
+ * other's close - carry two checks of our own.  Client: half-close with
+ * SD_SEND and expect the peer's close to surface as EOF.  Server: the byte
+ * the peer sent stays visible to select() after WSAEventSelect() has been
+ * armed and its events drained - MSDN: select() is not affected by
+ * WSAEventSelect registrations (poc_select_wsaevent). */
+static void test_stream_select_under_wsaevent_client(const struct test_opts *opts)
+{
+    int fd;
+
+    fd = vsock_stream_connect(opts->peer_cid, opts->peer_port);
+    if (fd < 0)
+    {
+        perror("connect");
+        exit(EXIT_FAILURE);
+    }
+
+    send_byte(fd, 1, 0);
+
+    if (shutdown(fd, SHUT_WR))
+    {
+        perror("shutdown");
+        exit(EXIT_FAILURE);
+    }
+
+    /* The peer reads the byte, sees our FIN and closes: EOF must follow. */
+    vsock_wait_remote_close(fd);
+    recv_byte(fd, 0, 0);
+    close(fd);
+}
+
+static void select_readable_check(int fd, const char *what)
+{
+    fd_set rfds;
+    struct timeval tv = {TIMEOUT, 0};
+    int rc;
+
+    FD_ZERO(&rfds);
+    FD_SET((SOCKET)fd, &rfds);
+    rc = select(0, &rfds, NULL, NULL, &tv);
+    if (rc < 1 || !FD_ISSET((SOCKET)fd, &rfds))
+    {
+        fprintf(stderr, "%s: select() did not report the buffered byte (rc=%d WSA %d)\n", what, rc, WSAGetLastError());
+        exit(EXIT_FAILURE);
+    }
+}
+
+static void test_stream_select_under_wsaevent_server(const struct test_opts *opts)
+{
+    WSAEVENT ev;
+    WSANETWORKEVENTS ne;
+    u_long nb = 0;
+    int fd;
+
+    fd = vsock_stream_accept(VMADDR_CID_ANY, opts->peer_port, NULL);
+    if (fd < 0)
+    {
+        perror("accept");
+        exit(EXIT_FAILURE);
+    }
+
+    select_readable_check(fd, "before WSAEventSelect");
+
+    /* Arm the socket the way an event loop does and drain the recorded
+     * events, as a dispatch would before it polls. */
+    ev = WSACreateEvent();
+    if (ev == WSA_INVALID_EVENT || WSAEventSelect((SOCKET)fd, ev, FD_READ | FD_CLOSE) == SOCKET_ERROR)
+    {
+        fprintf(stderr, "WSAEventSelect failed WSA %d\n", WSAGetLastError());
+        exit(EXIT_FAILURE);
+    }
+    if (WSAEnumNetworkEvents((SOCKET)fd, ev, &ne) == SOCKET_ERROR)
+    {
+        fprintf(stderr, "WSAEnumNetworkEvents failed WSA %d\n", WSAGetLastError());
+        exit(EXIT_FAILURE);
+    }
+
+    /* The byte is still buffered: select() must still say so. */
+    select_readable_check(fd, "after WSAEventSelect");
+
+    WSAEventSelect((SOCKET)fd, NULL, 0);
+    ioctlsocket((SOCKET)fd, FIONBIO, &nb);
+    WSACloseEvent(ev);
+
+    recv_byte(fd, 1, 0);
+    vsock_wait_remote_close(fd);
+    close(fd);
+}
+
 static void test_stream_virtio_skb_merge_client(const struct test_opts *opts)
 {
     int fd;
@@ -1840,11 +1931,11 @@ static struct test_case test_cases[] = {
         .run_server = NULL,
     },
     {
-        /* Same MSG_ERRQUEUE gap, plus this is a Linux-kmemleak regression
-        * test — no equivalent debug facility on Windows. */
-        .name = "SOCK_STREAM MSG_ZEROCOPY leak MSG_ERRQUEUE",
-        .run_client = NULL,
-        .run_server = NULL,
+        /* No MSG_ERRQUEUE / kmemleak on Windows; the peer bodies stay upstream's,
+         * ours check select() under WSAEventSelect and the half-close path. */
+        .name = "SOCK_STREAM select() under WSAEventSelect, half-close (Linux: MSG_ZEROCOPY leak MSG_ERRQUEUE)",
+        .run_client = test_stream_select_under_wsaevent_client,
+        .run_server = test_stream_select_under_wsaevent_server,
     },
     {
         /* Same — depends on Linux-kmemleak against zerocopy skbs. */
