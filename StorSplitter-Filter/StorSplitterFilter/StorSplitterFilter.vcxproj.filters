@@ -19,7 +19,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <Inf Include="StorSplitterFilter.inf">
+    <Inf Include="StorSplitterFilter.inx">
       <Filter>Driver Files</Filter>
     </Inf>
   </ItemGroup>

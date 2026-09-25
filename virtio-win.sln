@@ -220,6 +220,15 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "tcp-bridge", "viosock\tcp-b
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "viogpures", "viogpu\viogpures\viogpures.vcxproj", "{F737C4C1-5F21-4F77-AA5E-38CDE64BF849}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "StorSplitterFilter", "StorSplitter-Filter\StorSplitterFilter\StorSplitterFilter.vcxproj", "{C4230F18-1D88-469D-A7F4-196B08B98D49}"
+	ProjectSection(ProjectDependencies) = postProject
+		{8185B22C-1190-4E5A-9E3A-160190FC4A74} = {8185B22C-1190-4E5A-9E3A-160190FC4A74}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SplitterCtrl", "StorSplitter-Filter\SplitterCtrl\SplitterCtrl.vcxproj", "{8185B22C-1190-4E5A-9E3A-160190FC4A74}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "StorSplitter-Filter", "StorSplitter-Filter", "{D6B9F2A1-3C4E-4F5A-8B7C-1D2E3F4A5B6C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Win10 Release|ARM64 = Win10 Release|ARM64
@@ -230,6 +239,28 @@ Global
 		Win11 Release|x86 = Win11 Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C4230F18-1D88-469D-A7F4-196B08B98D49}.Win10 Release|ARM64.ActiveCfg = Win10 Release|ARM64
+		{C4230F18-1D88-469D-A7F4-196B08B98D49}.Win10 Release|ARM64.Build.0 = Win10 Release|ARM64
+		{C4230F18-1D88-469D-A7F4-196B08B98D49}.Win10 Release|x64.ActiveCfg = Win10 Release|x64
+		{C4230F18-1D88-469D-A7F4-196B08B98D49}.Win10 Release|x64.Build.0 = Win10 Release|x64
+		{C4230F18-1D88-469D-A7F4-196B08B98D49}.Win10 Release|x86.ActiveCfg = Win10 Release|Win32
+		{C4230F18-1D88-469D-A7F4-196B08B98D49}.Win10 Release|x86.Build.0 = Win10 Release|Win32
+		{C4230F18-1D88-469D-A7F4-196B08B98D49}.Win11 Release|ARM64.ActiveCfg = Win11 Release|ARM64
+		{C4230F18-1D88-469D-A7F4-196B08B98D49}.Win11 Release|ARM64.Build.0 = Win11 Release|ARM64
+		{C4230F18-1D88-469D-A7F4-196B08B98D49}.Win11 Release|x64.ActiveCfg = Win11 Release|x64
+		{C4230F18-1D88-469D-A7F4-196B08B98D49}.Win11 Release|x64.Build.0 = Win11 Release|x64
+		{C4230F18-1D88-469D-A7F4-196B08B98D49}.Win11 Release|x86.ActiveCfg = Win11 Release|Win32
+		{C4230F18-1D88-469D-A7F4-196B08B98D49}.Win11 Release|x86.Build.0 = Win11 Release|Win32
+		{8185B22C-1190-4E5A-9E3A-160190FC4A74}.Win10 Release|ARM64.ActiveCfg = Release|x64
+		{8185B22C-1190-4E5A-9E3A-160190FC4A74}.Win10 Release|x64.ActiveCfg = Release|x64
+		{8185B22C-1190-4E5A-9E3A-160190FC4A74}.Win10 Release|x64.Build.0 = Release|x64
+		{8185B22C-1190-4E5A-9E3A-160190FC4A74}.Win10 Release|x86.ActiveCfg = Release|Win32
+		{8185B22C-1190-4E5A-9E3A-160190FC4A74}.Win10 Release|x86.Build.0 = Release|Win32
+		{8185B22C-1190-4E5A-9E3A-160190FC4A74}.Win11 Release|ARM64.ActiveCfg = Release|x64
+		{8185B22C-1190-4E5A-9E3A-160190FC4A74}.Win11 Release|x64.ActiveCfg = Release|x64
+		{8185B22C-1190-4E5A-9E3A-160190FC4A74}.Win11 Release|x64.Build.0 = Release|x64
+		{8185B22C-1190-4E5A-9E3A-160190FC4A74}.Win11 Release|x86.ActiveCfg = Release|Win32
+		{8185B22C-1190-4E5A-9E3A-160190FC4A74}.Win11 Release|x86.Build.0 = Release|Win32
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win10 Release|ARM64.ActiveCfg = Win10 Release|ARM64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win10 Release|ARM64.Build.0 = Win10 Release|ARM64
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E}.Win10 Release|x64.ActiveCfg = Win10 Release|x64
@@ -735,6 +766,8 @@ Global
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
+		{C4230F18-1D88-469D-A7F4-196B08B98D49} = {D6B9F2A1-3C4E-4F5A-8B7C-1D2E3F4A5B6C}
+		{8185B22C-1190-4E5A-9E3A-160190FC4A74} = {D6B9F2A1-3C4E-4F5A-8B7C-1D2E3F4A5B6C}
 		{01D87C47-437A-4A16-8FD9-33FA5C99339E} = {9B50A368-22AC-421A-BA77-FA2BC760D7D9}
 		{EC1B7990-EA6A-45FE-836C-2F050F6BB632} = {9B50A368-22AC-421A-BA77-FA2BC760D7D9}
 		{DAD407F3-186A-48FC-88CE-E236AF3165C4} = {BE3962CB-0038-42CD-9182-AF4FDE2938F1}
