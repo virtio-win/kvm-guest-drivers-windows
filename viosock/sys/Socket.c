@@ -1733,8 +1733,10 @@ static NTSTATUS VIOSockShutdown(IN WDFREQUEST Request)
 
         if (uDrain & VIRTIO_VSOCK_SHUTDOWN_RCV)
         {
-            // We closed our own receive side: no more data will be delivered, so wake
-            // every parked recv. The matcher reports EOF for each and drains the rest.
+            // We closed our own receive side: drop whatever is buffered (its credit
+            // goes back to the peer) and wake every parked recv - the matcher fails
+            // each with WSAESHUTDOWN and drains the rest.
+            VIOSockReadDiscardCb(pSocket);
             VIOSockReadProcessQueue(pSocket);
         }
 
