@@ -82,10 +82,6 @@ extern "C"
     }
 #endif
 
-#ifndef MAX_FRAGMENTS_IN_ONE_NB
-#define MAX_FRAGMENTS_IN_ONE_NB 256
-#endif
-
 #include "kdebugprint.h"
 #include "virtio_pci.h"
 #include "DebugData.h"
@@ -670,6 +666,12 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
     } RSC = {};
 #endif
 
+    /* Maximal number of virtio SG entries the driver uses for a single NET_BUFFER,
+    counting both the header entries and the data fragments. Some hardware
+    implementations of virtio-net can't handle long chains of descriptors, so this
+    is configurable through the "Init.TxFragmentationLimit" parameter. NET_BUFFERs
+    with more fragments are coalesced into fewer pages by the TX path instead of
+    being dropped. The effective value is additionally limited by the TX queue size. */
     ULONG uMaxFragmentsInOneNB;
 
     VOID RaiseUnrecoverableError(PCSTR Message);
