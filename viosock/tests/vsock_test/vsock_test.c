@@ -1066,6 +1066,47 @@ static void test_stream_select_under_wsaevent_server(const struct test_opts *opt
     close(fd);
 }
 
+/* Upstream slot 36 sets SO_ZEROCOPY on the accept()ed socket; Winsock has no
+ * such option, so the server sets the vsock buffer size on the accepted
+ * socket and reads it back - the option plumbing of a socket created by
+ * accept() rather than socket().  The client, whose peer closes right after
+ * accepting, checks that a silent close surfaces as EOF (poc_fdclose). */
+static void test_stream_accepted_setsockopt_client(const struct test_opts *opts)
+{
+    int fd;
+
+    fd = vsock_stream_connect(opts->peer_cid, opts->peer_port);
+    if (fd < 0)
+    {
+        perror("connect");
+        exit(EXIT_FAILURE);
+    }
+
+    /* The peer closes right after accept() without sending anything. */
+    vsock_wait_remote_close(fd);
+    recv_byte(fd, 0, 0);
+    close(fd);
+}
+
+static void test_stream_accepted_setsockopt_server(const struct test_opts *opts)
+{
+    int fd;
+
+    fd = vsock_stream_accept(VMADDR_CID_ANY, opts->peer_port, NULL);
+    if (fd < 0)
+    {
+        perror("accept");
+        exit(EXIT_FAILURE);
+    }
+
+    setsockopt_ull_check(fd,
+                         g_vsock_af,
+                         SO_VM_SOCKETS_BUFFER_SIZE,
+                         SOCK_BUF_SIZE_SMALL,
+                         "setsockopt(SO_VM_SOCKETS_BUFFER_SIZE) on accept()ed socket");
+    close(fd);
+}
+
 static void test_stream_virtio_skb_merge_client(const struct test_opts *opts)
 {
     int fd;
@@ -1982,11 +2023,11 @@ static struct test_case test_cases[] = {
         .run_server = NULL,
     },
     {
-        /* Regression test against a Linux kernel setsockopt(SO_ZEROCOPY)
-        * bug on accept()ed fds; Winsock has no SO_ZEROCOPY at all. */
+        /* No SO_ZEROCOPY on Winsock: the accept()ed socket gets the vsock buffer
+         * size instead; the client checks the peer's silent close. */
         .name = "SOCK_STREAM accept()ed socket custom setsockopt()",
-        .run_client = NULL,
-        .run_server = NULL,
+        .run_client = test_stream_accepted_setsockopt_client,
+        .run_server = test_stream_accepted_setsockopt_server,
     },
     {
         /* Same MSG_ERRQUEUE gap — coalescence check reads notifications. */
