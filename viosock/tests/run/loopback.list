@@ -48,7 +48,9 @@
 16   posix  SOCK_STREAM SHUT_WR
 16   wsa    SOCK_STREAM SHUT_WR
 16   overlapped SOCK_STREAM SHUT_WR
-# 17 posix  SOCK_STREAM SHUT_RD  — disabled: run_client/run_server = NULL (Linux-only SIGPIPE);
+17   posix  SOCK_STREAM SHUT_RD
+17   wsa    SOCK_STREAM SHUT_RD
+17   overlapped SOCK_STREAM SHUT_RD
 18   posix  SOCK_STREAM MSG_ZEROCOPY
 18   wsa    SOCK_STREAM MSG_ZEROCOPY
 18   overlapped SOCK_STREAM MSG_ZEROCOPY
