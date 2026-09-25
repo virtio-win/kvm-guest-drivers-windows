@@ -1190,9 +1190,9 @@ static void test_stream_shutrd_server(const struct test_opts *opts)
         exit(EXIT_FAILURE);
     }
 
-    /* Local half parked: Winsock documents WSAESHUTDOWN for recv() after
-     * SD_RECEIVE, the driver reports EOF instead (Linux parity) -
-     * recv_byte(fd, -EPIPE, 0) once that is settled. */
+    /* Local half: recv() after our own SD_RECEIVE fails with WSAESHUTDOWN
+     * (EPIPE through the shim). */
+    recv_byte(fd, -EPIPE, 0);
 
     control_writeln("SHUTRDDONE");
     control_expectln("CLIENTDONE");

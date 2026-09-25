@@ -338,6 +338,77 @@ static void ev_select_connect_before_accept(void)
 }
 
 /*
+ * shutdown(SD_RECEIVE) with a byte still buffered: recv() must fail with
+ * WSAESHUTDOWN - nothing is delivered once the receive side is shut - and
+ * the peer's send() must fail too (WSAESHUTDOWN: the driver folds the
+ * remote receive shutdown into the local one, as Linux folds it into
+ * EPIPE) once the shutdown packet has reached it.
+ */
+static void ev_recv_after_shut_rd(void)
+{
+    struct pair p = {INVALID_SOCKET, INVALID_SOCKET, INVALID_SOCKET, 0};
+    pair_make(&p);
+
+    if (send(p.accepted, "x", 1, 0) != 1)
+    {
+        die("shut_rd send");
+    }
+
+    /* Let the byte land on the client before shutting its receive side. */
+    fd_set rfds;
+    FD_ZERO(&rfds);
+    FD_SET(p.client, &rfds);
+    struct timeval tv = {2, 0};
+    if (select(0, &rfds, NULL, NULL, &tv) < 1)
+    {
+        fprintf(stderr, "posix-events: shut_rd: byte never became readable\n");
+        pair_close(&p);
+        exit(EXIT_FAILURE);
+    }
+
+    if (shutdown(p.client, SD_RECEIVE) == SOCKET_ERROR)
+    {
+        die("shut_rd shutdown");
+    }
+
+    char c;
+    int rc = recv(p.client, &c, 1, 0);
+    int err = (rc == SOCKET_ERROR) ? WSAGetLastError() : 0;
+    if (rc != SOCKET_ERROR || err != WSAESHUTDOWN)
+    {
+        fprintf(stderr, "posix-events: recv after SD_RECEIVE: rc=%d WSA %d, expected WSAESHUTDOWN\n", rc, err);
+        pair_close(&p);
+        exit(EXIT_FAILURE);
+    }
+
+    /* The shutdown packet may still be in flight: retry until the send fails. */
+    DWORD t0 = GetTickCount();
+    for (;;)
+    {
+        rc = send(p.accepted, "y", 1, 0);
+        if (rc == SOCKET_ERROR)
+        {
+            break;
+        }
+        if (GetTickCount() - t0 > 2000)
+        {
+            fprintf(stderr, "posix-events: shut_rd: peer send() still succeeds 2 s after SD_RECEIVE\n");
+            pair_close(&p);
+            exit(EXIT_FAILURE);
+        }
+        Sleep(10);
+    }
+    err = WSAGetLastError();
+    if (err != WSAESHUTDOWN)
+    {
+        fprintf(stderr, "posix-events: shut_rd: peer send() failed with WSA %d, expected WSAESHUTDOWN\n", err);
+        pair_close(&p);
+        exit(EXIT_FAILURE);
+    }
+    pair_close(&p);
+}
+
+/*
  * Probe whether connect(g_self_cid) comes back to our own listener
  * before running the pair-based helper: non-blocking connect, select()
  * for the listener to become readable, accept, then select(writefds)
@@ -440,4 +511,5 @@ void posix_events_all(unsigned int self_cid)
      * with the fix that sends RESPONSE when the request is queued. */
     (void)ev_select_connect_before_accept;
     ev_select_writefds_ready();
+    ev_recv_after_shut_rd();
 }
