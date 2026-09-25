@@ -91,7 +91,9 @@
 34   wsa    SOCK_STREAM ioctl(SIOCINQ) functionality
 34   overlapped SOCK_STREAM ioctl(SIOCINQ) functionality
 # 35 posix  SOCK_SEQPACKET ioctl(SIOCINQ) functionality     — disabled: shared body ready via test_unread_bytes_*(int type); needs seqpacket wrapper + wiring + driver SEQPACKET
-# 36 posix  SOCK_STREAM accept()ed socket custom setsockopt() — disabled: run_client/run_server = NULL (no Winsock SO_ZEROCOPY)
+36   posix  SOCK_STREAM accept()ed socket custom setsockopt()
+36   wsa    SOCK_STREAM accept()ed socket custom setsockopt()
+36   overlapped SOCK_STREAM accept()ed socket custom setsockopt()
 # 37 posix  SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption — disabled: run_client/run_server = NULL (no MSG_ERRQUEUE)
 38   posix  SOCK_STREAM TX credit bounds
 38   wsa    SOCK_STREAM TX credit bounds
