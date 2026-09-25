@@ -1,0 +1,60 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.10.35013.160
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "StorSplitterFilter", "StorSplitterFilter\StorSplitterFilter.vcxproj", "{C4230F18-1D88-469D-A7F4-196B08B98D49}"
+	ProjectSection(ProjectDependencies) = postProject
+		{8185B22C-1190-4E5A-9E3A-160190FC4A74} = {8185B22C-1190-4E5A-9E3A-160190FC4A74}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SplitterCtrl", "SplitterCtrl\SplitterCtrl.vcxproj", "{8185B22C-1190-4E5A-9E3A-160190FC4A74}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|ARM64 = Debug|ARM64
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|ARM64 = Release|ARM64
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C4230F18-1D88-469D-A7F4-196B08B98D49}.Debug|ARM64.ActiveCfg = Debug|ARM64
+		{C4230F18-1D88-469D-A7F4-196B08B98D49}.Debug|ARM64.Build.0 = Debug|ARM64
+		{C4230F18-1D88-469D-A7F4-196B08B98D49}.Debug|ARM64.Deploy.0 = Debug|ARM64
+		{C4230F18-1D88-469D-A7F4-196B08B98D49}.Debug|x64.ActiveCfg = Debug|x64
+		{C4230F18-1D88-469D-A7F4-196B08B98D49}.Debug|x64.Build.0 = Debug|x64
+		{C4230F18-1D88-469D-A7F4-196B08B98D49}.Debug|x64.Deploy.0 = Debug|x64
+		{C4230F18-1D88-469D-A7F4-196B08B98D49}.Debug|x86.ActiveCfg = Debug|x64
+		{C4230F18-1D88-469D-A7F4-196B08B98D49}.Debug|x86.Build.0 = Debug|x64
+		{C4230F18-1D88-469D-A7F4-196B08B98D49}.Debug|x86.Deploy.0 = Debug|x64
+		{C4230F18-1D88-469D-A7F4-196B08B98D49}.Release|ARM64.ActiveCfg = Release|ARM64
+		{C4230F18-1D88-469D-A7F4-196B08B98D49}.Release|ARM64.Build.0 = Release|ARM64
+		{C4230F18-1D88-469D-A7F4-196B08B98D49}.Release|ARM64.Deploy.0 = Release|ARM64
+		{C4230F18-1D88-469D-A7F4-196B08B98D49}.Release|x64.ActiveCfg = Release|x64
+		{C4230F18-1D88-469D-A7F4-196B08B98D49}.Release|x64.Build.0 = Release|x64
+		{C4230F18-1D88-469D-A7F4-196B08B98D49}.Release|x64.Deploy.0 = Release|x64
+		{C4230F18-1D88-469D-A7F4-196B08B98D49}.Release|x86.ActiveCfg = Release|x64
+		{C4230F18-1D88-469D-A7F4-196B08B98D49}.Release|x86.Build.0 = Release|x64
+		{C4230F18-1D88-469D-A7F4-196B08B98D49}.Release|x86.Deploy.0 = Release|x64
+		{8185B22C-1190-4E5A-9E3A-160190FC4A74}.Debug|ARM64.ActiveCfg = Debug|x64
+		{8185B22C-1190-4E5A-9E3A-160190FC4A74}.Debug|ARM64.Build.0 = Debug|x64
+		{8185B22C-1190-4E5A-9E3A-160190FC4A74}.Debug|x64.ActiveCfg = Debug|x64
+		{8185B22C-1190-4E5A-9E3A-160190FC4A74}.Debug|x64.Build.0 = Debug|x64
+		{8185B22C-1190-4E5A-9E3A-160190FC4A74}.Debug|x86.ActiveCfg = Debug|Win32
+		{8185B22C-1190-4E5A-9E3A-160190FC4A74}.Debug|x86.Build.0 = Debug|Win32
+		{8185B22C-1190-4E5A-9E3A-160190FC4A74}.Release|ARM64.ActiveCfg = Release|x64
+		{8185B22C-1190-4E5A-9E3A-160190FC4A74}.Release|ARM64.Build.0 = Release|x64
+		{8185B22C-1190-4E5A-9E3A-160190FC4A74}.Release|x64.ActiveCfg = Release|x64
+		{8185B22C-1190-4E5A-9E3A-160190FC4A74}.Release|x64.Build.0 = Release|x64
+		{8185B22C-1190-4E5A-9E3A-160190FC4A74}.Release|x86.ActiveCfg = Release|Win32
+		{8185B22C-1190-4E5A-9E3A-160190FC4A74}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {9468C107-9C79-4CF5-A6F7-F5EDA0AAA8D7}
+	EndGlobalSection
+EndGlobal
