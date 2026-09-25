@@ -750,6 +750,18 @@ static BOOLEAN VIOSockRxPktHandleConnected(IN PSOCKET_CONTEXT pSocket,
     switch (pPktHdr->op)
     {
         case VIRTIO_VSOCK_OP_RW:
+            if (pSocket->Shutdown & VIRTIO_VSOCK_SHUTDOWN_RCV)
+            {
+                // Our receive side is shut (SD_RECEIVE): nothing is delivered any
+                // more, so count the bytes as consumed for the peer's credit and let
+                // the caller free the packet.
+                WdfSpinLockAcquire(pSocket->RxLock);
+                pSocket->fwd_cnt += pPktHdr->len;
+                WdfSpinLockRelease(pSocket->RxLock);
+                VIOSockSendCreditUpdate(pSocket);
+                break;
+            }
+
             if (bLoopback)
             {
                 bEnqueued = VIOSockRxEnqueueTxEntry(pSocket,
@@ -1357,26 +1369,35 @@ static VOID VIOSockReadCompleteLoopback(IN PSOCKET_CONTEXT pSocket, IN PLIST_ENT
     }
 }
 
-// When the socket has no buffered Rx data, decide what to do with the read request:
-// complete it now (*pStop, with the returned status) or requeue it to wait for more
-// data (*pRequeue, which implies *pStop). With data present, neither is set. The caller
-// keeps the dequeue drain going unless this request is parked (*pRequeue): FIFO, nothing
-// behind a parked request can proceed, and re-driving a requeued request would busy-spin.
-// Every other completion - shutdown / reset / WOULDBLOCK - applies to all parked recvs
-// alike, so draining continues. Must be called under RxLock.
+// Decide what to do with the read request: complete it now (*pStop, with the returned
+// status) or requeue it to wait for more data (*pRequeue, which implies *pStop). With
+// data present and the receive side open, neither is set. The caller keeps the dequeue
+// drain going unless this request is parked (*pRequeue): FIFO, nothing behind a parked
+// request can proceed, and re-driving a requeued request would busy-spin. Every other
+// completion - shutdown / reset / WOULDBLOCK - applies to all parked recvs alike, so
+// draining continues. Must be called under RxLock.
 _Requires_lock_held_(pSocket->RxLock) static NTSTATUS VIOSockReadEvaluateRequest(IN PSOCKET_CONTEXT pSocket,
                                                                                  OUT BOOLEAN *pStop,
                                                                                  OUT BOOLEAN *pRequeue)
 {
-    NTSTATUS status = STATUS_SUCCESS;
+    NTSTATUS status = VIOSockStateValidate(pSocket, FALSE);
     BOOLEAN bStop = FALSE, bRequeue = FALSE;
 
-    if (!VIOSockRxHasData(pSocket))
+    if (status == STATUS_LOCAL_DISCONNECT)
+    {
+        // Our own SD_RECEIVE disallows every further recv (WSAESHUTDOWN), buffered
+        // data included.
+        bStop = TRUE;
+    }
+    else if (VIOSockRxHasData(pSocket))
+    {
+        // Buffered data is delivered whatever the state; the matcher takes it from here.
+        status = STATUS_SUCCESS;
+    }
+    else
     {
         // No buffered data, so this request cannot be filled now: stop matching it.
         bStop = TRUE;
-
-        status = VIOSockStateValidate(pSocket, FALSE);
 
         if (NT_SUCCESS(status))
         {
@@ -1398,10 +1419,10 @@ _Requires_lock_held_(pSocket->RxLock) static NTSTATUS VIOSockReadEvaluateRequest
         else
         {
             // Terminal state, identical for every parked recv, so drain them all
-            // (bRestart stays TRUE). A graceful disconnect - our own SHUT_RD (LOCAL) or
-            // the peer's SHUT_SEND (REMOTE) - is reported as EOF (zero bytes); a reset
-            // or invalid socket keeps its error status.
-            if (status == STATUS_LOCAL_DISCONNECT || status == STATUS_REMOTE_DISCONNECT)
+            // (bRestart stays TRUE). The peer's SHUT_SEND (REMOTE) is reported as EOF
+            // (zero bytes); a reset or invalid socket keeps its error status (our own
+            // SHUT_RD was handled above).
+            if (status == STATUS_REMOTE_DISCONNECT)
             {
                 status = STATUS_SUCCESS;
             }
@@ -1785,6 +1806,59 @@ _Requires_lock_not_held_(pSocket->RxLock) VOID VIOSockReadCleanupCb(IN PSOCKET_C
             VIOSockTxFreeEntry(pCurrentCb->TxEntry);
         }
     }
+}
+
+// SD_RECEIVE: drop everything buffered for this socket. The unread bytes count as
+// consumed for the peer's credit window (fwd_cnt advances, a CREDIT_UPDATE goes out),
+// wire CBs return to the device pool and loopback entries to their writers. Unlike
+// cleanup the socket lives on - only its receive side is gone.
+_Requires_lock_not_held_(pSocket->RxLock) VOID VIOSockReadDiscardCb(IN PSOCKET_CONTEXT pSocket)
+{
+    PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pSocket);
+    PVIOSOCK_RX_CB pCurrentCb;
+    LIST_ENTRY LoopbackList;
+    ULONG FwdCntDelta;
+    BOOLEAN bProcessRxPktList = FALSE;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %s\n", __FUNCTION__);
+
+    InitializeListHead(&LoopbackList);
+
+    WdfSpinLockAcquire(pSocket->RxLock);
+
+    while (!IsListEmpty(&pSocket->RxCbList))
+    {
+        pCurrentCb = CONTAINING_RECORD(RemoveHeadList(&pSocket->RxCbList), VIOSOCK_RX_CB, ListEntry);
+        VIOSockRxPktDec(pSocket, pCurrentCb->BytesToRead);
+
+        if (VIOSockIsLoopbackCb(pCurrentCb))
+        {
+            InsertTailList(&LoopbackList, &pCurrentCb->ListEntry); // release loopback entries later
+        }
+        else
+        {
+            VIOSockRxCbPushLocked(pContext, pCurrentCb);
+            bProcessRxPktList = TRUE;
+        }
+    }
+
+    FwdCntDelta = pSocket->fwd_cnt - pSocket->last_fwd_cnt;
+
+    WdfSpinLockRelease(pSocket->RxLock);
+
+    if (bProcessRxPktList)
+    {
+        VIOSockRxPktListProcessLockedNotify(pContext);
+    }
+
+    VIOSockReadCompleteLoopback(pSocket, &LoopbackList);
+
+    if (FwdCntDelta != 0)
+    {
+        VIOSockSendCreditUpdate(pSocket);
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- %s\n", __FUNCTION__);
 }
 
 VOID VIOSockReadIoCanceledOnQueue(IN WDFQUEUE Queue, IN WDFREQUEST Request)

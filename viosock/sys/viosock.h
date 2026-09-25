@@ -810,6 +810,8 @@ _Requires_lock_not_held_(pSocket->RxLock) VOID VIOSockReadProcessQueue(IN PSOCKE
 
 _Requires_lock_not_held_(pSocket->RxLock) VOID VIOSockReadCleanupCb(IN PSOCKET_CONTEXT pSocket);
 
+_Requires_lock_not_held_(pSocket->RxLock) VOID VIOSockReadDiscardCb(IN PSOCKET_CONTEXT pSocket);
+
 NTSTATUS
 VIOSockRecvBuffered(IN WDFREQUEST Request);
 
