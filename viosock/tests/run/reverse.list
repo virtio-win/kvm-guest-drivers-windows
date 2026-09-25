@@ -113,6 +113,8 @@
 # 33 posix  SOCK_STREAM transport change null-ptr-deref, lockdep warn  — disabled: run_client/run_server = NULL (transport-change); isolated-pick harness artifact
 # 34 posix  SOCK_STREAM ioctl(SIOCINQ) functionality  — disabled: reverse client-side runs on the Linux host (dev008 kernel 6.12 vz10), whose vsock does not implement ioctl(SIOCINQ); the upstream test then gracefully prints "Test skipped, SIOCINQ not supported." and exits, which the harness scores as a fail.  Windows client-side runs (forward, loopback) do exercise SIOCINQ end-to-end.
 # 35 posix  SOCK_SEQPACKET ioctl(SIOCINQ) functionality     — disabled: shared body ready via test_unread_bytes_*(int type); needs seqpacket wrapper + wiring + driver SEQPACKET
-# 36 posix  SOCK_STREAM accept()ed socket custom setsockopt() — disabled: run_client/run_server = NULL (no Winsock SO_ZEROCOPY)
+36   posix  SOCK_STREAM accept()ed socket custom setsockopt()
+36   wsa    SOCK_STREAM accept()ed socket custom setsockopt()
+36   overlapped SOCK_STREAM accept()ed socket custom setsockopt()
 # 37 posix  SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption — disabled: run_client/run_server = NULL (no MSG_ERRQUEUE)
 # 38 posix  SOCK_STREAM TX credit bounds                    — disabled: environmental, not a guest bug (re-classified 2026-08-21 on the Tx-refactor branch). The test checks the SENDER-side min(own,peer) TX window cap; in reverse the sender is the HOST Linux kernel, and dev008's kernel predates the upstream cap fix, so it queues the full 2MB window the server half itself advertises ("queued 2097152, expected <= 65536"). The Windows acceptor advertises correctly (forward direction passes with the guest-side cap). Re-enable on hosts with a capped kernel.
