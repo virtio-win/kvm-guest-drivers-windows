@@ -667,7 +667,15 @@ VOID RhelGetDiskGeometry(IN PVOID DeviceExtension)
     if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_SEG_MAX))
     {
         virtio_get_config(&adaptExt->vdev, FIELD_OFFSET(blk_config, seg_max), &v, sizeof(v));
-        adaptExt->info.seg_max = v;
+        /* VirtIoBuildIo() uses info.seg_max as the upper bound for sgElement while
+         * splitting SGL entries into srbExt->sg[VIRTIO_MAX_SG]. sg[0] holds the
+         * request header and sg[sgElement] (one past the last data entry) holds
+         * the status footer, so the highest data index (seg_max) must leave room
+         * for that trailing footer slot: seg_max <= VIRTIO_MAX_SG - 2. A
+         * misbehaving device could otherwise report a seg_max large enough to
+         * make VirtIoBuildIo() write past the end of srbExt->sg[].
+         */
+        adaptExt->info.seg_max = min(v, VIRTIO_MAX_SG - 2);
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, " VIRTIO_BLK_F_SEG_MAX = %d\n", adaptExt->info.seg_max);
     }
 
