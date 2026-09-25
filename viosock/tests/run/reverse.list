@@ -99,7 +99,9 @@
 24   wsa    SOCK_STREAM ioctl(SIOCOUTQ) 0 unsent bytes
 24   overlapped SOCK_STREAM ioctl(SIOCOUTQ) 0 unsent bytes
 # 25 posix  SOCK_SEQPACKET ioctl(SIOCOUTQ) 0 unsent bytes   — disabled: shared body ready via test_unsent_bytes_*(int type); needs seqpacket wrapper + wiring + driver SEQPACKET
-# 26 posix  SOCK_STREAM leak accept queue  — disabled: run_client/run_server = NULL (kmemleak); isolated-pick harness artifact
+26   posix  SOCK_STREAM leak accept queue
+26   wsa    SOCK_STREAM leak accept queue
+26   overlapped SOCK_STREAM leak accept queue
 27   posix  SOCK_STREAM select() under WSAEventSelect, half-close (Linux: MSG_ZEROCOPY leak MSG_ERRQUEUE)
 27   wsa    SOCK_STREAM select() under WSAEventSelect, half-close (Linux: MSG_ZEROCOPY leak MSG_ERRQUEUE)
 27   overlapped SOCK_STREAM select() under WSAEventSelect, half-close (Linux: MSG_ZEROCOPY leak MSG_ERRQUEUE)
