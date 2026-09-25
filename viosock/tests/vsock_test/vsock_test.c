@@ -1107,6 +1107,45 @@ static void test_stream_accepted_setsockopt_server(const struct test_opts *opts)
     close(fd);
 }
 
+#define ACCEPTQ_LEAK_RACE_TIMEOUT 2 /* seconds */
+
+/* Upstream races connect() against a listener that closes right after
+ * announcing itself (a kernel accept-queue leak).  On Windows the same loop
+ * exercises the two sides we own: the connector must get a prompt refusal
+ * or reset, never a stall, and the listener must tear down whatever the
+ * peer already queued when it closes unaccepted. */
+static void test_stream_leak_acceptq_client(const struct test_opts *opts)
+{
+    long long tout;
+    int fd;
+
+    tout = current_nsec() + ACCEPTQ_LEAK_RACE_TIMEOUT * NSEC_PER_SEC;
+    do
+    {
+        control_writeulong(CONTROL_CONTINUE);
+
+        fd = vsock_stream_connect(opts->peer_cid, opts->peer_port);
+        if (fd >= 0)
+        {
+            close(fd);
+        }
+    } while (current_nsec() < tout);
+
+    control_writeulong(CONTROL_DONE);
+}
+
+static void test_stream_leak_acceptq_server(const struct test_opts *opts)
+{
+    int fd;
+
+    while (control_readulong() == CONTROL_CONTINUE)
+    {
+        fd = vsock_stream_listen(VMADDR_CID_ANY, opts->peer_port);
+        control_writeln("LISTENING");
+        close(fd);
+    }
+}
+
 static void test_stream_virtio_skb_merge_client(const struct test_opts *opts)
 {
     int fd;
@@ -1966,10 +2005,11 @@ static struct test_case test_cases[] = {
         .run_server = NULL,
     },
     {
-        /* Linux-only: kernel-side accept-queue kmemleak regression */
+        /* Upstream chases a kernel accept-queue leak; the same race covers our
+         * connector (prompt refusal, no stall) and listener close with queued peers. */
         .name = "SOCK_STREAM leak accept queue",
-        .run_client = NULL,
-        .run_server = NULL,
+        .run_client = test_stream_leak_acceptq_client,
+        .run_server = test_stream_leak_acceptq_server,
     },
     {
         /* No MSG_ERRQUEUE / kmemleak on Windows; the peer bodies stay upstream's,
