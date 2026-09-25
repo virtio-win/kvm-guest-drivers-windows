@@ -194,14 +194,22 @@ BalloonFill(IN WDFOBJECT WdfDevice, IN size_t num)
     }
 
     pNewPageListEntry->PageMdl = pPageMdl;
-    PushEntryList(&ctx->PageListHead, &(pNewPageListEntry->SingleListEntry));
 
     ctx->num_pfns = (ULONG)num;
-    ctx->num_pages += ctx->num_pfns;
 
     RtlCopyMemory(ctx->pfns_table, MmGetMdlPfnArray(pPageMdl), ctx->num_pfns * sizeof(PFN_NUMBER));
 
     status = BalloonTellHost(WdfDevice, ctx->InfVirtQueue);
+    if (!NT_SUCCESS(status))
+    {
+        MmFreePagesFromMdl(pPageMdl);
+        ExFreePool(pPageMdl);
+        ExFreeToNPagedLookasideList(&ctx->LookAsideList, pNewPageListEntry);
+        return status;
+    }
+
+    PushEntryList(&ctx->PageListHead, &(pNewPageListEntry->SingleListEntry));
+    ctx->num_pages += ctx->num_pfns;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
     return status;
@@ -217,28 +225,33 @@ BalloonLeak(IN WDFOBJECT WdfDevice, IN size_t num)
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
-    pPageListEntry = (PPAGE_LIST_ENTRY)PopEntryList(&ctx->PageListHead);
-    if (pPageListEntry == NULL)
+    if (ctx->PageListHead.Next == NULL)
     {
         TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "No list entries.\n");
         return STATUS_NOT_FOUND;
     }
 
+    pPageListEntry = CONTAINING_RECORD(ctx->PageListHead.Next, PAGE_LIST_ENTRY, SingleListEntry);
     pPageMdl = pPageListEntry->PageMdl;
 
     num = MmGetMdlByteCount(pPageMdl) / PAGE_SIZE;
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "Deflate balloon with %d pages.\n", num);
 
     ctx->num_pfns = (ULONG)num;
-    ctx->num_pages -= ctx->num_pfns;
 
     RtlCopyMemory(ctx->pfns_table, MmGetMdlPfnArray(pPageMdl), ctx->num_pfns * sizeof(PFN_NUMBER));
 
+    status = BalloonTellHost(WdfDevice, ctx->DefVirtQueue);
+    if (!NT_SUCCESS(status))
+    {
+        return status;
+    }
+
+    PopEntryList(&ctx->PageListHead);
+    ctx->num_pages -= ctx->num_pfns;
     MmFreePagesFromMdl(pPageMdl);
     ExFreePool(pPageMdl);
     ExFreeToNPagedLookasideList(&ctx->LookAsideList, pPageListEntry);
-
-    status = BalloonTellHost(WdfDevice, ctx->DefVirtQueue);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
 
