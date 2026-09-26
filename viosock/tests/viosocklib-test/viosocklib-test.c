@@ -2,7 +2,7 @@
 //
 
 #include "pch.h"
-#include "..\inc\install.h"
+#include "..\..\inc\install.h"
 
 #define DEST_PORT 1025
 
