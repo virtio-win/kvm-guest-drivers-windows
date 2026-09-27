@@ -283,7 +283,8 @@ static VOID ReportingReleasePages(IN PDEVICE_CONTEXT devCtx, IN ULONG MaxMdls)
  * reporting cycle.
  *
  * The reporting thread is the only waiter of RepAckEvent, so it never
- * races with the inflate and deflate acknowledgments.
+ * races with the inflate and deflate acknowledgments (the interrupt
+ * DPC sets the two events separately).
  */
 static NTSTATUS ReportingSendRequest(IN PDEVICE_CONTEXT devCtx, IN PVIO_SG Segments, IN ULONG SegmentCount)
 {

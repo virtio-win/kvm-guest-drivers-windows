@@ -661,6 +661,7 @@ VOID BalloonInterruptDpc(IN WDFINTERRUPT WdfInterrupt, IN WDFOBJECT WdfDevice)
     PVOID buffer;
 
     BOOLEAN bInfDefAck = FALSE;
+    BOOLEAN bRepAck = FALSE;
     UNREFERENCED_PARAMETER(WdfInterrupt);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "--> %s\n", __FUNCTION__);
@@ -674,11 +675,21 @@ VOID BalloonInterruptDpc(IN WDFINTERRUPT WdfInterrupt, IN WDFOBJECT WdfDevice)
     {
         bInfDefAck = TRUE;
     }
+    if (devCtx->RepVirtQueue != NULL && virtqueue_get_buf(devCtx->RepVirtQueue, &len))
+    {
+        bRepAck = TRUE;
+    }
     WdfSpinLockRelease(devCtx->InfDefQueueLock);
 
     if (bInfDefAck)
     {
         KeSetEvent(&devCtx->HostAckEvent, EVENT_INCREMENT, FALSE);
+    }
+    if (bRepAck)
+    {
+        /* the reporting thread owns the report requests, it gets its own
+         * acknowledgment event (the command thread never waits on them) */
+        KeSetEvent(&devCtx->RepAckEvent, EVENT_INCREMENT, FALSE);
     }
 
     if (devCtx->StatVirtQueue)
@@ -735,6 +746,11 @@ VOID BalloonInterruptDpc(IN WDFINTERRUPT WdfInterrupt, IN WDFOBJECT WdfDevice)
     {
         KeSetEvent(&devCtx->WakeUpThread, EVENT_INCREMENT, FALSE);
     }
+
+    /* a completed report request only unblocks the in-flight wait of
+     * the reporting thread (RepAckEvent); the next hold cycle is paced
+     * by the reporting interval, like the Linux page_reporting_delay_ms
+     * paces the next reporting pass */
 }
 
 NTSTATUS
