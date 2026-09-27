@@ -298,7 +298,9 @@ static VOID ReportingReleasePages(IN PDEVICE_CONTEXT devCtx, IN ULONG MaxMdls)
  * freezes the batch, see ReportingFlushBatch).
  *
  * The reporting thread is the only waiter of RepAckEvent, so it never
- * races with the inflate and deflate acknowledgments.
+ * races with the inflate and deflate acknowledgments (the interrupt
+ * DPC sets the two events separately, and drains the reporting queue
+ * completely so a late completion cannot hide behind an earlier one).
  */
 static NTSTATUS ReportingSendRequest(IN PDEVICE_CONTEXT devCtx, IN PVIO_SG Segments, IN ULONG SegmentCount)
 {
@@ -643,8 +645,12 @@ BalloonReportInitialize(IN WDFDEVICE Device)
 
     /* the wake event may still be signaled from the previous D0 period
      * (the close path signals it to stop the thread); consume it so the
-     * first cycle of this period runs on its interval, not immediately */
+     * first cycle of this period runs on its interval, not immediately.
+     * The acknowledgment event is cleared for the same reason: a stale
+     * acknowledgment must not satisfy the first report wait of this D0
+     * period */
     KeClearEvent(&devCtx->RepWakeEvent);
+    KeClearEvent(&devCtx->RepAckEvent);
 
     RtlZeroMemory(&basicInfo, sizeof(basicInfo));
     if (!NT_SUCCESS(ZwQuerySystemInformation(SystemBasicInformation, &basicInfo, sizeof(basicInfo), &outLen)))
