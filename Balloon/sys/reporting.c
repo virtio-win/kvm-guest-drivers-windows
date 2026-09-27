@@ -61,12 +61,22 @@
  * large page is freed and defers the actual reporting pass by
  * page_reporting_delay_ms. Windows offers no equivalent hook - the
  * memory manager's notification events only signal a threshold crossing,
- * not every page freed - so the engine is driven by polling: the release
- * decisions re-check both memory ledgers on every call, and the hold
- * cycle paces itself by the reporting interval. The engine exposes the
- * two roles as separate entry points (BalloonReportCheckRelease and
- * BalloonReportHold); how they are scheduled is a device-integration
- * concern and follows in subsequent patches.
+ * not every page freed - so the reporting is driven by two threads
+ * (see Device.c):
+ *
+ *   - The command thread (BalloonRoutine) makes all release decisions:
+ *     LowMemoryCondition triggers the emergency path (all held pages
+ *     are handed back at once and the hold cooldown starts), and while
+ *     pages are held it re-evaluates the watermarks every
+ *     REPORTING_COMMIT_POLL_MS (Windows exposes no event for a low
+ *     commit limit). It never runs hold work itself, which keeps the
+ *     host command latency independent of the reporting load.
+ *   - The reporting thread (BalloonReportRoutine) runs one hold cycle
+ *     per reporting interval at low priority (any guest thread can
+ *     preempt a cycle), the counterpart of how page_reporting_delay_ms
+ *     paces a reporting pass on Linux. Each cycle holds at most
+ *     REPORTING_BATCHES_PER_CYCLE batches and stops early at the
+ *     watermarks, checked before every batch.
  *
  * The watermark defaults to max(RAM/8, 256MB) and can be overridden per
  * deployment with MinFreeMb in the driver service Parameters registry
@@ -224,9 +234,15 @@ static VOID ReportingExtractBlocks(IN PMDL Mdl, OUT PVIO_SG Segments, IN OUT PUL
 static VOID ReportingReleaseMdl(IN PDEVICE_CONTEXT devCtx, IN PPAGE_LIST_ENTRY PageListEntry)
 {
     PMDL mdl = PageListEntry->PageMdl;
+    ULONG pages = MmGetMdlByteCount(mdl) >> PAGE_SHIFT;
 
-    devCtx->ReportingHeldPages -= MmGetMdlByteCount(mdl) >> PAGE_SHIFT;
+    /* the list and its counters are shared with the reporting thread
+     * (see BalloonReportHold); the frees themselves run at PASSIVE_LEVEL
+     * outside the lock */
+    WdfSpinLockAcquire(devCtx->ReportingLock);
+    devCtx->ReportingHeldPages -= pages;
     devCtx->ReportingMdlCount--;
+    WdfSpinLockRelease(devCtx->ReportingLock);
 
     MmFreePagesFromMdl(mdl);
     ExFreePool(mdl);
@@ -236,9 +252,18 @@ static VOID ReportingReleaseMdl(IN PDEVICE_CONTEXT devCtx, IN PPAGE_LIST_ENTRY P
 /* hands the MaxMdls most recently held MDLs back to the guest */
 static VOID ReportingReleasePages(IN PDEVICE_CONTEXT devCtx, IN ULONG MaxMdls)
 {
-    while (devCtx->ReportingMdlCount != 0 && MaxMdls-- > 0)
+    while (MaxMdls-- > 0)
     {
-        PPAGE_LIST_ENTRY pageListEntry = (PPAGE_LIST_ENTRY)PopEntryList(&devCtx->ReportingMdlList);
+        PPAGE_LIST_ENTRY pageListEntry;
+
+        WdfSpinLockAcquire(devCtx->ReportingLock);
+        if (devCtx->ReportingMdlCount == 0)
+        {
+            WdfSpinLockRelease(devCtx->ReportingLock);
+            break;
+        }
+        pageListEntry = (PPAGE_LIST_ENTRY)PopEntryList(&devCtx->ReportingMdlList);
+        WdfSpinLockRelease(devCtx->ReportingLock);
 
         if (pageListEntry == NULL)
         {
@@ -252,10 +277,13 @@ static VOID ReportingReleasePages(IN PDEVICE_CONTEXT devCtx, IN ULONG MaxMdls)
 /*
  * Adds one report request to the reporting virtqueue and waits for the
  * host to acknowledge it, like the inflate and deflate paths wait for
- * theirs (see BalloonTellHost). Returns STATUS_UNSUCCESSFUL if the request
- * did not fit into the virtqueue, any other error indicates a host
- * timeout; a timed-out cycle is abandoned and retried on the next
+ * theirs (see BalloonTellHost). Returns STATUS_UNSUCCESSFUL if the
+ * request did not fit into the virtqueue, any other error indicates a
+ * host timeout; a timed-out cycle is abandoned and retried on the next
  * reporting cycle.
+ *
+ * The reporting thread is the only waiter of RepAckEvent, so it never
+ * races with the inflate and deflate acknowledgments.
  */
 static NTSTATUS ReportingSendRequest(IN PDEVICE_CONTEXT devCtx, IN PVIO_SG Segments, IN ULONG SegmentCount)
 {
@@ -278,7 +306,7 @@ static NTSTATUS ReportingSendRequest(IN PDEVICE_CONTEXT devCtx, IN PVIO_SG Segme
     }
 
     timeout.QuadPart = Int32x32To64(1000, -10000);
-    status = KeWaitForSingleObject(&devCtx->HostAckEvent, Executive, KernelMode, FALSE, &timeout);
+    status = KeWaitForSingleObject(&devCtx->RepAckEvent, Executive, KernelMode, FALSE, &timeout);
     if (status == STATUS_TIMEOUT)
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_REPORTING, "%s :: host did not acknowledge the report\n", __FUNCTION__);
@@ -556,9 +584,13 @@ VOID BalloonReportReleaseAll(IN WDFOBJECT WdfDevice)
 }
 
 /*
- * The release decisions: hands held pages back to the guest when the
- * guest needs the memory - all at once on a low memory condition, or
- * half of them per call once either ledger runs low.
+ * The reporting decisions, run by the command thread (BalloonRoutine)
+ * after every host command, on every watchdog tick and on a low memory
+ * condition. Hands held pages back to the guest when the guest needs
+ * them; taking pages is the reporting thread's business, at its own
+ * cadence. All decisions are a few MDL frees at most, so they run at
+ * the command thread's real-time priority - never the hold loop
+ * itself.
  */
 VOID BalloonReportCheckRelease(IN WDFOBJECT WdfDevice)
 {
@@ -647,16 +679,25 @@ VOID BalloonReportCheckRelease(IN WDFOBJECT WdfDevice)
                         (ULONG)((devCtx->ReportingCooldownUntil - KeQueryInterruptTime()) / 10000));
             return;
         }
+        WdfSpinLockAcquire(devCtx->ReportingLock);
         devCtx->ReportingCooldownUntil = 0;
+        WdfSpinLockRelease(devCtx->ReportingLock);
     }
+
+    /* taking pages is the reporting thread's business, at its own
+     * cadence (see BalloonReportRoutine) - nothing to ring here */
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_REPORTING, "<-- %s\n", __FUNCTION__);
 }
 
 /*
- * One hold cycle: allocates free pages in 2MB-aligned blocks and reports
- * them to the host. The gates are re-checked before every batch, so the
- * cycle stops immediately when the guest starts needing the memory.
+ * One hold cycle, run by the low-priority reporting thread
+ * (BalloonReportRoutine) once per reporting interval. Allocates free
+ * pages in 2MB-aligned blocks and reports them to the host. The gates
+ * are re-checked before every batch, so the cycle stops immediately
+ * when the guest starts needing the memory; the release decisions
+ * themselves belong to the command thread (see
+ * BalloonReportCheckRelease).
  */
 VOID BalloonReportHold(IN WDFOBJECT WdfDevice)
 {
@@ -684,7 +725,8 @@ VOID BalloonReportHold(IN WDFOBJECT WdfDevice)
     allocWatermark = ReportingAllocWatermark(devCtx);
 
 #ifndef BALLOON_INFLATE_IGNORE_LOWMEM
-    /* never take pages while the memory manager is sounding the alarm */
+    /* never take pages while the memory manager is sounding the alarm;
+     * the command thread releases and starts the cooldown */
     if (IsLowMemory(WdfDevice))
     {
         return;
@@ -696,6 +738,13 @@ VOID BalloonReportHold(IN WDFOBJECT WdfDevice)
         return;
     }
 
+    /* hold cooldown, as re-checked by the command thread (see
+     * BalloonReportCheckRelease) */
+    if (devCtx->ReportingCooldownUntil != 0 && KeQueryInterruptTime() < devCtx->ReportingCooldownUntil)
+    {
+        return;
+    }
+
     while (batches < REPORTING_BATCHES_PER_CYCLE)
     {
         PHYSICAL_ADDRESS LowAddress;
@@ -703,6 +752,18 @@ VOID BalloonReportHold(IN WDFOBJECT WdfDevice)
         PHYSICAL_ADDRESS SkipBytes;
         PPAGE_LIST_ENTRY pageListEntry;
         PMDL mdl;
+
+        if (devCtx->bShutDown)
+        {
+            break;
+        }
+
+#ifndef BALLOON_INFLATE_IGNORE_LOWMEM
+        if (IsLowMemory(WdfDevice))
+        {
+            break;
+        }
+#endif // !BALLOON_INFLATE_IGNORE_LOWMEM
 
         /* re-check the available memory and commit headroom while
          * filling up; these are the upper lines of the two hysteresis
@@ -759,9 +820,14 @@ VOID BalloonReportHold(IN WDFOBJECT WdfDevice)
         }
 
         pageListEntry->PageMdl = mdl;
+
+        /* the list is shared with the command thread's release path;
+         * the allocation above ran outside the lock */
+        WdfSpinLockAcquire(devCtx->ReportingLock);
         PushEntryList(&devCtx->ReportingMdlList, &pageListEntry->SingleListEntry);
         devCtx->ReportingMdlCount++;
         devCtx->ReportingHeldPages += MmGetMdlByteCount(mdl) >> PAGE_SHIFT;
+        WdfSpinLockRelease(devCtx->ReportingLock);
 
         ReportingExtractBlocks(mdl, segments, &segmentCount);
 

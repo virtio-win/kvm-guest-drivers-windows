@@ -75,6 +75,13 @@
 #define REPORTING_INTERVAL_MS                    2000
 #define REPORTING_MIN_INTERVAL_MS                100
 #define REPORTING_MAX_INTERVAL_MS                60000
+/* Commit headroom watchdog cadence while pages are held (the Windows memory
+ * manager exposes no event for a low commit limit, so it is polled) */
+#define REPORTING_COMMIT_POLL_MS                 100
+/* Re-check pacing while the low memory condition event stays signaled
+ * (notification events stay signaled until the memory manager clears
+ * them, and re-running the release path would change nothing) */
+#define REPORTING_EVENT_RETRY_MS                 1000
 
 /*
  * Watermarks (in 4KB pages) controlling when pages are taken from and
@@ -185,9 +192,14 @@ typedef struct _DEVICE_CONTEXT
     BOOLEAN bShutDown;
 
     /*
-     * Free page reporting state. The held MDL list carries the pages
-     * taken from the guest: it is fed by the hold cycle and drained by
-     * the release decisions.
+     * Free page reporting state. The held MDL list is shared by the
+     * command thread (release decisions, see BalloonReportCheckRelease),
+     * the reporting thread (hold cycles, see BalloonReportHold) and, after
+     * both threads have been stopped, the power-management path (release),
+     * so it is protected by ReportingLock; the MDL allocation and free
+     * calls themselves run outside the lock at PASSIVE_LEVEL, only the
+     * list and counter updates are guarded. The reporting virtqueue is
+     * protected by InfDefQueueLock, like the inflate and deflate queues.
      */
     ULONG ReportingTotalPages;          /* NumberOfPhysicalPages, cached */
     ULONG ReportingMinFreePages;        /* watermark override from MinFreeMb, 0 = automatic */
@@ -201,6 +213,9 @@ typedef struct _DEVICE_CONTEXT
     ULONG ReportingMdlCount;
     ULONG ReportingHeldPages;     /* pages currently held */
     ULONG ReportingReportedPages; /* pages reported so far (cumulative) */
+    KEVENT RepAckEvent;           /* a report request was acknowledged by the host */
+    PKTHREAD RepThread;           /* the low-priority reporting thread, NULL when FPR is off */
+    WDFSPINLOCK ReportingLock;    /* guards the held MDL list and its counters */
 
 #ifdef USE_BALLOON_SERVICE
     WDFREQUEST PendingWriteRequest;
@@ -308,7 +323,15 @@ BalloonGetSize(IN WDFOBJECT WdfDevice);
 NTSTATUS
 BalloonCloseWorkerThread(IN WDFDEVICE Device);
 
+NTSTATUS
+BalloonCreateReportingThread(IN WDFDEVICE Device);
+
+NTSTATUS
+BalloonCloseReportingThread(IN WDFDEVICE Device);
+
 VOID BalloonRoutine(IN PVOID pContext);
+
+VOID BalloonReportRoutine(IN PVOID pContext);
 
 #ifndef BALLOON_INFLATE_IGNORE_LOWMEM
 __inline BOOLEAN IsLowMemory(IN WDFOBJECT WdfDevice)
@@ -325,7 +348,11 @@ __inline BOOLEAN IsLowMemory(IN WDFOBJECT WdfDevice)
 #endif // !BALLOON_INFLATE_IGNORE_LOWMEM
 
 /*
- * Free page reporting (VIRTIO_BALLOON_F_PAGE_REPORTING) routines
+ * Free page reporting (VIRTIO_BALLOON_F_PAGE_REPORTING) routines.
+ *
+ * The command thread (BalloonRoutine) makes the release decisions and
+ * never runs hold work; the reporting thread (BalloonReportRoutine)
+ * runs one hold cycle per reporting interval at low priority.
  */
 BOOLEAN
 ReportingIsEnabled(IN WDFDEVICE Device);
@@ -335,10 +362,10 @@ BalloonReportInitialize(IN WDFDEVICE Device);
 
 VOID BalloonReportReleaseAll(IN WDFOBJECT WdfDevice);
 
-/* release decisions: hand held pages back when the guest needs them */
+/* release decisions, runs on the command thread */
 VOID BalloonReportCheckRelease(IN WDFOBJECT WdfDevice);
 
-/* one hold cycle: take and report free pages */
+/* one hold cycle, runs on the low-priority reporting thread */
 VOID BalloonReportHold(IN WDFOBJECT WdfDevice);
 
 #ifdef USE_BALLOON_SERVICE
