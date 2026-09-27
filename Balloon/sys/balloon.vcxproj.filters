@@ -64,5 +64,8 @@
     <ClCompile Include="queue.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="reporting.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

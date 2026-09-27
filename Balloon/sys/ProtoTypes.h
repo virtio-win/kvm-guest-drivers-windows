@@ -35,14 +35,103 @@
 #include "trace.h"
 
 /* The ID for virtio_balloon */
-#define VIRTIO_ID_BALLOON               5
+#define VIRTIO_ID_BALLOON                   5
 
 /* The feature bitmap for virtio balloon */
-#define VIRTIO_BALLOON_F_MUST_TELL_HOST 0 /* Tell before reclaiming pages */
-#define VIRTIO_BALLOON_F_STATS_VQ       1 /* Memory status virtqueue */
+#define VIRTIO_BALLOON_F_MUST_TELL_HOST     0 /* Tell before reclaiming pages */
+#define VIRTIO_BALLOON_F_STATS_VQ           1 /* Memory status virtqueue */
+#define VIRTIO_BALLOON_F_PAGE_REPORTING     5 /* Free page reporting virtqueue */
+
+/*
+ * Free page reporting (VIRTIO_BALLOON_F_PAGE_REPORTING) tuning parameters.
+ *
+ * Reported blocks are always 2MB in size and 2MB-aligned. This matches the
+ * host-side transparent huge page granularity and the default reporting
+ * granularity of the Linux free page reporting implementation, which only
+ * reports blocks of pageblock_order and larger (order 9, i.e. 2MB, on
+ * architectures with 4KB base pages). The virtio specification requires
+ * the driver to "attempt to report large pages rather than smaller ones".
+ *
+ * The alignment is provided by MmAllocatePagesForMdlEx called with
+ * MM_ALLOCATE_REQUIRE_CONTIGUOUS_CHUNKS and SkipBytes = 2MB: the memory
+ * manager returns complete 2MB blocks, each guaranteed to be exactly 2MB
+ * long and aligned on a 2MB boundary, preferably taken from the system's
+ * large page cache.
+ */
+#define REPORTING_BLOCK_SHIFT               9                                     /* log2(512) */
+#define REPORTING_BLOCK_PAGES               (1UL << REPORTING_BLOCK_SHIFT)        /* = 512 x 4KB pages */
+#define REPORTING_BLOCK_SIZE                (REPORTING_BLOCK_PAGES << PAGE_SHIFT) /* = 2MB */
+
+/* One batch allocates at most ReportingMaxSegments 2MB blocks, so a
+ * full batch always fits into a single report request.
+ * Max number of allocation batches per reporting cycle: */
+#define REPORTING_BATCHES_PER_CYCLE         8
+/* Upper bound of the segments per report request, see
+ * BalloonReportInitialize */
+#define REPORTING_MAX_SEGMENTS              32
+/* Reporting cycle interval default, matches the Linux page_reporting_delay_ms
+ * default; overridable per deployment with the ReportIntervalMs value in the
+ * driver service Parameters registry key, clamped to [100, 60000] */
+#define REPORTING_INTERVAL_MS               2000
+#define REPORTING_MIN_INTERVAL_MS           100
+#define REPORTING_MAX_INTERVAL_MS           60000
+
+/*
+ * Reporting floors and the hysteresis band (in 4KB pages) controlling
+ * when pages are taken from and returned to the guest. Each of the two
+ * counters the driver watches - available memory and commit headroom -
+ * has a floor: the line below which held pages are handed back. Pages
+ * are only taken while the counter stays above floor + hysteresis, so
+ * the band absorbs the batch overshoot of the hold loop
+ * (the gate is checked before each batch, so the endpoint can land up to
+ * one batch below the gate) and the jitter of the guest, either of which
+ * would otherwise hold and release the same pages in alternation.
+ *
+ * The floors default to a sixteenth of the physical RAM, but never less
+ * than 128MB, and can be overridden per deployment with the MinFreeMb
+ * and MinCommitMb values in the driver service Parameters registry key,
+ * clamped to [64MB, RAM/2] - in the spirit of the Linux page_reporting
+ * module parameters. MinFreeMb guards the available-memory floor;
+ * MinCommitMb guards the commit headroom floor, because the held pages
+ * are committed and pinned, so they consume commit charge as well: an
+ * exhausted commit limit fails allocations exactly as an exhausted
+ * physical pool does.
+ *
+ * The band width is shared by the two counters. It defaults to a
+ * thirty-second of the physical RAM clamped to [256MB, 1GB] and can be
+ * overridden with HysteresisMb, clamped to [256MB, RAM/4]. The floors
+ * are deliberately not tied to the commit limit: a large pagefile
+ * inflates the limit without making a low headroom any more dangerous
+ * (materialization can be paged out), so the commit floor must not grow
+ * with the pagefile.
+ */
+#define REPORTING_FLOOR_FRACTION            16
+#define REPORTING_MIN_FLOOR_PAGES           (128UL * 1024 * 1024 / PAGE_SIZE)
+#define REPORTING_HARD_MIN_FLOOR_PAGES      (64UL * 1024 * 1024 / PAGE_SIZE)
+#define REPORTING_HYSTERESIS_FRACTION       32
+#define REPORTING_MIN_HYSTERESIS_PAGES      (256UL * 1024 * 1024 / PAGE_SIZE)
+#define REPORTING_MAX_AUTO_HYSTERESIS_PAGES (1024UL * 1024 * 1024 / PAGE_SIZE)
+#define REPORTING_HYSTERESIS_FRACTION_MAX   4
+
+/*
+ * Hold cooldown after a full low-memory release: once the held pages
+ * are handed back, wait before taking pages again so that the guest can
+ * actually recover - otherwise the next reporting cycle starts re-holding
+ * immediately and a guest with a persistent workload oscillates between
+ * release and re-hold. Each new full release within the reset window
+ * doubles the wait (exponential backoff, capped); a quiet period resets
+ * it to the base, which is the built-in default below or the CooldownSec
+ * registry override.
+ */
+#define REPORTING_COOLDOWN_BASE_MS          (60UL * 1000)
+#define REPORTING_COOLDOWN_MAX_MS           (5UL * 60 * 1000)
+#define REPORTING_COOLDOWN_RESET_MS         (10UL * 60 * 1000)
+/* CooldownSec override clamps, in seconds */
+#define REPORTING_MIN_COOLDOWN_SEC          1
+#define REPORTING_MAX_COOLDOWN_SEC          600
 
 /* Size of a PFN in the balloon interface. */
-#define VIRTIO_BALLOON_PFN_SHIFT        12
+#define VIRTIO_BALLOON_PFN_SHIFT            12
 
 typedef struct _VIRTIO_BALLOON_CONFIG
 {
@@ -77,6 +166,7 @@ typedef struct _DEVICE_CONTEXT
     PVIOQUEUE InfVirtQueue;
     PVIOQUEUE DefVirtQueue;
     PVIOQUEUE StatVirtQueue;
+    PVIOQUEUE RepVirtQueue;
 
     WDFSPINLOCK StatQueueLock;
     WDFSPINLOCK InfDefQueueLock;
@@ -95,6 +185,27 @@ typedef struct _DEVICE_CONTEXT
     KEVENT WakeUpThread;
     PKTHREAD Thread;
     BOOLEAN bShutDown;
+
+    /*
+     * Free page reporting state. The held MDL list carries the pages
+     * taken from the guest: it is fed by the hold cycle and drained by
+     * the release decisions.
+     */
+    ULONG ReportingTotalPages;          /* NumberOfPhysicalPages, cached */
+    ULONG ReportingMinFreePages;        /* available floor override from MinFreeMb, 0 = automatic */
+    ULONG ReportingMinCommitPages;      /* commit floor override from MinCommitMb, 0 = automatic */
+    ULONG ReportingHysteresisPages;     /* hysteresis band override from HysteresisMb, 0 = automatic */
+    ULONG ReportingIntervalMs;          /* reporting cycle interval, from ReportIntervalMs */
+    ULONG ReportingCooldownSec;         /* hold cooldown base from CooldownSec, 0 = built-in default */
+    ULONGLONG ReportingCooldownUntil;   /* interrupt time until which holding is paused, 0 = none */
+    ULONG ReportingCooldownMs;          /* current cooldown length, doubles on repeated low-memory */
+    ULONGLONG ReportingLastFullRelease; /* interrupt time of the last full low-memory release,
+                                           read and written by the command thread only */
+    ULONG ReportingMaxSegments;         /* segments per report request */
+    SINGLE_LIST_ENTRY ReportingMdlList; /* held PAGE_LIST_ENTRY chain */
+    ULONG ReportingMdlCount;
+    ULONG ReportingHeldPages;     /* pages currently held */
+    ULONG ReportingReportedPages; /* pages reported so far (cumulative) */
 
 #ifdef USE_BALLOON_SERVICE
     WDFREQUEST PendingWriteRequest;
@@ -217,6 +328,23 @@ __inline BOOLEAN IsLowMemory(IN WDFOBJECT WdfDevice)
     return FALSE;
 }
 #endif // !BALLOON_INFLATE_IGNORE_LOWMEM
+
+/*
+ * Free page reporting (VIRTIO_BALLOON_F_PAGE_REPORTING) routines
+ */
+BOOLEAN
+ReportingIsEnabled(IN WDFDEVICE Device);
+
+NTSTATUS
+BalloonReportInitialize(IN WDFDEVICE Device);
+
+VOID BalloonReportReleaseAll(IN WDFOBJECT WdfDevice);
+
+/* release decisions: hand held pages back when the guest needs them */
+VOID BalloonReportCheckRelease(IN WDFOBJECT WdfDevice);
+
+/* one hold cycle: take and report free pages */
+VOID BalloonReportHold(IN WDFOBJECT WdfDevice);
 
 #ifdef USE_BALLOON_SERVICE
 NTSTATUS
