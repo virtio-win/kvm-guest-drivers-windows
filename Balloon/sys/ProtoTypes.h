@@ -40,6 +40,7 @@
 /* The feature bitmap for virtio balloon */
 #define VIRTIO_BALLOON_F_MUST_TELL_HOST          0 /* Tell before reclaiming pages */
 #define VIRTIO_BALLOON_F_STATS_VQ                1 /* Memory status virtqueue */
+#define VIRTIO_BALLOON_F_FREE_PAGE_HINT          3 /* Page hint notification virtqueue */
 #define VIRTIO_BALLOON_F_PAGE_REPORTING          5 /* Free page reporting virtqueue */
 
 /*

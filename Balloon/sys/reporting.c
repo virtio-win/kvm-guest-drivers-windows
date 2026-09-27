@@ -343,17 +343,18 @@ static BOOLEAN ReportingFlushSegments(IN PDEVICE_CONTEXT devCtx, IN PVIO_SG Segm
 
 /*
  * Reads the optional EnableFpr value from the driver service Parameters
- * registry key. 1 (default) negotiates VIRTIO_BALLOON_F_PAGE_REPORTING
- * whenever the device offers it and no IOMMU is in the way, 0 keeps the
- * driver to the traditional balloon behavior - an escape hatch for
- * deployments that want free page reporting off without touching the
- * host-side device configuration.
+ * registry key. 0 (default) keeps the driver to the traditional balloon
+ * behavior, 1 negotiates VIRTIO_BALLOON_F_PAGE_REPORTING whenever the
+ * device offers it, no free page hints are configured and no IOMMU is
+ * in the way. The feature is opt-in: the hold model has no Windows
+ * precedent, so a deployment enables it explicitly instead of getting
+ * it with a driver update.
  */
 BOOLEAN ReportingIsEnabled(IN WDFDEVICE Device)
 {
     DECLARE_CONST_UNICODE_STRING(valueName, L"EnableFpr");
     WDFKEY parametersKey = NULL;
-    ULONG enable = 1;
+    ULONG enable = 0;
 
     if (NT_SUCCESS(WdfDriverOpenParametersRegistryKey(WdfDeviceGetDriver(Device),
                                                       KEY_READ,
