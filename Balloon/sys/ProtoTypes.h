@@ -316,6 +316,12 @@ __inline VOID EnableInterrupt(IN WDFINTERRUPT WdfInterrupt, IN WDFCONTEXT Contex
         virtqueue_enable_cb(devCtx->StatVirtQueue);
         virtqueue_kick(devCtx->StatVirtQueue);
     }
+
+    if (devCtx->RepVirtQueue != NULL)
+    {
+        virtqueue_enable_cb(devCtx->RepVirtQueue);
+        virtqueue_kick(devCtx->RepVirtQueue);
+    }
 }
 
 __inline VOID DisableInterrupt(IN PDEVICE_CONTEXT devCtx)
@@ -325,6 +331,10 @@ __inline VOID DisableInterrupt(IN PDEVICE_CONTEXT devCtx)
     if (devCtx->StatVirtQueue)
     {
         virtqueue_disable_cb(devCtx->StatVirtQueue);
+    }
+    if (devCtx->RepVirtQueue != NULL)
+    {
+        virtqueue_disable_cb(devCtx->RepVirtQueue);
     }
 }
 
