@@ -63,12 +63,24 @@
  * large page is freed and defers the actual reporting pass by
  * page_reporting_delay_ms. Windows offers no equivalent hook - the
  * memory manager's notification events only signal a threshold crossing,
- * not every page freed - so the engine is driven by polling: the release
- * decisions re-check both memory counters on every call, and the hold
- * cycle paces itself by the reporting interval. The engine exposes the
- * two roles as separate entry points (BalloonReportCheckRelease and
- * BalloonReportHold); how they are scheduled is a device-integration
- * concern and follows in subsequent patches.
+ * not every page freed - so the reporting is driven by two threads
+ * (see Device.c):
+ *
+ *   - The command thread (BalloonRoutine) makes all release decisions:
+ *     LowMemoryCondition triggers the emergency path (the held pages
+ *     are handed back at once and the hold cooldown starts; a report
+ *     acknowledged after the alarm has cleared can still surface as
+ *     one late batch, released at the next floor crossing or alarm),
+ *     and while pages are held it re-evaluates the floor and gate every
+ *     REPORTING_COMMIT_POLL_MS (Windows exposes no event for a low
+ *     commit limit). It never runs hold work itself, which keeps the
+ *     host command latency independent of the reporting load.
+ *   - The reporting thread (BalloonReportRoutine) runs one hold cycle
+ *     per reporting interval at low priority (any guest thread can
+ *     preempt a cycle), the counterpart of how page_reporting_delay_ms
+ *     paces a reporting pass on Linux. Each cycle holds at most
+ *     REPORTING_BATCHES_PER_CYCLE batches and stops early at the
+ *     gate, checked before every batch.
  *
  * Each of the two counters the driver watches - available memory and
  * commit headroom - has a floor: the line below which held pages are
@@ -124,12 +136,12 @@ static NTSTATUS ReportingQueryMemoryState(OUT PULONG AvailablePages,
 }
 
 /*
- * The lower line of available memory: held pages are handed back once
- * the available memory falls below this floor, and pages are only
- * taken above floor + hysteresis (see ReportingFreeGatePages), so in
- * the steady state the guest does not stay below it - the release
- * decisions defend the floor at their sampling cadence, not
- * instantaneously.
+ * The lower line of the available-memory counter: held pages are
+ * handed back once the available memory falls below this floor, and
+ * pages are only taken above floor + hysteresis (see
+ * ReportingFreeGatePages), so in the steady state the guest does not
+ * stay below it - the release decisions defend the floor at their
+ * sampling cadence, not instantaneously.
  */
 static ULONG ReportingFreeFloorPages(IN PDEVICE_CONTEXT devCtx)
 {
@@ -148,7 +160,7 @@ static ULONG ReportingFreeFloorPages(IN PDEVICE_CONTEXT devCtx)
 }
 
 /*
- * The lower line of commit headroom, same rule as
+ * The lower line of the commit headroom counter, same rule as
  * the available-memory floor. The floor is anchored to the physical
  * memory size rather than to the commit limit: a large pagefile inflates
  * the commit limit without making a low headroom any more dangerous
@@ -173,10 +185,11 @@ static ULONG ReportingCommitFloorPages(IN PDEVICE_CONTEXT devCtx)
 
 /*
  * The width of the hysteresis band above the floors, shared by the two
- * counters. The band absorbs the batch overshoot of the hold loop (the
- * gate is checked before each batch, so the endpoint can land up to one
- * batch below the gate) and the jitter of the guest, either of which
- * would otherwise hold and release the same pages in alternation.
+ * counters. The band absorbs the guest's jitter - anything else would
+ * hold and release the same pages in alternation at the same threshold.
+ * (The batch overshoot is not the band's job: the gate check reserves the
+ * next batch's demand upfront, so the hold endpoint is not pushed
+ * below the gate by its own batches - see BalloonReportHold.)
  */
 static ULONG ReportingHysteresisBandPages(IN PDEVICE_CONTEXT devCtx)
 {
@@ -267,12 +280,25 @@ static VOID ReportingExtractBlocks(IN PMDL Mdl, OUT PVIO_SG Segments, IN OUT PUL
     }
 }
 
-static VOID ReportingReleaseMdl(IN PDEVICE_CONTEXT devCtx, IN PPAGE_LIST_ENTRY PageListEntry)
+static VOID ReportingReleaseMdl(IN PDEVICE_CONTEXT devCtx, IN PPAGE_LIST_ENTRY PageListEntry, IN BOOLEAN Inflight)
 {
     PMDL mdl = PageListEntry->PageMdl;
+    ULONG pages = MmGetMdlByteCount(mdl) >> PAGE_SHIFT;
 
-    devCtx->ReportingHeldPages -= MmGetMdlByteCount(mdl) >> PAGE_SHIFT;
-    devCtx->ReportingMdlCount--;
+    /* the list and its counters are shared with the reporting thread
+     * (see BalloonReportHold); the frees themselves run at PASSIVE_LEVEL
+     * outside the lock */
+    WdfSpinLockAcquire(devCtx->ReportingLock);
+    devCtx->ReportingHeldPages -= pages;
+    if (Inflight)
+    {
+        devCtx->ReportingInflightCount--;
+    }
+    else
+    {
+        devCtx->ReportingMdlCount--;
+    }
+    WdfSpinLockRelease(devCtx->ReportingLock);
 
     MmFreePagesFromMdl(mdl);
     ExFreePool(mdl);
@@ -282,16 +308,25 @@ static VOID ReportingReleaseMdl(IN PDEVICE_CONTEXT devCtx, IN PPAGE_LIST_ENTRY P
 /* hands the MaxMdls most recently held MDLs back to the guest */
 static VOID ReportingReleasePages(IN PDEVICE_CONTEXT devCtx, IN ULONG MaxMdls)
 {
-    while (devCtx->ReportingMdlCount != 0 && MaxMdls-- > 0)
+    while (MaxMdls-- > 0)
     {
-        PPAGE_LIST_ENTRY pageListEntry = (PPAGE_LIST_ENTRY)PopEntryList(&devCtx->ReportingMdlList);
+        PPAGE_LIST_ENTRY pageListEntry;
+
+        WdfSpinLockAcquire(devCtx->ReportingLock);
+        if (devCtx->ReportingMdlCount == 0)
+        {
+            WdfSpinLockRelease(devCtx->ReportingLock);
+            break;
+        }
+        pageListEntry = (PPAGE_LIST_ENTRY)PopEntryList(&devCtx->ReportingMdlList);
+        WdfSpinLockRelease(devCtx->ReportingLock);
 
         if (pageListEntry == NULL)
         {
             ASSERT(pageListEntry != NULL);
             break;
         }
-        ReportingReleaseMdl(devCtx, pageListEntry);
+        ReportingReleaseMdl(devCtx, pageListEntry, FALSE);
     }
 }
 
@@ -308,9 +343,18 @@ static VOID ReportingReleaseUpTo(IN PDEVICE_CONTEXT devCtx, IN ULONG PagesNeeded
 {
     ULONG freedPages = 0;
 
-    while (freedPages < PagesNeeded && devCtx->ReportingMdlCount != 0)
+    while (freedPages < PagesNeeded)
     {
-        PPAGE_LIST_ENTRY pageListEntry = (PPAGE_LIST_ENTRY)PopEntryList(&devCtx->ReportingMdlList);
+        PPAGE_LIST_ENTRY pageListEntry;
+
+        WdfSpinLockAcquire(devCtx->ReportingLock);
+        if (devCtx->ReportingMdlCount == 0)
+        {
+            WdfSpinLockRelease(devCtx->ReportingLock);
+            break;
+        }
+        pageListEntry = (PPAGE_LIST_ENTRY)PopEntryList(&devCtx->ReportingMdlList);
+        WdfSpinLockRelease(devCtx->ReportingLock);
 
         if (pageListEntry == NULL)
         {
@@ -318,17 +362,22 @@ static VOID ReportingReleaseUpTo(IN PDEVICE_CONTEXT devCtx, IN ULONG PagesNeeded
             break;
         }
         freedPages += MmGetMdlByteCount(pageListEntry->PageMdl) >> PAGE_SHIFT;
-        ReportingReleaseMdl(devCtx, pageListEntry);
+        ReportingReleaseMdl(devCtx, pageListEntry, FALSE);
     }
 }
 
 /*
  * Adds one report request to the reporting virtqueue and waits for the
  * host to acknowledge it, like the inflate and deflate paths wait for
- * theirs (see BalloonTellHost). Returns STATUS_UNSUCCESSFUL if the request
- * did not fit into the virtqueue, any other error indicates a host
- * timeout; a timed-out cycle is abandoned and retried on the next
- * reporting cycle.
+ * theirs (see BalloonTellHost). Returns STATUS_UNSUCCESSFUL if the
+ * request did not fit into the virtqueue (the host never saw those
+ * pages), STATUS_TIMEOUT if the host did not acknowledge in time (the
+ * request is still in flight: the virtio spec forbids using the
+ * reported pages until the device returns the buffer, so the caller
+ * freezes the batch, see ReportingFlushBatch).
+ *
+ * The reporting thread is the only waiter of RepAckEvent, so it never
+ * races with the inflate and deflate acknowledgments.
  */
 static NTSTATUS ReportingSendRequest(IN PDEVICE_CONTEXT devCtx, IN PVIO_SG Segments, IN ULONG SegmentCount)
 {
@@ -351,7 +400,14 @@ static NTSTATUS ReportingSendRequest(IN PDEVICE_CONTEXT devCtx, IN PVIO_SG Segme
     }
 
     timeout.QuadPart = Int32x32To64(1000, -10000);
-    status = KeWaitForSingleObject(&devCtx->HostAckEvent, Executive, KernelMode, FALSE, &timeout);
+    status = KeWaitForSingleObject(&devCtx->RepAckEvent, Executive, KernelMode, FALSE, &timeout);
+    if (status == STATUS_WAIT_0 && (devCtx->bShutDown || devCtx->SurpriseRemoval))
+    {
+        /* woken by the close or surprise-removal path, not by the host:
+         * treat the batch as unacknowledged so it freezes until the device
+         * reset or removal (see ReportingFlushBatch) */
+        status = STATUS_TIMEOUT;
+    }
     if (status == STATUS_TIMEOUT)
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_REPORTING, "%s :: host did not acknowledge the report\n", __FUNCTION__);
@@ -374,31 +430,127 @@ static NTSTATUS ReportingSendBlocks(IN PDEVICE_CONTEXT devCtx, IN PVIO_SG Segmen
     for (i = 0; i < SegmentCount; i++)
     {
         status = ReportingSendRequest(devCtx, &Segments[i], 1);
-        if (!NT_SUCCESS(status))
+        if (status != STATUS_WAIT_0)
         {
+            /* a block that timed out or failed must propagate: a
+             * timeout handed back as success would put unacknowledged
+             * pages on the held list, where a later release could
+             * reuse them while the host may still walk the reported
+             * ranges (ReportingFlushBatch freezes the batch on a
+             * propagated timeout) */
             return status;
         }
     }
     return STATUS_SUCCESS;
 }
 
-/* reports the collected segments and resets the segment counter */
-static BOOLEAN ReportingFlushSegments(IN PDEVICE_CONTEXT devCtx, IN PVIO_SG Segments, IN OUT PULONG SegmentCount)
+/*
+ * Moves the MDLs collected by the current hold cycle onto the held list
+ * (only now are they safe to hand back: the host has acknowledged every
+ * report that describes them). On a host timeout the batch is frozen on
+ * the in-flight list instead - the requests may still complete late,
+ * and the spec forbids using the reported pages until the device
+ * returns the buffer, so those pages stay held by the driver until the
+ * device is reset or removed (see BalloonReportReleaseInflight). They
+ * are never re-reported: a new cycle would have to wait out the frozen
+ * ones first, and one cycle is bounded by 512 MB anyway, which also
+ * bounds what a dead host can pin.
+ */
+static VOID ReportingCollectBatch(IN PDEVICE_CONTEXT devCtx,
+                                  IN PPAGE_LIST_ENTRY *PendingMdls,
+                                  IN ULONG PendingCount,
+                                  IN BOOLEAN Frozen)
 {
+    ULONG i;
+
+    for (i = 0; i < PendingCount; i++)
+    {
+        PMDL mdl = PendingMdls[i]->PageMdl;
+        ULONG pages = MmGetMdlByteCount(mdl) >> PAGE_SHIFT;
+
+        WdfSpinLockAcquire(devCtx->ReportingLock);
+        if (Frozen)
+        {
+            PushEntryList(&devCtx->ReportingInflightList, &PendingMdls[i]->SingleListEntry);
+            devCtx->ReportingInflightCount++;
+        }
+        else
+        {
+            PushEntryList(&devCtx->ReportingMdlList, &PendingMdls[i]->SingleListEntry);
+            devCtx->ReportingMdlCount++;
+        }
+        devCtx->ReportingHeldPages += pages;
+        WdfSpinLockRelease(devCtx->ReportingLock);
+    }
+
+    /* the first publication may race the command thread's wait setup: it
+     * can observe the old MdlCount (zero), arm an indefinite wait, and
+     * miss the publication - no further interrupt is guaranteed while
+     * these pages are held. Wake it so the watchdog is armed for them. */
+    if (!Frozen && PendingCount != 0)
+    {
+        KeSetEvent(&devCtx->WakeUpThread, IO_NO_INCREMENT, FALSE);
+    }
+}
+
+/* reports the collected segments and adopts the batch MDLs accordingly */
+static BOOLEAN ReportingFlushBatch(IN PDEVICE_CONTEXT devCtx,
+                                   IN PVIO_SG Segments,
+                                   IN OUT PULONG SegmentCount,
+                                   IN PPAGE_LIST_ENTRY *PendingMdls,
+                                   IN OUT PULONG PendingCount)
+{
+    NTSTATUS status;
+
     if (*SegmentCount == 0)
     {
+        /* nothing was reported, so nothing needs an acknowledgment: any
+         * pending MDLs were never seen by the host and can be adopted as
+         * ordinary held pages. Without this the early return would leave
+         * them in the caller's private array, and every exit path that
+         * skips a later flush (cooldown, shutdown, allocation failure)
+         * would leak them. */
+        if (*PendingCount != 0)
+        {
+            ReportingCollectBatch(devCtx, PendingMdls, *PendingCount, FALSE);
+            *PendingCount = 0;
+        }
         return TRUE;
     }
 
-    if (NT_SUCCESS(ReportingSendBlocks(devCtx, Segments, *SegmentCount)))
+    status = ReportingSendBlocks(devCtx, Segments, *SegmentCount);
+
+    if (status == STATUS_TIMEOUT)
+    {
+        /* the report is still in flight: freeze the batch, the pages must
+         * not be handed back to the guest until the device is done with
+         * them (which only a reset or removal guarantees at this point) */
+        TraceEvents(TRACE_LEVEL_ERROR,
+                    DBG_REPORTING,
+                    "Host did not acknowledge the report, freezing %u MDLs\n",
+                    *PendingCount);
+        ReportingCollectBatch(devCtx, PendingMdls, *PendingCount, TRUE);
+        *SegmentCount = 0;
+        *PendingCount = 0;
+        return FALSE;
+    }
+
+    /* success, or the request never made it to the host (STATUS_UNSUCCESSFUL):
+     * every page the host has seen is acknowledged, and the rest it never
+     * saw - either way the batch can be handed back like any held batch */
+    ReportingCollectBatch(devCtx, PendingMdls, *PendingCount, FALSE);
+
+    if (NT_SUCCESS(status))
     {
         devCtx->ReportingReportedPages += *SegmentCount * REPORTING_BLOCK_PAGES;
-        *SegmentCount = 0;
-        return TRUE;
     }
-
-    TraceEvents(TRACE_LEVEL_ERROR, DBG_REPORTING, "Failed to report free pages\n");
-    return FALSE;
+    else
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_REPORTING, "Failed to report free pages\n");
+    }
+    *SegmentCount = 0;
+    *PendingCount = 0;
+    return NT_SUCCESS(status);
 }
 
 /*
@@ -512,9 +664,10 @@ static VOID ReportingReadParameters(IN WDFDEVICE Device, IN PDEVICE_CONTEXT devC
     {
         ULONGLONG pages = (ULONGLONG)value * 1024 * 1024 / PAGE_SIZE;
 
-        /* the lower clamp keeps the band wide enough to absorb the batch
-         * overshoot and the guest jitter - a band narrower than both
-         * makes the hold oscillate between taking and releasing */
+        /* the lower clamp keeps the band wide enough to absorb the guest
+         * jitter and the sampling noise of the state queries - a band
+         * narrower than that makes the hold oscillate between taking and
+         * releasing at the same threshold */
         if (pages < REPORTING_MIN_HYSTERESIS_PAGES)
         {
             pages = REPORTING_MIN_HYSTERESIS_PAGES;
@@ -576,8 +729,11 @@ static VOID ReportingReadParameters(IN WDFDEVICE Device, IN PDEVICE_CONTEXT devC
  * The window is measured from ReportingLastFullRelease (which is never
  * cleared) rather than from ReportingCooldownUntil: the latter is zeroed
  * when a cooldown expires, which would defeat the reset window, and while
- * a cooldown is still active subtracting it from 'now' wraps. Both fields
- * are only ever touched by the command thread.
+ * a cooldown is still active subtracting it from 'now' wraps.
+ * ReportingLastFullRelease is only ever touched by the command thread;
+ * ReportingCooldownUntil is cross-thread (the reporting thread reads it
+ * under ReportingLock, see BalloonReportHold) and is therefore written
+ * under the lock too.
  */
 static VOID ReportingStartCooldown(IN PDEVICE_CONTEXT devCtx)
 {
@@ -600,7 +756,13 @@ static VOID ReportingStartCooldown(IN PDEVICE_CONTEXT devCtx)
     {
         devCtx->ReportingCooldownMs = baseMs;
     }
+    /* the write pairs with the locked read in BalloonReportHold: on 32-bit
+     * builds an unlocked ULONG64 store can tear just like the read.
+     * ReportingLastFullRelease stays outside the lock - only the command
+     * thread ever reads or writes it */
+    WdfSpinLockAcquire(devCtx->ReportingLock);
     devCtx->ReportingCooldownUntil = now + (ULONG64)devCtx->ReportingCooldownMs * 10000;
+    WdfSpinLockRelease(devCtx->ReportingLock);
     devCtx->ReportingLastFullRelease = now;
 
     TraceEvents(TRACE_LEVEL_WARNING, DBG_REPORTING, "Hold cooldown for %u ms\n", devCtx->ReportingCooldownMs);
@@ -619,6 +781,8 @@ BalloonReportInitialize(IN WDFDEVICE Device)
 
     devCtx->ReportingMdlList.Next = NULL;
     devCtx->ReportingMdlCount = 0;
+    devCtx->ReportingInflightList.Next = NULL;
+    devCtx->ReportingInflightCount = 0;
     devCtx->ReportingHeldPages = 0;
     devCtx->ReportingReportedPages = 0;
     devCtx->ReportingCooldownUntil = 0;
@@ -626,6 +790,11 @@ BalloonReportInitialize(IN WDFDEVICE Device)
     devCtx->ReportingLastFullRelease = 0;
     devCtx->ReportingIntervalMs = REPORTING_INTERVAL_MS;
     devCtx->ReportingCooldownSec = 0;
+
+    /* the wake event may still be signaled from the previous D0 period
+     * (the close path signals it to stop the thread); consume it so the
+     * first cycle of this period runs on its interval, not immediately */
+    KeClearEvent(&devCtx->RepWakeEvent);
 
     RtlZeroMemory(&basicInfo, sizeof(basicInfo));
     if (!NT_SUCCESS(ZwQuerySystemInformation(SystemBasicInformation, &basicInfo, sizeof(basicInfo), &outLen)))
@@ -669,10 +838,55 @@ VOID BalloonReportReleaseAll(IN WDFOBJECT WdfDevice)
 }
 
 /*
- * The release decisions: hands held pages back to the guest when the
- * guest needs the memory - all at once on a low memory condition, or
- * exactly enough to lift the counter back above its gate once either
- * counter runs low.
+ * Frees the pages of reports the host never acknowledged. The caller
+ * must have stopped the reporting thread and reset (or removed) the
+ * device first: only then is the host guaranteed not to touch the
+ * reported ranges anymore. Until that point those pages stay frozen -
+ * they are deliberately not part of the held list, so no release path
+ * can hand them back while a request might still be in flight.
+ */
+VOID BalloonReportReleaseInflight(IN WDFOBJECT WdfDevice)
+{
+    PDEVICE_CONTEXT devCtx = GetDeviceContext(WdfDevice);
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_REPORTING, "--> %s\n", __FUNCTION__);
+
+    for (;;)
+    {
+        PPAGE_LIST_ENTRY pageListEntry;
+
+        WdfSpinLockAcquire(devCtx->ReportingLock);
+        if (devCtx->ReportingInflightCount == 0)
+        {
+            WdfSpinLockRelease(devCtx->ReportingLock);
+            break;
+        }
+        pageListEntry = (PPAGE_LIST_ENTRY)PopEntryList(&devCtx->ReportingInflightList);
+        WdfSpinLockRelease(devCtx->ReportingLock);
+
+        if (pageListEntry == NULL)
+        {
+            ASSERT(pageListEntry != NULL);
+            break;
+        }
+        ReportingReleaseMdl(devCtx, pageListEntry, TRUE);
+    }
+
+    TraceEvents(TRACE_LEVEL_INFORMATION,
+                DBG_REPORTING,
+                "<-- %s :: %lu pages still held\n",
+                __FUNCTION__,
+                devCtx->ReportingHeldPages);
+}
+
+/*
+ * The reporting decisions, run by the command thread (BalloonRoutine)
+ * after every host command, on every watchdog tick and on a low memory
+ * condition. Hands held pages back to the guest when the guest needs
+ * them; taking pages is the reporting thread's business, at its own
+ * cadence. All decisions are a few MDL frees at most, so they run at
+ * the command thread's real-time priority - never the hold loop
+ * itself.
  */
 VOID BalloonReportCheckRelease(IN WDFOBJECT WdfDevice)
 {
@@ -755,24 +969,40 @@ VOID BalloonReportCheckRelease(IN WDFOBJECT WdfDevice)
      * low-memory release before taking pages again */
     if (devCtx->ReportingCooldownUntil != 0)
     {
-        if (KeQueryInterruptTime() < devCtx->ReportingCooldownUntil)
+        ULONG64 now = KeQueryInterruptTime();
+
+        if (now < devCtx->ReportingCooldownUntil)
         {
             TraceEvents(TRACE_LEVEL_VERBOSE,
                         DBG_REPORTING,
                         "In cooldown (%u ms left), skipping hold\n",
-                        (ULONG)((devCtx->ReportingCooldownUntil - KeQueryInterruptTime()) / 10000));
+                        (ULONG)((devCtx->ReportingCooldownUntil - now) / 10000));
             return;
         }
+        WdfSpinLockAcquire(devCtx->ReportingLock);
         devCtx->ReportingCooldownUntil = 0;
+        WdfSpinLockRelease(devCtx->ReportingLock);
     }
+
+    /* taking pages is the reporting thread's business, at its own
+     * cadence (see BalloonReportRoutine) - nothing to ring here */
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_REPORTING, "<-- %s\n", __FUNCTION__);
 }
 
 /*
- * One hold cycle: allocates free pages in 2MB-aligned blocks and reports
- * them to the host. The gates are re-checked before every batch, so the
- * cycle stops immediately when the guest starts needing the memory.
+ * One hold cycle, run by the low-priority reporting thread
+ * (BalloonReportRoutine) once per reporting interval. Allocates free
+ * pages in 2MB-aligned blocks and reports them to the host. The gates
+ * are re-checked before every batch, so the cycle stops immediately
+ * when the guest starts needing the memory; the release decisions
+ * themselves belong to the command thread (see
+ * BalloonReportCheckRelease).
+ *
+ * The MDLs of a batch only join the held list once the host has
+ * acknowledged the report describing them (see ReportingFlushBatch) -
+ * until then they are private to this thread, so no release path can
+ * hand back pages the host may still be walking.
  */
 VOID BalloonReportHold(IN WDFOBJECT WdfDevice)
 {
@@ -782,14 +1012,30 @@ VOID BalloonReportHold(IN WDFOBJECT WdfDevice)
     ULONG commitLimitPages = 0;
     ULONG freeGate;
     ULONG commitGate;
+    ULONG freeReserveLine;
+    ULONG commitReserveLine;
+    ULONG batchPages;
     ULONG batches = 0;
     VIO_SG segments[REPORTING_MAX_SEGMENTS];
     ULONG segmentCount = 0;
+    PPAGE_LIST_ENTRY pendingMdls[REPORTING_BATCHES_PER_CYCLE];
+    ULONG pendingCount = 0;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_REPORTING, "--> %s\n", __FUNCTION__);
 
     if (devCtx->RepVirtQueue == NULL || devCtx->SurpriseRemoval || devCtx->bShutDown)
     {
+        return;
+    }
+
+    /* reports frozen after a host timeout stay frozen until the device is
+     * reset or removed; do not take new pages while any are outstanding */
+    if (devCtx->ReportingInflightCount != 0)
+    {
+        TraceEvents(TRACE_LEVEL_WARNING,
+                    DBG_REPORTING,
+                    "%u reports still in flight, skipping the hold cycle\n",
+                    devCtx->ReportingInflightCount);
         return;
     }
 
@@ -801,17 +1047,46 @@ VOID BalloonReportHold(IN WDFOBJECT WdfDevice)
     freeGate = ReportingFreeGatePages(devCtx);
     commitGate = ReportingCommitGatePages(devCtx);
 
+    /* the gates are checked with the next batch's demand already reserved
+     * (see the batch re-check below): a batch is only started when the
+     * counter can absorb it and still stay at or above the gate, so the
+     * endpoint is not pushed below the gate by the batch's own demand.
+     * Memory the guest consumes while a batch is in flight is not this
+     * check's to absorb - the release decisions defend the floor (see
+     * BalloonReportCheckRelease) */
+    batchPages = devCtx->ReportingMaxSegments * REPORTING_BLOCK_PAGES;
+    freeReserveLine = freeGate + batchPages;
+    commitReserveLine = commitGate + batchPages;
+
 #ifndef BALLOON_INFLATE_IGNORE_LOWMEM
-    /* never take pages while the memory manager is sounding the alarm */
+    /* never take pages while the memory manager is sounding the alarm;
+     * the command thread releases and starts the cooldown */
     if (IsLowMemory(WdfDevice))
     {
         return;
     }
 #endif // !BALLOON_INFLATE_IGNORE_LOWMEM
 
-    if (availablePages <= freeGate)
+    if (availablePages < freeReserveLine || commitHeadroomPages < commitReserveLine)
     {
         return;
+    }
+
+    /* hold cooldown, as re-checked by the command thread (see
+     * BalloonReportCheckRelease). The field is written by the command
+     * thread; on 32-bit builds an unlocked ULONG64 read could tear, so
+     * take the lock for the read - it runs once per interval */
+    {
+        ULONGLONG cooldownUntil;
+
+        WdfSpinLockAcquire(devCtx->ReportingLock);
+        cooldownUntil = devCtx->ReportingCooldownUntil;
+        WdfSpinLockRelease(devCtx->ReportingLock);
+
+        if (cooldownUntil != 0 && KeQueryInterruptTime() < cooldownUntil)
+        {
+            return;
+        }
     }
 
     while (batches < REPORTING_BATCHES_PER_CYCLE)
@@ -822,26 +1097,83 @@ VOID BalloonReportHold(IN WDFOBJECT WdfDevice)
         PPAGE_LIST_ENTRY pageListEntry;
         PMDL mdl;
 
+        if (devCtx->bShutDown)
+        {
+            break;
+        }
+
+#ifndef BALLOON_INFLATE_IGNORE_LOWMEM
+        if (IsLowMemory(WdfDevice))
+        {
+            break;
+        }
+#endif // !BALLOON_INFLATE_IGNORE_LOWMEM
+
         /* re-check the available memory and commit headroom while
-         * filling up: these are the gates of the two hysteresis bands
-         * (floor + hysteresis, see ReportingFreeGatePages), the release
-         * lines sit at the floors */
+         * filling up, with the next batch's demand already reserved
+         * (freeReserveLine/commitReserveLine): a batch starts only when
+         * the counter can absorb it and still stay at or above the gate,
+         * so the endpoint is not pushed below the gate by the batch's
+         * own demand - the release lines sit at the floors */
         if (!NT_SUCCESS(ReportingQueryMemoryState(&availablePages, &commitHeadroomPages, &commitLimitPages)) ||
-            availablePages <= freeGate || commitHeadroomPages < commitGate)
+            availablePages < freeReserveLine || commitHeadroomPages < commitReserveLine)
         {
             break;
         }
 
         /* flush the pending segments, the next batch produces up to
-         * ReportingMaxSegments more (one segment per 2MB block) */
-        if (!ReportingFlushSegments(devCtx, segments, &segmentCount))
+         * ReportingMaxSegments more (one segment per 2MB block); only an
+         * acknowledged batch joins the held list */
+        if (!ReportingFlushBatch(devCtx, segments, &segmentCount, pendingMdls, &pendingCount))
         {
             return;
+        }
+
+        /* the flush above can block on the host's acknowledgment for
+         * up to a second, and an emergency may have run in that window:
+         * the admission decision taken at the top of the loop is stale.
+         * Re-check the stop conditions before allocating - the batch
+         * just flushed is acknowledged and safely held, so stopping
+         * here leaks nothing. All three arms break so the final flush
+         * below runs: it is a no-op after a successful flush (the
+         * segment count is zero) and it adopts any pending MDLs an
+         * extraction failure left behind */
+        if (devCtx->bShutDown)
+        {
+            break;
+        }
+#ifndef BALLOON_INFLATE_IGNORE_LOWMEM
+        if (IsLowMemory(WdfDevice))
+        {
+            break;
+        }
+#endif // !BALLOON_INFLATE_IGNORE_LOWMEM
+        {
+            ULONGLONG cooldownUntil;
+            ULONG64 now = KeQueryInterruptTime();
+
+            WdfSpinLockAcquire(devCtx->ReportingLock);
+            cooldownUntil = devCtx->ReportingCooldownUntil;
+            WdfSpinLockRelease(devCtx->ReportingLock);
+            if (cooldownUntil != 0 && now < cooldownUntil)
+            {
+                TraceEvents(TRACE_LEVEL_VERBOSE,
+                            DBG_REPORTING,
+                            "Cooldown started mid-cycle (%u ms left), stopping the hold\n",
+                            (ULONG)((cooldownUntil - now) / 10000));
+                break;
+            }
         }
 
         LowAddress.QuadPart = 0;
         HighAddress.QuadPart = (ULONGLONG)-1;
         SkipBytes.QuadPart = REPORTING_BLOCK_SIZE;
+
+        /* No upper address bound here: unlike the inflate/deflate queues,
+         * which submit 32-bit PFN arrays (spec 5.5.6) and therefore
+         * cannot describe pages above 16TB, the reporting queue submits
+         * a 64-bit addr/length pair per block (spec 5.5.6.7), so the
+         * full address range is usable. */
 
         /* MM_ALLOCATE_REQUIRE_CONTIGUOUS_CHUNKS with SkipBytes = 2MB
          * guarantees that every chunk in the returned MDL is exactly 2MB
@@ -878,9 +1210,11 @@ VOID BalloonReportHold(IN WDFOBJECT WdfDevice)
         }
 
         pageListEntry->PageMdl = mdl;
-        PushEntryList(&devCtx->ReportingMdlList, &pageListEntry->SingleListEntry);
-        devCtx->ReportingMdlCount++;
-        devCtx->ReportingHeldPages += MmGetMdlByteCount(mdl) >> PAGE_SHIFT;
+
+        /* the batch stays private to this thread until its report is
+         * acknowledged (see ReportingFlushBatch); the allocation above
+         * ran outside the lock */
+        pendingMdls[pendingCount++] = pageListEntry;
 
         ReportingExtractBlocks(mdl, segments, &segmentCount);
 
@@ -894,7 +1228,11 @@ VOID BalloonReportHold(IN WDFOBJECT WdfDevice)
         batches++;
     }
 
-    if (!ReportingFlushSegments(devCtx, segments, &segmentCount))
+    /* a shutdown mid-cycle still flushes once: the close path pre-signals
+     * RepAckEvent, the wait converts to a timeout and the batch freezes on
+     * the in-flight list - BalloonReportReleaseInflight frees it after the
+     * device reset. Returning here instead would leak the pending MDLs. */
+    if (!ReportingFlushBatch(devCtx, segments, &segmentCount, pendingMdls, &pendingCount))
     {
         return;
     }
