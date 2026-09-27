@@ -43,8 +43,9 @@ BalloonInit(IN WDFOBJECT WdfDevice)
     u64 u64HostFeatures;
     u64 u64GuestFeatures = 0;
     bool notify_stat_queue = false;
-    VIRTIO_WDF_QUEUE_PARAM params[3];
-    PVIOQUEUE vqs[3];
+    bool enable_reporting = false;
+    VIRTIO_WDF_QUEUE_PARAM params[4];
+    PVIOQUEUE vqs[4];
     ULONG nvqs;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> BalloonInit\n");
@@ -60,6 +61,9 @@ BalloonInit(IN WDFOBJECT WdfDevice)
     // stats
     params[2].Interrupt = devCtx->WdfInterrupt;
 
+    // free page reporting
+    params[3].Interrupt = devCtx->WdfInterrupt;
+
     u64HostFeatures = VirtIOWdfGetDeviceFeatures(&devCtx->VDevice);
 
     if (virtio_is_feature_enabled(u64HostFeatures, VIRTIO_BALLOON_F_STATS_VQ))
@@ -74,17 +78,37 @@ BalloonInit(IN WDFOBJECT WdfDevice)
         nvqs = 2;
     }
 
+    /*
+     * Free page reporting requires identity DMA of the reported pages:
+     * the reporting queue describes guest physical ranges that are never
+     * mapped into any process address space, and remapping such ranges
+     * behind an IOMMU is not supported. The EnableFpr service parameter
+     * provides an escape hatch for deployments that want the feature off
+     * without touching the host-side device configuration.
+     */
+    if (virtio_is_feature_enabled(u64HostFeatures, VIRTIO_BALLOON_F_PAGE_REPORTING) &&
+        ReportingIsEnabled((WDFDEVICE)WdfDevice) && !devCtx->VDevice.IsIoMmuActive)
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "Enable free page reporting feature.\n");
+
+        virtio_feature_enable(u64GuestFeatures, VIRTIO_BALLOON_F_PAGE_REPORTING);
+        enable_reporting = true;
+        nvqs++; // the reporting virtqueue is the last one
+    }
+
     status = VirtIOWdfSetDriverFeatures(&devCtx->VDevice, u64GuestFeatures, 0);
     if (NT_SUCCESS(status))
     {
-        // initialize 2 or 3 queues
+        // initialize 2, 3 or 4 queues
         status = VirtIOWdfInitQueues(&devCtx->VDevice, nvqs, vqs, params);
         if (NT_SUCCESS(status))
         {
             devCtx->InfVirtQueue = vqs[0];
             devCtx->DefVirtQueue = vqs[1];
+            devCtx->StatVirtQueue = NULL;
+            devCtx->RepVirtQueue = NULL;
 
-            if (nvqs == 3)
+            if (nvqs >= 3)
             {
                 VIO_SG sg;
 
@@ -102,6 +126,13 @@ BalloonInit(IN WDFOBJECT WdfDevice)
                     TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "Failed to add buffer to stats queue.\n");
                 }
             }
+
+            if (enable_reporting)
+            {
+                // the reporting virtqueue is the last one
+                devCtx->RepVirtQueue = vqs[nvqs - 1];
+            }
+
             VirtIOWdfSetDriverOK(&devCtx->VDevice);
         }
         else
