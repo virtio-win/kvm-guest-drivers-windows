@@ -207,6 +207,20 @@ NTSTATUS VirtIOWdfInitQueues(PVIRTIO_WDF_DRIVER pWdfDriver, ULONG nQueues,
     return status;
 }
 
+NTSTATUS VirtIOWdfInitQueuesPowerOfTwoAligned(PVIRTIO_WDF_DRIVER pWdfDriver, ULONG nQueues,
+                                              struct virtqueue **pQueues,
+                                              PVIRTIO_WDF_QUEUE_PARAM pQueueParams)
+{
+    NTSTATUS status;
+    BOOLEAN previousPolicy = pWdfDriver->AlignQueueAllocationToPowerOfTwo;
+
+    pWdfDriver->AlignQueueAllocationToPowerOfTwo = TRUE;
+    status = VirtIOWdfInitQueues(pWdfDriver, nQueues, pQueues, pQueueParams);
+    pWdfDriver->AlignQueueAllocationToPowerOfTwo = previousPolicy;
+
+    return status;
+}
+
 NTSTATUS VirtIOWdfInitQueuesCB(PVIRTIO_WDF_DRIVER pWdfDriver, ULONG nQueues,
                                VirtIOWdfGetQueueParamCallback pQueueParamFunc,
                                VirtIOWdfSetQueueCallback pSetQueueFunc)
