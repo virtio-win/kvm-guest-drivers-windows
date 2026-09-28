@@ -394,9 +394,10 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
     SetGuestFeatures(DeviceExtension);
 
     ConfigInfo->NumberOfBuses = 1;
-    ConfigInfo->MaximumNumberOfTargets = min((UCHAR)adaptExt->scsi_config.max_target,
-                                             255 /*SCSI_MAXIMUM_TARGETS_PER_BUS*/);
-    ConfigInfo->MaximumNumberOfLogicalUnits = min((UCHAR)adaptExt->scsi_config.max_lun, SCSI_MAXIMUM_LUNS_PER_TARGET);
+    ConfigInfo->MaximumNumberOfTargets = (UCHAR)min(adaptExt->scsi_config.max_target + 1,
+                                                    255 /*SCSI_MAXIMUM_TARGETS_PER_BUS*/);
+    ConfigInfo->MaximumNumberOfLogicalUnits = (UCHAR)min(adaptExt->scsi_config.max_lun + 1,
+                                                         SCSI_MAXIMUM_LUNS_PER_TARGET);
     ConfigInfo->MaximumTransferLength = SP_UNINITIALIZED_VALUE;  // Unlimited
     ConfigInfo->NumberOfPhysicalBreaks = SP_UNINITIALIZED_VALUE; // Unlimited
 
@@ -1313,8 +1314,8 @@ VioScsiBuildIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
     TargetId = SRB_TARGET_ID(Srb);
     Lun = SRB_LUN(Srb);
 
-    if ((SRB_PATH_ID(Srb) > (UCHAR)adaptExt->num_queues) || (TargetId >= adaptExt->scsi_config.max_target) ||
-        (Lun >= adaptExt->scsi_config.max_lun) || adaptExt->bRemoved)
+    if ((SRB_PATH_ID(Srb) > (UCHAR)adaptExt->num_queues) || (TargetId > adaptExt->scsi_config.max_target) ||
+        (Lun > adaptExt->scsi_config.max_lun) || adaptExt->bRemoved)
     {
         SRB_SET_SRB_STATUS(Srb, SRB_STATUS_NO_DEVICE);
         SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
