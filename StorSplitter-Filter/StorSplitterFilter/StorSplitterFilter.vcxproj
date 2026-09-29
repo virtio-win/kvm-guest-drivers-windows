@@ -74,19 +74,6 @@
   </PropertyGroup>
   <Import Project="$(MSBuildProjectDirectory)\StorSplitterFilter.props" />
   <Import Project="$(MSBuildProjectDirectory)\..\..\build\Driver.Common.props" />
-  <!--
-    This is a DefaultInstall (class-filter) INF, not a PnP Manufacturer/Models INF.
-    Driver.Common.props sets InfArch to "$(TargetArch).10.0...16299" (Win11), which
-    StampInf expands into [DefaultInstall.NTamd64.10.0...16299]. inf2cat does not
-    recognize an OS-version-range-decorated DefaultInstall section as an installable
-    INF ("No installation INF found") and refuses to build the catalog. Override to
-    an arch-only decoration so StampInf emits [DefaultInstall.NTamd64], which inf2cat
-    accepts. (PnP INFs such as viomem keep the OS-version range on their Models
-    sections, where it is valid.)
-  -->
-  <PropertyGroup>
-    <InfArch>$(TargetArch)</InfArch>
-  </PropertyGroup>
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
   <ImportGroup Label="PropertySheets">

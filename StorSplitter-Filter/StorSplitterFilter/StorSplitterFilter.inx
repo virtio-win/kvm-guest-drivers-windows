@@ -1,19 +1,22 @@
 ;
 ; StorSplitterFilter.inf
-; Class Upper Filter for Disk Drives
+; Device Upper Filter for VirtIO block (viostor) disks, delivered as a PnP
+; Extension INF so it rides on top of the inbox disk driver and is applied
+; automatically to matching disks (e.g. co-installed alongside viostor).
 ;
 
 [Version]
 Signature   = "$WINDOWS NT$"
-Class       = DiskDrive
-ClassGuid   = {4d36e967-e325-11ce-bfc1-08002be10318}
+Class       = Extension
+ClassGuid   = {e2f84ce7-8efa-411c-aa69-97454ca4cb57}
+ExtensionId = {ef7743d3-2151-4e5c-a4db-856021e8e775}
 Provider    = %VENDOR%
 CatalogFile = StorSplitterFilter.cat
 DriverVer   = 01/01/2008,0.0.0.1 ; this line will be replaced with stampinf
 PnpLockdown = 1
 
 [DestinationDirs]
-DefaultDestDir = INX_PLATFORM_DRIVERS_DIR
+DefaultDestDir               = INX_PLATFORM_DRIVERS_DIR
 StorSplitterFilter.CopyFiles = INX_PLATFORM_DRIVERS_DIR
 
 [SourceDisksNames]
@@ -22,23 +25,44 @@ StorSplitterFilter.CopyFiles = INX_PLATFORM_DRIVERS_DIR
 [SourceDisksFiles]
 StorSplitterFilter.sys = 1,,
 
-[DefaultInstall.NT$ARCH$]
-CopyFiles = StorSplitterFilter.CopyFiles
-AddReg    = StorSplitterFilter_AddReg
+[Manufacturer]
+%VENDOR% = StorSplitter, NT$ARCH$
 
-[DefaultInstall.NT$ARCH$.Services]
+; VirtIO block (viostor) fabricates a fixed SCSI inquiry
+; (VendorId "Red Hat ", ProductId "VirtIO", Revision "0001"), so its disk PDO
+; exposes a stable hardware ID. Match it here so the filter attaches only to
+; virtio-blk disks. NOTE: confirm the exact ID on a live guest via
+; Device Manager -> disk -> Details -> Hardware Ids before shipping; vioscsi
+; disks inherit the backend inquiry and are intentionally NOT matched.
+[StorSplitter.NT$ARCH$]
+%Disk.Desc% = StorSplitter_Install, SCSI\DiskRed_Hat_VirtIO__________0001
+%Disk.Desc% = StorSplitter_Install, SCSI\DiskRed_Hat_VirtIO__________
+
+[StorSplitter_Install]
+CopyFiles = StorSplitterFilter.CopyFiles
+
+; Device-scoped UpperFilters written to the device hardware key (HKR), not the
+; HKLM class key. This is permitted in a Universal INF, unlike a class-wide
+; UpperFilters AddReg. The newer AddFilter/[*.Filters] directive requires a
+; 10.0.18362 TargetOSVersion decoration; the HKR UpperFilters form keeps this
+; package installable across all supported Win10 builds without that constraint
+; (same mechanism used by inbox INFs such as qemupciserial.inf's serenum filter).
+; 0x00010008 = REG_MULTI_SZ (0x00010000) | APPEND (0x0008) so we append without
+; clobbering any existing device upper filters.
+[StorSplitter_Install.HW]
+AddReg = StorSplitterFilter_AddReg
+
+[StorSplitterFilter_AddReg]
+HKR,, "UpperFilters", 0x00010008, "StorSplitterFilter"
+
+[StorSplitter_Install.Services]
 AddService = StorSplitterFilter, , StorSplitterFilter_Service_Inst
 
-[DefaultInstall.NT$ARCH$.Wdf]
+[StorSplitter_Install.Wdf]
 KmdfService = StorSplitterFilter, StorSplitterFilter_wdfsect
 
 [StorSplitterFilter_wdfsect]
 KmdfLibraryVersion = $KMDFVERSION$
-
-[StorSplitterFilter_AddReg]
-; 0x00010008 = REG_MULTI_SZ (0x00010000) | APPEND (0x0008)
-; Safely appends our filter without overwriting 'partmgr'
-HKLM, System\CurrentControlSet\Control\Class\{4d36e967-e325-11ce-bfc1-08002be10318}, UpperFilters, 0x00010008, "StorSplitterFilter"
 
 [StorSplitterFilter.CopyFiles]
 StorSplitterFilter.sys
@@ -46,7 +70,7 @@ StorSplitterFilter.sys
 [StorSplitterFilter_Service_Inst]
 DisplayName    = %ServiceName%
 ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
-StartType      = 0               ; SERVICE_BOOT_START (Required to intercept boot drives!)
+StartType      = 3               ; SERVICE_DEMAND_START (PnP loads it on device start)
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
 ServiceBinary  = %INX_PLATFORM_DRIVERS_DIR%\StorSplitterFilter.sys
 LoadOrderGroup = PnP Filter
@@ -55,3 +79,4 @@ LoadOrderGroup = PnP Filter
 VENDOR      = "INX_COMPANY"
 DiskName    = "StorSplitterFilter Installation Disk"
 ServiceName = "StorSplitterFilter Upper I/O Filter"
+Disk.Desc   = "VirtIO Disk (StorSplitter I/O filter)"
