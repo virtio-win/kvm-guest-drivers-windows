@@ -342,7 +342,7 @@ typedef struct _ADAPTER_EXTENSION
     ULONG max_physical_breaks;
     SCSI_WMILIB_CONTEXT WmiLibContext;
     ULONGLONG hba_id;
-    PUCHAR ser_num;
+    UCHAR ser_num[64 + 1];
     ULONGLONG wwn;
     ULONGLONG port_wwn;
     ULONG port_idx;
