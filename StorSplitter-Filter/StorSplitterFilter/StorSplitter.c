@@ -290,6 +290,10 @@ NTSTATUS EvtDevicePrepareHardware(WDFDEVICE Device, WDFCMRESLIST ResourcesRaw, W
         return STATUS_SUCCESS; // Silently fail and use defaults
     }
 
+    // ExAllocatePoolWithTag does not zero the allocation, so clear it before use.
+    // The data region must start zeroed in case the device returns a short reply
+    // (fewer bytes than requested), and the header is then copied over the top.
+    RtlZeroMemory(buffer, totalBufferSize);
     RtlCopyMemory(buffer, &spt, sizeof(SCSI_PASS_THROUGH));
 
     WDF_MEMORY_DESCRIPTOR inputDescriptor;
@@ -309,7 +313,13 @@ NTSTATUS EvtDevicePrepareHardware(WDFDEVICE Device, WDFCMRESLIST ResourcesRaw, W
     if (NT_SUCCESS(status))
     {
         PSCSI_PASS_THROUGH pSpt = (PSCSI_PASS_THROUGH)buffer;
-        if (pSpt->ScsiStatus == SCSISTAT_GOOD)
+
+        // The port driver writes the actual number of bytes transferred back into
+        // DataTransferLength. Only trust MaximumTransferLength if the device returned
+        // enough data to cover it; otherwise fall back to the safe defaults.
+        ULONG requiredLength = FIELD_OFFSET(CUSTOM_VPD_BLOCK_LIMITS_PAGE, MaximumTransferLength) + sizeof(ULONG);
+
+        if (pSpt->ScsiStatus == SCSISTAT_GOOD && pSpt->DataTransferLength >= requiredLength)
         {
             PCUSTOM_VPD_BLOCK_LIMITS_PAGE pVpd = (PCUSTOM_VPD_BLOCK_LIMITS_PAGE)(buffer + sizeof(SCSI_PASS_THROUGH));
 
@@ -429,7 +439,14 @@ VOID EvtIoRead(WDFQUEUE Queue, WDFREQUEST Request, size_t Length)
     WDF_OBJECT_ATTRIBUTES lockAttributes;
     WDF_OBJECT_ATTRIBUTES_INIT(&lockAttributes);
     lockAttributes.ParentObject = Request;
-    WdfSpinLockCreate(&lockAttributes, &parentCtx->Lock);
+    status = WdfSpinLockCreate(&lockAttributes, &parentCtx->Lock);
+    if (!NT_SUCCESS(status))
+    {
+        // Without the lock we cannot coordinate concurrent child completions safely
+        // (a later WdfSpinLockAcquire on a NULL handle would bugcheck). Fail gracefully.
+        WdfRequestComplete(Request, status);
+        return;
+    }
 
     // LOOP BIAS: We start the counter at 1. This prevents the request from completing
     // prematurely if chunk #1 finishes processing before we even finish submitting chunk #2.
@@ -500,7 +517,12 @@ VOID EvtIoRead(WDFQUEUE Queue, WDFREQUEST Request, size_t Length)
     if (InterlockedDecrement(&parentCtx->OutstandingChildren) == 0)
     {
         status = parentCtx->FinalStatus;
-        WdfRequestComplete(Request, status);
+
+        // Report the transferred byte count so the caller sees the full length on
+        // success. Plain WdfRequestComplete would set Information to 0, making a
+        // successful split read look like it returned no data.
+        size_t bytesCompleted = NT_SUCCESS(status) ? Length : 0;
+        WdfRequestCompleteWithInformation(Request, status, bytesCompleted);
     }
 }
 
@@ -557,7 +579,14 @@ VOID EvtIoWrite(WDFQUEUE Queue, WDFREQUEST Request, size_t Length)
     WDF_OBJECT_ATTRIBUTES lockAttributes;
     WDF_OBJECT_ATTRIBUTES_INIT(&lockAttributes);
     lockAttributes.ParentObject = Request;
-    WdfSpinLockCreate(&lockAttributes, &parentCtx->Lock);
+    status = WdfSpinLockCreate(&lockAttributes, &parentCtx->Lock);
+    if (!NT_SUCCESS(status))
+    {
+        // Without the lock we cannot coordinate concurrent child completions safely
+        // (a later WdfSpinLockAcquire on a NULL handle would bugcheck). Fail gracefully.
+        WdfRequestComplete(Request, status);
+        return;
+    }
 
     parentCtx->OutstandingChildren = 1; // Initial bias
 
@@ -625,6 +654,9 @@ VOID EvtIoWrite(WDFQUEUE Queue, WDFREQUEST Request, size_t Length)
     if (InterlockedDecrement(&parentCtx->OutstandingChildren) == 0)
     {
         status = parentCtx->FinalStatus;
-        WdfRequestComplete(Request, status);
+        // Report the transferred byte count so the caller sees the full length on success
+        // (a Write that completes synchronously here would otherwise report zero bytes).
+        size_t bytesCompleted = NT_SUCCESS(status) ? Length : 0;
+        WdfRequestCompleteWithInformation(Request, status, bytesCompleted);
     }
 }

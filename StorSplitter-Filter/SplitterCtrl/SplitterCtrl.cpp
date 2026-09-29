@@ -62,6 +62,7 @@ int main(int argc, char *argv[])
     DWORD bytesReturned = 0;
     LONG driverStatus = 0;
     BOOL result = FALSE;
+    int exitCode = 0;
 
     if (ioctlCode == IOCTL_SPLITTER_QUERY_STATUS)
     {
@@ -81,6 +82,7 @@ int main(int argc, char *argv[])
         else
         {
             printf("Failed to query status. Error Code: %lu\n", GetLastError());
+            exitCode = 1;
         }
     }
     else
@@ -94,9 +96,10 @@ int main(int argc, char *argv[])
         else
         {
             printf("FAILED. Error Code: %lu\n", GetLastError());
+            exitCode = 1;
         }
     }
 
     CloseHandle(hDevice);
-    return 0;
+    return exitCode;
 }
