@@ -1924,10 +1924,10 @@ VOID VioScsiIoControl(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
     EXIT_FN_SRB();
 }
 
-UCHAR
+USHORT
 ParseIdentificationDescr(IN PVOID DeviceExtension,
                          IN PVPD_IDENTIFICATION_DESCRIPTOR IdentificationDescr,
-                         IN UCHAR PageLength)
+                         IN USHORT PageLength)
 {
     PADAPTER_EXTENSION adaptExt;
     UCHAR CodeSet = 0;
@@ -1938,7 +1938,7 @@ ParseIdentificationDescr(IN PVOID DeviceExtension,
     {
         CodeSet = IdentificationDescr->CodeSet;               //(UCHAR)(((PCHAR)IdentificationDescr)[0]);
         IdentifierType = IdentificationDescr->IdentifierType; //(UCHAR)(((PCHAR)IdentificationDescr)[1]);
-        if (PageLength < IdentificationDescr->IdentifierLength)
+        if (PageLength < sizeof(VPD_IDENTIFICATION_DESCRIPTOR) + IdentificationDescr->IdentifierLength)
         {
             RhelDbgPrint(TRACE_LEVEL_INFORMATION,
                          " Skipping VPD identifier's descriptor as its length"
@@ -2073,31 +2073,35 @@ VOID VioScsiSaveInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
                 {
                     PVPD_IDENTIFICATION_PAGE IdentificationPage;
                     PVPD_IDENTIFICATION_DESCRIPTOR IdentificationDescr;
-                    UCHAR PageLength = 0;
+                    USHORT PageLength = 0;
                     IdentificationPage = (PVPD_IDENTIFICATION_PAGE)dataBuffer;
-                    PageLength = min((UCHAR)(dataLen & 0xFF) - sizeof(VPD_IDENTIFICATION_PAGE),
-                                     IdentificationPage->PageLength);
                     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " SRB's DataTransferLength: 0x%x\n", dataLen);
-                    RhelDbgPrint(TRACE_LEVEL_VERBOSE,
-                                 " Identification page's length: 0x%x\n",
-                                 IdentificationPage->PageLength);
-                    RhelDbgPrint(TRACE_LEVEL_VERBOSE, " Total PageLength: 0x%x\n", PageLength);
-                    if (PageLength >= sizeof(VPD_IDENTIFICATION_DESCRIPTOR))
+                    if (dataLen >= sizeof(VPD_IDENTIFICATION_PAGE))
                     {
-                        UCHAR IdentifierLength = 0;
-                        IdentificationDescr = (PVPD_IDENTIFICATION_DESCRIPTOR)IdentificationPage->Descriptors;
-                        do
+                        size_t available = dataLen - sizeof(VPD_IDENTIFICATION_PAGE);
+                        // IdentificationPage->PageLength is a UCHAR, so the result is always <= 255 and fits USHORT.
+                        PageLength = (USHORT)min(available, IdentificationPage->PageLength);
+                        RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                                     " Identification page's length: 0x%x\n",
+                                     IdentificationPage->PageLength);
+                        RhelDbgPrint(TRACE_LEVEL_VERBOSE, " Total PageLength: 0x%x\n", PageLength);
+                        if (PageLength >= sizeof(VPD_IDENTIFICATION_DESCRIPTOR))
                         {
-                            UCHAR offset = 0;
-                            IdentifierLength = ParseIdentificationDescr(DeviceExtension,
-                                                                        IdentificationDescr,
-                                                                        PageLength);
-                            offset = sizeof(VPD_IDENTIFICATION_DESCRIPTOR) + IdentifierLength;
-                            PageLength -= min(PageLength, offset);
-                            IdentificationDescr = (PVPD_IDENTIFICATION_DESCRIPTOR)((ULONG_PTR)IdentificationDescr +
-                                                                                   offset);
-                            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " Remaining PageLength: 0x%x\n", PageLength);
-                        } while (PageLength >= sizeof(VPD_IDENTIFICATION_DESCRIPTOR));
+                            USHORT IdentifierLength = 0;
+                            IdentificationDescr = (PVPD_IDENTIFICATION_DESCRIPTOR)IdentificationPage->Descriptors;
+                            do
+                            {
+                                USHORT offset = 0;
+                                IdentifierLength = ParseIdentificationDescr(DeviceExtension,
+                                                                            IdentificationDescr,
+                                                                            PageLength);
+                                offset = (USHORT)sizeof(VPD_IDENTIFICATION_DESCRIPTOR) + IdentifierLength;
+                                PageLength -= min(PageLength, offset);
+                                IdentificationDescr = (PVPD_IDENTIFICATION_DESCRIPTOR)((ULONG_PTR)IdentificationDescr +
+                                                                                       offset);
+                                RhelDbgPrint(TRACE_LEVEL_VERBOSE, " Remaining PageLength: 0x%x\n", PageLength);
+                            } while (PageLength >= sizeof(VPD_IDENTIFICATION_DESCRIPTOR));
+                        }
                     }
                 }
                 break;
