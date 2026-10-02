@@ -462,7 +462,10 @@ BalloonEvtDeviceD0ExitPreInterruptsDisabled(IN WDFDEVICE Device, IN WDF_POWER_DE
     {
         while (devCtx->num_pages)
         {
-            BalloonLeak(Device, devCtx->num_pages);
+            if (!NT_SUCCESS(BalloonLeak(Device, devCtx->num_pages)))
+            {
+                BalloonDrainPages(Device);
+            }
         }
 
         BalloonSetSize(Device, devCtx->num_pages);

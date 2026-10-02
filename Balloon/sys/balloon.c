@@ -258,6 +258,25 @@ BalloonLeak(IN WDFOBJECT WdfDevice, IN size_t num)
     return status;
 }
 
+VOID BalloonDrainPages(IN WDFOBJECT WdfDevice)
+{
+    PDEVICE_CONTEXT ctx = GetDeviceContext(WdfDevice);
+    PSINGLE_LIST_ENTRY entry;
+
+    TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
+
+    while ((entry = PopEntryList(&ctx->PageListHead)) != NULL)
+    {
+        PPAGE_LIST_ENTRY e = CONTAINING_RECORD(entry, PAGE_LIST_ENTRY, SingleListEntry);
+        ctx->num_pages -= MmGetMdlByteCount(e->PageMdl) / PAGE_SIZE;
+        MmFreePagesFromMdl(e->PageMdl);
+        ExFreePool(e->PageMdl);
+        ExFreeToNPagedLookasideList(&ctx->LookAsideList, e);
+    }
+
+    TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
+}
+
 NTSTATUS
 BalloonTellHost(IN WDFOBJECT WdfDevice, IN PVIOQUEUE vq)
 {
