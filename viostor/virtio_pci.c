@@ -124,9 +124,9 @@ static void *mem_alloc_contiguous_pages(void *context, size_t size)
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)context;
     PVOID ptr = (PVOID)((ULONG_PTR)adaptExt->pageAllocationVa + adaptExt->pageOffset);
 
-    if ((adaptExt->pageOffset + size) <= adaptExt->pageAllocationSize)
+    size = ROUND_TO_PAGES(size);
+    if (size && size <= adaptExt->pageAllocationSize - adaptExt->pageOffset)
     {
-        size = ROUND_TO_PAGES(size);
         adaptExt->pageOffset += size;
         RtlZeroMemory(ptr, size);
         return ptr;
