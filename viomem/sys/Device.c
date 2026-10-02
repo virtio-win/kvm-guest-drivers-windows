@@ -126,6 +126,15 @@ ViomemDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
         return status;
     }
 
+    devCtx->hotRemoveInProgress = FALSE;
+
+    status = WdfSpinLockCreate(&attributes, &devCtx->stateLock);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfSpinLockCreate (stateLock) failed 0x%x\n", status);
+        return status;
+    }
+
     KeInitializeEvent(&devCtx->WakeUpThread, SynchronizationEvent, FALSE);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s Return\n", __FUNCTION__);
@@ -332,7 +341,30 @@ ViomemCloseWorkerThread(IN WDFDEVICE Device)
 
     if (NULL != devCtx->Thread)
     {
+        BOOLEAN hotRemoveInProgress;
+
+        //
+        // Request the worker thread to stop and, under stateLock, observe
+        // whether a memory hot-remove has already been admitted. Setting
+        // finishProcessing here is atomic with the admission check in
+        // VirtioMemRemovePhysicalMemory: either the worker has already committed
+        // to the hot-remove (hotRemoveInProgress == TRUE, and the wait below lets
+        // it finish) or it will observe finishProcessing and skip the hot-remove.
+        //
+
+        WdfSpinLockAcquire(devCtx->stateLock);
         devCtx->finishProcessing = TRUE;
+        hotRemoveInProgress = devCtx->hotRemoveInProgress;
+        WdfSpinLockRelease(devCtx->stateLock);
+
+        if (hotRemoveInProgress)
+        {
+            TraceEvents(TRACE_LEVEL_INFORMATION,
+                        DBG_PNP,
+                        "%s memory hot-remove in progress, waiting for the worker thread to finish it\n",
+                        __FUNCTION__);
+        }
+
         KeSetEvent(&devCtx->WakeUpThread, EVENT_INCREMENT, FALSE);
         status = KeWaitForSingleObject(devCtx->Thread, Executive, KernelMode, FALSE, NULL);
         if (!NT_SUCCESS(status))
