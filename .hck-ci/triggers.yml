@@ -101,8 +101,7 @@ viosock:
     - viosock/
   exclude:
     - viosock/lib/
-    - viosock/viosock-test/
-    - viosock/viosocklib-test/
+    - viosock/tests/
     - viosock/wsk/
     - viosock/tcp-bridge/
     - viosock/LICENSE

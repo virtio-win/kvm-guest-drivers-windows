@@ -1,0 +1,23 @@
+# vsock_test test IDs to skip in the default Linux<->Windows interop suite.
+#
+# Format: <id>  # reason
+#   - <id>     numeric test ID as printed by `vsock_test --list`
+#   - reason   free-form short text after `#`
+#
+# Consumed by the viosock-vsock-test skill: when present, its IDs are added to
+# `--skip` on both sides of the run. Explicit `--pick N` from the caller bypasses.
+# Longer notes for individual tests belong in test-notes.md next to this file.
+
+3   # SOCK_STREAM server close: WSAPoll FD_CLOSE / WSP IOCTL 10043 (WSAEPROTONOSUPPORT); desyncs control channel
+8   # SOCK_SEQPACKET timeout - SEQPACKET semantic mismatch on Windows AF_VSOCK
+9   # SOCK_SEQPACKET invalid receive buffer - SEQPACKET error path differs
+10  # SOCK_STREAM poll() + SO_RCVLOWAT - SO_RCVLOWAT not honoured / poll semantics
+11  # SOCK_SEQPACKET big message - SEQPACKET large-msg path
+12  # SOCK_STREAM test invalid buffer - invalid-buffer error mapping differs
+13  # SOCK_SEQPACKET test invalid buffer - SEQPACKET invalid-buffer path
+15  # SOCK_SEQPACKET MSG_PEEK - SEQPACKET MSG_PEEK semantics
+22  # SOCK_STREAM virtio credit update + SO_RCVLOWAT - Linux-internal virtio credit mechanics
+23  # SOCK_STREAM virtio credit update + low rx_bytes - ditto
+25  # SOCK_SEQPACKET ioctl(SIOCOUTQ) - SIOCOUTQ on SEQPACKET
+35  # SOCK_SEQPACKET ioctl(SIOCINQ) - SIOCINQ on SEQPACKET
+38  # SOCK_STREAM TX credit bounds - virtio TX credit edge case

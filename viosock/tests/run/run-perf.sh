@@ -1,0 +1,211 @@
+#!/usr/bin/env bash
+# run-perf.sh — automated vsock_perf sweep (forward + reverse) × two
+# buffer sizes (default and large). Loopback is intentionally omitted —
+# hairpin traffic on the Windows guest does not represent real workload.
+#
+# Reads stdout of both sides (Linux vsock_perf and Windows vsock_perf.exe)
+# and prints a single-line result per run.  The receiver's line is the
+# authoritative RX Gbps; the sender's line is TX Gbps.  Both are logged
+# to $LOGDIR/{fwd,rev}_<buf>.log.
+#
+# vsock_perf has NO TCP control channel of its own — the two peers talk
+# only over vsock. So there is no wait_guest_port() to poll; we just
+# sleep SERVER_GRACE_SECS after launching the receiver.
+
+set -uo pipefail
+_here=$(cd "$(dirname "$0")" && pwd)
+# shellcheck source=./_lib.sh
+. "$_here/_lib.sh"
+
+_perf_cleanup() {
+    [ -n "${rx_pid:-}" ] && kill "$rx_pid" 2>/dev/null || true
+    [ -n "${rx_ssh_pid:-}" ] && kill "$rx_ssh_pid" 2>/dev/null || true
+}
+trap _perf_cleanup EXIT
+
+# --- tunables (env-overridable) ------------------------------------------
+PERF_BYTES=${PERF_BYTES:-1G}
+PERF_BUF_DEFAULT=${PERF_BUF_DEFAULT:-64K}
+PERF_BUF_LARGE=${PERF_BUF_LARGE:-1M}
+PERF_VSK_SIZE=${PERF_VSK_SIZE:-}     # empty → don't pass --vsk-size
+PERF_RCVLOWAT=${PERF_RCVLOWAT:-}     # empty → don't pass --rcvlowat
+PERF_PORT=${PERF_PORT:-12347}
+# When set (any non-empty value), pass --no-poll to the Windows-side
+# receiver in reverse.  Needed on viosock builds without WSAPoll on
+# accept()ed vsock sockets (upstream master today); harmless for our
+# vhi-8.1 driver but reports "read() calls" instead of "POLLIN wakeups".
+PERF_NO_POLL=${PERF_NO_POLL:-}
+SERVER_GRACE_SECS=${SERVER_GRACE_SECS:-1}
+
+# --- args ----------------------------------------------------------------
+CFG=""; LOGDIR=""; DIRS=""
+LOCAL_BIN="/opt/vsock-test/vsock_perf"
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --config)      CFG="$2";       shift 2 ;;
+        --logdir)      LOGDIR="$2";    shift 2 ;;
+        --only)        DIRS="$2";      shift 2 ;;
+        --local-bin)   LOCAL_BIN="$2"; shift 2 ;;
+        -h|--help)
+            cat >&2 <<EOF
+Usage: $0 [--config <cfg>] [--logdir <dir>]
+          [--only forward,reverse] [--local-bin <path>]
+
+Runs vsock_perf in every enabled direction × two buffer sizes.
+
+vsock_perf has one Windows-side flavour: the compat.h POSIX shim.
+Native WSA / overlapped I/O in vsock_perf itself would be a separate
+feature (add --variant to vsock_perf.c first), so this driver has no
+--variant flag today.
+
+Tunables (env-overridable, defaults in [brackets]):
+  PERF_BYTES        [1G]      Total bytes to transfer per run.
+  PERF_BUF_DEFAULT  [64K]     Sender/receiver buffer for the "default" run.
+  PERF_BUF_LARGE    [1M]      Sender/receiver buffer for the "large"   run.
+  PERF_VSK_SIZE     [unset]   Optional --vsk-size (SO_VM_SOCKETS_BUFFER_SIZE).
+  PERF_RCVLOWAT     [unset]   Optional --rcvlowat.
+  PERF_PORT         [12347]   vsock port for the throughput channel.
+  SERVER_GRACE_SECS [1]       Sleep between receiver launch and sender start.
+
+Flags:
+  --only          Comma-separated subset: forward, reverse.
+  --local-bin     Path to the Linux vsock_perf on this host (default:
+                  $LOCAL_BIN — the one prepare-perf.sh installs).
+EOF
+            exit 0 ;;
+        *) die "unknown arg: $1" ;;
+    esac
+done
+
+CFG=$(discover_config "$CFG") || exit $?
+guest_load "$CFG"
+host_cid=$(config_read  "$CFG" host_cid);  [ -n "$host_cid"  ] || die "config has no host_cid="
+guest_cid=$(config_read "$CFG" guest_cid); [ -n "$guest_cid" ] || die "config has no guest_cid="
+
+[ -x "$LOCAL_BIN" ] || die "no vsock_perf at $LOCAL_BIN — run prepare-perf.sh first"
+
+[ -z "$LOGDIR" ] && LOGDIR="/tmp/vsock-perf-$$"
+mkdir -p "$LOGDIR"
+
+# vsock_perf.exe has no variant flag — always compat.h POSIX shim.
+GUEST_CMD="${guest_bin_dir}\\vsock_perf.exe"
+
+# What directions to run
+run_fwd=1; run_rev=1
+if [ -n "$DIRS" ]; then
+    run_fwd=0; run_rev=0
+    IFS=',' read -ra parts <<< "$DIRS"
+    for p in "${parts[@]}"; do
+        case "$p" in
+            forward) run_fwd=1 ;;
+            reverse) run_rev=1 ;;
+            *) die "unknown --only stage: $p" ;;
+        esac
+    done
+fi
+
+# --- one run -------------------------------------------------------------
+# Args:
+#   1. direction (forward|reverse)
+#   2. buf label (default|large)
+#   3. buf value passed to --buf-size on both sides
+_extra_args=()
+[ -n "$PERF_VSK_SIZE" ] && _extra_args+=(--vsk-size "$PERF_VSK_SIZE")
+[ -n "$PERF_RCVLOWAT" ] && _extra_args+=(--rcvlowat "$PERF_RCVLOWAT")
+
+RESULTS=()   # "direction  buf-label  rx-gbps  tx-gbps"
+
+run_forward() {
+    local buf_label="$1" buf_val="$2"
+    local rx_log="$LOGDIR/fwd_${buf_label}_rx.log"
+    local tx_log="$LOGDIR/fwd_${buf_label}_tx.log"
+    info "[forward/$buf_label] bytes=$PERF_BYTES  buf-size=$buf_val"
+
+    # Linux receiver (this host) in background.
+    "$LOCAL_BIN" --port "$PERF_PORT" --buf-size "$buf_val" "${_extra_args[@]}" \
+        > "$rx_log" 2>&1 &
+    local rx_pid=$!
+    sleep "$SERVER_GRACE_SECS"
+
+    # Windows sender.  host_cid is what the guest sees as our vsock CID.
+    ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" \
+        "$GUEST_CMD --sender $host_cid --port $PERF_PORT --bytes $PERF_BYTES --buf-size $buf_val${PERF_VSK_SIZE:+ --vsk-size $PERF_VSK_SIZE}" \
+        > "$tx_log" 2>&1
+    local tx_rc=$?
+
+    [ "$tx_rc" -ne 0 ] && kill "$rx_pid" 2>/dev/null || true
+    wait "$rx_pid" 2>/dev/null
+    local rx_rc=$?
+
+    # tr -d '\r' — the Windows side emits CRLF.
+    tr -d '\r' < "$tx_log" > "$tx_log.tmp" && mv "$tx_log.tmp" "$tx_log"
+
+    _report forward "$buf_label" "$rx_log" "$tx_log" "$rx_rc" "$tx_rc"
+}
+
+run_reverse() {
+    local buf_label="$1" buf_val="$2"
+    local rx_log="$LOGDIR/rev_${buf_label}_rx.log"
+    local tx_log="$LOGDIR/rev_${buf_label}_tx.log"
+    info "[reverse/$buf_label] bytes=$PERF_BYTES  buf-size=$buf_val"
+
+    # --no-poll is a Windows-only flag; only add it to the guest-side
+    # receiver command, never to the Linux upstream vsock_perf.
+    local no_poll=''
+    [ -n "$PERF_NO_POLL" ] && no_poll=' --no-poll'
+
+    # Windows receiver: background ssh session so its job object owns the
+    # guest-side process; killing the local ssh pid tears it down cleanly.
+    ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" \
+        "$GUEST_CMD --port $PERF_PORT --buf-size $buf_val${PERF_VSK_SIZE:+ --vsk-size $PERF_VSK_SIZE}${PERF_RCVLOWAT:+ --rcvlowat $PERF_RCVLOWAT}$no_poll" \
+        > "$rx_log" 2>&1 &
+    local rx_ssh_pid=$!
+    sleep "$SERVER_GRACE_SECS"
+
+    # Linux sender.  guest_cid is what this host sees as the guest.
+    "$LOCAL_BIN" --sender "$guest_cid" --port "$PERF_PORT" \
+        --bytes "$PERF_BYTES" --buf-size "$buf_val" "${_extra_args[@]}" \
+        > "$tx_log" 2>&1
+    local tx_rc=$?
+
+    [ "$tx_rc" -ne 0 ] && kill "$rx_ssh_pid" 2>/dev/null || true
+    wait "$rx_ssh_pid" 2>/dev/null
+    local rx_rc=$?
+
+    [ -f "$rx_log" ] && { tr -d '\r' < "$rx_log" > "$rx_log.tmp" && mv "$rx_log.tmp" "$rx_log"; }
+
+    _report reverse "$buf_label" "$rx_log" "$tx_log" "$rx_rc" "$tx_rc"
+}
+
+_report() {
+    local direction="$1" buf_label="$2" rx_log="$3" tx_log="$4" rx_rc="$5" tx_rc="$6"
+    local rx_gbps tx_gbps
+    rx_gbps=$(grep -oE 'rx performance: [0-9.]+' "$rx_log" 2>/dev/null | tail -1 | awk '{print $NF}')
+    tx_gbps=$(grep -oE 'tx performance: [0-9.]+' "$tx_log" 2>/dev/null | tail -1 | awk '{print $NF}')
+    [ -z "$rx_gbps" ] && rx_gbps='-'
+    [ -z "$tx_gbps" ] && tx_gbps='-'
+    printf '[%s/%s] RX=%s Gbps  TX=%s Gbps  rx-rc=%s  tx-rc=%s\n' \
+        "$direction" "$buf_label" "$rx_gbps" "$tx_gbps" "$rx_rc" "$tx_rc"
+    RESULTS+=("$direction $buf_label $rx_gbps $tx_gbps")
+}
+
+# --- go ------------------------------------------------------------------
+info "== vsock_perf sweep: bytes=$PERF_BYTES  buffers={$PERF_BUF_DEFAULT, $PERF_BUF_LARGE}  logs in $LOGDIR =="
+
+if [ "$run_fwd" -eq 1 ]; then
+    run_forward default "$PERF_BUF_DEFAULT"
+    run_forward large   "$PERF_BUF_LARGE"
+fi
+if [ "$run_rev" -eq 1 ]; then
+    run_reverse default "$PERF_BUF_DEFAULT"
+    run_reverse large   "$PERF_BUF_LARGE"
+fi
+
+echo
+info "=== summary ==="
+printf '  %-10s %-8s %10s %10s\n' direction buf 'RX Gbps' 'TX Gbps'
+for r in "${RESULTS[@]}"; do
+    read -r dir buf rx tx <<< "$r"
+    printf '  %-10s %-8s %10s %10s\n' "$dir" "$buf" "$rx" "$tx"
+done

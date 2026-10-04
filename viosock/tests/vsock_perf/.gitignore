@@ -1,0 +1,5 @@
+x64/
+build.log
+build_out.txt
+buildAll_out.txt
+buildfre_*.log

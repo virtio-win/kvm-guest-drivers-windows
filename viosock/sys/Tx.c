@@ -189,21 +189,11 @@ VIOSockTxVqInit(IN PDEVICE_CONTEXT pContext)
 {
     NTSTATUS status = STATUS_SUCCESS;
     USHORT uNumEntries;
-    ULONG uRingSize, uHeapSize, uBufferSize;
+    ULONG uBufferSize;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
-    status = virtio_query_queue_allocation(&pContext->VDevice.VIODevice,
-                                           VIOSOCK_VQ_TX,
-                                           &uNumEntries,
-                                           &uRingSize,
-                                           &uHeapSize);
-    if (!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "virtio_query_queue_allocation(VIOSOCK_VQ_TX) failed\n");
-        pContext->TxVq = NULL;
-        return status;
-    }
+    uNumEntries = (USHORT)virtio_get_queue_size(pContext->TxVq);
 
     uBufferSize = sizeof(VIOSOCK_TX_PKT) * uNumEntries;
 

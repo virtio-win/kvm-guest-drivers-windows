@@ -48,10 +48,10 @@
 #include <ntintsafe.h>
 #include <wsk.h>
 #include <bcrypt.h>
-#include "..\inc\debug-utils.h"
-#include "..\inc\vio_wsk.h"
-#include "..\inc\vio_sockets.h"
-#include "..\sys\public.h"
+#include "..\..\inc\debug-utils.h"
+#include "..\..\inc\vio_wsk.h"
+#include "..\..\inc\vio_sockets.h"
+#include "..\..\sys\public.h"
 #include "test-messages.h"
 #ifdef EVENT_TRACING
 #include "viosockwsk-test.tmh"

@@ -23,7 +23,7 @@ call build\build.bat viosock\sys\viosock.vcxproj "Win10_SDV Win11_SDV" %*
 if errorlevel 1 goto :fail
 call build\build.bat viosock\wsk\wsk.vcxproj "Win10_SDV Win11_SDV" %*
 if errorlevel 1 goto :fail
-call build\build.bat viosock\viosock-wsk-test\viosock-wsk-test.vcxproj "Win10_SDV Win11_SDV" %*
+call build\build.bat viosock\tests\viosock-wsk-test\viosock-wsk-test.vcxproj "Win10_SDV Win11_SDV" %*
 if errorlevel 1 goto :fail
 call build\build.bat viofs\pci\viofs.vcxproj "Win10_SDV Win11_SDV" %*
 if errorlevel 1 goto :fail
