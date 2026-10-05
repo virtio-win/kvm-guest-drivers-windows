@@ -3063,7 +3063,8 @@ NTSTATUS VIRTFS::Start()
     VolumeParams.CaseSensitiveSearch = !CaseInsensitive;
     VolumeParams.CasePreservedNames = 1;
     VolumeParams.UnicodeOnDisk = 1;
-    VolumeParams.PersistentAcls = 1;
+    // SetSecurity cannot persist ownership (FATTR_UID/GID never sent), so don't claim ACL support.
+    VolumeParams.PersistentAcls = 0;
     VolumeParams.ReparsePoints = 1;
     VolumeParams.ReparsePointsAccessCheck = 0;
     VolumeParams.PostCleanupWhenModifiedOnly = 1;
