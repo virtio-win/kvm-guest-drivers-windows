@@ -148,10 +148,12 @@ VOID SendSRB(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
         element = &adaptExt->processing_srbs[vq_req_idx];
         InsertTailList(&element->srb_list, &srbExt->list_entry);
         element->srb_cnt++;
+        InterlockedIncrement64(&adaptExt->diagCounters.srbs_sent);
     }
     else
     {
         // virtqueue_add_buf() returned -28 (ENOSPC), i.e. no space for buffer, or some other error
+        InterlockedIncrement(&adaptExt->diagCounters.queue_full);
         ScsiStatus = SCSISTAT_QUEUE_FULL;
         SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BUSY);
         SRB_SET_SCSI_STATUS(Srb, ScsiStatus);
