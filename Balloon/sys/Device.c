@@ -44,11 +44,13 @@
 #pragma alloc_text(PAGE, BalloonDeviceAdd)
 #pragma alloc_text(PAGE, BalloonCloseWorkerThread)
 #pragma alloc_text(PAGE, BalloonEvtDeviceSurpriseRemoval)
+#pragma alloc_text(PAGE, BalloonWmiRegistration)
 #endif // ALLOC_PRAGMA
 
 static BALLOON_BUGCHECK_DATA BugCheckData;
 static volatile PDEVICE_CONTEXT g_BugCheckDevCtx = NULL;
 
+static EVT_WDF_WMI_INSTANCE_QUERY_INSTANCE BalloonEvtWmiQueryInstance;
 static KBUGCHECK_REASON_CALLBACK_ROUTINE BalloonOnBugCheck;
 
 #ifndef BALLOON_INFLATE_IGNORE_LOWMEM
@@ -189,6 +191,13 @@ BalloonDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
 #endif // USE_BALLOON_SERVICE
 
     KeInitializeEvent(&devCtx->WakeUpThread, SynchronizationEvent, FALSE);
+
+    status = BalloonWmiRegistration(device);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WMI, "BalloonWmiRegistration failed with status 0x%08x\n", status);
+        return status;
+    }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return status;
@@ -745,6 +754,79 @@ VOID BalloonRoutine(IN PVOID pContext)
     PsTerminateSystemThread(STATUS_SUCCESS);
 }
 
+NTSTATUS
+BalloonWmiRegistration(IN WDFDEVICE Device)
+{
+    WDF_WMI_PROVIDER_CONFIG providerConfig;
+    WDF_WMI_INSTANCE_CONFIG instanceConfig;
+    NTSTATUS status;
+    DECLARE_CONST_UNICODE_STRING(mofResourceName, L"MofResource");
+
+    PAGED_CODE();
+
+    status = WdfDeviceAssignMofResourceName(Device, &mofResourceName);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WMI, "WdfDeviceAssignMofResourceName failed 0x%08x\n", status);
+        return status;
+    }
+
+    WDF_WMI_PROVIDER_CONFIG_INIT(&providerConfig, &BalloonHealthInfoGuid_GUID);
+    providerConfig.MinInstanceBufferSize = BalloonHealthInfo_SIZE;
+
+    WDF_WMI_INSTANCE_CONFIG_INIT_PROVIDER_CONFIG(&instanceConfig, &providerConfig);
+    instanceConfig.Register = TRUE;
+    instanceConfig.EvtWmiInstanceQueryInstance = BalloonEvtWmiQueryInstance;
+
+    status = WdfWmiInstanceCreate(Device, &instanceConfig, WDF_NO_OBJECT_ATTRIBUTES, WDF_NO_HANDLE);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WMI, "WdfWmiInstanceCreate failed 0x%08x\n", status);
+    }
+
+    return status;
+}
+
+NTSTATUS
+BalloonEvtWmiQueryInstance(IN WDFWMIINSTANCE WmiInstance,
+                           IN ULONG OutBufferSize,
+                           IN PVOID OutBuffer,
+                           OUT PULONG BufferUsed)
+{
+    PDEVICE_CONTEXT devCtx = GetDeviceContext(WdfWmiInstanceGetDevice(WmiInstance));
+    PBalloonHealthInfo info = (PBalloonHealthInfo)OutBuffer;
+
+    if (OutBufferSize < BalloonHealthInfo_SIZE)
+    {
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    RtlZeroMemory(OutBuffer, BalloonHealthInfo_SIZE);
+
+    info->CurrentPages = devCtx->num_pages;
+    info->TargetPages = devCtx->LastTargetPages;
+    info->NumVirtQueues = devCtx->StatVirtQueue ? 3 : 2;
+    info->TotalInflateOps = (ULONG)devCtx->TotalInflateOps;
+    info->TotalDeflateOps = (ULONG)devCtx->TotalDeflateOps;
+    info->InflateFailures = (ULONG)devCtx->InflateFailures;
+    info->LowMemInflateRejects = (ULONG)devCtx->LowMemInflateRejects;
+    info->HostAckTimeouts = (ULONG)devCtx->HostAckTimeouts;
+    info->D0EntryCount = devCtx->D0EntryCount;
+    info->D0ExitCount = devCtx->D0ExitCount;
+    info->LastD0EntryStatus = (ULONG)devCtx->LastD0EntryStatus;
+    info->DpcCount = (ULONG)devCtx->DpcCount;
+    info->StatRequestsFromHost = (ULONG)devCtx->StatRequestsFromHost;
+    info->StatResponsesSent = (ULONG)devCtx->StatResponsesSent;
+    info->NegotiatedFeatures = devCtx->NegotiatedFeatures;
+    info->WorkerThreadRunning = devCtx->WorkerThreadRunning;
+    info->ServiceConnected = devCtx->ServiceConnected;
+    info->FeatureStatVQ = devCtx->FeatureStatVQ;
+    info->SurpriseRemoval = devCtx->SurpriseRemoval;
+    info->LastPowerState = (ULONG)devCtx->LastPowerState;
+
+    *BufferUsed = BalloonHealthInfo_SIZE;
+    return STATUS_SUCCESS;
+}
 
 VOID
 BalloonHistoryLog(IN BALLOON_HISTORY_OP Operation, IN ULONG Param1, IN ULONG Param2)

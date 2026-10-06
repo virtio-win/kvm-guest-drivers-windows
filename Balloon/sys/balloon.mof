@@ -1,0 +1,99 @@
+[
+    Dynamic, Provider("WMIProv"),
+    WMI,
+    Description ("VirtIO Balloon driver health and diagnostic information. "
+                 "Query with: Get-CimInstance -Namespace root/wmi "
+                 "-ClassName BalloonHealthInfoGuid"),
+    guid ("{F06FF16E-E670-4306-A698-C9A008FD7E40}"),
+    HeaderName("BalloonHealthInfo"),
+    GuidName1("BalloonWmi_HealthInfo_Guid"),
+    WmiExpense(0)
+]
+class BalloonHealthInfoGuid
+{
+    [read,key] String InstanceName;
+    [read] boolean Active;
+
+    [read, WmiDataId(1), WmiVersion(1),
+     Description ("Number of 4K pages currently claimed by the balloon")]
+    uint32  CurrentPages;
+
+    [read, WmiDataId(2), WmiVersion(1),
+     Description ("Target number of pages requested by the host")]
+    uint32  TargetPages;
+
+    [read, WmiDataId(3), WmiVersion(1),
+     Description ("Number of active virtqueues (2 = inflate+deflate, "
+                  "3 = inflate+deflate+stats)")]
+    uint32  NumVirtQueues;
+
+    [read, WmiDataId(4), WmiVersion(1),
+     Description ("Total number of successful inflate operations")]
+    uint32  TotalInflateOps;
+
+    [read, WmiDataId(5), WmiVersion(1),
+     Description ("Total number of successful deflate operations")]
+    uint32  TotalDeflateOps;
+
+    [read, WmiDataId(6), WmiVersion(1),
+     Description ("Number of inflate operations that failed "
+                  "(e.g. memory allocation failure)")]
+    uint32  InflateFailures;
+
+    [read, WmiDataId(7), WmiVersion(1),
+     Description ("Number of inflate requests rejected due to low memory")]
+    uint32  LowMemInflateRejects;
+
+    [read, WmiDataId(8), WmiVersion(1),
+     Description ("Number of times the host did not ACK within the 1s timeout")]
+    uint32  HostAckTimeouts;
+
+    [read, WmiDataId(9), WmiVersion(1),
+     Description ("Number of times the device entered D0 (working) state")]
+    uint32  D0EntryCount;
+
+    [read, WmiDataId(10), WmiVersion(1),
+     Description ("Number of times the device exited D0 state")]
+    uint32 D0ExitCount;
+
+    [read, WmiDataId(11), WmiVersion(1),
+     Description ("NTSTATUS code from the last D0 entry attempt")]
+    uint32 LastD0EntryStatus;
+
+    [read, WmiDataId(12), WmiVersion(1),
+     Description ("Total number of DPC (deferred procedure call) invocations")]
+    uint32 DpcCount;
+
+    [read, WmiDataId(13), WmiVersion(1),
+     Description ("Number of memory stat requests received from the host")]
+    uint32 StatRequestsFromHost;
+
+    [read, WmiDataId(14), WmiVersion(1),
+     Description ("Number of memory stat responses sent back to the host")]
+    uint32 StatResponsesSent;
+
+    [read, WmiDataId(15), WmiVersion(1),
+     Description ("Bitmask of virtio features negotiated with the host")]
+    uint64 NegotiatedFeatures;
+
+    [read, WmiDataId(16), WmiVersion(1),
+     Description ("TRUE if the balloon worker thread is currently running")]
+    boolean WorkerThreadRunning;
+
+    [read, WmiDataId(17), WmiVersion(1),
+     Description ("TRUE if the balloon service (blnsvr) has an open handle")]
+    boolean ServiceConnected;
+
+    [read, WmiDataId(18), WmiVersion(1),
+     Description ("TRUE if the host offered the statistics virtqueue feature")]
+    boolean FeatureStatVQ;
+
+    [read, WmiDataId(19), WmiVersion(1),
+     Description ("TRUE if the device was surprise-removed by the host")]
+    boolean SurpriseRemoval;
+
+    [read, WmiDataId(20), WmiVersion(1),
+     Description ("Last WDF_POWER_DEVICE_STATE seen during D0 entry/exit, "
+                  "e.g. WdfPowerDeviceD0(1), WdfPowerDeviceD3(4)")]
+    uint32 LastPowerState;
+};

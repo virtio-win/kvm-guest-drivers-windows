@@ -32,6 +32,7 @@
 
 #include "virtio.h"
 #include "public.h"
+#include "balloonwmi.h"
 #include "debugdata.h"
 #include "trace.h"
 
@@ -242,6 +243,9 @@ BalloonQueueInitialize(IN WDFDEVICE hDevice);
 NTSTATUS
 StatInitializeWorkItem(IN WDFDEVICE Device);
 #endif // USE_BALLOON_SERVICE
+
+NTSTATUS
+BalloonWmiRegistration(IN WDFDEVICE Device);
 
 VOID
 BalloonBugCheckRegister(IN WDFDEVICE Device);
