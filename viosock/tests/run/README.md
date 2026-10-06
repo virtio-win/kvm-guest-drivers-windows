@@ -276,8 +276,10 @@ Every sweep writes `cli_<N>_<V>.log` / `srv_<N>_<V>.log` under
 `--logdir` (default: `/tmp/vsock-run-<pid>`). Passing tests remove their
 own logs. Failing/hung tests leave logs behind and the sweep summary
 prints their absolute paths, so you can go straight from a red summary
-to the actual output. `run-all.sh --logdir` shares one directory across
-all three sweeps.
+to the actual output. `run-all.sh --logdir <dir>` gives every sweep its own
+subdirectory, `<dir>/{forward,reverse,loopback}`: the file names repeat across
+sweeps, and in a shared directory a passing test of a later sweep would delete
+the failure logs of an earlier one.
 
 ## Running
 
