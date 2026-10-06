@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # install-driver.sh — copy a pre-signed viosock package to the Windows
-# guest and install it via pnputil /add-driver /install.
+# guest and install it via pnputil /add-driver /install. When pnputil asks
+# for a reboot (the device was running another viosock, e.g. the one from
+# the guest tools), the guest is rebooted and the script waits for it; the
+# installed driver version is then checked against the INF.
 #
 # viosock.inf has CopyFiles directives that place viosocklib.dll into
 # System32 (and its x86 sibling into SysWOW64), so pnputil handles the
@@ -57,6 +60,32 @@ done
 CFG=$(discover_config "$CFG") || exit $?
 guest_load "$CFG"
 
+# guest_boot_time  - the guest's last boot time as Windows reports it (empty while unreachable)
+guest_boot_time() {
+    ssh "${_guest_ssh_opts[@]}" -o ConnectTimeout=10 "$_guest_ssh_host" \
+        'powershell -NoProfile -Command "(Get-CimInstance Win32_OperatingSystem).LastBootUpTime.ToString(\"o\")"' \
+        2>/dev/null | tr -d '\r' | tail -1
+}
+
+# reboot_guest  - reboots the guest and waits (up to 10 minutes) until it is back. "Back" means
+#   Windows reports a new boot time: sshd keeps answering for a while after `shutdown /r`, so a
+#   working ssh connection alone proves nothing.
+reboot_guest() {
+    local before after i
+    before=$(guest_boot_time)
+    info "rebooting the guest (booted $before)"
+    _guest_ssh 'shutdown /r /t 3 /f' >/dev/null 2>&1 || true
+    for i in $(seq 1 60); do
+        sleep 10
+        after=$(guest_boot_time)
+        if [ -n "$after" ] && [ "$after" != "$before" ]; then
+            info "guest is back (booted $after)"
+            return 0
+        fi
+    done
+    return 1
+}
+
 # 1) Stage directory on guest.
 info "== staging package to ${_guest_ssh_host}:${DEST} =="
 _guest_ssh "powershell -NoProfile -Command \"New-Item -ItemType Directory -Force -Path '$DEST' | Out-Null\"" \
@@ -101,12 +130,40 @@ pnputil_out=$(_guest_ssh "pnputil /add-driver \"$DEST\\viosock.inf\" /install" 2
 pnputil_rc=$?
 set -e
 printf '%s\n' "$pnputil_out"
+# pnputil can print a failure and still exit 0 (seen with an unsigned package: "Failed to add
+# driver package: No signature was present in the subject."), so the text is checked as well.
+if printf '%s' "$pnputil_out" | grep -q 'Failed to add driver package'; then
+    die "pnputil could not add the driver package (see above)"
+fi
 if [ "$pnputil_rc" -ne 0 ]; then
-    if printf '%s' "$pnputil_out" | grep -qE 'up-to-date|Already exists in the system'; then
+    if printf '%s' "$pnputil_out" | grep -q 'reboot is needed'; then
+        # exit 3010, ERROR_SUCCESS_REBOOT_REQUIRED (seen as 194 once ssh has cut it to 8 bits): the
+        # package is in the DriverStore, but the device keeps the old driver until a reboot, the
+        # case when the image already had a viosock (the guest tools ship one).
+        info "pnputil: package installed, the guest must reboot for the device to pick it up"
+        reboot_guest || die "the guest did not come back from the reboot in 10 minutes"
+    elif printf '%s' "$pnputil_out" | grep -qE 'up-to-date|Already exists in the system'; then
         info "pnputil: driver already present and up-to-date"
     else
         die "pnputil failed (rc=$pnputil_rc)"
     fi
+fi
+
+# 4) The device must now run the driver from this package, not whatever the image had (the
+#    guest tools ship a viosock too): compare the INF's DriverVer with the installed one.
+inf_ver=$(tr -d '\r' < "$PKG/viosock.inf" | sed -n 's/^[[:space:]]*DriverVer[[:space:]]*=[[:space:]]*[^,]*,[[:space:]]*\([0-9.]*\).*/\1/p' | head -1)
+if [ -n "$inf_ver" ]; then
+    dev_ver=$(_guest_ps '
+$d = Get-PnpDevice | Where-Object { $_.HardwareID -match "VEN_1AF4.*DEV_1053" } | Select-Object -First 1
+if ($d) { (Get-PnpDeviceProperty -InstanceId $d.InstanceId -KeyName DEVPKEY_Device_DriverVersion).Data }
+' 2>/dev/null | tr -d '\r' | tail -1)
+    if [ "$dev_ver" = "$inf_ver" ]; then
+        info "viosock device runs driver $dev_ver from the package"
+    else
+        die "viosock device runs driver '${dev_ver:-none}', the package has $inf_ver: the installation did not take"
+    fi
+else
+    warn "cannot read DriverVer from $PKG/viosock.inf; the installed version is not verified"
 fi
 
 info "install-driver: done"

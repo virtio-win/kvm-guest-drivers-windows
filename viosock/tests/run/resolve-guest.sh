@@ -94,8 +94,13 @@ guest_cid=$(printf '%s' "$xml" | awk '
 if [ -n "$GUEST_IP_OVERRIDE" ]; then
     guest_ip="$GUEST_IP_OVERRIDE"
 else
-    guest_ip=$(virsh domifaddr "$GUEST" 2>/dev/null \
-        | awk '$4 ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/ { split($4, a, "/"); print a[1]; exit }')
+    # the DHCP lease first (libvirt-managed networks), then the guest agent (a bridged network
+    # has no libvirt lease; the agent is part of the guest tools)
+    for src in lease agent; do
+        guest_ip=$(virsh domifaddr "$GUEST" --source "$src" 2>/dev/null \
+            | awk '$3 == "ipv4" && $4 !~ /^127\./ && $4 ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/ { split($4, a, "/"); print a[1]; exit }')
+        [ -n "$guest_ip" ] && break
+    done
 fi
 [ -n "$guest_ip" ] || die "cannot determine guest IPv4 for '$GUEST' (virsh domifaddr returned nothing). Pass --guest-ip <ip> explicitly, or install qemu-guest-agent in the guest so libvirt sees a lease."
 
