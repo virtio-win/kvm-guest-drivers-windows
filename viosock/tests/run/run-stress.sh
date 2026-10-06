@@ -166,7 +166,13 @@ for (\$i = 0; \$i -lt $STRESS_N; \$i++) {
         -RedirectStandardOutput \$log -RedirectStandardError \$err \`
         -NoNewWindow -PassThru
 }
-foreach (\$p in \$procs) { if (-not \$p.WaitForExit($((STRESS_TIMEOUT_SECS * 1000)))) { try { \$p.Kill() } catch {} } }
+# one deadline for the whole batch, not per child: with a per-child wait N stuck children would
+# hold the session for N x STRESS_TIMEOUT_SECS
+\$deadline = [DateTime]::UtcNow.AddSeconds($STRESS_TIMEOUT_SECS)
+foreach (\$p in \$procs) {
+    \$left = [int][Math]::Max(1, (\$deadline - [DateTime]::UtcNow).TotalMilliseconds)
+    if (-not \$p.WaitForExit(\$left)) { try { \$p.Kill() } catch {} }
+}
 [Console]::Out.WriteLine("DONE:$STRESS_N")
 EOF
 }
@@ -188,7 +194,13 @@ for (\$i = 0; \$i -lt $STRESS_N; \$i++) {
         -RedirectStandardOutput \$log -RedirectStandardError \$err \`
         -NoNewWindow -PassThru
 }
-foreach (\$p in \$procs) { if (-not \$p.WaitForExit($((STRESS_TIMEOUT_SECS * 1000)))) { try { \$p.Kill() } catch {} } }
+# one deadline for the whole batch, not per child: with a per-child wait N stuck children would
+# hold the session for N x STRESS_TIMEOUT_SECS
+\$deadline = [DateTime]::UtcNow.AddSeconds($STRESS_TIMEOUT_SECS)
+foreach (\$p in \$procs) {
+    \$left = [int][Math]::Max(1, (\$deadline - [DateTime]::UtcNow).TotalMilliseconds)
+    if (-not \$p.WaitForExit(\$left)) { try { \$p.Kill() } catch {} }
+}
 [Console]::Out.WriteLine("DONE:$STRESS_N")
 EOF
 }
@@ -218,7 +230,13 @@ for (\$i = 0; \$i -lt $STRESS_N; \$i++) {
         -RedirectStandardOutput \$log -RedirectStandardError \$err \`
         -NoNewWindow -PassThru
 }
-foreach (\$p in \$procs) { if (-not \$p.WaitForExit($((STRESS_TIMEOUT_SECS * 1000)))) { try { \$p.Kill() } catch {} } }
+# one deadline for the whole batch, not per child: with a per-child wait N stuck children would
+# hold the session for N x STRESS_TIMEOUT_SECS
+\$deadline = [DateTime]::UtcNow.AddSeconds($STRESS_TIMEOUT_SECS)
+foreach (\$p in \$procs) {
+    \$left = [int][Math]::Max(1, (\$deadline - [DateTime]::UtcNow).TotalMilliseconds)
+    if (-not \$p.WaitForExit(\$left)) { try { \$p.Kill() } catch {} }
+}
 [Console]::Out.WriteLine("DONE:$STRESS_N")
 EOF
 }
@@ -240,7 +258,13 @@ for (\$i = 0; \$i -lt $STRESS_N; \$i++) {
         -RedirectStandardOutput \$log -RedirectStandardError \$err \`
         -NoNewWindow -PassThru
 }
-foreach (\$p in \$procs) { if (-not \$p.WaitForExit($((STRESS_TIMEOUT_SECS * 1000)))) { try { \$p.Kill() } catch {} } }
+# one deadline for the whole batch, not per child: with a per-child wait N stuck children would
+# hold the session for N x STRESS_TIMEOUT_SECS
+\$deadline = [DateTime]::UtcNow.AddSeconds($STRESS_TIMEOUT_SECS)
+foreach (\$p in \$procs) {
+    \$left = [int][Math]::Max(1, (\$deadline - [DateTime]::UtcNow).TotalMilliseconds)
+    if (-not \$p.WaitForExit(\$left)) { try { \$p.Kill() } catch {} }
+}
 [Console]::Out.WriteLine("DONE:$STRESS_N")
 EOF
 }
@@ -338,9 +362,23 @@ for i in "${!LOCAL_PIDS[@]}"; do
     fi
 done
 
-# Wait for the two guest-side ssh sessions.
-[ -n "$guest_rx_pid" ] && { wait "$guest_rx_pid" || err "  guest reverse-rx ssh exit rc=$?"; }
-[ -n "$guest_tx_pid" ] && { wait "$guest_tx_pid" || err "  guest forward-tx ssh exit rc=$?"; }
+# Wait for the two guest-side ssh sessions, bounded by the same deadline (plus a minute for the
+# guest-side script to kill its own stragglers). Past that the session is killed together with
+# the guest's vsock_perf processes: a child that never exits must not hang the run.
+wait_guest_session() {
+    local pid="$1" label="$2"
+    while kill -0 "$pid" 2>/dev/null && [ "$(date +%s)" -lt $((deadline + 60)) ]; do
+        sleep 1
+    done
+    if kill -0 "$pid" 2>/dev/null; then
+        err "  $label still running after ${STRESS_TIMEOUT_SECS}s — killing the session and the guest's vsock_perf"
+        kill "$pid" 2>/dev/null || true
+        _guest_ssh 'taskkill /F /IM vsock_perf.exe' >/dev/null 2>&1 || true
+    fi
+    wait "$pid" 2>/dev/null || err "  $label ssh exit rc=$?"
+}
+[ -n "$guest_rx_pid" ] && wait_guest_session "$guest_rx_pid" "guest reverse-rx"
+[ -n "$guest_tx_pid" ] && wait_guest_session "$guest_tx_pid" "guest forward-tx"
 
 t1=$(date +%s)
 elapsed=$((t1 - t0))
