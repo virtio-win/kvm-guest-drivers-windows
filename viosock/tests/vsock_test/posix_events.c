@@ -222,19 +222,29 @@ static void ev_select_exceptfds_on_failed_connect(void)
     fd_set efds;
     FD_ZERO(&efds);
     FD_SET(s, &efds);
-    struct timeval tv = {2, 0};
+    struct timeval tv = {5, 0};
+    DWORD t0 = GetTickCount();
     int rc = select(0, NULL, NULL, &efds, &tv);
+    DWORD dt = GetTickCount() - t0;
 
     nb = 0;
     ioctlsocket(s, FIONBIO, &nb);
-
-    if (rc <= 0 || !FD_ISSET(s, &efds))
-    {
-        fprintf(stderr, "posix-events: select(exceptfds) skipped: LSP did not raise exceptfds within 2s (rc=%d)\n", rc);
-        closesocket(s);
-        return;
-    }
     closesocket(s);
+
+    if (rc != 1 || !FD_ISSET(s, &efds))
+    {
+        fprintf(stderr, "posix-events: select(exceptfds): refused connect not reported (rc=%d)\n", rc);
+        exit(EXIT_FAILURE);
+    }
+    /* The refusal arrives within milliseconds; a wait near the timeout means
+     * select() was not woken and only its final re-check saw the failure. */
+    if (dt > 1000)
+    {
+        fprintf(stderr,
+                "posix-events: select(exceptfds): refused connect reported only after %lu ms\n",
+                (unsigned long)dt);
+        exit(EXIT_FAILURE);
+    }
 }
 
 /*
