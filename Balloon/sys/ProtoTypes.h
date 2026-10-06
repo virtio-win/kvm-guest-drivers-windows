@@ -35,11 +35,110 @@
 #include "trace.h"
 
 /* The ID for virtio_balloon */
-#define VIRTIO_ID_BALLOON               5
+#define VIRTIO_ID_BALLOON                        5
 
 /* The feature bitmap for virtio balloon */
-#define VIRTIO_BALLOON_F_MUST_TELL_HOST 0 /* Tell before reclaiming pages */
-#define VIRTIO_BALLOON_F_STATS_VQ       1 /* Memory status virtqueue */
+#define VIRTIO_BALLOON_F_MUST_TELL_HOST          0 /* Tell before reclaiming pages */
+#define VIRTIO_BALLOON_F_STATS_VQ                1 /* Memory status virtqueue */
+#define VIRTIO_BALLOON_F_PAGE_REPORTING          5 /* Free page reporting virtqueue */
+
+/*
+ * Free page reporting (VIRTIO_BALLOON_F_PAGE_REPORTING) tuning parameters.
+ *
+ * Reported blocks are always 2MB in size and 2MB-aligned. This matches the
+ * host-side transparent huge page granularity and the default reporting
+ * granularity of the Linux free page reporting implementation, which only
+ * reports blocks of pageblock_order and larger (order 9, i.e. 2MB, on
+ * architectures with 4KB base pages). The virtio specification requires
+ * the driver to "attempt to report large pages rather than smaller ones".
+ *
+ * The alignment is provided by MmAllocatePagesForMdlEx called with
+ * MM_ALLOCATE_REQUIRE_CONTIGUOUS_CHUNKS and SkipBytes = 2MB: the memory
+ * manager returns complete 2MB blocks, each guaranteed to be exactly 2MB
+ * long and aligned on a 2MB boundary, preferably taken from the system's
+ * large page cache.
+ */
+#define REPORTING_BLOCK_SHIFT                    9                                     /* log2(512) */
+#define REPORTING_BLOCK_PAGES                    (1UL << REPORTING_BLOCK_SHIFT)        /* = 512 x 4KB pages */
+#define REPORTING_BLOCK_SIZE                     (REPORTING_BLOCK_PAGES << PAGE_SHIFT) /* = 2MB */
+
+/* One batch allocates at most ReportingMaxSegments 2MB blocks, so a
+ * full batch always fits into a single report request.
+ * Max number of allocation batches per reporting cycle: */
+#define REPORTING_BATCHES_PER_CYCLE              8
+/* Upper bound of the segments per report request, see
+ * BalloonReportInitialize */
+#define REPORTING_MAX_SEGMENTS                   32
+/* Reporting cycle interval default, matches the Linux page_reporting_delay_ms
+ * default; overridable per deployment with the ReportIntervalMs value in the
+ * driver service Parameters registry key, clamped to [100, 60000] */
+#define REPORTING_INTERVAL_MS                    2000
+#define REPORTING_MIN_INTERVAL_MS                100
+#define REPORTING_MAX_INTERVAL_MS                60000
+/* Commit headroom watchdog cadence while pages are held (the Windows memory
+ * manager exposes no event for a low commit limit, so it is polled) */
+#define REPORTING_COMMIT_POLL_MS                 100
+/* Re-check pacing while the low memory condition event stays signaled
+ * (notification events stay signaled until the memory manager clears
+ * them, and re-running the release path would change nothing) */
+#define REPORTING_EVENT_RETRY_MS                 1000
+
+/*
+ * Watermarks (in 4KB pages) controlling when pages are taken from and
+ * returned to the guest. Pages are only allocated while at least an
+ * eighth of the physical RAM (but never less than 256MB) remains
+ * available to the guest. Once half of that amount is left, held pages
+ * are handed back. This default can be overridden per deployment with
+ * the MinFreeMb value in the driver service Parameters registry key,
+ * clamped to [64MB, RAM/2] - in the spirit of the Linux page_reporting
+ * module parameters. The mechanism itself (LowMemoryCondition handling,
+ * hysteresis band, gradual release) is not configurable.
+ */
+#define REPORTING_AVAILABLE_FRACTION             8
+#define REPORTING_MIN_AVAILABLE_PAGES            (256UL * 1024 * 1024 / PAGE_SIZE)
+#define REPORTING_HARD_MIN_AVAILABLE_PAGES       (64UL * 1024 * 1024 / PAGE_SIZE)
+
+/*
+ * Commit headroom protection (built-in, not configurable): the held pages
+ * consume commit charge, and commitment does not occupy physical pages
+ * until first access, so the available-memory watermark alone cannot
+ * prevent the held charge from eating into the last commit reserve of
+ * workloads that reserve a lot of memory without touching it. An
+ * exhausted commit limit fails allocations exactly as an exhausted
+ * physical pool does, so both pools are kept above the same reserve rule.
+ *
+ * Like the available memory watermark this is a two-line rule: pages are
+ * only taken while the remaining commit limit (RAM + pagefile - committed)
+ * stays above the reserve - an eighth of the physical memory size, but
+ * never less than 256MB - and handed back once it falls to half of the
+ * reserve. The band between the two lines absorbs the batch overshoot of
+ * the hold loop and the commit jitter of the guest, either of which would
+ * otherwise hold and release the same pages in alternation.
+ *
+ * The reserve is deliberately not tied to the commit limit: a large
+ * pagefile inflates the limit without making a low headroom more
+ * dangerous (materialization can be paged out), so the reserve must not
+ * grow with the pagefile.
+ */
+#define REPORTING_COMMIT_HEADROOM_FRACTION       8
+#define REPORTING_MIN_COMMIT_HEADROOM_PAGES      (256UL * 1024 * 1024 / PAGE_SIZE)
+#define REPORTING_HARD_MIN_COMMIT_HEADROOM_PAGES (64UL * 1024 * 1024 / PAGE_SIZE)
+
+/*
+ * Hold cooldown after a full low-memory release (built-in, not
+ * configurable): once all held pages are handed back, wait before taking
+ * pages again so that the guest can actually recover - otherwise the next
+ * reporting cycle starts re-holding immediately and a guest with a
+ * persistent workload oscillates between release and re-hold. Each new
+ * full release within the reset window doubles the wait (exponential
+ * backoff, capped); a quiet period resets it to the base.
+ */
+#define REPORTING_COOLDOWN_BASE_MS               (60UL * 1000)
+#define REPORTING_COOLDOWN_MAX_MS                (5UL * 60 * 1000)
+#define REPORTING_COOLDOWN_RESET_MS              (10UL * 60 * 1000)
+/* CooldownSec override clamps, in seconds */
+#define REPORTING_MIN_COOLDOWN_SEC               1
+#define REPORTING_MAX_COOLDOWN_SEC               600
 
 typedef struct _VIRTIO_BALLOON_CONFIG
 {
@@ -73,6 +172,7 @@ typedef struct _DEVICE_CONTEXT
     PVIOQUEUE InfVirtQueue;
     PVIOQUEUE DefVirtQueue;
     PVIOQUEUE StatVirtQueue;
+    PVIOQUEUE RepVirtQueue;
 
     WDFSPINLOCK StatQueueLock;
     WDFSPINLOCK InfDefQueueLock;
@@ -90,6 +190,32 @@ typedef struct _DEVICE_CONTEXT
     KEVENT WakeUpThread;
     PKTHREAD Thread;
     BOOLEAN bShutDown;
+
+    /*
+     * Free page reporting state. The held MDL list is shared by the
+     * command thread (release decisions, see BalloonReportCheckRelease),
+     * the reporting thread (hold cycles, see BalloonReportHold) and, after
+     * both threads have been stopped, the power-management path (release),
+     * so it is protected by ReportingLock; the MDL allocation and free
+     * calls themselves run outside the lock at PASSIVE_LEVEL, only the
+     * list and counter updates are guarded. The reporting virtqueue is
+     * protected by InfDefQueueLock, like the inflate and deflate queues.
+     */
+    ULONG ReportingTotalPages;          /* NumberOfPhysicalPages, cached */
+    ULONG ReportingMinFreePages;        /* watermark override from MinFreeMb, 0 = automatic */
+    ULONG ReportingMinCommitPages;      /* commit reserve override from MinCommitMb, 0 = automatic */
+    ULONG ReportingIntervalMs;          /* reporting cycle interval, from ReportIntervalMs */
+    ULONG ReportingCooldownSec;         /* hold cooldown base from CooldownSec, 0 = built-in default */
+    ULONGLONG ReportingCooldownUntil;   /* interrupt time until which holding is paused, 0 = none */
+    ULONG ReportingCooldownMs;          /* current cooldown length, doubles on repeated low-memory */
+    ULONG ReportingMaxSegments;         /* segments per report request */
+    SINGLE_LIST_ENTRY ReportingMdlList; /* held PAGE_LIST_ENTRY chain */
+    ULONG ReportingMdlCount;
+    ULONG ReportingHeldPages;     /* pages currently held */
+    ULONG ReportingReportedPages; /* pages reported so far (cumulative) */
+    KEVENT RepAckEvent;           /* a report request was acknowledged by the host */
+    PKTHREAD RepThread;           /* the low-priority reporting thread, NULL when FPR is off */
+    WDFSPINLOCK ReportingLock;    /* guards the held MDL list and its counters */
 
 #ifdef USE_BALLOON_SERVICE
     WDFREQUEST PendingWriteRequest;
@@ -177,6 +303,12 @@ __inline VOID EnableInterrupt(IN WDFINTERRUPT WdfInterrupt, IN WDFCONTEXT Contex
         virtqueue_enable_cb(devCtx->StatVirtQueue);
         virtqueue_kick(devCtx->StatVirtQueue);
     }
+
+    if (devCtx->RepVirtQueue != NULL)
+    {
+        virtqueue_enable_cb(devCtx->RepVirtQueue);
+        virtqueue_kick(devCtx->RepVirtQueue);
+    }
 }
 
 __inline VOID DisableInterrupt(IN PDEVICE_CONTEXT devCtx)
@@ -186,6 +318,10 @@ __inline VOID DisableInterrupt(IN PDEVICE_CONTEXT devCtx)
     if (devCtx->StatVirtQueue)
     {
         virtqueue_disable_cb(devCtx->StatVirtQueue);
+    }
+    if (devCtx->RepVirtQueue != NULL)
+    {
+        virtqueue_disable_cb(devCtx->RepVirtQueue);
     }
 }
 
@@ -197,7 +333,15 @@ BalloonGetSize(IN WDFOBJECT WdfDevice);
 NTSTATUS
 BalloonCloseWorkerThread(IN WDFDEVICE Device);
 
+NTSTATUS
+BalloonCreateReportingThread(IN WDFDEVICE Device);
+
+NTSTATUS
+BalloonCloseReportingThread(IN WDFDEVICE Device);
+
 VOID BalloonRoutine(IN PVOID pContext);
+
+VOID BalloonReportRoutine(IN PVOID pContext);
 
 #ifndef BALLOON_INFLATE_IGNORE_LOWMEM
 __inline BOOLEAN IsLowMemory(IN WDFOBJECT WdfDevice)
@@ -212,6 +356,27 @@ __inline BOOLEAN IsLowMemory(IN WDFOBJECT WdfDevice)
     return FALSE;
 }
 #endif // !BALLOON_INFLATE_IGNORE_LOWMEM
+
+/*
+ * Free page reporting (VIRTIO_BALLOON_F_PAGE_REPORTING) routines.
+ *
+ * The command thread (BalloonRoutine) makes the release decisions and
+ * never runs hold work; the reporting thread (BalloonReportRoutine)
+ * runs one hold cycle per reporting interval at low priority.
+ */
+BOOLEAN
+ReportingIsEnabled(IN WDFDEVICE Device);
+
+NTSTATUS
+BalloonReportInitialize(IN WDFDEVICE Device);
+
+VOID BalloonReportReleaseAll(IN WDFOBJECT WdfDevice);
+
+/* release decisions, runs on the command thread */
+VOID BalloonReportCheckRelease(IN WDFOBJECT WdfDevice);
+
+/* one hold cycle, runs on the low-priority reporting thread */
+VOID BalloonReportHold(IN WDFOBJECT WdfDevice);
 
 #ifdef USE_BALLOON_SERVICE
 NTSTATUS

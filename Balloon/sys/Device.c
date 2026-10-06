@@ -43,6 +43,7 @@
 #pragma alloc_text(PAGE, BalloonEvtDeviceD0ExitPreInterruptsDisabled)
 #pragma alloc_text(PAGE, BalloonDeviceAdd)
 #pragma alloc_text(PAGE, BalloonCloseWorkerThread)
+#pragma alloc_text(PAGE, BalloonCloseReportingThread)
 #pragma alloc_text(PAGE, BalloonEvtDeviceSurpriseRemoval)
 #endif // ALLOC_PRAGMA
 
@@ -167,6 +168,13 @@ BalloonDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
         return status;
     }
 
+    status = WdfSpinLockCreate(&attributes, &devCtx->ReportingLock);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfSpinLockCreate failed 0x%x\n", status);
+        return status;
+    }
+
 #ifdef USE_BALLOON_SERVICE
     status = BalloonQueueInitialize(device);
     if (!NT_SUCCESS(status))
@@ -184,6 +192,7 @@ BalloonDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
 #endif // USE_BALLOON_SERVICE
 
     KeInitializeEvent(&devCtx->WakeUpThread, SynchronizationEvent, FALSE);
+    KeInitializeEvent(&devCtx->RepAckEvent, SynchronizationEvent, FALSE);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return status;
@@ -378,6 +387,98 @@ BalloonCloseWorkerThread(IN WDFDEVICE Device)
     return status;
 }
 
+/*
+ * The reporting thread holds free pages at low priority (see
+ * BalloonReportRoutine). Created only when free page reporting was
+ * negotiated, so a driver without the feature keeps exactly one worker
+ * thread, as before.
+ */
+NTSTATUS
+BalloonCreateReportingThread(IN WDFDEVICE Device)
+{
+    PDEVICE_CONTEXT devCtx = GetDeviceContext(Device);
+    NTSTATUS status = STATUS_SUCCESS;
+    HANDLE hThread = 0;
+    OBJECT_ATTRIBUTES oa;
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
+
+    if (devCtx->RepThread != NULL)
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_PNP, "Reporting thread already exists (0x%p)\n", devCtx->RepThread);
+        goto Exit;
+    }
+
+    InitializeObjectAttributes(&oa, NULL, OBJ_KERNEL_HANDLE, NULL, NULL);
+
+    status = PsCreateSystemThread(&hThread, THREAD_ALL_ACCESS, &oa, NULL, NULL, BalloonReportRoutine, Device);
+
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "failed to create reporting thread status 0x%08x\n", status);
+        goto Exit;
+    }
+
+    status = ObReferenceObjectByHandle(hThread, THREAD_ALL_ACCESS, NULL, KernelMode, (PVOID *)&devCtx->RepThread, NULL);
+    if (!NT_SUCCESS(status))
+    {
+        NTSTATUS waitStatus = STATUS_UNSUCCESSFUL;
+
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "failed to reference reporting thread: status 0x%08x\n", status);
+        devCtx->bShutDown = TRUE;
+        KeSetEvent(&devCtx->RepAckEvent, EVENT_INCREMENT, FALSE);
+        waitStatus = ZwWaitForSingleObject(hThread, FALSE, NULL);
+        if (!NT_SUCCESS(waitStatus))
+        {
+            TraceEvents(TRACE_LEVEL_WARNING,
+                        DBG_PNP,
+                        "Unable to wait for the reporting thread handle 0x%p: 0x%x\n",
+                        hThread,
+                        waitStatus);
+        }
+
+        goto CloseThread;
+    }
+
+    /* any guest thread can preempt a hold cycle; the command thread keeps
+     * its real-time priority and never runs hold work itself (see
+     * BalloonReportCheckRelease) */
+    KeSetPriorityThread(devCtx->RepThread, LOW_PRIORITY);
+
+CloseThread:
+    ZwClose(hThread);
+Exit:
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
+    return status;
+}
+
+NTSTATUS
+BalloonCloseReportingThread(IN WDFDEVICE Device)
+{
+    PDEVICE_CONTEXT devCtx = GetDeviceContext(Device);
+    NTSTATUS status = STATUS_SUCCESS;
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
+
+    PAGED_CODE();
+
+    if (NULL != devCtx->RepThread)
+    {
+        devCtx->bShutDown = TRUE;
+        KeSetEvent(&devCtx->RepAckEvent, EVENT_INCREMENT, FALSE);
+        status = KeWaitForSingleObject(devCtx->RepThread, Executive, KernelMode, FALSE, NULL);
+        if (!NT_SUCCESS(status))
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "KeWaitForSingleObject didn't succeed status 0x%08x\n", status);
+        }
+        ObDereferenceObject(devCtx->RepThread);
+        devCtx->RepThread = NULL;
+    }
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
+    return status;
+}
+
 NTSTATUS
 BalloonEvtDeviceD0Entry(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE PreviousState)
 {
@@ -394,6 +495,27 @@ BalloonEvtDeviceD0Entry(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE PreviousS
         goto Terminate;
     }
 
+    /* with free page reporting negotiated, initialize the reporting state
+     * before the worker thread starts: the thread reads the reporting
+     * parameters */
+    if (devCtx->RepVirtQueue != NULL)
+    {
+        status = BalloonReportInitialize(Device);
+        if (!NT_SUCCESS(status))
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "BalloonReportInitialize failed with status 0x%08x\n", status);
+            goto Terminate;
+        }
+    }
+
+#ifndef BALLOON_INFLATE_IGNORE_LOWMEM
+    /* open the memory manager's low memory condition event before the
+     * worker thread starts: the inflate path refuses to take pages under
+     * a low memory condition (see BalloonFill), and with free page
+     * reporting negotiated the worker thread also waits on the event */
+    devCtx->evLowMem = IoCreateNotificationEvent((PUNICODE_STRING)&evLowMemString, &devCtx->hLowMem);
+#endif // !BALLOON_INFLATE_IGNORE_LOWMEM
+
     status = BalloonCreateWorkerThread(Device);
     if (!NT_SUCCESS(status))
     {
@@ -401,9 +523,19 @@ BalloonEvtDeviceD0Entry(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE PreviousS
         goto Terminate;
     }
 
-#ifndef BALLOON_INFLATE_IGNORE_LOWMEM
-    devCtx->evLowMem = IoCreateNotificationEvent((PUNICODE_STRING)&evLowMemString, &devCtx->hLowMem);
-#endif // !BALLOON_INFLATE_IGNORE_LOWMEM
+    /* the reporting thread exists only with free page reporting */
+    if (devCtx->RepVirtQueue != NULL)
+    {
+        status = BalloonCreateReportingThread(Device);
+        if (!NT_SUCCESS(status))
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "BalloonCreateReportingThread failed with status 0x%08x\n", status);
+            /* the command thread is already running - stop it before the
+             * failure path tears the queues down */
+            BalloonCloseWorkerThread(Device);
+            goto Terminate;
+        }
+    }
 
 Terminate:
     if (!NT_SUCCESS(status))
@@ -425,6 +557,19 @@ BalloonEvtDeviceD0Exit(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE TargetStat
 
     PAGED_CODE();
 
+    /* stop both threads before closing the low memory condition event:
+     * the command thread waits on the event and the event object goes
+     * away with the last handle. The reporting thread must be gone
+     * before the held pages are released below. */
+    BalloonCloseReportingThread(Device);
+    BalloonCloseWorkerThread(Device);
+
+    if (devCtx->RepVirtQueue != NULL)
+    {
+        BalloonReportReleaseAll(Device);
+        devCtx->RepVirtQueue = NULL;
+    }
+
 #ifndef BALLOON_INFLATE_IGNORE_LOWMEM
     if (devCtx->evLowMem)
     {
@@ -432,8 +577,6 @@ BalloonEvtDeviceD0Exit(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE TargetStat
         devCtx->evLowMem = NULL;
     }
 #endif // !BALLOON_INFLATE_IGNORE_LOWMEM
-
-    BalloonCloseWorkerThread(Device);
 
 #ifndef USE_BALLOON_SERVICE
     /*
@@ -457,7 +600,12 @@ BalloonEvtDeviceD0ExitPreInterruptsDisabled(IN WDFDEVICE Device, IN WDF_POWER_DE
 
     PAGED_CODE();
 
+    BalloonCloseReportingThread(Device);
     BalloonCloseWorkerThread(Device);
+    if (devCtx->RepVirtQueue != NULL)
+    {
+        BalloonReportReleaseAll(Device);
+    }
     if (TargetState == WdfPowerDeviceD3Final)
     {
         while (devCtx->num_pages)
@@ -479,6 +627,7 @@ VOID BalloonEvtDeviceSurpriseRemoval(IN WDFDEVICE Device)
 
     devCtx->SurpriseRemoval = TRUE;
     KeSetEvent(&devCtx->HostAckEvent, EVENT_INCREMENT, FALSE);
+    KeSetEvent(&devCtx->RepAckEvent, EVENT_INCREMENT, FALSE);
 }
 
 BOOLEAN
@@ -511,7 +660,8 @@ VOID BalloonInterruptDpc(IN WDFINTERRUPT WdfInterrupt, IN WDFOBJECT WdfDevice)
     PDEVICE_CONTEXT devCtx = GetDeviceContext(WdfDevice);
     PVOID buffer;
 
-    BOOLEAN bHostAck = FALSE;
+    BOOLEAN bInfDefAck = FALSE;
+    BOOLEAN bRepAck = FALSE;
     UNREFERENCED_PARAMETER(WdfInterrupt);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "--> %s\n", __FUNCTION__);
@@ -519,17 +669,27 @@ VOID BalloonInterruptDpc(IN WDFINTERRUPT WdfInterrupt, IN WDFOBJECT WdfDevice)
     WdfSpinLockAcquire(devCtx->InfDefQueueLock);
     if (virtqueue_get_buf(devCtx->InfVirtQueue, &len))
     {
-        bHostAck = TRUE;
+        bInfDefAck = TRUE;
     }
     if (virtqueue_get_buf(devCtx->DefVirtQueue, &len))
     {
-        bHostAck = TRUE;
+        bInfDefAck = TRUE;
+    }
+    if (devCtx->RepVirtQueue != NULL && virtqueue_get_buf(devCtx->RepVirtQueue, &len))
+    {
+        bRepAck = TRUE;
     }
     WdfSpinLockRelease(devCtx->InfDefQueueLock);
 
-    if (bHostAck)
+    if (bInfDefAck)
     {
         KeSetEvent(&devCtx->HostAckEvent, EVENT_INCREMENT, FALSE);
+    }
+    if (bRepAck)
+    {
+        /* the reporting thread owns the report requests, it gets its own
+         * acknowledgment event (the command thread never waits on them) */
+        KeSetEvent(&devCtx->RepAckEvent, EVENT_INCREMENT, FALSE);
     }
 
     if (devCtx->StatVirtQueue)
@@ -586,6 +746,11 @@ VOID BalloonInterruptDpc(IN WDFINTERRUPT WdfInterrupt, IN WDFOBJECT WdfDevice)
     {
         KeSetEvent(&devCtx->WakeUpThread, EVENT_INCREMENT, FALSE);
     }
+
+    /* a completed report request only unblocks the in-flight wait of
+     * the reporting thread (RepAckEvent); the next hold cycle is paced
+     * by the reporting interval, like the Linux page_reporting_delay_ms
+     * paces the next reporting pass */
 }
 
 NTSTATUS
@@ -660,6 +825,48 @@ BalloonGetSize(IN WDFOBJECT WdfDevice)
     return (LONGLONG)v - devCtx->num_pages;
 }
 
+/*
+ * The balloon command thread. It serves the host's inflate and deflate
+ * commands and, with free page reporting negotiated, makes the reporting
+ * release decisions. The wait at the top of the loop schedules both:
+ *
+ *   - Balloon commands wake the thread through WakeUpThread (see
+ *     BalloonInterruptDpc).
+ *   - The wait timeout is the commit headroom watchdog: while pages are
+ *     held it fires every REPORTING_COMMIT_POLL_MS and the thread
+ *     re-evaluates the watermarks (Windows exposes no event for a low
+ *     commit limit). With nothing held the thread waits indefinitely -
+ *     discovering newly freed memory is the reporting thread's job.
+ *   - LowMemoryCondition hands all held pages back at once and starts
+ *     the hold cooldown. The event stays signaled for as long as the
+ *     low memory condition lasts, so the thread paces its re-checks at
+ *     REPORTING_EVENT_RETRY_MS instead of re-running the release path.
+ *
+ * All three dispatch arms converge on BalloonReportCheckRelease, which
+ * hands held pages back when the guest needs them; taking pages is not
+ * this thread's business - the reporting thread (BalloonReportRoutine)
+ * holds them at its own cadence. Hold work never runs on this thread:
+ * a hold cycle can stretch arbitrarily under CPU contention (it runs at
+ * low priority so that guest threads can preempt it), and keeping it
+ * off the command thread bounds the host command latency by what the
+ * command service itself does, independently of the reporting load.
+ * Release decisions stay here: they are a few MDL frees (milliseconds)
+ * and are the guest's way out of memory pressure, so they run at the
+ * thread's real-time priority.
+ *
+ * The memory manager also exposes a HighMemoryCondition event; it is
+ * deliberately not waited on. Its threshold is internal and does not
+ * track the driver's own watermark, and the reporting interval already
+ * bounds the latency of noticing freed memory, so waiting on it would
+ * only buy a head start of less than one interval - not worth an extra
+ * wait object and dispatch arm.
+ *
+ * Balloon commands are latency sensitive (the host waits for the actual
+ * size ack), so the thread runs at real-time priority; the reporting
+ * work is opportunistic (the host has no contract for when pages get
+ * reported) and runs at low priority on the reporting thread, where any
+ * guest thread can preempt it.
+ */
 VOID BalloonRoutine(IN PVOID pContext)
 {
     WDFOBJECT Device = (WDFOBJECT)pContext;
@@ -672,41 +879,139 @@ VOID BalloonRoutine(IN PVOID pContext)
 
     for (;;)
     {
-        status = KeWaitForSingleObject(&devCtx->WakeUpThread, Executive, KernelMode, FALSE, NULL);
-        if (STATUS_WAIT_0 == status)
+        PVOID waitObjects[2];
+        ULONG waitCount = 1;
+        ULONG lowIndex = 0;
+        LARGE_INTEGER watchdogTimeout;
+        PLARGE_INTEGER timeout = NULL;
+
+        waitObjects[0] = &devCtx->WakeUpThread;
+
+#ifndef BALLOON_INFLATE_IGNORE_LOWMEM
+        /* only the reporting decisions wait on the low memory event, the
+         * inflate path polls it (see BalloonFill); the event is opened
+         * for the whole D0 period before this thread starts, see
+         * BalloonEvtDeviceD0Entry */
+        if (devCtx->RepVirtQueue != NULL && devCtx->evLowMem != NULL)
         {
-            if (devCtx->bShutDown)
+            lowIndex = waitCount;
+            waitObjects[waitCount++] = devCtx->evLowMem;
+        }
+#endif // !BALLOON_INFLATE_IGNORE_LOWMEM
+
+        /* with free page reporting the thread runs the commit headroom
+         * watchdog while pages are held, otherwise wait indefinitely;
+         * the unlocked read only picks the cadence, so it stays benign */
+        if (devCtx->RepVirtQueue != NULL && devCtx->ReportingMdlCount != 0)
+        {
+            watchdogTimeout.QuadPart = Int32x32To64(REPORTING_COMMIT_POLL_MS, -10000);
+            timeout = &watchdogTimeout;
+        }
+
+        status = KeWaitForMultipleObjects(waitCount, waitObjects, WaitAny, Executive, KernelMode, FALSE, timeout, NULL);
+
+        if (devCtx->bShutDown)
+        {
+            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "Exiting Thread!\n");
+            break;
+        }
+
+        if (status == STATUS_WAIT_0)
+        {
+            diff = BalloonGetSize(Device);
+            if (diff > 0)
             {
-                TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "Exiting Thread!\n");
-                break;
+                status = BalloonFill(Device, (size_t)(diff));
             }
-            else
+            else if (diff < 0)
             {
-                diff = BalloonGetSize(Device);
-                if (diff > 0)
-                {
-                    status = BalloonFill(Device, (size_t)(diff));
-                }
-                else if (diff < 0)
-                {
-                    status = BalloonLeak(Device, (size_t)(-diff));
-                }
+                status = BalloonLeak(Device, (size_t)(-diff));
+            }
 
-                if (status == STATUS_TIMEOUT || status == STATUS_NO_MORE_ENTRIES)
+            if (status == STATUS_TIMEOUT || status == STATUS_NO_MORE_ENTRIES)
+            {
+                TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "Failed to inform the host\n");
+                if (diff != 0)
                 {
-                    TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "Failed to inform the host\n");
-                    if (diff != 0)
-                    {
-                        TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "Operation is in progress, continuing\n");
-                        KeSetEvent(&devCtx->WakeUpThread, IO_NO_INCREMENT, FALSE);
-                    }
+                    TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "Operation is in progress, continuing\n");
+                    KeSetEvent(&devCtx->WakeUpThread, IO_NO_INCREMENT, FALSE);
                 }
+            }
 
-                BalloonSetSize(Device, devCtx->num_pages);
+            BalloonSetSize(Device, devCtx->num_pages);
+        }
+#ifndef BALLOON_INFLATE_IGNORE_LOWMEM
+        else if (devCtx->RepVirtQueue != NULL && lowIndex != 0 && status == (NTSTATUS)(STATUS_WAIT_0 + lowIndex))
+        {
+            /* low memory condition: hand everything back at once (the
+             * guest's fastest way out of the condition, hence real-time
+             * priority) and pace the re-checks while the event stays
+             * signaled - notification events stay signaled until the
+             * memory manager clears them, and re-running the release path
+             * would change nothing */
+            LARGE_INTEGER retryDelay;
+
+            BalloonReportCheckRelease(Device);
+
+            retryDelay.QuadPart = Int32x32To64(REPORTING_EVENT_RETRY_MS, -10000);
+            while (!devCtx->bShutDown && IsLowMemory(Device))
+            {
+                KeDelayExecutionThread(KernelMode, FALSE, &retryDelay);
             }
         }
+#endif // !BALLOON_INFLATE_IGNORE_LOWMEM
+        else if (status != STATUS_TIMEOUT || devCtx->RepVirtQueue == NULL)
+        {
+            /* no dispatch arm for this wake reason */
+            continue;
+        }
+
+        /* after a command or on a watchdog tick: release held pages if
+         * the guest needs them (BalloonReportCheckRelease is a no-op
+         * without free page reporting) */
+        BalloonReportCheckRelease(Device);
     }
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "Thread about to exit...\n");
+
+    PsTerminateSystemThread(STATUS_SUCCESS);
+}
+
+/*
+ * The free page reporting thread. It runs one hold cycle per reporting
+ * interval (the counterpart of the Linux page_reporting_delay_ms, which
+ * paces a reporting pass the same way): each cycle holds at most
+ * REPORTING_BATCHES_PER_CYCLE batches of free pages and stops early at
+ * the watermarks, checked before every batch. The thread runs at low
+ * priority for its whole lifetime: any guest thread can preempt a hold
+ * cycle, and neither the host commands nor the release decisions ever
+ * wait for it.
+ */
+VOID BalloonReportRoutine(IN PVOID pContext)
+{
+    WDFOBJECT Device = (WDFOBJECT)pContext;
+    PDEVICE_CONTEXT devCtx = GetDeviceContext(Device);
+    LARGE_INTEGER intervalTimeout;
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "Reporting thread started....\n");
+
+    for (;;)
+    {
+        /* the interval is the reclaim cadence: one hold cycle per tick,
+         * nothing in the guest can accelerate it, and the gates bound
+         * what a cycle takes */
+        intervalTimeout.QuadPart = Int32x32To64(devCtx->ReportingIntervalMs, -10000);
+
+        KeDelayExecutionThread(KernelMode, FALSE, &intervalTimeout);
+
+        if (devCtx->bShutDown)
+        {
+            TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "Exiting reporting thread!\n");
+            break;
+        }
+
+        BalloonReportHold(Device);
+    }
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "Reporting thread about to exit...\n");
 
     PsTerminateSystemThread(STATUS_SUCCESS);
 }
