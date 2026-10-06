@@ -162,6 +162,7 @@
     <Inf Include="balloon.inx" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="debugdata.h" />
     <ClInclude Include="ntddkex.h" />
     <ClInclude Include="precomp.h" />
     <ClInclude Include="ProtoTypes.h" />

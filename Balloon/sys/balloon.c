@@ -67,16 +67,19 @@ BalloonInit(IN WDFOBJECT WdfDevice)
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "Enable stats feature.\n");
 
         virtio_feature_enable(u64GuestFeatures, VIRTIO_BALLOON_F_STATS_VQ);
+        devCtx->FeatureStatVQ = TRUE;
         nvqs = 3;
     }
     else
     {
+        devCtx->FeatureStatVQ = FALSE;
         nvqs = 2;
     }
 
     status = VirtIOWdfSetDriverFeatures(&devCtx->VDevice, u64GuestFeatures, 0);
     if (NT_SUCCESS(status))
     {
+        devCtx->NegotiatedFeatures = u64GuestFeatures;
         // initialize 2 or 3 queues
         status = VirtIOWdfInitQueues(&devCtx->VDevice, nvqs, vqs, params);
         if (NT_SUCCESS(status))
@@ -103,6 +106,7 @@ BalloonInit(IN WDFOBJECT WdfDevice)
                 }
             }
             VirtIOWdfSetDriverOK(&devCtx->VDevice);
+            BalloonHistoryLog(BalloonOpInit, nvqs, 0);
         }
         else
         {
@@ -147,6 +151,8 @@ BalloonFill(IN WDFOBJECT WdfDevice, IN size_t num)
     if (IsLowMemory(WdfDevice))
     {
         TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "Low memory. Allocated pages: %d\n", ctx->num_pages);
+        InterlockedIncrement(&ctx->LowMemInflateRejects);
+        BalloonHistoryLog(BalloonOpLowMemReject, (ULONG)num, 0);
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 #endif // !BALLOON_INFLATE_IGNORE_LOWMEM
@@ -168,6 +174,8 @@ BalloonFill(IN WDFOBJECT WdfDevice, IN size_t num)
     if (pPageMdl == NULL)
     {
         TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "Failed to allocate pages.\n");
+        InterlockedIncrement(&ctx->InflateFailures);
+        BalloonHistoryLog(BalloonOpInflateFail, (ULONG)num, STATUS_INSUFFICIENT_RESOURCES);
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
@@ -180,6 +188,8 @@ BalloonFill(IN WDFOBJECT WdfDevice, IN size_t num)
                     num * PAGE_SIZE);
         MmFreePagesFromMdl(pPageMdl);
         ExFreePool(pPageMdl);
+        InterlockedIncrement(&ctx->InflateFailures);
+        BalloonHistoryLog(BalloonOpInflateFail, (ULONG)num, STATUS_INSUFFICIENT_RESOURCES);
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
@@ -190,6 +200,8 @@ BalloonFill(IN WDFOBJECT WdfDevice, IN size_t num)
         TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "Failed to allocate list entry.\n");
         MmFreePagesFromMdl(pPageMdl);
         ExFreePool(pPageMdl);
+        InterlockedIncrement(&ctx->InflateFailures);
+        BalloonHistoryLog(BalloonOpInflateFail, (ULONG)num, STATUS_INSUFFICIENT_RESOURCES);
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
@@ -202,6 +214,17 @@ BalloonFill(IN WDFOBJECT WdfDevice, IN size_t num)
     RtlCopyMemory(ctx->pfns_table, MmGetMdlPfnArray(pPageMdl), ctx->num_pfns * sizeof(PFN_NUMBER));
 
     status = BalloonTellHost(WdfDevice, ctx->InfVirtQueue);
+
+    if (NT_SUCCESS(status))
+    {
+        InterlockedIncrement(&ctx->TotalInflateOps);
+        BalloonHistoryLog(BalloonOpInflate, (ULONG)num, ctx->num_pages);
+    }
+    else
+    {
+        InterlockedIncrement(&ctx->InflateFailures);
+        BalloonHistoryLog(BalloonOpInflateFail, (ULONG)num, status);
+    }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
     return status;
@@ -240,6 +263,12 @@ BalloonLeak(IN WDFOBJECT WdfDevice, IN size_t num)
 
     status = BalloonTellHost(WdfDevice, ctx->DefVirtQueue);
 
+    if (NT_SUCCESS(status))
+    {
+        InterlockedIncrement(&ctx->TotalDeflateOps);
+        BalloonHistoryLog(BalloonOpDeflate, (ULONG)num, ctx->num_pages);
+    }
+
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
 
     return status;
@@ -252,6 +281,8 @@ BalloonTellHost(IN WDFOBJECT WdfDevice, IN PVIOQUEUE vq)
     PDEVICE_CONTEXT devCtx = GetDeviceContext(WdfDevice);
     NTSTATUS status;
     LARGE_INTEGER timeout = {0};
+    LARGE_INTEGER startTime, endTime;
+    ULONG vqIndex;
     bool do_notify;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
@@ -260,6 +291,9 @@ BalloonTellHost(IN WDFOBJECT WdfDevice, IN PVIOQUEUE vq)
         TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "<-- %s Skipped\n", __FUNCTION__);
         return STATUS_NO_SUCH_DEVICE;
     }
+
+    vqIndex = (vq == devCtx->InfVirtQueue) ? 0 : 1;
+    BalloonHistoryLog(BalloonOpTellHostStart, vqIndex, devCtx->num_pfns);
 
     sg.physAddr = VirtIOWdfDeviceGetPhysicalAddress(&devCtx->VDevice.VIODevice, devCtx->pfns_table);
     sg.length = sizeof(devCtx->pfns_table[0]) * devCtx->num_pfns;
@@ -279,12 +313,20 @@ BalloonTellHost(IN WDFOBJECT WdfDevice, IN PVIOQUEUE vq)
         virtqueue_notify(vq);
     }
 
+    KeQuerySystemTime(&startTime);
     timeout.QuadPart = Int32x32To64(1000, -10000);
     status = KeWaitForSingleObject(&devCtx->HostAckEvent, Executive, KernelMode, FALSE, &timeout);
+    KeQuerySystemTime(&endTime);
     ASSERT(NT_SUCCESS(status));
+    {
+        ULONG durationMs = (ULONG)((endTime.QuadPart - startTime.QuadPart) / 10000);
+        BalloonHistoryLog(BalloonOpTellHostDone, vqIndex, durationMs);
+    }
     if (STATUS_TIMEOUT == status)
     {
+        InterlockedIncrement(&devCtx->HostAckTimeouts);
         TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "<--> TimeOut\n");
+        BalloonHistoryLog(BalloonOpHostAckTimeout, 0, 0);
     }
 
     return status;
@@ -295,6 +337,7 @@ VOID BalloonTerm(IN WDFOBJECT WdfDevice)
     PDEVICE_CONTEXT devCtx = GetDeviceContext(WdfDevice);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> BalloonTerm\n");
+    BalloonHistoryLog(BalloonOpTerm, 0, 0);
 
     WdfObjectAcquireLock(WdfDevice);
 
@@ -330,5 +373,7 @@ VOID BalloonMemStats(IN WDFOBJECT WdfDevice)
         virtqueue_notify(devCtx->StatVirtQueue);
     }
 
+    InterlockedIncrement(&devCtx->StatResponsesSent);
+    BalloonHistoryLog(BalloonOpStatSent, 0, 0);
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
 }

@@ -32,6 +32,7 @@
 
 #include "virtio.h"
 #include "public.h"
+#include "debugdata.h"
 #include "trace.h"
 
 /* The ID for virtio_balloon */
@@ -98,6 +99,27 @@ typedef struct _DEVICE_CONTEXT
     WDFWORKITEM StatWorkItem;
     LONG WorkCount;
 #endif // USE_BALLOON_SERVICE
+
+    volatile LONG TotalInflateOps;
+    volatile LONG TotalDeflateOps;
+    volatile LONG InflateFailures;
+    volatile LONG LowMemInflateRejects;
+    volatile LONG HostAckTimeouts;
+    volatile LONG DpcCount;
+    volatile LONG StatRequestsFromHost;
+    volatile LONG StatResponsesSent;
+    BOOLEAN FeatureStatVQ;
+    ULONG LastTargetPages;
+    ULONG D0EntryCount;
+    ULONG D0ExitCount;
+    NTSTATUS LastD0EntryStatus;
+    WDF_POWER_DEVICE_STATE LastPowerState;
+    BOOLEAN WorkerThreadRunning;
+    BOOLEAN ServiceConnected;
+    ULONGLONG NegotiatedFeatures;
+
+    KBUGCHECK_REASON_CALLBACK_RECORD BugCheckCbRecord;
+    BOOLEAN BugCheckCbRegistered;
 
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
@@ -220,5 +242,14 @@ BalloonQueueInitialize(IN WDFDEVICE hDevice);
 NTSTATUS
 StatInitializeWorkItem(IN WDFDEVICE Device);
 #endif // USE_BALLOON_SERVICE
+
+VOID
+BalloonBugCheckRegister(IN WDFDEVICE Device);
+
+VOID
+BalloonBugCheckDeregister(IN WDFDEVICE Device);
+
+VOID
+BalloonHistoryLog(IN BALLOON_HISTORY_OP Operation, IN ULONG Param1, IN ULONG Param2);
 
 #endif // _PROTOTYPES_H_
