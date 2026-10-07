@@ -592,6 +592,31 @@ VOID VioScsiVQUnlock(IN PVOID DeviceExtension, IN ULONG MessageID, IN PSTOR_LOCK
     EXIT_FN();
 }
 
+static BOOLEAN FirmwareRequestBufferValid(IN PFIRMWARE_REQUEST_BLOCK FirmwareRequest,
+                                          IN ULONG DataLen,
+                                          IN ULONG RequiredLen,
+                                          OUT PULONG AvailableLen OPTIONAL)
+{
+    ULONG headerLen = sizeof(SRB_IO_CONTROL) + sizeof(FIRMWARE_REQUEST_BLOCK);
+
+    if ((FirmwareRequest->DataBufferOffset < headerLen) || (FirmwareRequest->DataBufferOffset > DataLen) ||
+        ((DataLen - FirmwareRequest->DataBufferOffset) < RequiredLen))
+    {
+        RhelDbgPrint(TRACE_LEVEL_ERROR,
+                     " FirmwareRequest invalid DataBufferOffset %lu (buffer length %lu, required %lu)\n",
+                     FirmwareRequest->DataBufferOffset,
+                     DataLen,
+                     RequiredLen);
+        return FALSE;
+    }
+
+    if (AvailableLen != NULL)
+    {
+        *AvailableLen = DataLen - FirmwareRequest->DataBufferOffset;
+    }
+    return TRUE;
+}
+
 VOID FirmwareRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
 {
     PADAPTER_EXTENSION adaptExt;
@@ -619,6 +644,18 @@ VOID FirmwareRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
         case FIRMWARE_FUNCTION_GET_INFO:
             {
                 PSTORAGE_FIRMWARE_INFO_V2 firmwareInfo;
+                ULONG availableLen;
+
+                if (!FirmwareRequestBufferValid(firmwareRequest,
+                                                dataLen,
+                                                sizeof(STORAGE_FIRMWARE_INFO_V2),
+                                                &availableLen))
+                {
+                    srbControl->ReturnCode = FIRMWARE_STATUS_INVALID_PARAMETER;
+                    SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BAD_SRB_BLOCK_LENGTH);
+                    break;
+                }
+
                 firmwareInfo = (PSTORAGE_FIRMWARE_INFO_V2)((PUCHAR)srbControl + firmwareRequest->DataBufferOffset);
                 RhelDbgPrint(TRACE_LEVEL_INFORMATION, " FIRMWARE_FUNCTION_GET_INFO \n");
                 if ((firmwareInfo->Version >= STORAGE_FIRMWARE_INFO_STRUCTURE_VERSION_V2) ||
@@ -636,8 +673,9 @@ VOID FirmwareRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
                     firmwareInfo->ImagePayloadAlignment = PAGE_SIZE;
                     firmwareInfo->ImagePayloadMaxSize = PAGE_SIZE;
 
-                    if (firmwareRequest->DataBufferLength >=
-                        (sizeof(STORAGE_FIRMWARE_INFO_V2) + sizeof(STORAGE_FIRMWARE_SLOT_INFO_V2)))
+                    if ((firmwareRequest->DataBufferLength >=
+                         (sizeof(STORAGE_FIRMWARE_INFO_V2) + sizeof(STORAGE_FIRMWARE_SLOT_INFO_V2))) &&
+                        (availableLen >= (sizeof(STORAGE_FIRMWARE_INFO_V2) + sizeof(STORAGE_FIRMWARE_SLOT_INFO_V2))))
                     {
                         firmwareInfo->Slot[0].SlotNumber = 0;
                         firmwareInfo->Slot[0].ReadOnly = FALSE;
@@ -668,6 +706,14 @@ VOID FirmwareRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
         case FIRMWARE_FUNCTION_DOWNLOAD:
             {
                 PSTORAGE_FIRMWARE_DOWNLOAD_V2 firmwareDwnld;
+
+                if (!FirmwareRequestBufferValid(firmwareRequest, dataLen, sizeof(STORAGE_FIRMWARE_DOWNLOAD_V2), NULL))
+                {
+                    srbControl->ReturnCode = FIRMWARE_STATUS_INVALID_PARAMETER;
+                    SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BAD_SRB_BLOCK_LENGTH);
+                    break;
+                }
+
                 firmwareDwnld = (PSTORAGE_FIRMWARE_DOWNLOAD_V2)((PUCHAR)srbControl + firmwareRequest->DataBufferOffset);
                 RhelDbgPrint(TRACE_LEVEL_INFORMATION, " FIRMWARE_FUNCTION_DOWNLOAD \n");
                 if ((firmwareDwnld->Version >= STORAGE_FIRMWARE_DOWNLOAD_STRUCTURE_VERSION_V2) ||
@@ -693,6 +739,14 @@ VOID FirmwareRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
         case FIRMWARE_FUNCTION_ACTIVATE:
             {
                 PSTORAGE_FIRMWARE_ACTIVATE firmwareActivate;
+
+                if (!FirmwareRequestBufferValid(firmwareRequest, dataLen, sizeof(STORAGE_FIRMWARE_ACTIVATE), NULL))
+                {
+                    srbControl->ReturnCode = FIRMWARE_STATUS_INVALID_PARAMETER;
+                    SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BAD_SRB_BLOCK_LENGTH);
+                    break;
+                }
+
                 firmwareActivate = (PSTORAGE_FIRMWARE_ACTIVATE)((PUCHAR)srbControl + firmwareRequest->DataBufferOffset);
                 if ((firmwareActivate->Version == STORAGE_FIRMWARE_ACTIVATE_STRUCTURE_VERSION) ||
                     (firmwareActivate->Size >= sizeof(STORAGE_FIRMWARE_ACTIVATE)))
