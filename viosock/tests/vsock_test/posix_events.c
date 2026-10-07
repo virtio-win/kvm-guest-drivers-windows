@@ -248,6 +248,113 @@ static void ev_select_exceptfds_on_failed_connect(void)
 }
 
 /*
+ * Closing every socket a pending select() waits on must complete it
+ * (poc_select_close; the driver used to leave the call hung).  Two
+ * listeners go into one set, a worker blocks in select() with no
+ * timeout and the main thread closes them one by one.  Once both are
+ * gone the call must be back with WSAENOTSOCK; for exceptfds Winsock
+ * may instead report the closed socket as ready, accepted too.
+ */
+enum select_set
+{
+    SET_READ,
+    SET_WRITE,
+    SET_EXCEPT
+};
+
+struct select_close_ctx
+{
+    SOCKET socks[2];
+    enum select_set set;
+    HANDLE done;
+    int rc;
+    int err;
+};
+
+static DWORD WINAPI select_close_worker(LPVOID arg)
+{
+    struct select_close_ctx *c = (struct select_close_ctx *)arg;
+    fd_set fds;
+
+    FD_ZERO(&fds);
+    FD_SET(c->socks[0], &fds);
+    FD_SET(c->socks[1], &fds);
+    c->rc = select(0,
+                   c->set == SET_READ ? &fds : NULL,
+                   c->set == SET_WRITE ? &fds : NULL,
+                   c->set == SET_EXCEPT ? &fds : NULL,
+                   NULL);
+    c->err = WSAGetLastError();
+    SetEvent(c->done);
+    return 0;
+}
+
+static SOCKET select_close_listener(void)
+{
+    SOCKET s = socket(g_vsock_af, SOCK_STREAM, 0);
+    struct sockaddr_vm addr = {0};
+
+    if (s == INVALID_SOCKET)
+    {
+        die("select-close socket");
+    }
+    addr.svm_family = (unsigned short)g_vsock_af;
+    addr.svm_cid = VMADDR_CID_ANY;
+    addr.svm_port = VMADDR_PORT_ANY;
+    if (bind(s, (const struct sockaddr *)&addr, sizeof(addr)) == SOCKET_ERROR || listen(s, 1) == SOCKET_ERROR)
+    {
+        die("select-close listen");
+    }
+    return s;
+}
+
+static void ev_select_returns_when_sockets_closed(enum select_set set)
+{
+    static const char *const names[] = {"readfds", "writefds", "exceptfds"};
+    struct select_close_ctx c = {{INVALID_SOCKET, INVALID_SOCKET}, set, NULL, 0, 0};
+    HANDLE th;
+    int i;
+
+    c.socks[0] = select_close_listener();
+    c.socks[1] = select_close_listener();
+    c.done = CreateEvent(NULL, TRUE, FALSE, NULL);
+    th = c.done ? CreateThread(NULL, 0, select_close_worker, &c, 0, NULL) : NULL;
+    if (!th)
+    {
+        fprintf(stderr, "posix-events: select-close(%s): worker setup failed: %lu\n", names[set], GetLastError());
+        exit(EXIT_FAILURE);
+    }
+
+    Sleep(200); /* let the select pend in the driver */
+    for (i = 0; i < 2; i++)
+    {
+        closesocket(c.socks[i]);
+        Sleep(100);
+    }
+
+    if (WaitForSingleObject(c.done, 5000) != WAIT_OBJECT_0)
+    {
+        fprintf(stderr,
+                "posix-events: select-close(%s): select still pending 5 s after both sockets closed\n",
+                names[set]);
+        exit(EXIT_FAILURE);
+    }
+    WaitForSingleObject(th, 1000);
+    CloseHandle(th);
+    CloseHandle(c.done);
+
+    if (!((c.rc == SOCKET_ERROR && c.err == WSAENOTSOCK) || (set == SET_EXCEPT && c.rc >= 1)))
+    {
+        fprintf(stderr,
+                "posix-events: select-close(%s): rc=%d WSA %d, expected WSAENOTSOCK\n",
+                names[set],
+                c.rc,
+                c.err);
+        exit(EXIT_FAILURE);
+    }
+}
+
+/*
  * select() writefds bit gets set on a freshly connected socket
  * (send buffer has room).  Exercises the write branch of select().
  */
@@ -507,6 +614,9 @@ void posix_events_all(unsigned int self_cid)
     /* Peer-less helpers always run - they only need one socket. */
     ev_select_zero_timeout_polls();
     ev_select_exceptfds_on_failed_connect();
+    ev_select_returns_when_sockets_closed(SET_READ);
+    ev_select_returns_when_sockets_closed(SET_WRITE);
+    ev_select_returns_when_sockets_closed(SET_EXCEPT);
 
     /* The writefds check needs an in-process pair against
      * connect(g_self_cid); outside the loopback sweep --peer-cid is the
