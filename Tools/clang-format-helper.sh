@@ -14,15 +14,19 @@ INCLUDE_REGEX="$5"
 CLANG_FORMAT_STYLE="$(realpath "${CLANG_FORMAT_STYLE}")"
 
 # Let's think that script will be used on Linux and Windows (msys or cygwin env only)
-if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    # Linux
-    clang_format="$(which clang-format-16)"
+if [[ -n "${CLANG_FORMAT:-}" ]]; then
+    clang_format="${CLANG_FORMAT}"
+elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    # Linux: prefer clang-format-16 (CI version), fall back to clang-format
+    clang_format="$(which clang-format-16 2>/dev/null || which clang-format)"
 else
     # Windows
     # Load clang-format from the EWDK 26H1
     EWDK11_26H1_DIR="${EWDK11_26H1_DIR:-c:\\ewdk11_26h1}"
     clang_format_ewdk="${EWDK11_26H1_DIR}\\Program Files\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\Llvm\\x64\\bin\\clang-format.exe"
     clang_format="$(cygpath "${clang_format_ewdk}")"
+fi
+if [[ "$OSTYPE" != "linux-gnu"* ]]; then
     # Convert the path to OS specific format
     CLANG_FORMAT_STYLE="$(cygpath -w "${CLANG_FORMAT_STYLE}")"
 fi
