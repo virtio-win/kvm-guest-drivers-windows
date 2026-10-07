@@ -165,7 +165,9 @@ for _ in $(seq 1 60); do
 done
 
 # 3b. driver still Running
-srv_state=$(_guest_ssh 'sc query VirtioSocket' 2>/dev/null \
+# (bounded: after the restore an ssh session has been seen to stay open on a live TCP connection
+# after its command had finished, which hung the run)
+srv_state=$(timeout 60 ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" 'sc query VirtioSocket' 2>/dev/null \
     | tr -d '\r' | awk -F: '/STATE/ {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2; exit}')
 [ -n "$srv_state" ] || srv_state='<unknown>'
 driver_ok=0; case "$srv_state" in *RUNNING*|*[[:space:]]4*|4*) driver_ok=1 ;; esac
@@ -212,7 +214,7 @@ fi
 # --- cleanup: stop the load and any stuck guest vsock_perf ---------------
 kill "$stress_pid" 2>/dev/null || true
 wait "$stress_pid" 2>/dev/null || true
-_guest_ssh 'taskkill /F /IM vsock_perf.exe' >/dev/null 2>&1 || true
+timeout 60 ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" 'taskkill /F /IM vsock_perf.exe' >/dev/null 2>&1 || true
 
 # --- report --------------------------------------------------------------
 echo
