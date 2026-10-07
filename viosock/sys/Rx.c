@@ -571,8 +571,10 @@ _Requires_lock_not_held_(pSocket->StateLock) VOID VIOSockRxPktHandleConnecting(I
     if (!NT_SUCCESS(status))
     {
         WdfSpinLockAcquire(pSocket->StateLock);
-        VIOSockEventSetBit(pSocket, FD_CONNECT_BIT, status);
+        // CLOSE first: the select/poll wake-up inside VIOSockEventSetBit
+        // reports a failed connect only for a socket already in CLOSE.
         VIOSockStateSet(pSocket, VIOSOCK_STATE_CLOSE);
+        VIOSockEventSetBit(pSocket, FD_CONNECT_BIT, status);
         WdfSpinLockRelease(pSocket->StateLock);
         if (pPkt->op != VIRTIO_VSOCK_OP_RST)
         {
