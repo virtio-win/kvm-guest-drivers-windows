@@ -120,6 +120,17 @@ typedef struct _DEVICE_CONTEXT
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext);
 
+typedef struct _REQUEST_CONTEXT
+{
+    // IOCTL_VIRTFS_FUSE_REQUEST_READ only: the user-mode read buffer,
+    // probed and locked in the context of the requesting thread.
+    WDFMEMORY ReadBuffer;
+    ULONG ReadBufferLength;
+
+} REQUEST_CONTEXT, *PREQUEST_CONTEXT;
+
+WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(REQUEST_CONTEXT, GetRequestContext);
+
 #ifndef _IRQL_requires_
 #define _IRQL_requires_(level)
 #endif
@@ -148,6 +159,7 @@ EVT_WDF_INTERRUPT_DPC VirtFsEvtInterruptDpc;
 EVT_WDF_INTERRUPT_ENABLE VirtFsEvtInterruptEnable;
 EVT_WDF_INTERRUPT_DISABLE VirtFsEvtInterruptDisable;
 
+EVT_WDF_IO_IN_CALLER_CONTEXT VirtFsEvtIoInCallerContext;
 EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL VirtFsEvtIoDeviceControl;
 EVT_WDF_IO_QUEUE_IO_STOP VirtFsEvtIoStop;
 
