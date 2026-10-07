@@ -102,7 +102,9 @@
 34   overlapped SOCK_STREAM ioctl(SIOCINQ) functionality
 # 35 posix  SOCK_SEQPACKET ioctl(SIOCINQ) functionality     — disabled: shared body ready via test_unread_bytes_*(int type); needs seqpacket wrapper + wiring + driver SEQPACKET
 # 36 posix  SOCK_STREAM accept()ed socket custom setsockopt() — disabled: environmental, not a guest bug. In forward the server is the HOST Linux kernel (6.12 without the fix), whose setsockopt(SO_ZEROCOPY) on the accept()ed socket fails EOPNOTSUPP — the very kernel bug this upstream test was written for; the Windows client side passes ("36 ... ok"). Our bodies run in reverse + loopback. Re-enable on hosts with the fixed kernel.
-# 37 posix  SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption — disabled: run_client/run_server = NULL (no MSG_ERRQUEUE)
+37   posix  SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption
+37   wsa    SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption
+37   overlapped SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption
 38   posix  SOCK_STREAM TX credit bounds
 38   wsa    SOCK_STREAM TX credit bounds
 38   overlapped SOCK_STREAM TX credit bounds

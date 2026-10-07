@@ -1107,6 +1107,78 @@ static void test_stream_accepted_setsockopt_server(const struct test_opts *opts)
     close(fd);
 }
 
+#define GOOD_COPY_LEN 128 /* net/vmw_vsock/virtio_transport_common.c */
+
+/* A plain send followed by a zero-copy one (MSG_ZEROCOPY rides the SEND_EX /
+ * MDL tract here); the peer waits for both and checks the second is intact.
+ * Same Windows adjustments as slot 18: no MSG_ERRQUEUE poll, 64-bit hash. */
+static void test_stream_msgzcopy_mangle_client(const struct test_opts *opts)
+{
+    char sbuf1[PAGE_SIZE + 1], sbuf2[GOOD_COPY_LEN];
+    uint64_t hash;
+    size_t i;
+    int fd;
+
+    fd = vsock_stream_connect(opts->peer_cid, opts->peer_port);
+    if (fd < 0)
+    {
+        perror("connect");
+        exit(EXIT_FAILURE);
+    }
+
+    /* No-op on Windows; kept so the flow matches upstream. */
+    enable_so_zerocopy_check(fd);
+
+    memset(sbuf1, 'x', sizeof(sbuf1));
+    send_buf(fd, sbuf1, sizeof(sbuf1), 0, sizeof(sbuf1));
+
+    for (i = 0; i < sizeof(sbuf2); i++)
+    {
+        sbuf2[i] = rand() & 0xff;
+    }
+
+    send_buf(fd, sbuf2, sizeof(sbuf2), MSG_ZEROCOPY, sizeof(sbuf2));
+
+    hash = test_msg_zcopy_hash_u64(sbuf2, sizeof(sbuf2));
+    test_msg_zcopy_writeulong64(hash);
+
+    /* Upstream polls MSG_ERRQUEUE for the zero-copy completion; a Windows
+     * send with MSG_ZEROCOPY has completed by the time it returns. */
+    close(fd);
+}
+
+static void test_stream_msgzcopy_mangle_server(const struct test_opts *opts)
+{
+    uint64_t local_hash, remote_hash;
+    char rbuf[PAGE_SIZE + 1];
+    int fd;
+
+    fd = vsock_stream_accept(VMADDR_CID_ANY, opts->peer_port, NULL);
+    if (fd < 0)
+    {
+        perror("accept");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Wait, don't race the (buggy) skbs coalescence. */
+    vsock_ioctl_int(fd, SIOCINQ, PAGE_SIZE + 1 + GOOD_COPY_LEN);
+
+    /* Discard the first packet. */
+    recv_buf(fd, rbuf, PAGE_SIZE + 1, 0, PAGE_SIZE + 1);
+
+    recv_buf(fd, rbuf, GOOD_COPY_LEN, 0, GOOD_COPY_LEN);
+    remote_hash = test_msg_zcopy_readulong64();
+    local_hash = test_msg_zcopy_hash_u64(rbuf, GOOD_COPY_LEN);
+
+    if (local_hash != remote_hash)
+    {
+        fprintf(stderr, "Data received corrupted\n");
+        exit(EXIT_FAILURE);
+    }
+
+    close(fd);
+}
+
 #define ACCEPTQ_LEAK_RACE_TIMEOUT 2 /* seconds */
 
 /* Upstream races connect() against a listener that closes right after
@@ -2070,10 +2142,11 @@ static struct test_case test_cases[] = {
         .run_server = test_stream_accepted_setsockopt_server,
     },
     {
-        /* Same MSG_ERRQUEUE gap — coalescence check reads notifications. */
+        /* Second send rides the zero-copy tract (MSG_ZEROCOPY flag); the
+         * MSG_ERRQUEUE completion poll is skipped as in slot 18. */
         .name = "SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption",
-        .run_client = NULL,
-        .run_server = NULL,
+        .run_client = test_stream_msgzcopy_mangle_client,
+        .run_server = test_stream_msgzcopy_mangle_server,
     },
     {
         .name = "SOCK_STREAM TX credit bounds",
