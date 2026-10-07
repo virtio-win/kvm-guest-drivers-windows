@@ -1107,6 +1107,46 @@ static void test_stream_accepted_setsockopt_server(const struct test_opts *opts)
     close(fd);
 }
 
+/* Upstream's client storms this listener with connect()s cut short by
+ * SIGUSR1 (Linux-only); the server side ports as is: a non-blocking
+ * listener that drains its accept queue on every CONTINUE. */
+static void test_stream_transport_change_server(const struct test_opts *opts)
+{
+    int s = vsock_stream_listen(VMADDR_CID_ANY, opts->peer_port);
+
+    /* Interrupted connects can still land in the accept queue, so drain it
+     * without blocking. */
+    if (fcntl(s, F_SETFL, fcntl(s, F_GETFL, 0) | O_NONBLOCK) < 0)
+    {
+        perror("fcntl");
+        exit(EXIT_FAILURE);
+    }
+    control_writeln("LISTENING");
+
+    while (control_readulong() == CONTROL_CONTINUE)
+    {
+        /* Clear every queued connection, there can be more than one. */
+        while (true)
+        {
+            int client = accept(s, NULL, NULL);
+
+            if (client < 0)
+            {
+                if (errno == EAGAIN)
+                {
+                    break;
+                }
+                perror("accept");
+                exit(EXIT_FAILURE);
+            }
+
+            close(client);
+        }
+    }
+
+    close(s);
+}
+
 #define GOOD_COPY_LEN 128 /* net/vmw_vsock/virtio_transport_common.c */
 
 /* A plain send followed by a zero-copy one (MSG_ZEROCOPY rides the SEND_EX /
@@ -2118,10 +2158,11 @@ static struct test_case test_cases[] = {
         .run_server = test_stream_nolinger_server,
     },
     {
-        /* Linux-only: needs pthread + kill(SIGUSR1) to race transport change */
+        /* Client is Linux-only (SIGUSR1 storm + CID 0 transport change); the
+         * server body runs in reverse. */
         .name = "SOCK_STREAM transport change null-ptr-deref, lockdep warn",
         .run_client = NULL,
-        .run_server = NULL,
+        .run_server = test_stream_transport_change_server,
     },
     {
         .name = "SOCK_STREAM ioctl(SIOCINQ) functionality",
