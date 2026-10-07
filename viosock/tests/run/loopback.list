@@ -96,7 +96,9 @@
 36   posix  SOCK_STREAM accept()ed socket custom setsockopt()
 36   wsa    SOCK_STREAM accept()ed socket custom setsockopt()
 36   overlapped SOCK_STREAM accept()ed socket custom setsockopt()
-# 37 posix  SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption — disabled: run_client/run_server = NULL (no MSG_ERRQUEUE)
+37   posix  SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption
+37   wsa    SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption
+37   overlapped SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption
 38   posix  SOCK_STREAM TX credit bounds
 38   wsa    SOCK_STREAM TX credit bounds
 38   overlapped SOCK_STREAM TX credit bounds
