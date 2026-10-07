@@ -921,6 +921,7 @@ VOID VIOSerialPortPnpNotify(IN WDFDEVICE WdfDevice, IN PVIOSERIAL_PORT port, IN 
     pdoData = RawPdoSerialPortGetData(hWorkItem);
 
     pdoData->port = port;
+    pdoData->connected = connected;
 
     WdfWorkItemEnqueue(hWorkItem);
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
@@ -995,7 +996,7 @@ VOID VIOSerialPortPnpNotifyWork(IN WDFWORKITEM WorkItem)
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
     portStatus.Version = 1;
-    portStatus.Reason = pport->HostConnected;
+    portStatus.Reason = pdoData->connected;
 
     status = RtlULongAdd((sizeof(TARGET_DEVICE_CUSTOM_NOTIFICATION) - sizeof(UCHAR)),
                          sizeof(VIRTIO_PORT_STATUS_CHANGE),
