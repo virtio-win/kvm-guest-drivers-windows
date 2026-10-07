@@ -88,7 +88,7 @@
 32   posix  SOCK_STREAM SO_LINGER close() on unread
 32   wsa    SOCK_STREAM SO_LINGER close() on unread
 32   overlapped SOCK_STREAM SO_LINGER close() on unread
-# 33 posix  SOCK_STREAM transport change null-ptr-deref, lockdep warn — disabled: run_client/run_server = NULL (Linux-only: pthread + kill(SIGUSR1))
+# 33 posix  SOCK_STREAM transport change null-ptr-deref, lockdep warn — disabled: run_client = NULL (Linux-only: pthread + kill(SIGUSR1)); the server body is ported but the reverse row is disabled too (host kernel panic, see reverse.list)
 34   posix  SOCK_STREAM ioctl(SIOCINQ) functionality
 34   wsa    SOCK_STREAM ioctl(SIOCINQ) functionality
 34   overlapped SOCK_STREAM ioctl(SIOCINQ) functionality
