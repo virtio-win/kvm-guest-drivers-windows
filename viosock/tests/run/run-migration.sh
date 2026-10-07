@@ -115,8 +115,16 @@ if [ "$MIGR_CHANGE_CID" -eq 1 ]; then
     if [ -n "$MIGR_NEW_CID" ]; then
         new_cid="$MIGR_NEW_CID"
     else
+        # The first CID above the reserved 0..3 that differs from ours and is not held by another
+        # running domain on this host: a restore into a taken CID fails ("failed to set guest
+        # cid: Address already in use") and the guest is gone with it.
+        used_cids=$(for d in $(virsh list --name 2>/dev/null); do
+                        virsh dumpxml "$d" 2>/dev/null | grep -oE "<cid[^/]*address='[0-9]+'" | grep -oE "[0-9]+'$" | tr -d "'"
+                    done)
         new_cid=$((guest_cid + 1))
-        case "$new_cid" in 0|1|2|3) new_cid=4 ;; esac
+        while [ "$new_cid" -le 3 ] || [ "$new_cid" -eq "$guest_cid" ] || grep -qx "$new_cid" <<<"$used_cids"; do
+            new_cid=$((new_cid + 1))
+        done
     fi
     [ "$new_cid" != "$guest_cid" ] || die "MIGR_NEW_CID=$new_cid equals current guest_cid"
     newxml="$LOGDIR/$guest_name.new.xml"

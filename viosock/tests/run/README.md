@@ -551,8 +551,9 @@ destination side of a live migration — so this exercises the driver's
 transport-reset path with parked recv/poll and per-socket teardown.
 
 By default the restore also assigns the guest a **different CID**
-(`guest_cid+1`, skipping the reserved 0..3): the harness dumps the
-domain XML, sed-swaps `<cid address='N'/>`, and passes the edited XML
+(the first one above the reserved 0..3 that no other running domain on
+the host holds; a restore into a taken CID fails and the guest is gone):
+the harness dumps the domain XML, sed-swaps `<cid address='N'/>`, and passes the edited XML
 to `virsh restore --xml`. That mirrors the cross-host live-migration
 shape where a colliding CID is remapped on the destination. Set
 `MIGR_CHANGE_CID=0` to keep the current CID, or `MIGR_NEW_CID=<n>` to
@@ -592,4 +593,4 @@ Env-tunables (defaults in brackets):
 | `MIGR_BYTES`      | `4G`    | Bytes per connection (large enough to still be in flight). |
 | `MIGR_RAMP_SECS`  | `12`    | Seconds of transfer before the save is injected.           |
 | `MIGR_CHANGE_CID` | `1`     | `0` = restore with the same CID.                           |
-| `MIGR_NEW_CID`    | unset   | Explicit new CID; empty = `guest_cid+1` (skipping 0..3).   |
+| `MIGR_NEW_CID`    | unset   | Explicit new CID; empty = first free CID above 3.         |
