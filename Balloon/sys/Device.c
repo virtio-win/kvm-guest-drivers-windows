@@ -44,7 +44,14 @@
 #pragma alloc_text(PAGE, BalloonDeviceAdd)
 #pragma alloc_text(PAGE, BalloonCloseWorkerThread)
 #pragma alloc_text(PAGE, BalloonEvtDeviceSurpriseRemoval)
+#pragma alloc_text(PAGE, BalloonWmiRegistration)
 #endif // ALLOC_PRAGMA
+
+static BALLOON_BUGCHECK_DATA BugCheckData;
+static volatile PDEVICE_CONTEXT g_BugCheckDevCtx = NULL;
+
+static EVT_WDF_WMI_INSTANCE_QUERY_INSTANCE BalloonEvtWmiQueryInstance;
+static KBUGCHECK_REASON_CALLBACK_ROUTINE BalloonOnBugCheck;
 
 #ifndef BALLOON_INFLATE_IGNORE_LOWMEM
 #define LOMEMEVENTNAME L"\\KernelObjects\\LowMemoryCondition"
@@ -185,6 +192,13 @@ BalloonDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
 
     KeInitializeEvent(&devCtx->WakeUpThread, SynchronizationEvent, FALSE);
 
+    status = BalloonWmiRegistration(device);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WMI, "BalloonWmiRegistration failed with status 0x%08x\n", status);
+        return status;
+    }
+
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return status;
 }
@@ -196,6 +210,8 @@ VOID BalloonEvtDeviceContextCleanup(IN WDFOBJECT Device)
     PAGED_CODE();
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
+
+    BalloonBugCheckDeregister((WDFDEVICE)Device);
 
     if (devCtx->bListInitialized)
     {
@@ -341,6 +357,7 @@ BalloonCreateWorkerThread(IN WDFDEVICE Device)
         goto CloseThread;
     }
 
+    devCtx->WorkerThreadRunning = TRUE;
     KeSetPriorityThread(devCtx->Thread, LOW_REALTIME_PRIORITY);
     KeSetEvent(&devCtx->WakeUpThread, EVENT_INCREMENT, FALSE);
 
@@ -363,6 +380,7 @@ BalloonCloseWorkerThread(IN WDFDEVICE Device)
 
     if (NULL != devCtx->Thread)
     {
+        devCtx->WorkerThreadRunning = FALSE;
         devCtx->bShutDown = TRUE;
         KeSetEvent(&devCtx->WakeUpThread, EVENT_INCREMENT, FALSE);
         status = KeWaitForSingleObject(devCtx->Thread, Executive, KernelMode, FALSE, NULL);
@@ -384,8 +402,10 @@ BalloonEvtDeviceD0Entry(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE PreviousS
     NTSTATUS status = STATUS_SUCCESS;
     PDEVICE_CONTEXT devCtx = GetDeviceContext(Device);
 
-    UNREFERENCED_PARAMETER(PreviousState);
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "--> %s\n", __FUNCTION__);
+
+    devCtx->D0EntryCount++;
+    devCtx->LastPowerState = PreviousState;
 
     status = BalloonInit(Device);
     if (!NT_SUCCESS(status))
@@ -393,6 +413,8 @@ BalloonEvtDeviceD0Entry(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE PreviousS
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "BalloonInit failed with status 0x%08x\n", status);
         goto Terminate;
     }
+
+    BalloonBugCheckRegister(Device);
 
     status = BalloonCreateWorkerThread(Device);
     if (!NT_SUCCESS(status))
@@ -405,9 +427,14 @@ BalloonEvtDeviceD0Entry(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE PreviousS
     devCtx->evLowMem = IoCreateNotificationEvent((PUNICODE_STRING)&evLowMemString, &devCtx->hLowMem);
 #endif // !BALLOON_INFLATE_IGNORE_LOWMEM
 
+    BalloonHistoryLog(BalloonOpD0Entry, (ULONG)PreviousState, 0);
+
 Terminate:
+    devCtx->LastD0EntryStatus = status;
     if (!NT_SUCCESS(status))
     {
+        BalloonHistoryLog(BalloonOpD0EntryFail, (ULONG)status, (ULONG)PreviousState);
+        BalloonBugCheckDeregister(Device);
         BalloonTerm(Device);
     }
 
@@ -419,11 +446,13 @@ BalloonEvtDeviceD0Exit(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE TargetStat
 {
     PDEVICE_CONTEXT devCtx = GetDeviceContext(Device);
 
-    UNREFERENCED_PARAMETER(TargetState);
-
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<--> %s\n", __FUNCTION__);
 
     PAGED_CODE();
+
+    devCtx->D0ExitCount++;
+    devCtx->LastPowerState = TargetState;
+    BalloonHistoryLog(BalloonOpD0Exit, (ULONG)TargetState, 0);
 
 #ifndef BALLOON_INFLATE_IGNORE_LOWMEM
     if (devCtx->evLowMem)
@@ -443,6 +472,7 @@ BalloonEvtDeviceD0Exit(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE TargetStat
     WdfWorkItemFlush(devCtx->StatWorkItem);
 #endif // !USE_BALLOON_SERVICE
 
+    BalloonBugCheckDeregister(Device);
     BalloonTerm(Device);
 
     return STATUS_SUCCESS;
@@ -478,6 +508,7 @@ VOID BalloonEvtDeviceSurpriseRemoval(IN WDFDEVICE Device)
     PAGED_CODE();
 
     devCtx->SurpriseRemoval = TRUE;
+    BalloonHistoryLog(BalloonOpSurpriseRemoval, 0, 0);
     KeSetEvent(&devCtx->HostAckEvent, EVENT_INCREMENT, FALSE);
 }
 
@@ -516,6 +547,8 @@ VOID BalloonInterruptDpc(IN WDFINTERRUPT WdfInterrupt, IN WDFOBJECT WdfDevice)
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_DPC, "--> %s\n", __FUNCTION__);
 
+    InterlockedIncrement(&devCtx->DpcCount);
+
     WdfSpinLockAcquire(devCtx->InfDefQueueLock);
     if (virtqueue_get_buf(devCtx->InfVirtQueue, &len))
     {
@@ -540,6 +573,8 @@ VOID BalloonInterruptDpc(IN WDFINTERRUPT WdfInterrupt, IN WDFOBJECT WdfDevice)
 
         if (buffer)
         {
+            InterlockedIncrement(&devCtx->StatRequestsFromHost);
+            BalloonHistoryLog(BalloonOpStatRequest, 0, 0);
 #ifdef USE_BALLOON_SERVICE
             WDFREQUEST request = devCtx->PendingWriteRequest;
 
@@ -626,6 +661,8 @@ VOID BalloonEvtFileClose(IN WDFFILEOBJECT FileObject)
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-> %s\n", __FUNCTION__);
 
+    devCtx->ServiceConnected = FALSE;
+
     // synchronize with the device to make sure it doesn't exit D0 from underneath us
     WdfObjectAcquireLock(Device);
 
@@ -657,6 +694,7 @@ BalloonGetSize(IN WDFOBJECT WdfDevice)
 
     u32 v;
     VirtIOWdfDeviceGet(&devCtx->VDevice, FIELD_OFFSET(VIRTIO_BALLOON_CONFIG, num_pages), &v, sizeof(v));
+    devCtx->LastTargetPages = v;
     return (LONGLONG)v - devCtx->num_pages;
 }
 
@@ -683,6 +721,11 @@ VOID BalloonRoutine(IN PVOID pContext)
             else
             {
                 diff = BalloonGetSize(Device);
+                {
+                    ULONG absDiff = (ULONG)(diff > 0 ? diff : -diff);
+                    ULONG direction = diff > 0 ? 1 : (diff < 0 ? 2 : 0);
+                    BalloonHistoryLog(BalloonOpWorkerWake, absDiff, direction);
+                }
                 if (diff > 0)
                 {
                     status = BalloonFill(Device, (size_t)(diff));
@@ -709,4 +752,206 @@ VOID BalloonRoutine(IN PVOID pContext)
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "Thread about to exit...\n");
 
     PsTerminateSystemThread(STATUS_SUCCESS);
+}
+
+NTSTATUS
+BalloonWmiRegistration(IN WDFDEVICE Device)
+{
+    WDF_WMI_PROVIDER_CONFIG providerConfig;
+    WDF_WMI_INSTANCE_CONFIG instanceConfig;
+    NTSTATUS status;
+    DECLARE_CONST_UNICODE_STRING(mofResourceName, L"MofResource");
+
+    PAGED_CODE();
+
+    status = WdfDeviceAssignMofResourceName(Device, &mofResourceName);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WMI, "WdfDeviceAssignMofResourceName failed 0x%08x\n", status);
+        return status;
+    }
+
+    WDF_WMI_PROVIDER_CONFIG_INIT(&providerConfig, &BalloonHealthInfoGuid_GUID);
+    providerConfig.MinInstanceBufferSize = BalloonHealthInfo_SIZE;
+
+    WDF_WMI_INSTANCE_CONFIG_INIT_PROVIDER_CONFIG(&instanceConfig, &providerConfig);
+    instanceConfig.Register = TRUE;
+    instanceConfig.EvtWmiInstanceQueryInstance = BalloonEvtWmiQueryInstance;
+
+    status = WdfWmiInstanceCreate(Device, &instanceConfig, WDF_NO_OBJECT_ATTRIBUTES, WDF_NO_HANDLE);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WMI, "WdfWmiInstanceCreate failed 0x%08x\n", status);
+    }
+
+    return status;
+}
+
+NTSTATUS
+BalloonEvtWmiQueryInstance(IN WDFWMIINSTANCE WmiInstance,
+                           IN ULONG OutBufferSize,
+                           IN PVOID OutBuffer,
+                           OUT PULONG BufferUsed)
+{
+    PDEVICE_CONTEXT devCtx = GetDeviceContext(WdfWmiInstanceGetDevice(WmiInstance));
+    PBalloonHealthInfo info = (PBalloonHealthInfo)OutBuffer;
+
+    if (OutBufferSize < BalloonHealthInfo_SIZE)
+    {
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    RtlZeroMemory(OutBuffer, BalloonHealthInfo_SIZE);
+
+    info->CurrentPages = devCtx->num_pages;
+    info->TargetPages = devCtx->LastTargetPages;
+    info->NumVirtQueues = devCtx->StatVirtQueue ? 3 : 2;
+    info->TotalInflateOps = (ULONG)devCtx->TotalInflateOps;
+    info->TotalDeflateOps = (ULONG)devCtx->TotalDeflateOps;
+    info->InflateFailures = (ULONG)devCtx->InflateFailures;
+    info->LowMemInflateRejects = (ULONG)devCtx->LowMemInflateRejects;
+    info->HostAckTimeouts = (ULONG)devCtx->HostAckTimeouts;
+    info->D0EntryCount = devCtx->D0EntryCount;
+    info->D0ExitCount = devCtx->D0ExitCount;
+    info->LastD0EntryStatus = (ULONG)devCtx->LastD0EntryStatus;
+    info->DpcCount = (ULONG)devCtx->DpcCount;
+    info->StatRequestsFromHost = (ULONG)devCtx->StatRequestsFromHost;
+    info->StatResponsesSent = (ULONG)devCtx->StatResponsesSent;
+    info->NegotiatedFeatures = devCtx->NegotiatedFeatures;
+    info->WorkerThreadRunning = devCtx->WorkerThreadRunning;
+    info->ServiceConnected = devCtx->ServiceConnected;
+    info->FeatureStatVQ = devCtx->FeatureStatVQ;
+    info->SurpriseRemoval = devCtx->SurpriseRemoval;
+    info->LastPowerState = (ULONG)devCtx->LastPowerState;
+
+    *BufferUsed = BalloonHealthInfo_SIZE;
+    return STATUS_SUCCESS;
+}
+
+VOID
+BalloonHistoryLog(IN BALLOON_HISTORY_OP Operation, IN ULONG Param1, IN ULONG Param2)
+{
+    BALLOON_HISTORY_ENTRY local;
+    LONG index;
+
+    KeQuerySystemTime(&local.Timestamp);
+    local.Operation = (ULONG)Operation;
+    local.Param1 = Param1;
+    local.Param2 = Param2;
+
+    index = InterlockedIncrement(&BugCheckData.HistoryIndex) - 1;
+    BugCheckData.History[(ULONG)index & (BALLOON_HISTORY_SIZE - 1)] = local;
+}
+
+VOID
+BalloonBugCheckRegister(IN WDFDEVICE Device)
+{
+    PDEVICE_CONTEXT devCtx = GetDeviceContext(Device);
+
+    if (InterlockedCompareExchangePointer(&g_BugCheckDevCtx, devCtx, NULL) != NULL)
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_PNP, "Bugcheck callback already registered by another instance\n");
+        return;
+    }
+
+    KeInitializeCallbackRecord(&devCtx->BugCheckCbRecord);
+    devCtx->BugCheckCbRegistered = KeRegisterBugCheckReasonCallback(
+        &devCtx->BugCheckCbRecord,
+        BalloonOnBugCheck,
+        KbCallbackSecondaryDumpData,
+        (PUCHAR)"Balloon");
+
+    if (devCtx->BugCheckCbRegistered)
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "Bugcheck callback registered\n");
+    }
+    else
+    {
+        InterlockedExchangePointer(&g_BugCheckDevCtx, NULL);
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_PNP, "Failed to register bugcheck callback\n");
+    }
+}
+
+VOID
+BalloonBugCheckDeregister(IN WDFDEVICE Device)
+{
+    PDEVICE_CONTEXT devCtx = GetDeviceContext(Device);
+
+    if (devCtx->BugCheckCbRegistered)
+    {
+        KeDeregisterBugCheckReasonCallback(&devCtx->BugCheckCbRecord);
+        devCtx->BugCheckCbRegistered = FALSE;
+        InterlockedCompareExchangePointer(&g_BugCheckDevCtx, NULL, devCtx);
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "Bugcheck callback deregistered\n");
+    }
+}
+
+VOID
+BalloonOnBugCheck(IN KBUGCHECK_CALLBACK_REASON Reason,
+                  IN PKBUGCHECK_REASON_CALLBACK_RECORD Record,
+                  IN OUT PVOID ReasonSpecificData,
+                  IN ULONG ReasonSpecificDataLength)
+{
+    KBUGCHECK_SECONDARY_DUMP_DATA *pDump =
+        (KBUGCHECK_SECONDARY_DUMP_DATA *)ReasonSpecificData;
+    ULONG dumpSize = sizeof(BugCheckData);
+
+    UNREFERENCED_PARAMETER(Record);
+
+    if (Reason != KbCallbackSecondaryDumpData ||
+        ReasonSpecificDataLength < sizeof(*pDump))
+    {
+        return;
+    }
+
+    if (!pDump->OutBuffer)
+    {
+        PDEVICE_CONTEXT devCtx = g_BugCheckDevCtx;
+
+        BugCheckData.Version = BALLOON_BUGCHECK_VERSION;
+        BugCheckData.HistorySize = BALLOON_HISTORY_SIZE;
+        KeQuerySystemTime(&BugCheckData.CrashTime);
+
+        if (devCtx)
+        {
+            BugCheckData.CurrentPages = devCtx->num_pages;
+            BugCheckData.TargetPages = devCtx->LastTargetPages;
+            BugCheckData.TotalInflateOps = (ULONG)devCtx->TotalInflateOps;
+            BugCheckData.TotalDeflateOps = (ULONG)devCtx->TotalDeflateOps;
+            BugCheckData.InflateFailures = (ULONG)devCtx->InflateFailures;
+            BugCheckData.LowMemInflateRejects = (ULONG)devCtx->LowMemInflateRejects;
+            BugCheckData.SurpriseRemoval = devCtx->SurpriseRemoval;
+            BugCheckData.FeatureStatVQ = devCtx->FeatureStatVQ;
+            BugCheckData.WorkerThreadRunning = devCtx->WorkerThreadRunning;
+            BugCheckData.ServiceConnected = devCtx->ServiceConnected;
+            BugCheckData.HostAckTimeouts = (ULONG)devCtx->HostAckTimeouts;
+            BugCheckData.D0EntryCount = devCtx->D0EntryCount;
+            BugCheckData.D0ExitCount = devCtx->D0ExitCount;
+            BugCheckData.LastD0EntryStatus = (ULONG)devCtx->LastD0EntryStatus;
+            BugCheckData.LastPowerState = (ULONG)devCtx->LastPowerState;
+            BugCheckData.DpcCount = (ULONG)devCtx->DpcCount;
+            BugCheckData.StatRequestsFromHost = (ULONG)devCtx->StatRequestsFromHost;
+            BugCheckData.StatResponsesSent = (ULONG)devCtx->StatResponsesSent;
+            BugCheckData.NegotiatedFeatures = devCtx->NegotiatedFeatures;
+        }
+
+        RtlCopyMemory(&pDump->Guid, &BalloonCrashGuid, sizeof(pDump->Guid));
+
+        if (pDump->InBufferLength >= dumpSize)
+        {
+            pDump->OutBuffer = pDump->InBuffer;
+            pDump->OutBufferLength = dumpSize;
+        }
+        else
+        {
+            pDump->OutBuffer = &BugCheckData;
+            pDump->OutBufferLength = dumpSize;
+        }
+    }
+    else if (pDump->OutBuffer == pDump->InBuffer)
+    {
+        RtlCopyMemory(&pDump->Guid, &BalloonCrashGuid, sizeof(pDump->Guid));
+        RtlCopyMemory(pDump->InBuffer, &BugCheckData, dumpSize);
+        pDump->OutBufferLength = dumpSize;
+    }
 }
