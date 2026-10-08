@@ -847,10 +847,6 @@ void wsa_events_all(unsigned int self_cid)
     ev_fd_read_level_triggered();
     ev_accept_inherits_event();
     ev_fd_close_silent();
-    /* Disabled: a non-lingering closesocket() blocks up to 8 s while the
-     * peer holds unread data (the driver waits for the teardown ack
-     * inside the close request).  Re-enable with the fix that completes
-     * the close at once and runs the close timeout in the background. */
-    (void)ev_fd_close_after_data;
+    ev_fd_close_after_data();
     ev_fd_close_on_full_tx();
 }
