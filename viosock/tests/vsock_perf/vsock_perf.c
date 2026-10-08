@@ -123,6 +123,64 @@ static float get_gbps(unsigned long long bits, long long ns_delta)
 }
 
 /*
+ * --io=file: the inner loop's send() / read() become WriteFile() /
+ * ReadFile() on the socket handle with an event OVERLAPPED, waited on
+ * via GetOverlappedResult.  Reaches the driver's EvtIoWrite / EvtIoRead
+ * instead of the IOCTL send / recv.  A failure prints its Win32 code and
+ * sets errno to EIO for the caller's perror.
+ */
+static bool io_file = false;
+
+#ifndef STATUS_PENDING
+#define STATUS_PENDING ((DWORD)0x00000103L)
+#endif
+
+static ssize_t file_io(int fd, void *buf, size_t len, bool write)
+{
+    OVERLAPPED ov = {0};
+    DWORD done = 0;
+    BOOL ok;
+
+    ov.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
+    if (!ov.hEvent)
+    {
+        errno = ENOMEM;
+        return -1;
+    }
+    /* Mark the op pending so GetOverlappedResult really waits on hEvent. */
+    ov.Internal = (ULONG_PTR)STATUS_PENDING;
+
+    ok = write ? WriteFile((HANDLE)(SOCKET)fd, buf, (DWORD)len, &done, &ov)
+               : ReadFile((HANDLE)(SOCKET)fd, buf, (DWORD)len, &done, &ov);
+    if (!ok && GetLastError() == ERROR_IO_PENDING)
+    {
+        ok = GetOverlappedResult((HANDLE)(SOCKET)fd, &ov, &done, TRUE);
+    }
+    if (!ok && GetLastError() == ERROR_HANDLE_EOF)
+    {
+        ok = TRUE;
+        done = 0;
+    }
+    if (!ok)
+    {
+        errno = EIO;
+        fprintf(stderr, "%s failed: Win32 error %lu\n", write ? "WriteFile" : "ReadFile", GetLastError());
+    }
+    CloseHandle(ov.hEvent);
+    return ok ? (ssize_t)done : -1;
+}
+
+static ssize_t perf_send_file(int fd, const void *buf, size_t len)
+{
+    return file_io(fd, (void *)buf, len, true);
+}
+
+static ssize_t perf_recv_file(int fd, void *buf, size_t len)
+{
+    return file_io(fd, buf, len, false);
+}
+
+/*
  * --no-poll (use_poll = false): switch the receiver's read loop to a
  * plain blocking read() without WSAPoll(POLLIN).
  *
@@ -160,6 +218,10 @@ static void run_receiver(int rcvlowat_bytes, bool use_poll)
     printf("RX buffer %llu bytes\n", buf_size_bytes);
     printf("vsock buffer %llu bytes\n", vsock_buf_bytes);
     printf("SO_RCVLOWAT %d bytes\n", rcvlowat_bytes);
+    if (io_file)
+    {
+        printf("File I/O (ReadFile)\n");
+    }
 
     fd = socket(g_vsock_af, SOCK_STREAM, 0);
 
@@ -239,7 +301,8 @@ static void run_receiver(int rcvlowat_bytes, bool use_poll)
         }
 
         t = current_nsec();
-        bytes_read = read(client_fd, data, (size_t)buf_size_bytes);
+        bytes_read = io_file ? perf_recv_file(client_fd, data, (size_t)buf_size_bytes)
+                             : read(client_fd, data, (size_t)buf_size_bytes);
         in_read_ns += (current_nsec() - t);
         read_cnt++;
 
@@ -285,6 +348,10 @@ static void run_sender(int peer_cid, unsigned long long to_send_bytes)
     {
         printf("Zero-copy send (MSG_ZEROCOPY)\n");
     }
+    if (io_file)
+    {
+        printf("File I/O (WriteFile)\n");
+    }
 
     fd = vsock_connect(peer_cid, port);
 
@@ -314,11 +381,10 @@ static void run_sender(int peer_cid, unsigned long long to_send_bytes)
 
         rest_bytes = to_send_bytes - total_send;
 
+        size_t chunk = (size_t)((rest_bytes > buf_size_bytes) ? buf_size_bytes : rest_bytes);
+
         before = current_nsec();
-        sent = send(fd,
-                    data,
-                    (size_t)((rest_bytes > buf_size_bytes) ? buf_size_bytes : rest_bytes),
-                    msg_zerocopy ? MSG_ZEROCOPY : 0);
+        sent = io_file ? perf_send_file(fd, data, chunk) : send(fd, data, chunk, msg_zerocopy ? MSG_ZEROCOPY : 0);
         time_in_send += (current_nsec() - before);
 
         if (sent <= 0)
@@ -513,56 +579,21 @@ static int getopt_long(int argc,
 }
 
 static const char optstring[] = "";
-static const struct
-                                                                                                    option
-                                                                                                                                                                                                        longopts
-                                                                                                                                                                                                                                                                                                            [] =
-                                                                                                                                                                                                                                                                                                                                                                                                                {
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    {
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        .name =
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            "help",
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        .has_arg = no_argument,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        .val = 'H',
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    },
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    {
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        .name = "sender",
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        .has_arg = required_argument,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        .val = 'S',
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    },
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    {
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        .name =
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            "port",
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        .has_arg = required_argument,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        .val = 'P',
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    },
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    {
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        .name =
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            "bytes",
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        .has_arg = required_argument,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        .val = 'M',
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    },
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    {
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        .name = "buf-size",
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        .has_arg = required_argument,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        .val = 'B',
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    },
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    {
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        .name = "vsk-size",
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        .has_arg = required_argument,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        .val = 'V',
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    },
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    {
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        .name =
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            "rcvlowat",
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        .has_arg = required_argument,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        .val = 'R',
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    },
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    {.name = "no-poll",
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     .has_arg = no_argument,
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     .val = 'N'},
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    {.name = "zerocopy", .has_arg = no_argument, .val = 'Z'},
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    {0},
+// clang-format off
+static const struct option longopts[] = {
+    {.name = "help",     .has_arg = no_argument,       .val = 'H'},
+    {.name = "sender",   .has_arg = required_argument, .val = 'S'},
+    {.name = "port",     .has_arg = required_argument, .val = 'P'},
+    {.name = "bytes",    .has_arg = required_argument, .val = 'M'},
+    {.name = "buf-size", .has_arg = required_argument, .val = 'B'},
+    {.name = "vsk-size", .has_arg = required_argument, .val = 'V'},
+    {.name = "rcvlowat", .has_arg = required_argument, .val = 'R'},
+    {.name = "no-poll",  .has_arg = no_argument,       .val = 'N'},
+    {.name = "zerocopy", .has_arg = no_argument,       .val = 'Z'},
+    {.name = "io",       .has_arg = required_argument, .val = 'I'},
+    {0},
 };
+// clang-format on
 
 static void usage(void)
 {
@@ -592,6 +623,10 @@ static void usage(void)
            "                         Windows viosock semantics: the pages are\n"
            "                         pinned and the call completes when the\n"
            "                         host has consumed them (no MSG_ERRQUEUE).\n"
+           "  --io <wsa|file>        Data calls: send()/read() over Winsock (default)\n"
+           "                         or WriteFile()/ReadFile() on the socket handle\n"
+           "                         (EvtIoWrite/EvtIoRead in the driver). Not with\n"
+           "                         --zerocopy: WriteFile carries no flags.\n"
            "\n",
            DEFAULT_PORT,
            DEFAULT_TO_SEND_BYTES,
@@ -668,9 +703,25 @@ int __cdecl main(int argc, char **argv)
             case 'Z': /* Sender: MSG_ZEROCOPY on every send. */
                 msg_zerocopy = true;
                 break;
+            case 'I': /* Data calls: Winsock (wsa) or WriteFile/ReadFile (file). */
+                if (strcmp(optarg, "file") == 0)
+                {
+                    io_file = true;
+                }
+                else if (strcmp(optarg, "wsa") != 0)
+                {
+                    usage();
+                }
+                break;
             default:
                 usage();
         }
+    }
+
+    if (io_file && msg_zerocopy)
+    {
+        fprintf(stderr, "--zerocopy needs the Winsock path; drop it or use --io wsa\n");
+        return EXIT_FAILURE;
     }
 
     if (WSAStartup(MAKEWORD(2, 2), &wsa_data))

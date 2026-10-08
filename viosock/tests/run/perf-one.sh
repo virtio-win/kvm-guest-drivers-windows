@@ -33,6 +33,7 @@ GRACE=${SERVER_GRACE_SECS:-1}
 CFG=""
 NO_POLL=${PERF_NO_POLL:-}
 ZEROCOPY=${PERF_ZEROCOPY:-}
+IO=${PERF_IO:-wsa}
 LOCAL_BIN="/opt/vsock-test/vsock_perf"
 
 usage() {
@@ -63,6 +64,11 @@ Other:
                             send()) to whichever side is the sender:
                             Windows in forward, Linux in reverse. Also
                             settable via env PERF_ZEROCOPY=1.
+  --io {wsa|file}           Windows-side data path: send()/read() over
+                            Winsock (wsa, default) or WriteFile/ReadFile
+                            on the socket handle (file). Goes to the
+                            Windows sender in forward, the Windows
+                            receiver in reverse. Env: PERF_IO.    [$IO]
   --local-bin <path>        Linux vsock_perf path                      [$LOCAL_BIN]
 EOF
     exit 1
@@ -80,6 +86,7 @@ while [ $# -gt 0 ]; do
         --config)      CFG="$2";       shift 2 ;;
         --no-poll)     NO_POLL=1;      shift ;;
         --zerocopy)    ZEROCOPY=1;     shift ;;
+        --io)          IO="$2";        shift 2 ;;
         --local-bin)   LOCAL_BIN="$2"; shift 2 ;;
         -h|--help)     usage ;;
         *) die "unknown arg: $1" ;;
@@ -111,12 +118,20 @@ send_args=(--port "$PORT" --bytes "$BYTES" --buf-size "$BUF")
 # same packets into the guest queue either way - so it wires the
 # same into send_args regardless of direction.
 [ -n "$ZEROCOPY" ] && send_args+=(--zerocopy)
+# --io=file is Windows-only too: it goes to whichever side runs on the
+# guest (sender in forward, receiver in reverse).
+case "$IO" in
+    wsa) ;;
+    file) [ "$DIRECTION" = forward ] && send_args+=(--io file)
+          [ "$DIRECTION" = reverse ] && recv_args+=(--io file) ;;
+    *) die "--io must be wsa or file, got: $IO" ;;
+esac
 
 LOGDIR=$(mktemp -d /tmp/vsock-perf-one-XXXXXX) || die "mktemp failed"
 rx_log="$LOGDIR/rx.log"
 tx_log="$LOGDIR/tx.log"
 
-info "== perf-one: $DIRECTION  bytes=$BYTES  buf=$BUF${VSK_SIZE:+  vsk=$VSK_SIZE}${RCVLOWAT:+  rcvlowat=$RCVLOWAT}${NO_POLL:+  no-poll}${ZEROCOPY:+  zerocopy} =="
+info "== perf-one: $DIRECTION  bytes=$BYTES  buf=$BUF${VSK_SIZE:+  vsk=$VSK_SIZE}${RCVLOWAT:+  rcvlowat=$RCVLOWAT}${NO_POLL:+  no-poll}${ZEROCOPY:+  zerocopy}  io=$IO =="
 
 if [ "$DIRECTION" = forward ]; then
     "$LOCAL_BIN" "${recv_args[@]}" > "$rx_log" 2>&1 &
