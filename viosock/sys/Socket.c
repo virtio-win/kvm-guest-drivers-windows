@@ -1310,21 +1310,21 @@ VOID VIOSockCleanup(IN WDFFILEOBJECT FileObject)
         }
         else
         {
-            LARGE_INTEGER liTimeout;
-
             if ((pSocket->Shutdown & VIRTIO_VSOCK_SHUTDOWN_MASK) != VIRTIO_VSOCK_SHUTDOWN_MASK)
             {
                 VIOSockSendShutdown(pSocket, VIRTIO_VSOCK_SHUTDOWN_MASK);
             }
 
+            // Never wait for the peer's teardown ack: it may legally take
+            // forever (the peer replies only once it has read the data out).
+            // The wire converges without us: the peer's eventual SHUTDOWN or
+            // RST is answered at the device level. A lingering close
+            // (Linux virtio_transport_wait_close parity) waits only for the
+            // unsent bytes to drain, bounded by the linger timeout.
             if (VIOSockIsFlag(pSocket, SOCK_LINGER))
             {
-                // Linux virtio_transport_wait_close parity: a lingering close
-                // waits only for the unsent bytes to drain, bounded by the
-                // linger timeout — never for the peer's teardown ack (which
-                // may legally take forever: the peer replies only once it has
-                // read the data out). The wire converges without us: the
-                // peer's eventual RST is answered at the device level.
+                LARGE_INTEGER liTimeout;
+
                 liTimeout.QuadPart = -WDF_ABS_TIMEOUT_IN_SEC(pSocket->LingerTime);
                 if (KeWaitForSingleObject(&pSocket->TxIdleEvent, Executive, KernelMode, FALSE, &liTimeout) ==
                     STATUS_TIMEOUT)
@@ -1333,21 +1333,6 @@ VOID VIOSockCleanup(IN WDFFILEOBJECT FileObject)
                                 DBG_CREATE_CLOSE,
                                 "Socket %d, linger timeout expires with unsent data\n",
                                 pSocket->SocketId);
-                }
-            }
-            else
-            {
-                liTimeout.QuadPart = -VSOCK_CLOSE_TIMEOUT;
-                if (KeWaitForSingleObject(&pSocket->CloseEvent, Executive, KernelMode, FALSE, &liTimeout) ==
-                    STATUS_TIMEOUT)
-                {
-                    TraceEvents(TRACE_LEVEL_WARNING,
-                                DBG_CREATE_CLOSE,
-                                "Socket %d, close timeout expires\n",
-                                pSocket->SocketId);
-
-                    VIOSockSendReset(pSocket, FALSE);
-                    VIOSockDoClose(pSocket);
                 }
             }
         }
