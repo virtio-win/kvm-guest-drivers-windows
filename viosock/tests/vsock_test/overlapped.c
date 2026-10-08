@@ -23,6 +23,12 @@
  * async accept requires ConnectEx / AcceptEx (VSTOR-143723 tracks
  * the LSP work needed to expose them).  poll dispatches to
  * wsa_poll_dispatch (WSAPoll), shared with wsa.
+ *
+ * --io=file swaps the data calls for WriteFileEx (APC) and ReadFile
+ * (event + GetOverlappedResult) on the socket handle, which reach the
+ * driver's EvtIoWrite / EvtIoRead entries instead of the IOCTL send /
+ * recv.  ReadFile / WriteFile carry no per-call flags, so a flagged
+ * call (MSG_PEEK, MSG_DONTWAIT, MSG_ZEROCOPY, ...) keeps the WSA path.
  */
 
 #define COMPAT_IMPL
@@ -53,11 +59,11 @@ static void CALLBACK overlapped_apc_cb(DWORD dwError, DWORD cbTransferred, LPWSA
  * it.  Returns true on success (ctx populated), false on wait
  * failure with the WSA error stashed in ctx.err.
  */
-static bool overlapped_wait_apc(struct overlapped_apc_ctx *ctx)
+static bool overlapped_wait_alertable(HANDLE done_ev, DWORD *err)
 {
     for (;;)
     {
-        DWORD dw = WaitForSingleObjectEx(ctx->done_ev, INFINITE, TRUE);
+        DWORD dw = WaitForSingleObjectEx(done_ev, INFINITE, TRUE);
         if (dw == WAIT_OBJECT_0)
         {
             return true;
@@ -66,9 +72,14 @@ static bool overlapped_wait_apc(struct overlapped_apc_ctx *ctx)
         {
             continue;
         }
-        ctx->err = WSAGetLastError();
+        *err = WSAGetLastError();
         return false;
     }
+}
+
+static bool overlapped_wait_apc(struct overlapped_apc_ctx *ctx)
+{
+    return overlapped_wait_alertable(ctx->done_ev, &ctx->err);
 }
 
 static int overlapped_socket(int af, int type, int proto)
@@ -113,7 +124,7 @@ static int overlapped_accept(int fd, struct sockaddr *addr, socklen_t *addrlen)
  * non-blocking flag, so we toggle FIONBIO around the call. Not on any
  * hot path - MSG_DONTWAIT appears in a handful of vsock_test recv sites
  * only, no test issues send + MSG_DONTWAIT. */
-static ssize_t overlapped_send(int fd, const void *buf, size_t len, int flags)
+static ssize_t overlapped_send_wsa(int fd, const void *buf, size_t len, int flags)
 {
     bool dontwait = (flags & MSG_DONTWAIT) != 0;
     /* Strip Linux-only flags; MSG_ZEROCOPY stays - viosocklib
@@ -205,9 +216,9 @@ static ssize_t overlapped_send(int fd, const void *buf, size_t len, int flags)
  * tract.  Same WSABUF split shape as overlapped_send so the
  * scatter-recv path is hit identically.
  */
-static ssize_t overlapped_recv(int fd, void *buf, size_t len, int flags)
+static ssize_t overlapped_recv_wsa(int fd, void *buf, size_t len, int flags)
 {
-    /* MSG_DONTWAIT: see overlapped_send for the FIONBIO toggle rationale. */
+    /* MSG_DONTWAIT: see overlapped_send_wsa for the FIONBIO toggle rationale. */
     bool dontwait = (flags & MSG_DONTWAIT) != 0;
     flags &= ~MSG_DONTWAIT;
 
@@ -304,6 +315,124 @@ static ssize_t overlapped_recv(int fd, void *buf, size_t len, int flags)
         return -1;
     }
     return (ssize_t)bytes;
+}
+
+/* Send path: WriteFileEx + APC, waited on alertably like the WSA send.
+ * Win32 failure codes go through file_error_to_wsa (compat.c); the
+ * ambiguous ERROR_NETNAME_DELETED is re-issued through the WSA pair. */
+struct overlapped_file_ctx
+{
+    OVERLAPPED ov;
+    DWORD bytes;
+    DWORD err;
+    HANDLE done_ev;
+};
+
+static void CALLBACK overlapped_file_apc_cb(DWORD dwError, DWORD cbTransferred, LPOVERLAPPED lpOverlapped)
+{
+    struct overlapped_file_ctx *c = (struct overlapped_file_ctx *)lpOverlapped->hEvent;
+    c->err = dwError;
+    c->bytes = cbTransferred;
+    SetEvent(c->done_ev);
+}
+
+static ssize_t overlapped_send_file(int fd, const void *buf, size_t len)
+{
+    struct overlapped_file_ctx ctx = {0};
+    DWORD err = 0;
+
+    ctx.done_ev = CreateEventW(NULL, TRUE, FALSE, NULL);
+    if (!ctx.done_ev)
+    {
+        wsa_set_errno();
+        return -1;
+    }
+    /* WriteFileEx ignores hEvent; reuse it as the ctx back-pointer. */
+    ctx.ov.hEvent = (HANDLE)&ctx;
+
+    if (!WriteFileEx((HANDLE)(SOCKET)fd, buf, (DWORD)len, &ctx.ov, overlapped_file_apc_cb))
+    {
+        err = GetLastError();
+    }
+    else if (!overlapped_wait_alertable(ctx.done_ev, &ctx.err) || ctx.err != 0)
+    {
+        err = ctx.err ? ctx.err : ERROR_GEN_FAILURE;
+    }
+    CloseHandle(ctx.done_ev);
+
+    if (err == 0)
+    {
+        return (ssize_t)ctx.bytes;
+    }
+    /* Win32 folds reset, peer and own shutdown into 64; the socket stays in
+     * that state, so a Winsock retry sends nothing and yields the exact error. */
+    if (err == ERROR_NETNAME_DELETED)
+    {
+        return overlapped_send_wsa(fd, buf, len, 0);
+    }
+    WSASetLastError(file_error_to_wsa(err));
+    wsa_set_errno();
+    return -1;
+}
+
+/* Recv path: ReadFile with an event OVERLAPPED + GetOverlappedResult(bWait). */
+static ssize_t overlapped_recv_file(int fd, void *buf, size_t len)
+{
+    OVERLAPPED ov = {0};
+    DWORD got = 0;
+    DWORD err = 0;
+
+    ov.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
+    if (!ov.hEvent)
+    {
+        wsa_set_errno();
+        return -1;
+    }
+    /* See overlapped_recv_wsa: mark the op pending so the wait inside
+     * GetOverlappedResult really blocks on hEvent. */
+    ov.Internal = (ULONG_PTR)STATUS_PENDING;
+
+    if (!ReadFile((HANDLE)(SOCKET)fd, buf, (DWORD)len, &got, &ov))
+    {
+        err = GetLastError();
+        if (err == ERROR_IO_PENDING)
+        {
+            err = GetOverlappedResult((HANDLE)(SOCKET)fd, &ov, &got, TRUE) ? 0 : GetLastError();
+        }
+    }
+    CloseHandle(ov.hEvent);
+
+    if (err == 0 || err == ERROR_HANDLE_EOF)
+    {
+        return (ssize_t)got;
+    }
+    /* Same as in overlapped_send_file: 64 is ambiguous, the Winsock retry is
+     * harmless on a dead socket and names the real error. */
+    if (err == ERROR_NETNAME_DELETED)
+    {
+        return overlapped_recv_wsa(fd, buf, len, 0);
+    }
+    WSASetLastError(file_error_to_wsa(err));
+    wsa_set_errno();
+    return -1;
+}
+
+static ssize_t overlapped_send(int fd, const void *buf, size_t len, int flags)
+{
+    if (sock_io_is_file() && (flags & ~MSG_MORE) == 0)
+    {
+        return overlapped_send_file(fd, buf, len);
+    }
+    return overlapped_send_wsa(fd, buf, len, flags);
+}
+
+static ssize_t overlapped_recv(int fd, void *buf, size_t len, int flags)
+{
+    if (sock_io_is_file() && flags == 0)
+    {
+        return overlapped_recv_file(fd, buf, len);
+    }
+    return overlapped_recv_wsa(fd, buf, len, flags);
 }
 
 static ssize_t overlapped_read(int fd, void *buf, size_t len)

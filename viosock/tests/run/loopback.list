@@ -14,15 +14,21 @@
 0    posix  SOCK_STREAM connection reset
 0    wsa    SOCK_STREAM connection reset
 0    overlapped SOCK_STREAM connection reset
+0    posix-fs SOCK_STREAM connection reset
+0    overlapped-fs SOCK_STREAM connection reset
 1    posix  SOCK_STREAM bind only
 1    wsa    SOCK_STREAM bind only
 1    overlapped SOCK_STREAM bind only
 2    posix  SOCK_STREAM client close
 2    wsa    SOCK_STREAM client close
 2    overlapped SOCK_STREAM client close
+2    posix-fs SOCK_STREAM client close
+2    overlapped-fs SOCK_STREAM client close
 3    posix  SOCK_STREAM server close
 3    wsa    SOCK_STREAM server close
 3    overlapped SOCK_STREAM server close
+3    posix-fs SOCK_STREAM server close
+3    overlapped-fs SOCK_STREAM server close
 4    posix  SOCK_STREAM multiple connections
 4    wsa    SOCK_STREAM multiple connections
 4    overlapped SOCK_STREAM multiple connections
@@ -44,10 +50,14 @@
 14   posix  SOCK_STREAM virtio skb merge
 14   wsa    SOCK_STREAM virtio skb merge
 14   overlapped SOCK_STREAM virtio skb merge
+14   posix-fs SOCK_STREAM virtio skb merge
+14   overlapped-fs SOCK_STREAM virtio skb merge
 # 15 posix  SOCK_SEQPACKET MSG_PEEK                         — disabled: shared body ready via test_msg_peek_*(bool seqpacket); needs seqpacket wrapper + wiring + driver SEQPACKET
 16   posix  SOCK_STREAM SHUT_WR
 16   wsa    SOCK_STREAM SHUT_WR
 16   overlapped SOCK_STREAM SHUT_WR
+16   posix-fs SOCK_STREAM SHUT_WR
+16   overlapped-fs SOCK_STREAM SHUT_WR
 17   posix  SOCK_STREAM SHUT_RD
 17   wsa    SOCK_STREAM SHUT_RD
 17   overlapped SOCK_STREAM SHUT_RD
@@ -58,12 +68,16 @@
 20   posix  SOCK_STREAM full TX window (Linux: MSG_ZEROCOPY empty MSG_ERRQUEUE)
 20   wsa    SOCK_STREAM full TX window (Linux: MSG_ZEROCOPY empty MSG_ERRQUEUE)
 20   overlapped SOCK_STREAM full TX window (Linux: MSG_ZEROCOPY empty MSG_ERRQUEUE)
+20   posix-fs SOCK_STREAM full TX window (Linux: MSG_ZEROCOPY empty MSG_ERRQUEUE)
+20   overlapped-fs SOCK_STREAM full TX window (Linux: MSG_ZEROCOPY empty MSG_ERRQUEUE)
 21   posix  SOCK_STREAM double bind connect
 21   wsa    SOCK_STREAM double bind connect
 21   overlapped SOCK_STREAM double bind connect
 22   posix  SOCK_STREAM virtio credit update + SO_RCVLOWAT
 22   wsa    SOCK_STREAM virtio credit update + SO_RCVLOWAT
 22   overlapped SOCK_STREAM virtio credit update + SO_RCVLOWAT
+22   posix-fs SOCK_STREAM virtio credit update + SO_RCVLOWAT
+22   overlapped-fs SOCK_STREAM virtio credit update + SO_RCVLOWAT
 23   posix  SOCK_STREAM virtio credit update + low rx_bytes
 23   wsa    SOCK_STREAM virtio credit update + low rx_bytes
 23   overlapped SOCK_STREAM virtio credit update + low rx_bytes
@@ -99,6 +113,10 @@
 37   posix  SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption
 37   wsa    SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption
 37   overlapped SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption
+37   posix-fs SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption
+37   overlapped-fs SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption
 38   posix  SOCK_STREAM TX credit bounds
 38   wsa    SOCK_STREAM TX credit bounds
 38   overlapped SOCK_STREAM TX credit bounds
+38   posix-fs SOCK_STREAM TX credit bounds
+38   overlapped-fs SOCK_STREAM TX credit bounds
