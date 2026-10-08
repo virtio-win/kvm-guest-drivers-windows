@@ -860,6 +860,16 @@ static VOID VIOSockRxPktHandleListen(IN PSOCKET_CONTEXT pSocket, IN PVIRTIO_VSOC
     }
 }
 
+// Whether a packet without a live socket gets an RST reply. Never for RST
+// (ping-pong). Never for credit packets either: a non-lingering close drops
+// the socket at once, and a peer still reading its data keeps sending them —
+// an RST would cut its unread data off.
+static __inline BOOLEAN VIOSockRxPktNeedsReset(IN PVIRTIO_VSOCK_HDR pPktHdr)
+{
+    return pPktHdr->op != VIRTIO_VSOCK_OP_RST && pPktHdr->op != VIRTIO_VSOCK_OP_CREDIT_UPDATE &&
+           pPktHdr->op != VIRTIO_VSOCK_OP_CREDIT_REQUEST;
+}
+
 VOID VIOSockRxPktHandle(IN PDEVICE_CONTEXT pContext, IN PVIRTIO_VSOCK_HDR pPktHdr, IN BOOLEAN bLoopback)
 {
     BOOLEAN bTxHasSpace;
@@ -889,7 +899,7 @@ VOID VIOSockRxPktHandle(IN PDEVICE_CONTEXT pContext, IN PVIRTIO_VSOCK_HDR pPktHd
         // — replying to RST creates a ping-pong of late-arriving cleanup
         // RSTs that surfaces on the peer as spurious `Connection reset by
         // peer` on unrelated sockets.
-        if (pPktHdr->op != VIRTIO_VSOCK_OP_RST)
+        if (VIOSockRxPktNeedsReset(pPktHdr))
         {
             VIOSockSendResetNoSock(pContext, pPktHdr);
         }
@@ -938,7 +948,7 @@ VOID VIOSockRxPktHandle(IN PDEVICE_CONTEXT pContext, IN PVIRTIO_VSOCK_HDR pPktHd
                             pSocket->SocketId,
                             VIOSockStateGet(pSocket),
                             pPktHdr->op);
-                if (pPktHdr->op != VIRTIO_VSOCK_OP_RST)
+                if (VIOSockRxPktNeedsReset(pPktHdr))
                 {
                     VIOSockSendResetNoSock(pContext, pPktHdr);
                 }
