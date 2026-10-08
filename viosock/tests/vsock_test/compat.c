@@ -13,6 +13,9 @@
 #include "compat.h"
 #include "sock_ops.h"
 
+#include <fcntl.h>
+#include <io.h>
+
 int wsa_to_errno(int wsa_err)
 {
     switch (wsa_err)
@@ -96,9 +99,75 @@ void wsa_set_errno(void)
     errno = wsa_to_errno(WSAGetLastError());
 }
 
+/* --io knob shared by the posix and overlapped variants: false = Winsock
+ * send / recv (default), true = file I/O on the socket handle. */
+static bool g_io_file;
+
+int sock_io_select(const char *io)
+{
+    if (strcmp(io, "wsa") == 0)
+    {
+        g_io_file = false;
+        return 0;
+    }
+    if (strcmp(io, "file") == 0)
+    {
+        g_io_file = true;
+        return 0;
+    }
+    return -1;
+}
+
+bool sock_io_is_file(void)
+{
+    return g_io_file;
+}
+
+/*
+ * File-I/O failures surface as Win32 codes (RtlNtStatusToDosError on the
+ * driver's NTSTATUS), coarser than the Winsock set: reset, peer shutdown
+ * and our own shutdown all become ERROR_NETNAME_DELETED.  Map the
+ * unambiguous ones here; callers re-issue the ambiguous one through the
+ * Winsock call, which fails at once with the exact Winsock error.
+ */
+int file_error_to_wsa(DWORD err)
+{
+    switch (err)
+    {
+        case ERROR_CANT_WAIT: /* STATUS_CANT_WAIT: non-blocking socket, nothing to do yet */
+            return WSAEWOULDBLOCK;
+        case ERROR_CONNECTION_ABORTED:
+            return WSAECONNABORTED;
+        case ERROR_CONNECTION_REFUSED:
+            return WSAECONNREFUSED;
+        case ERROR_GRACEFUL_DISCONNECT:
+            return WSAEDISCON;
+        case ERROR_SEM_TIMEOUT:
+            return WSAETIMEDOUT;
+        case ERROR_OPERATION_ABORTED:
+            return WSAEINTR;
+        case ERROR_INVALID_HANDLE:
+            return WSAENOTSOCK;
+        case ERROR_NOT_ENOUGH_MEMORY:
+        case ERROR_NO_SYSTEM_RESOURCES:
+            return WSAENOBUFS;
+        case ERROR_INVALID_PARAMETER:
+            return WSAEINVAL;
+        case ERROR_NOACCESS:
+        case ERROR_INVALID_USER_BUFFER:
+            return WSAEFAULT;
+        default:
+            /* Unmapped: keep the raw code so it shows up in the diagnostic. */
+            return (int)err;
+    }
+}
+
 int compat_socket(int af, int type, int proto)
 {
-    SOCKET s = socket(af, type, proto);
+    /* CRT _read / _write wrap ReadFile / WriteFile with no OVERLAPPED, which
+     * is defined only on a synchronous handle; socket() opens overlapped
+     * ones, so --io=file asks for a synchronous socket (accept() inherits). */
+    SOCKET s = g_io_file ? WSASocketW(af, type, proto, NULL, 0, 0) : socket(af, type, proto);
     if (s == INVALID_SOCKET)
     {
         wsa_set_errno();
@@ -132,7 +201,7 @@ int compat_accept(int fd, struct sockaddr *addr, socklen_t *addrlen)
  * flag, so we toggle FIONBIO around the call and restore it after. Not on
  * any hot path - MSG_DONTWAIT appears in a handful of vsock_test recv
  * sites only, no test issues send + MSG_DONTWAIT. */
-ssize_t compat_send(int fd, const void *buf, size_t len, int flags)
+static ssize_t compat_send_wsa(int fd, const void *buf, size_t len, int flags)
 {
     bool dontwait = (flags & MSG_DONTWAIT) != 0;
     /* Strip Linux-only send flags that Winsock2 does not know.
@@ -176,9 +245,9 @@ ssize_t compat_send(int fd, const void *buf, size_t len, int flags)
     return r;
 }
 
-ssize_t compat_recv(int fd, void *buf, size_t len, int flags)
+static ssize_t compat_recv_wsa(int fd, void *buf, size_t len, int flags)
 {
-    /* MSG_DONTWAIT: see compat_send for the FIONBIO toggle rationale. */
+    /* MSG_DONTWAIT: see compat_send_wsa for the FIONBIO toggle rationale. */
     bool dontwait = (flags & MSG_DONTWAIT) != 0;
     flags &= ~MSG_DONTWAIT;
 
@@ -209,6 +278,82 @@ ssize_t compat_recv(int fd, void *buf, size_t len, int flags)
         return -1;
     }
     return r;
+}
+
+/*
+ * --io=file: an unflagged send / recv goes through a CRT fd (_open_osfhandle
+ * + _write / _read), i.e. WriteFile / ReadFile on the socket handle and the
+ * driver's EvtIoWrite / EvtIoRead.  The CRT fd owns its handle and _close()
+ * would CloseHandle() the socket behind Winsock's back, so it gets a
+ * duplicate per call and closesocket() stays the real close.
+ */
+static ssize_t posix_file_io(int fd, void *buf, size_t len, bool write)
+{
+    HANDLE dup;
+    unsigned long doserr = 0;
+    int crt, r;
+
+    if (!DuplicateHandle(GetCurrentProcess(),
+                         (HANDLE)(SOCKET)fd,
+                         GetCurrentProcess(),
+                         &dup,
+                         0,
+                         FALSE,
+                         DUPLICATE_SAME_ACCESS))
+    {
+        WSASetLastError(file_error_to_wsa(GetLastError()));
+        wsa_set_errno();
+        return -1;
+    }
+    crt = _open_osfhandle((intptr_t)dup, _O_RDWR | _O_BINARY);
+    if (crt == -1)
+    {
+        CloseHandle(dup); /* errno is the CRT's */
+        return -1;
+    }
+
+    if (len > INT_MAX)
+    {
+        len = INT_MAX;
+    }
+    r = write ? _write(crt, buf, (unsigned int)len) : _read(crt, buf, (unsigned int)len);
+    if (r < 0)
+    {
+        _get_doserrno(&doserr);
+    }
+    _close(crt); /* the duplicate only */
+
+    if (r >= 0)
+    {
+        return r;
+    }
+    /* Win32 folds reset, peer and own shutdown into 64; the socket stays in
+     * that state, so a Winsock retry sends nothing and yields the exact error. */
+    if (doserr == ERROR_NETNAME_DELETED)
+    {
+        return write ? compat_send_wsa(fd, buf, len, 0) : compat_recv_wsa(fd, buf, len, 0);
+    }
+    WSASetLastError(file_error_to_wsa((DWORD)doserr));
+    wsa_set_errno();
+    return -1;
+}
+
+ssize_t compat_send(int fd, const void *buf, size_t len, int flags)
+{
+    if (g_io_file && (flags & ~MSG_MORE) == 0)
+    {
+        return posix_file_io(fd, (void *)buf, len, true);
+    }
+    return compat_send_wsa(fd, buf, len, flags);
+}
+
+ssize_t compat_recv(int fd, void *buf, size_t len, int flags)
+{
+    if (g_io_file && flags == 0)
+    {
+        return posix_file_io(fd, buf, len, false);
+    }
+    return compat_recv_wsa(fd, buf, len, flags);
 }
 
 ssize_t compat_read(int fd, void *buf, size_t len)

@@ -150,8 +150,10 @@ which **Windows-side** invocation to run:
 | variant       | Guest command                                          | Notes                                                                 |
 |---------------|--------------------------------------------------------|-----------------------------------------------------------------------|
 | `posix`       | `<guest_bin_dir>\vsock_test.exe`                       | The current Linux-source port through `compat.h` (Winsock2 shim).     |
+| `posix-fs`    | `<guest_bin_dir>\vsock_test.exe --io=file`             | posix, data calls via CRT `_read`/`_write` on `_open_osfhandle`.      |
 | `wsa`         | `<guest_bin_dir>\vsock_test.exe --variant wsa`         | A native Winsock port with no `compat.h`.                   |
 | `overlapped`  | `<guest_bin_dir>\vsock_test.exe --variant overlapped`  | Same exe, overlapped IO mode.                              |
+| `overlapped-fs` | `<guest_bin_dir>\vsock_test.exe --variant overlapped --io=file` | overlapped, data calls via `WriteFileEx`/`ReadFile` + OVERLAPPED. |
 
 Central mapping: `variant_to_cmd()` in `_lib.sh` — a new variant is one
 `case`-branch. `variant_to_image()` returns the exe basename so
@@ -169,6 +171,24 @@ Restrict a run to one variant with `--variant`:
 ```
 
 Omit `--variant` to run every declared variant in every list.
+
+### File-I/O variants (`posix-fs`, `overlapped-fs`)
+
+`--io=file` switches the unflagged send / recv of the `posix` and
+`overlapped` variants to file I/O on the socket handle — CRT `_read` /
+`_write` through `_open_osfhandle` resp. `ReadFile` / `WriteFileEx` with
+an OVERLAPPED — which reaches the driver's `EvtIoRead` / `EvtIoWrite`
+instead of the IOCTL send / recv. Flagged calls (`MSG_PEEK`,
+`MSG_DONTWAIT`, `MSG_ZEROCOPY`) stay on the Winsock path because the file
+calls carry no flags.
+
+The lists enable the two `-fs` variants only for the ids that exercise a
+distinct driver path (reset, EOF, multi-packet reads, shutdown, full TX
+window, credit flow, send integrity) rather than for every row: the goal
+is coverage of the read / write entries, not a third copy of the sweep.
+
+`run-perf.sh` has the same knob as the `PERF_IO=file` environment
+variable, `perf-one.sh` as `--io file`.
 
 ## Bit-width (`--bits` / `--x86`)
 
