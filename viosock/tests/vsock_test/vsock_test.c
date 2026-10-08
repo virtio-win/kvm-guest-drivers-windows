@@ -2408,6 +2408,10 @@ static const struct option longopts[] = {
                                                                                                      required_argument,
                                                                                                      NULL,
                                                                                                      'V'},
+                                                                                                    {"io",
+                                                                                                     required_argument,
+                                                                                                     NULL,
+                                                                                                     'I'},
                                                                                                     {"help",
                                                                                                      no_argument,
                                                                                                      NULL,
@@ -2435,7 +2439,10 @@ static void usage(void)
             "  --list                 List all tests\n"
             "  --pick <id>            Run only this test (repeatable)\n"
             "  --skip <id>            Skip this test (repeatable)\n"
-            "  --variant <name>       Socket surface: posix (default) or wsa\n",
+            "  --variant <name>       Socket surface: posix (default), wsa or overlapped\n"
+            "  --io <wsa|file>        posix / overlapped: data calls via Winsock (default)\n"
+            "                         or file I/O on the socket handle (CRT _read/_write,\n"
+            "                         ReadFile/WriteFile)\n",
             DEFAULT_PEER_PORT);
     exit(EXIT_FAILURE);
 }
@@ -2445,6 +2452,7 @@ int __cdecl main(int argc, char **argv)
     WSADATA wsa_data;
     const char *control_host = NULL;
     const char *control_port = NULL;
+    const char *io_str = NULL;
     struct test_opts opts = {
                                                                                                         .mode = TEST_MODE_UNSET,
                                                                                                         .peer_cid = (unsigned int)VMADDR_CID_ANY,
@@ -2521,9 +2529,12 @@ int __cdecl main(int argc, char **argv)
             case 'V':
                 if (sock_ops_select(optarg) != 0)
                 {
-                    fprintf(stderr, "--variant must be \"posix\" or \"wsa\"\n");
+                    fprintf(stderr, "--variant must be \"posix\", \"wsa\" or \"overlapped\"\n");
                     goto fail;
                 }
+                break;
+            case 'I':
+                io_str = optarg;
                 break;
             case '?':
             default:
@@ -2563,6 +2574,24 @@ int __cdecl main(int argc, char **argv)
         variant_str = "overlapped";
     }
     fprintf(stderr, "variant = %s\n", variant_str);
+
+    if (io_str)
+    {
+        if (g_ops == &ops_wsa)
+        {
+            fprintf(stderr, "--io applies to --variant posix or overlapped\n");
+            goto fail;
+        }
+        if (sock_io_select(io_str) != 0)
+        {
+            fprintf(stderr, "--io must be \"wsa\" or \"file\"\n");
+            goto fail;
+        }
+    }
+    if (g_ops != &ops_wsa)
+    {
+        fprintf(stderr, "io = %s\n", sock_io_is_file() ? "file" : "wsa");
+    }
 
     if (g_ops == &ops_wsa || g_ops == &ops_overlapped)
     {

@@ -34,6 +34,10 @@
 # LSP + driver paths regardless of direction. Every enabled row runs all
 # three variants; if one variant fails, comment that specific line with
 # a `disabled: <reason>` note rather than dropping the whole id.
+# `posix-fs` / `overlapped-fs` (--io=file: CRT _read/_write resp.
+# ReadFile/WriteFile on the socket handle, the driver's EvtIoRead /
+# EvtIoWrite) are enabled only for the ids that reach a distinct
+# read/write path, not for every row.
 #
 # --- Baseline ---
 #
@@ -44,15 +48,21 @@
 0    posix  SOCK_STREAM connection reset
 0    wsa    SOCK_STREAM connection reset
 0    overlapped SOCK_STREAM connection reset
+0    posix-fs SOCK_STREAM connection reset
+0    overlapped-fs SOCK_STREAM connection reset
 1    posix  SOCK_STREAM bind only
 1    wsa    SOCK_STREAM bind only
 1    overlapped SOCK_STREAM bind only
 2    posix  SOCK_STREAM client close
 2    wsa    SOCK_STREAM client close
 2    overlapped SOCK_STREAM client close
+2    posix-fs SOCK_STREAM client close
+2    overlapped-fs SOCK_STREAM client close
 3    posix  SOCK_STREAM server close
 3    wsa    SOCK_STREAM server close
 3    overlapped SOCK_STREAM server close
+3    posix-fs SOCK_STREAM server close
+3    overlapped-fs SOCK_STREAM server close
 4    posix  SOCK_STREAM multiple connections
 4    wsa    SOCK_STREAM multiple connections
 4    overlapped SOCK_STREAM multiple connections
@@ -74,10 +84,14 @@
 14   posix  SOCK_STREAM virtio skb merge
 14   wsa    SOCK_STREAM virtio skb merge
 14   overlapped SOCK_STREAM virtio skb merge
+14   posix-fs SOCK_STREAM virtio skb merge
+14   overlapped-fs SOCK_STREAM virtio skb merge
 # 15 posix  SOCK_SEQPACKET MSG_PEEK                         — disabled: shared body ready via test_msg_peek_*(bool seqpacket); needs seqpacket wrapper + wiring + driver SEQPACKET
 16   posix  SOCK_STREAM SHUT_WR
 16   wsa    SOCK_STREAM SHUT_WR
 16   overlapped SOCK_STREAM SHUT_WR
+16   posix-fs SOCK_STREAM SHUT_WR
+16   overlapped-fs SOCK_STREAM SHUT_WR
 17   posix  SOCK_STREAM SHUT_RD
 17   wsa    SOCK_STREAM SHUT_RD
 17   overlapped SOCK_STREAM SHUT_RD
@@ -86,12 +100,16 @@
 20   posix  SOCK_STREAM full TX window (Linux: MSG_ZEROCOPY empty MSG_ERRQUEUE)
 20   wsa    SOCK_STREAM full TX window (Linux: MSG_ZEROCOPY empty MSG_ERRQUEUE)
 20   overlapped SOCK_STREAM full TX window (Linux: MSG_ZEROCOPY empty MSG_ERRQUEUE)
+20   posix-fs SOCK_STREAM full TX window (Linux: MSG_ZEROCOPY empty MSG_ERRQUEUE)
+20   overlapped-fs SOCK_STREAM full TX window (Linux: MSG_ZEROCOPY empty MSG_ERRQUEUE)
 21   posix  SOCK_STREAM double bind connect
 21   wsa    SOCK_STREAM double bind connect
 21   overlapped SOCK_STREAM double bind connect
 22   posix  SOCK_STREAM virtio credit update + SO_RCVLOWAT
 22   wsa    SOCK_STREAM virtio credit update + SO_RCVLOWAT
 22   overlapped SOCK_STREAM virtio credit update + SO_RCVLOWAT
+22   posix-fs SOCK_STREAM virtio credit update + SO_RCVLOWAT
+22   overlapped-fs SOCK_STREAM virtio credit update + SO_RCVLOWAT
 23   posix  SOCK_STREAM virtio credit update + low rx_bytes
 23   wsa    SOCK_STREAM virtio credit update + low rx_bytes
 23   overlapped SOCK_STREAM virtio credit update + low rx_bytes
@@ -121,4 +139,6 @@
 37   posix  SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption
 37   wsa    SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption
 37   overlapped SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption
+37   posix-fs SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption
+37   overlapped-fs SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption
 # 38 posix  SOCK_STREAM TX credit bounds                    — disabled: environmental, not a guest bug (re-classified 2026-08-21 on the Tx-refactor branch). The test checks the SENDER-side min(own,peer) TX window cap; in reverse the sender is the HOST Linux kernel, and dev008's kernel predates the upstream cap fix, so it queues the full 2MB window the server half itself advertises ("queued 2097152, expected <= 65536"). The Windows acceptor advertises correctly (forward direction passes with the guest-side cap). Re-enable on hosts with a capped kernel.

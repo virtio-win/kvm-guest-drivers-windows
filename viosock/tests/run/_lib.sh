@@ -194,6 +194,10 @@ wait_local_port() {
 #   choice as a sweep-wide flag (`--bits`/`--x86`) so a single list row
 #   can be re-run against both bit-widths without touching the list.
 #
+#   posix-fs / overlapped-fs are the file-I/O flavours of posix /
+#   overlapped (`--io=file`: CRT _read/_write resp. ReadFile/WriteFile on
+#   the socket handle, i.e. the driver's EvtIoRead/EvtIoWrite).
+#
 #   Add a new variant here — that's the only central mapping.
 variant_to_cmd() {
     local variant="$1" bits="${2:-x64}" bin_dir="${3:-C:}"
@@ -204,10 +208,12 @@ variant_to_cmd() {
         *)   err "unknown bits: $bits"; return 1 ;;
     esac
     case "$variant" in
-        posix)      flags='' ;;
-        wsa)        flags=' --variant wsa' ;;
-        overlapped) flags=' --variant overlapped' ;;
-        *)          err "unknown variant: $variant"; return 1 ;;
+        posix)         flags='' ;;
+        posix-fs)      flags=' --io=file' ;;
+        wsa)           flags=' --variant wsa' ;;
+        overlapped)    flags=' --variant overlapped' ;;
+        overlapped-fs) flags=' --variant overlapped --io=file' ;;
+        *)             err "unknown variant: $variant"; return 1 ;;
     esac
     printf '%s\\%s%s\n' "$bin_dir" "$exe" "$flags"
 }
