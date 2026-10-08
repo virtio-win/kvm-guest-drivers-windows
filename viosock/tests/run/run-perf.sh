@@ -35,7 +35,17 @@ PERF_PORT=${PERF_PORT:-12347}
 # accept()ed vsock sockets (upstream master today); harmless for our
 # vhi-8.1 driver but reports "read() calls" instead of "POLLIN wakeups".
 PERF_NO_POLL=${PERF_NO_POLL:-}
+# Data path of the Windows-side vsock_perf: wsa (send/read, default) or
+# file (WriteFile/ReadFile on the socket handle).  Windows-only flag, the
+# Linux upstream vsock_perf never sees it.
+PERF_IO=${PERF_IO:-wsa}
 SERVER_GRACE_SECS=${SERVER_GRACE_SECS:-1}
+
+case "$PERF_IO" in
+    wsa)  guest_io='' ;;
+    file) guest_io=' --io=file' ;;
+    *)    die "PERF_IO must be wsa or file, got: $PERF_IO" ;;
+esac
 
 # --- args ----------------------------------------------------------------
 CFG=""; LOGDIR=""; DIRS=""
@@ -54,10 +64,9 @@ Usage: $0 [--config <cfg>] [--logdir <dir>]
 
 Runs vsock_perf in every enabled direction × two buffer sizes.
 
-vsock_perf has one Windows-side flavour: the compat.h POSIX shim.
-Native WSA / overlapped I/O in vsock_perf itself would be a separate
-feature (add --variant to vsock_perf.c first), so this driver has no
---variant flag today.
+vsock_perf has one Windows-side flavour (the compat.h POSIX shim) plus
+the PERF_IO=file knob, which switches the Windows side's data calls to
+WriteFile/ReadFile on the socket handle (see the env block above).
 
 Tunables (env-overridable, defaults in [brackets]):
   PERF_BYTES        [1G]      Total bytes to transfer per run.
@@ -133,7 +142,7 @@ run_forward() {
 
     # Windows sender.  host_cid is what the guest sees as our vsock CID.
     ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" \
-        "$GUEST_CMD --sender $host_cid --port $PERF_PORT --bytes $PERF_BYTES --buf-size $buf_val${PERF_VSK_SIZE:+ --vsk-size $PERF_VSK_SIZE}" \
+        "$GUEST_CMD --sender $host_cid --port $PERF_PORT --bytes $PERF_BYTES --buf-size $buf_val${PERF_VSK_SIZE:+ --vsk-size $PERF_VSK_SIZE}$guest_io" \
         > "$tx_log" 2>&1
     local tx_rc=$?
 
@@ -161,7 +170,7 @@ run_reverse() {
     # Windows receiver: background ssh session so its job object owns the
     # guest-side process; killing the local ssh pid tears it down cleanly.
     ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" \
-        "$GUEST_CMD --port $PERF_PORT --buf-size $buf_val${PERF_VSK_SIZE:+ --vsk-size $PERF_VSK_SIZE}${PERF_RCVLOWAT:+ --rcvlowat $PERF_RCVLOWAT}$no_poll" \
+        "$GUEST_CMD --port $PERF_PORT --buf-size $buf_val${PERF_VSK_SIZE:+ --vsk-size $PERF_VSK_SIZE}${PERF_RCVLOWAT:+ --rcvlowat $PERF_RCVLOWAT}$no_poll$guest_io" \
         > "$rx_log" 2>&1 &
     local rx_ssh_pid=$!
     sleep "$SERVER_GRACE_SECS"
