@@ -356,6 +356,17 @@ typedef struct _ADAPTER_EXTENSION
     ULONGLONG fw_ver;
     ULONG resp_time;
     BOOLEAN bRemoved;
+
+    struct
+    {
+        DECLSPEC_ALIGN(8) volatile LONG64 srbs_sent;
+        DECLSPEC_ALIGN(8) volatile LONG64 srbs_completed;
+        volatile LONG queue_full;
+        volatile LONG reset_count;
+        DECLSPEC_ALIGN(8) volatile LONG64 srbs_completed_on_reset;
+        volatile LONG slow_responses;
+        volatile LONG srb_id_collisions;
+    } diagCounters;
 } ADAPTER_EXTENSION, *PADAPTER_EXTENSION;
 
 #ifndef PCIX_TABLE_POINTER

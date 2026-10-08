@@ -52,6 +52,7 @@
 #define VIOSCSI_SETUP_GUID_INDEX             0
 #define VIOSCSI_MS_ADAPTER_INFORM_GUID_INDEX 1
 #define VIOSCSI_MS_PORT_INFORM_GUID_INDEX    2
+#define VIOSCSI_DIAG_GUID_INDEX              3
 
 BOOLEAN IsCrashDumpMode;
 
@@ -157,6 +158,7 @@ UCHAR
 VioScsiQueryWmiRegInfo(IN PVOID Context, IN PSCSIWMI_REQUEST_CONTEXT RequestContext, OUT PWCHAR *MofResourceName);
 
 VOID VioScsiReadExtendedData(IN PVOID Context, OUT PUCHAR Buffer);
+VOID VioScsiReadDiagData(IN PVOID Context, OUT PUCHAR Buffer);
 
 VOID VioScsiSaveInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb);
 
@@ -165,6 +167,7 @@ VOID VioScsiPatchInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb);
 GUID VioScsiWmiExtendedInfoGuid = VioScsiWmi_ExtendedInfo_Guid;
 GUID VioScsiWmiAdapterInformationQueryGuid = MS_SM_AdapterInformationQueryGuid;
 GUID VioScsiWmiPortInformationMethodsGuid = MS_SM_PortInformationMethodsGuid;
+GUID VioScsiWmiDiagGuid = VioScsiWmi_Diag_Guid;
 
 // clang-format off
 SCSIWMIGUIDREGINFO VioScsiGuidList[] =
@@ -172,6 +175,7 @@ SCSIWMIGUIDREGINFO VioScsiGuidList[] =
    { &VioScsiWmiExtendedInfoGuid,            1, 0 },
    { &VioScsiWmiAdapterInformationQueryGuid, 1, 0 },
    { &VioScsiWmiPortInformationMethodsGuid,  1, 0 },
+   { &VioScsiWmiDiagGuid,                    1, 0 },
 };
 // clang-format on
 
@@ -1516,11 +1520,13 @@ VOID ProcessQueue(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOOLEAN isr)
 
             if (!bFound)
             {
+                InterlockedIncrement(&adaptExt->diagCounters.srb_id_collisions);
                 RhelDbgPrint(TRACE_LEVEL_WARNING, " No SRB found for ID 0x%p\n", (void *)srbId);
             }
 
             if (bFound)
             {
+                InterlockedIncrement64(&adaptExt->diagCounters.srbs_completed);
                 HandleResponse(DeviceExtension, &srbExt->cmd);
             }
         }
@@ -1552,6 +1558,7 @@ VOID CompletePendingRequestsOnReset(IN PVOID DeviceExtension)
     if (!adaptExt->reset_in_progress)
     {
         adaptExt->reset_in_progress = TRUE;
+        InterlockedIncrement(&adaptExt->diagCounters.reset_count);
         StorPortPause(DeviceExtension, 10);
         DeviceReset(DeviceExtension);
 
@@ -1576,6 +1583,7 @@ VOID CompletePendingRequestsOnReset(IN PVOID DeviceExtension)
                         SRB_SET_DATA_TRANSFER_LENGTH(currSrb, 0);
                         CompleteRequest(DeviceExtension, (PSRB_TYPE)currSrb);
                         element->srb_cnt--;
+                        InterlockedIncrement64(&adaptExt->diagCounters.srbs_completed_on_reset);
                     }
                 }
             }
@@ -1774,6 +1782,7 @@ VOID CompleteRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
                              freq.QuadPart);
                 if (time_msec >= adaptExt->resp_time)
                 {
+                    InterlockedIncrement(&adaptExt->diagCounters.slow_responses);
                     PCDB cdb = SRB_CDB(Srb);
                     if (cdb)
                     { // Check for SDV compliance
@@ -2333,6 +2342,20 @@ VioScsiQueryWmiDataBlock(IN PVOID Context,
                 status = SRB_STATUS_SUCCESS;
             }
             break;
+        case VIOSCSI_DIAG_GUID_INDEX:
+            {
+                size = VioScsiDiag_SIZE;
+                if (OutBufferSize < size)
+                {
+                    status = SRB_STATUS_DATA_OVERRUN;
+                    break;
+                }
+
+                VioScsiReadDiagData(Context, Buffer);
+                *InstanceLengthArray = size;
+                status = SRB_STATUS_SUCCESS;
+            }
+            break;
         default:
             {
                 status = SRB_STATUS_ERROR;
@@ -2625,5 +2648,29 @@ VOID VioScsiReadExtendedData(IN PVOID Context, OUT PUCHAR Buffer)
     extInfo->CompletionDuringStartIo = CHECKFLAG(adaptExt->perfFlags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO);
     extInfo->PhysicalBreaks = adaptExt->max_physical_breaks;
     extInfo->ResponseTime = adaptExt->resp_time;
+    EXIT_FN();
+}
+
+VOID VioScsiReadDiagData(IN PVOID Context, OUT PUCHAR Buffer)
+{
+    PADAPTER_EXTENSION adaptExt;
+    PVioScsiDiag diagInfo;
+
+    ENTER_FN();
+
+    adaptExt = (PADAPTER_EXTENSION)Context;
+    diagInfo = (PVioScsiDiag)Buffer;
+
+    RtlZeroMemory(Buffer, VioScsiDiag_SIZE);
+
+    diagInfo->SrbsSent = (ULONGLONG)InterlockedCompareExchange64(&adaptExt->diagCounters.srbs_sent, 0, 0);
+    diagInfo->SrbsCompleted = (ULONGLONG)InterlockedCompareExchange64(&adaptExt->diagCounters.srbs_completed, 0, 0);
+    diagInfo->QueueFull = adaptExt->diagCounters.queue_full;
+    diagInfo->ResetCount = adaptExt->diagCounters.reset_count;
+    diagInfo->SrbsCompletedOnReset = (ULONGLONG)InterlockedCompareExchange64(&adaptExt->diagCounters.srbs_completed_on_reset,
+                                                                             0,
+                                                                             0);
+    diagInfo->SlowResponses = adaptExt->diagCounters.slow_responses;
+    diagInfo->SrbIdCollisions = adaptExt->diagCounters.srb_id_collisions;
     EXIT_FN();
 }

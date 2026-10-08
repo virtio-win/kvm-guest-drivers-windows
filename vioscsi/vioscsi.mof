@@ -12,15 +12,56 @@ class VioScsiExtendedInfoGuid
     [read,key] String InstanceName;
     [read] boolean Active;
 
-    [read, WmiDataId(1), WmiVersion(1)] uint32 QueueDepth;
-    [read, WmiDataId(2), WmiVersion(1)] uint8  QueuesCount;
-    [read, WmiDataId(3), WmiVersion(1)] boolean Indirect;
-    [read, WmiDataId(4), WmiVersion(1)] boolean EventIndex;
-    [read, WmiDataId(5), WmiVersion(1)] boolean DpcRedirection;
-    [read, WmiDataId(6), WmiVersion(1)] boolean ConcurrentChannels;
-    [read, WmiDataId(7), WmiVersion(1)] boolean InterruptMsgRanges;
-    [read, WmiDataId(8), WmiVersion(1)] boolean CompletionDuringStartIo;
-    [read, WmiDataId(9), WmiVersion(1)] boolean RingPacked;
-    [read, WmiDataId(10), WmiVersion(1)] uint32 PhysicalBreaks;
-    [read, WmiDataId(11), WmiVersion(1)] uint32 ResponseTime;
+    [read, WmiDataId(1), WmiVersion(1),
+     Description("Per-LUN queue depth, static after initialization")] uint32 QueueDepth;
+    [read, WmiDataId(2), WmiVersion(1),
+     Description("Number of request virtqueues, static after initialization")] uint8  QueuesCount;
+    [read, WmiDataId(3), WmiVersion(1),
+     Description("VIRTIO_RING_F_INDIRECT_DESC feature negotiated, static after initialization")] boolean Indirect;
+    [read, WmiDataId(4), WmiVersion(1),
+     Description("VIRTIO_RING_F_EVENT_IDX feature negotiated, static after initialization")] boolean EventIndex;
+    [read, WmiDataId(5), WmiVersion(1),
+     Description("STOR_PERF_DPC_REDIRECTION optimization active, static after initialization")] boolean DpcRedirection;
+    [read, WmiDataId(6), WmiVersion(1),
+     Description("STOR_PERF_CONCURRENT_CHANNELS optimization active, static after initialization")] boolean ConcurrentChannels;
+    [read, WmiDataId(7), WmiVersion(1),
+     Description("STOR_PERF_INTERRUPT_MESSAGE_RANGES optimization active, static after initialization")] boolean InterruptMsgRanges;
+    [read, WmiDataId(8), WmiVersion(1),
+     Description("STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO optimization active, static after initialization")] boolean CompletionDuringStartIo;
+    [read, WmiDataId(9), WmiVersion(1),
+     Description("VIRTIO_F_RING_PACKED feature negotiated, static after initialization")] boolean RingPacked;
+    [read, WmiDataId(10), WmiVersion(1),
+     Description("Maximum physical breaks per transfer, static after initialization")] uint32 PhysicalBreaks;
+    [read, WmiDataId(11), WmiVersion(1),
+     Description("Response time tracing threshold in milliseconds from registry, 0 if disabled, static after initialization")] uint32 ResponseTime;
+};
+
+[
+    Dynamic, Provider("WMIProv"),
+    WMI,
+    Description("VirtIO SCSI Diagnostic Counters"),
+    guid("{8BC55735-2C57-4B33-A0C6-D6981A25BD1A}"),
+    HeaderName("VioScsiDiag"),
+    GuidName1("VioScsiWmi_Diag_Guid"),
+    WmiExpense(0)
+]
+class VioScsiDiagGuid
+{
+    [read, key] String InstanceName;
+    [read] boolean Active;
+
+    [read, WmiDataId(1), WmiVersion(1),
+     Description("Total SRBs submitted to virtqueues")] uint64 SrbsSent;
+    [read, WmiDataId(2), WmiVersion(1),
+     Description("Total SRBs completed normally from virtqueues")] uint64 SrbsCompleted;
+    [read, WmiDataId(3), WmiVersion(1),
+     Description("SRBs rejected with SCSISTAT_QUEUE_FULL due to virtqueue full")] uint32 QueueFull;
+    [read, WmiDataId(4), WmiVersion(1),
+     Description("Number of bus/device/LUN reset events processed")] uint32 ResetCount;
+    [read, WmiDataId(5), WmiVersion(1),
+     Description("SRBs force-completed during reset with SRB_STATUS_BUS_RESET")] uint64 SrbsCompletedOnReset;
+    [read, WmiDataId(6), WmiVersion(1),
+     Description("SRBs exceeding the ResponseTime threshold, requires ResponseTime > 0")] uint32 SlowResponses;
+    [read, WmiDataId(7), WmiVersion(1),
+     Description("Completed virtqueue buffers not matched to any pending SRB")] uint32 SrbIdCollisions;
 };
