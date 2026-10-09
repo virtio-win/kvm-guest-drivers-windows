@@ -52,10 +52,16 @@ CopyFiles=Drivers_Dir
 balloon.sys
 
 [BALLOON_Device.NT.HW]
-AddReg=BALLOON_SD
+AddReg=BALLOON_SD,BALLOON_MSI
 
 [BALLOON_SD]
 HKR,,Security,,"D:P(A;;GA;;;SY)"
+
+[BALLOON_MSI]
+HKR,Interrupt Management,,0x00000010
+HKR,Interrupt Management\MessageSignaledInterruptProperties,,0x00000010
+HKR,Interrupt Management\MessageSignaledInterruptProperties,MSISupported,0x00010001,1
+HKR,Interrupt Management\MessageSignaledInterruptProperties,MessageNumberLimit,0x00010001,1
 
 ;-------------- Service installation
 [BALLOON_Device.NT.Services]
