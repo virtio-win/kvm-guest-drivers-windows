@@ -128,6 +128,25 @@ BalloonInit(IN WDFOBJECT WdfDevice)
     return status;
 }
 
+/*
+ * The virtio spec (5.5.6) defines the inflate and deflate buffers as arrays
+ * of 32-bit PFNs (guest physical address >> 12), while PFN_NUMBER is 64 bits
+ * wide on 64-bit Windows. Convert the MDL's PFN array into the device format.
+ */
+C_ASSERT(PAGE_SIZE == (1 << VIRTIO_BALLOON_PFN_SHIFT));
+
+static VOID BalloonCopyPfns(IN PDEVICE_CONTEXT ctx, IN PMDL pPageMdl)
+{
+    PPFN_NUMBER pfns = MmGetMdlPfnArray(pPageMdl);
+    ULONG i;
+
+    for (i = 0; i < ctx->num_pfns; i++)
+    {
+        ASSERT(pfns[i] <= MAXULONG);
+        ctx->pfns_table[i] = (ULONG)pfns[i];
+    }
+}
+
 NTSTATUS
 BalloonFill(IN WDFOBJECT WdfDevice, IN size_t num)
 {
@@ -151,11 +170,12 @@ BalloonFill(IN WDFOBJECT WdfDevice, IN size_t num)
     }
 #endif // !BALLOON_INFLATE_IGNORE_LOWMEM
 
-    num = min(num, PAGE_SIZE / sizeof(PFN_NUMBER));
+    num = min(num, PAGE_SIZE / sizeof(ctx->pfns_table[0]));
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "Inflate balloon with %d pages.\n", num);
 
     LowAddress.QuadPart = 0;
-    HighAddress.QuadPart = (ULONGLONG)-1;
+    // Only pages whose PFN fits in 32 bits can be reported to the device.
+    HighAddress.QuadPart = ((ULONGLONG)MAXULONG << VIRTIO_BALLOON_PFN_SHIFT) | (PAGE_SIZE - 1);
     SkipBytes.QuadPart = 0;
 
     pPageMdl = MmAllocatePagesForMdlEx(LowAddress,
@@ -199,7 +219,7 @@ BalloonFill(IN WDFOBJECT WdfDevice, IN size_t num)
     ctx->num_pfns = (ULONG)num;
     ctx->num_pages += ctx->num_pfns;
 
-    RtlCopyMemory(ctx->pfns_table, MmGetMdlPfnArray(pPageMdl), ctx->num_pfns * sizeof(PFN_NUMBER));
+    BalloonCopyPfns(ctx, pPageMdl);
 
     status = BalloonTellHost(WdfDevice, ctx->InfVirtQueue);
 
@@ -232,7 +252,7 @@ BalloonLeak(IN WDFOBJECT WdfDevice, IN size_t num)
     ctx->num_pfns = (ULONG)num;
     ctx->num_pages -= ctx->num_pfns;
 
-    RtlCopyMemory(ctx->pfns_table, MmGetMdlPfnArray(pPageMdl), ctx->num_pfns * sizeof(PFN_NUMBER));
+    BalloonCopyPfns(ctx, pPageMdl);
 
     MmFreePagesFromMdl(pPageMdl);
     ExFreePool(pPageMdl);

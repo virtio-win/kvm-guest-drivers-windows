@@ -249,9 +249,9 @@ BalloonEvtDevicePrepareHardware(IN WDFDEVICE Device,
     /* use BALLOON_MGMT_POOL_TAG also for tagging common memory blocks */
     if (NT_SUCCESS(status))
     {
-        devCtx->pfns_table = (PPFN_NUMBER)VirtIOWdfDeviceAllocDmaMemory(&devCtx->VDevice.VIODevice,
-                                                                        PAGE_SIZE,
-                                                                        BALLOON_MGMT_POOL_TAG);
+        devCtx->pfns_table = (PULONG)VirtIOWdfDeviceAllocDmaMemory(&devCtx->VDevice.VIODevice,
+                                                                   PAGE_SIZE,
+                                                                   BALLOON_MGMT_POOL_TAG);
     }
 
     if (devCtx->pfns_table == NULL)
