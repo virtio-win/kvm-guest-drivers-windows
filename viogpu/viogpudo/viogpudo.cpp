@@ -483,6 +483,8 @@ NTSTATUS VioGpuDod::QueryAdapterInfo(_In_ CONST DXGKARG_QUERYADAPTERINFO *pQuery
                     pDriverCaps->MaxPointerHeight = POINTER_SIZE;
                     pDriverCaps->PointerCaps.Color = 1;
                     pDriverCaps->PointerCaps.MaskedColor = 1;
+                    // Monochrome shapes (the text I-beam for instance) are converted in UpdateCursor.
+                    pDriverCaps->PointerCaps.Monochrome = 1;
                 }
                 pDriverCaps->SupportNonVGA = IsVgaDevice();
                 pDriverCaps->SupportSmoothRotation = TRUE;
@@ -2972,12 +2974,6 @@ NTSTATUS VioGpuAdapter::SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSet
               pSetPointerShape->XHot,
               pSetPointerShape->YHot));
 
-    if (pSetPointerShape->Flags.Monochrome)
-    {
-        VioGpuDbgBreak();
-        return STATUS_UNSUCCESSFUL;
-    }
-
     // The image upload and the UPDATE_CURSOR below must not interleave with a concurrent MOVE_CURSOR
     // issued by SetPointerPosition on another thread (see m_CursorMutex).
     NTSTATUS status = STATUS_UNSUCCESSFUL;
@@ -3981,6 +3977,99 @@ BOOLEAN VioGpuAdapter::CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPoin
     return status;
 }
 
+// Converts a monochrome pointer to A8R8G8B8. The source is a 1bpp AND mask of Width x Height
+// immediately followed by a 1bpp XOR mask of the same size. AND/XOR: 0/0 = black, 0/1 = white,
+// 1/0 = transparent, 1/1 = invert the screen pixel. virtio-gpu cursors cannot invert, so the
+// last case is drawn as opaque black.
+static void ConvertMonochromeToBgra(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape, BYTE *dst, ULONG dstPitch)
+{
+    const BYTE *src = (const BYTE *)pSetPointerShape->pPixels;
+    const ULONG srcPitch = pSetPointerShape->Pitch;
+    UINT w = pSetPointerShape->Width;
+    UINT h = pSetPointerShape->Height;
+    if (w > POINTER_SIZE)
+    {
+        w = POINTER_SIZE;
+    }
+    if (h > POINTER_SIZE)
+    {
+        h = POINTER_SIZE;
+    }
+
+    for (UINT y = 0; y < h; y++)
+    {
+        const BYTE *andRow = src + (size_t)y * srcPitch;
+        const BYTE *xorRow = src + (size_t)(pSetPointerShape->Height + y) * srcPitch;
+        ULONG *dstRow = (ULONG *)(dst + (size_t)y * dstPitch);
+        for (UINT x = 0; x < w; x++)
+        {
+            BYTE bit = (BYTE)(0x80 >> (x & 7));
+            BOOLEAN a = (andRow[x >> 3] & bit) != 0;
+            BOOLEAN xo = (xorRow[x >> 3] & bit) != 0;
+            if (!a && !xo)
+            {
+                dstRow[x] = 0xFF000000; // opaque black
+            }
+            else if (!a && xo)
+            {
+                dstRow[x] = 0xFFFFFFFF; // opaque white
+            }
+            else if (a && !xo)
+            {
+                dstRow[x] = 0x00000000; // transparent
+            }
+            else
+            {
+                dstRow[x] = 0xFF000000; // invert, drawn as opaque black
+            }
+        }
+    }
+}
+
+// Converts a masked-color pointer to A8R8G8B8. The source is 32bpp where the alpha byte is a
+// mask: 0x00 = the RGB value replaces the screen pixel, 0xFF = the RGB value is XORed with it.
+// XOR with black leaves the screen untouched, so that case is transparent; virtio-gpu cursors
+// cannot XOR, so any other XOR pixel is drawn as opaque RGB.
+static void ConvertMaskedColorToBgra(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape, BYTE *dst, ULONG dstPitch)
+{
+    const BYTE *src = (const BYTE *)pSetPointerShape->pPixels;
+    const ULONG srcPitch = pSetPointerShape->Pitch;
+    UINT w = pSetPointerShape->Width;
+    UINT h = pSetPointerShape->Height;
+    if (w > POINTER_SIZE)
+    {
+        w = POINTER_SIZE;
+    }
+    if (h > POINTER_SIZE)
+    {
+        h = POINTER_SIZE;
+    }
+
+    for (UINT y = 0; y < h; y++)
+    {
+        const ULONG *srcRow = (const ULONG *)(src + (size_t)y * srcPitch);
+        ULONG *dstRow = (ULONG *)(dst + (size_t)y * dstPitch);
+        for (UINT x = 0; x < w; x++)
+        {
+            ULONG px = srcRow[x];
+            ULONG rgb = px & 0x00FFFFFF;
+            BYTE a = (BYTE)(px >> 24);
+            if (a == 0)
+            {
+                dstRow[x] = 0xFF000000 | rgb; // opaque color
+            }
+            else if (rgb == 0)
+            {
+                dstRow[x] = 0x00000000; // transparent
+            }
+            else
+            {
+                dstRow[x] = 0xFF000000 | rgb; // XOR, drawn as opaque color
+            }
+        }
+    }
+}
+
 BOOLEAN VioGpuAdapter::UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape,
                                     _In_ CONST CURRENT_MODE *pCurrentMode)
 {
@@ -4008,26 +4097,36 @@ BOOLEAN VioGpuAdapter::UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPoin
     DstBltInfo.Width = POINTER_SIZE;
     DstBltInfo.Height = POINTER_SIZE;
 
-    BLT_INFO SrcBltInfo;
-    SrcBltInfo.pBits = (PVOID)pSetPointerShape->pPixels;
-    SrcBltInfo.Pitch = pSetPointerShape->Pitch;
     if (pSetPointerShape->Flags.Color)
     {
+        BLT_INFO SrcBltInfo;
+        SrcBltInfo.pBits = (PVOID)pSetPointerShape->pPixels;
+        SrcBltInfo.Pitch = pSetPointerShape->Pitch;
         SrcBltInfo.BitsPerPel = BPPFromPixelFormat(D3DDDIFMT_A8R8G8B8);
+        SrcBltInfo.Offset.x = 0;
+        SrcBltInfo.Offset.y = 0;
+        SrcBltInfo.Rotation = pCurrentMode->Rotation;
+        SrcBltInfo.Width = pSetPointerShape->Width;
+        SrcBltInfo.Height = pSetPointerShape->Height;
+        BltBits(&DstBltInfo, &SrcBltInfo, &Rect);
+    }
+    else if (pSetPointerShape->Flags.Monochrome)
+    {
+        // The converters ignore the rotation and only fill Width x Height: clear the rest.
+        RtlZeroMemory(DstBltInfo.pBits, (size_t)DstBltInfo.Pitch * POINTER_SIZE);
+        ConvertMonochromeToBgra(pSetPointerShape, (BYTE *)DstBltInfo.pBits, DstBltInfo.Pitch);
+    }
+    else if (pSetPointerShape->Flags.MaskedColor)
+    {
+        RtlZeroMemory(DstBltInfo.pBits, (size_t)DstBltInfo.Pitch * POINTER_SIZE);
+        ConvertMaskedColorToBgra(pSetPointerShape, (BYTE *)DstBltInfo.pBits, DstBltInfo.Pitch);
     }
     else
     {
         VioGpuDbgBreak();
-        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s Invalid cursor color %d\n", __FUNCTION__, pSetPointerShape->Flags.Value));
+        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s Invalid cursor flags %d\n", __FUNCTION__, pSetPointerShape->Flags.Value));
         return FALSE;
     }
-    SrcBltInfo.Offset.x = 0;
-    SrcBltInfo.Offset.y = 0;
-    SrcBltInfo.Rotation = pCurrentMode->Rotation;
-    SrcBltInfo.Width = pSetPointerShape->Width;
-    SrcBltInfo.Height = pSetPointerShape->Height;
-
-    BltBits(&DstBltInfo, &SrcBltInfo, &Rect);
 
     // The device has to see the new image before SetPointerShape sends UPDATE_CURSOR on the cursor queue.
     // The two virtqueues are not ordered against each other, so wait for the transfer to complete.
