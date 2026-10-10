@@ -213,6 +213,7 @@ BalloonEvtDevicePrepareHardware(IN WDFDEVICE Device,
 {
     NTSTATUS status = STATUS_SUCCESS;
     PDEVICE_CONTEXT devCtx = NULL;
+    WDF_INTERRUPT_INFO info;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
 
@@ -222,7 +223,17 @@ BalloonEvtDevicePrepareHardware(IN WDFDEVICE Device,
 
     devCtx = GetDeviceContext(Device);
 
-    status = VirtIOWdfInitialize(&devCtx->VDevice, Device, ResourceListTranslated, NULL, BALLOON_MGMT_POOL_TAG);
+    /* WdfInterruptGetInfo can't be called from the ISR, which runs at DIRQL */
+    WDF_INTERRUPT_INFO_INIT(&info);
+    WdfInterruptGetInfo(devCtx->WdfInterrupt, &info);
+    devCtx->MessageSignaled = info.MessageSignaled;
+
+    /* With MSI-X, config changes (balloon resize requests) share the queue vector */
+    status = VirtIOWdfInitialize(&devCtx->VDevice,
+                                 Device,
+                                 ResourceListTranslated,
+                                 devCtx->WdfInterrupt,
+                                 BALLOON_MGMT_POOL_TAG);
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "VirtIOWdfInitialize failed with %x\n", status);
@@ -492,7 +503,8 @@ BalloonInterruptIsr(IN WDFINTERRUPT WdfInterrupt, IN ULONG MessageID)
     Device = WdfInterruptGetDevice(WdfInterrupt);
     devCtx = GetDeviceContext(Device);
 
-    if (VirtIOWdfGetISRStatus(&devCtx->VDevice) > 0)
+    /* the ISR status is not used with MSI-X, a message is never shared */
+    if (devCtx->MessageSignaled || VirtIOWdfGetISRStatus(&devCtx->VDevice) > 0)
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "--> %s\n", __FUNCTION__);
         WdfInterruptQueueDpcForIsr(WdfInterrupt);

@@ -61,6 +61,7 @@ typedef struct
 typedef struct _DEVICE_CONTEXT
 {
     WDFINTERRUPT WdfInterrupt;
+    BOOLEAN MessageSignaled;
     PUCHAR PortBase;
     ULONG PortCount;
     BOOLEAN PortMapped;
