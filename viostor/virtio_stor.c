@@ -450,7 +450,15 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
         if ((size_max > 0) && (seg_max > 0))
         {
             seg_max = (ULONG)((ULONGLONG)seg_max * size_max) / (ROUND_TO_PAGES(size_max));
-            ConfigInfo->NumberOfPhysicalBreaks = seg_max - 1;
+            if (seg_max > 1)
+            {
+                ConfigInfo->NumberOfPhysicalBreaks = seg_max - 1;
+            }
+            else
+            {
+                RhelDbgPrint(TRACE_LEVEL_WARNING,
+                             " Using default value for NumberOfPhysicalBreaks to avoid underflow\n");
+            }
         }
     }
 
