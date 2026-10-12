@@ -3047,6 +3047,12 @@ NTSTATUS VIRTFS::Start()
     FILETIME FileTime;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
 
+    // Refuse a UNC prefix that VolumeParams.Prefix can't hold with its terminator before FUSE_INIT is sent.
+    if (VolumePrefix.size() >= sizeof(VolumeParams.Prefix) / sizeof(WCHAR))
+    {
+        return STATUS_NAME_TOO_LONG;
+    }
+
     Status = SubmitInitRequest();
     if (!NT_SUCCESS(Status))
     {
