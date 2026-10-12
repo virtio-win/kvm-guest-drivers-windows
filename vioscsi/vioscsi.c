@@ -1634,6 +1634,19 @@ VioScsiProcessPnP(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
                          SRB_LUN(Srb));
             adaptExt->bRemoved = TRUE;
             break;
+        case StorStopDevice:
+            /*
+             * Let storport disconnect the MSI-X interrupts and call
+             * ScsiStopAdapter. Failing this request makes storport skip
+             * both steps, so the next START connects a new set of
+             * interrupt objects while the old set stays in the IDT.
+             */
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                         " StorStopDevice on %d::%d::%d\n",
+                         SRB_PATH_ID(Srb),
+                         SRB_TARGET_ID(Srb),
+                         SRB_LUN(Srb));
+            break;
         default:
             RhelDbgPrint(TRACE_LEVEL_FATAL,
                          " Unsupported PnPAction SrbPnPFlags = %d, PnPAction = %d\n",
