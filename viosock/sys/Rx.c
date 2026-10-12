@@ -1399,6 +1399,7 @@ _Requires_lock_held_(pSocket->RxLock) static NTSTATUS VIOSockReadEvaluateRequest
     {
         // Our own SD_RECEIVE disallows every further recv (WSAESHUTDOWN), buffered
         // data included.
+        status = STATUS_PIPE_DISCONNECTED;
         bStop = TRUE;
     }
     else if (VIOSockRxHasData(pSocket))
