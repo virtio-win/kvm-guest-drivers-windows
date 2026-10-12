@@ -318,8 +318,7 @@ static ssize_t overlapped_recv_wsa(int fd, void *buf, size_t len, int flags)
 }
 
 /* Send path: WriteFileEx + APC, waited on alertably like the WSA send.
- * Win32 failure codes go through file_error_to_wsa (compat.c); the
- * ambiguous ERROR_NETNAME_DELETED is re-issued through the WSA pair. */
+ * Win32 failure codes go through file_error_to_wsa (compat.c). */
 struct overlapped_file_ctx
 {
     OVERLAPPED ov;
@@ -364,12 +363,6 @@ static ssize_t overlapped_send_file(int fd, const void *buf, size_t len)
     {
         return (ssize_t)ctx.bytes;
     }
-    /* Win32 folds reset, peer and own shutdown into 64; the socket stays in
-     * that state, so a Winsock retry sends nothing and yields the exact error. */
-    if (err == ERROR_NETNAME_DELETED)
-    {
-        return overlapped_send_wsa(fd, buf, len, 0);
-    }
     WSASetLastError(file_error_to_wsa(err));
     wsa_set_errno();
     return -1;
@@ -405,12 +398,6 @@ static ssize_t overlapped_recv_file(int fd, void *buf, size_t len)
     if (err == 0 || err == ERROR_HANDLE_EOF)
     {
         return (ssize_t)got;
-    }
-    /* Same as in overlapped_send_file: 64 is ambiguous, the Winsock retry is
-     * harmless on a dead socket and names the real error. */
-    if (err == ERROR_NETNAME_DELETED)
-    {
-        return overlapped_recv_wsa(fd, buf, len, 0);
     }
     WSASetLastError(file_error_to_wsa(err));
     wsa_set_errno();
