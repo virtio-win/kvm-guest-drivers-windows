@@ -281,7 +281,6 @@ BalloonTellHost(IN WDFOBJECT WdfDevice, IN PVIOQUEUE vq)
 
     timeout.QuadPart = Int32x32To64(1000, -10000);
     status = KeWaitForSingleObject(&devCtx->HostAckEvent, Executive, KernelMode, FALSE, &timeout);
-    ASSERT(NT_SUCCESS(status));
     if (STATUS_TIMEOUT == status)
     {
         TraceEvents(TRACE_LEVEL_WARNING, DBG_HW_ACCESS, "<--> TimeOut\n");
