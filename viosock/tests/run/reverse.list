@@ -95,6 +95,8 @@
 17   posix  SOCK_STREAM SHUT_RD
 17   wsa    SOCK_STREAM SHUT_RD
 17   overlapped SOCK_STREAM SHUT_RD
+17   posix-fs SOCK_STREAM SHUT_RD
+17   overlapped-fs SOCK_STREAM SHUT_RD
 # 18 posix  SOCK_STREAM MSG_ZEROCOPY  — disabled: server-side surface duplicative (sequential accept + multi-packet recv is already covered by test 22 posix; the 7-iteration sequence adds no unique driver-side path).  Coverage lives in forward + loopback.
 # 19 posix  SOCK_SEQPACKET MSG_ZEROCOPY                     — disabled: SEQPACKET body missing AND blocked by no Winsock MSG_ERRQUEUE
 20   posix  SOCK_STREAM full TX window (Linux: MSG_ZEROCOPY empty MSG_ERRQUEUE)
