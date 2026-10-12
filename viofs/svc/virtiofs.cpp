@@ -3082,6 +3082,11 @@ NTSTATUS VIRTFS::Start()
     // With a UNC prefix (\Server\Share) the file system is a network one, which Windows treats like a network share.
     if (!VolumePrefix.empty())
     {
+        if (VolumePrefix.size() >= sizeof(VolumeParams.Prefix) / sizeof(WCHAR))
+        {
+            // wcscpy_s would end the service on an overlong value; refuse it instead.
+            return STATUS_NAME_TOO_LONG;
+        }
         wcscpy_s(VolumeParams.Prefix, sizeof(VolumeParams.Prefix) / sizeof(WCHAR), VolumePrefix.c_str());
     }
 
