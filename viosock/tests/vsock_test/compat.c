@@ -125,15 +125,17 @@ bool sock_io_is_file(void)
 
 /*
  * File-I/O failures surface as Win32 codes (RtlNtStatusToDosError on the
- * driver's NTSTATUS), coarser than the Winsock set: reset, peer shutdown
- * and our own shutdown all become ERROR_NETNAME_DELETED.  Map the
- * unambiguous ones here; callers re-issue the ambiguous one through the
- * Winsock call, which fails at once with the exact Winsock error.
+ * driver's NTSTATUS).  As in AFD, our own shutdown is
+ * ERROR_PIPE_NOT_CONNECTED and a reset ERROR_NETNAME_DELETED.
  */
 int file_error_to_wsa(DWORD err)
 {
     switch (err)
     {
+        case ERROR_PIPE_NOT_CONNECTED: /* STATUS_PIPE_DISCONNECTED: our own shutdown */
+            return WSAESHUTDOWN;
+        case ERROR_NETNAME_DELETED: /* STATUS_CONNECTION_RESET */
+            return WSAECONNRESET;
         case ERROR_CANT_WAIT: /* STATUS_CANT_WAIT: non-blocking socket, nothing to do yet */
             return WSAEWOULDBLOCK;
         case ERROR_CONNECTION_ABORTED:
@@ -326,12 +328,6 @@ static ssize_t posix_file_io(int fd, void *buf, size_t len, bool write)
     if (r >= 0)
     {
         return r;
-    }
-    /* Win32 folds reset, peer and own shutdown into 64; the socket stays in
-     * that state, so a Winsock retry sends nothing and yields the exact error. */
-    if (doserr == ERROR_NETNAME_DELETED)
-    {
-        return write ? compat_send_wsa(fd, buf, len, 0) : compat_recv_wsa(fd, buf, len, 0);
     }
     WSASetLastError(file_error_to_wsa((DWORD)doserr));
     wsa_set_errno();
