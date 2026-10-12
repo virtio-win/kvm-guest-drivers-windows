@@ -1728,7 +1728,7 @@ static NTSTATUS VIOSockShutdown(IN WDFREQUEST Request)
         if (uDrain & VIRTIO_VSOCK_SHUTDOWN_SEND)
         {
             // We closed our own send side: parked sends complete via the
-            // per-bite validation (LOCAL_DISCONNECT -> WSAESHUTDOWN).
+            // per-bite validation (PIPE_DISCONNECTED -> WSAESHUTDOWN).
             VIOSockWriteProcessQueue(pSocket);
         }
     }

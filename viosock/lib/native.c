@@ -107,6 +107,7 @@ NTSTATUS NTAPI NtQueryInformationFile(_In_ HANDLE FileHandle,
 #define STATUS_CANCELLED                  ((NTSTATUS)0xC0000120L)
 #define STATUS_CONNECTION_INVALID         ((NTSTATUS)0xC000023AL)
 #define STATUS_DEVICE_BUSY                ((NTSTATUS)0x80000011L)
+#define STATUS_PIPE_DISCONNECTED          ((NTSTATUS)0xC00000B0L)
 
 #ifndef STATUS_NOT_IMPLEMENTED
 // repurposed: an unknown/unsupported socket option (getsockopt/setsockopt),
@@ -168,6 +169,7 @@ INT NtStatusToWsaError(_In_ NTSTATUS Status)
         case STATUS_DEVICE_BUSY:
             wsaError = WSAEALREADY;
             break;
+        case STATUS_PIPE_DISCONNECTED: // our own shutdown (AFD convention)
         case STATUS_LOCAL_DISCONNECT:
             wsaError = WSAESHUTDOWN;
             break;
