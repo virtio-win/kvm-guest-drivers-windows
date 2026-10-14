@@ -155,6 +155,7 @@ ViomemEvtDevicePrepareHardware(IN WDFDEVICE Device,
     NTSTATUS status = STATUS_SUCCESS;
     PDEVICE_CONTEXT devCtx = NULL;
     virtio_mem_config configReqest = {0};
+    WDF_INTERRUPT_INFO info;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s Entry\n", __FUNCTION__);
 
@@ -164,7 +165,15 @@ ViomemEvtDevicePrepareHardware(IN WDFDEVICE Device,
 
     devCtx = GetDeviceContext(Device);
 
-    status = VirtIOWdfInitialize(&devCtx->VDevice, Device, ResourceListTranslated, NULL, VIRTIO_MEM_POOL_TAG);
+    WDF_INTERRUPT_INFO_INIT(&info);
+    WdfInterruptGetInfo(devCtx->WdfInterrupt, &info);
+    devCtx->MessageSignaled = info.MessageSignaled;
+
+    status = VirtIOWdfInitialize(&devCtx->VDevice,
+                                 Device,
+                                 ResourceListTranslated,
+                                 devCtx->WdfInterrupt,
+                                 VIRTIO_MEM_POOL_TAG);
 
     if (!NT_SUCCESS(status))
     {
@@ -425,7 +434,7 @@ ViomemISR(IN WDFINTERRUPT WdfInterrupt, IN ULONG MessageID)
     Device = WdfInterruptGetDevice(WdfInterrupt);
     devCtx = GetDeviceContext(Device);
 
-    if (VirtIOWdfGetISRStatus(&devCtx->VDevice) > 0)
+    if (devCtx->MessageSignaled || VirtIOWdfGetISRStatus(&devCtx->VDevice) > 0)
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INTERRUPT, "%s queueing DPC\n", __FUNCTION__);
         WdfInterruptQueueDpcForIsr(WdfInterrupt);

@@ -51,6 +51,15 @@ CopyFiles=Drivers_Dir
 [Drivers_Dir]
 viomem.sys
 
+[VIOMEM_Device.NT.HW]
+AddReg=VIOMEM_MSI
+
+[VIOMEM_MSI]
+HKR,Interrupt Management,,0x00000010
+HKR,Interrupt Management\MessageSignaledInterruptProperties,,0x00000010
+HKR,Interrupt Management\MessageSignaledInterruptProperties,MSISupported,0x00010001,1
+HKR,Interrupt Management\MessageSignaledInterruptProperties,MessageNumberLimit,0x00010001,1
+
 ;-------------- Service installation
 [VIOMEM_Device.NT.Services]
 AddService = VIOMEM,%SPSVCINST_ASSOCSERVICE%, VIOMEM_Service_Inst, VIOMEM_Logging_Inst
