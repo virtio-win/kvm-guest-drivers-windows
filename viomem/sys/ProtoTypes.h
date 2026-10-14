@@ -61,6 +61,7 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 typedef struct _DEVICE_CONTEXT
 {
     WDFINTERRUPT WdfInterrupt;
+    BOOLEAN MessageSignaled;
     VIRTIO_WDF_DRIVER VDevice;
     PVIOQUEUE infVirtQueue;
     WDFSPINLOCK infVirtQueueLock;
