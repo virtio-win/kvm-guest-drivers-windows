@@ -882,15 +882,12 @@ static NTSTATUS VIOSockWriteEnqueueRequest(IN PSOCKET_CONTEXT pSocket, IN WDFREQ
 
     // Own and peer shutdown both fail with PIPE_DISCONNECTED (Linux EPIPE unification);
     // like AFD, it maps to WSAESHUTDOWN and to ERROR_PIPE_NOT_CONNECTED for WriteFile.
+    // An abortive reset is already reported as STATUS_CONNECTION_RESET (WSAECONNRESET)
+    // by VIOSockStateValidate and must not be folded into PIPE_DISCONNECTED here.
     status = VIOSockStateValidate(pSocket, TRUE);
     if (status == STATUS_REMOTE_DISCONNECT || status == STATUS_LOCAL_DISCONNECT)
     {
         status = STATUS_PIPE_DISCONNECTED;
-    }
-    else if (status == STATUS_CONNECTION_INVALID && VIOSockIsFlag(pSocket, SOCK_RESET))
-    {
-        // the peer reset the connection: WSAECONNRESET, not WSAENOTCONN
-        status = STATUS_CONNECTION_RESET;
     }
 
     if (!NT_SUCCESS(status))
