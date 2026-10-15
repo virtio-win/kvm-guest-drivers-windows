@@ -65,10 +65,28 @@ AddService = BALLOON,%SPSVCINST_ASSOCSERVICE%, BALLOON_Service_Inst, BALLOON_Log
 [BALLOON_Service_Inst]
 DisplayName    = %BALLOON.SVCDESC%
 ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
-StartType      = 3               ; SERVICE_DEMAND_START 
+StartType      = 3               ; SERVICE_DEMAND_START
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
 ServiceBinary  = %INX_PLATFORM_DRIVERS_DIR%\balloon.sys
-AddReg         = Dmar.AddReg
+AddReg         = Dmar.AddReg, BalloonParams.AddReg
+
+[BalloonParams.AddReg]
+; Free page reporting enable switch. 1 (default) = negotiate
+; VIRTIO_BALLOON_F_PAGE_REPORTING when the device offers it (escape hatch:
+; set to 0 to keep the driver to the traditional balloon behavior).
+; Free page reporting watermark override, in MB.
+; 0 (default) = automatic: keep at least max(RAM/8, 256MB) available to the guest.
+; Commit headroom reserve override, in MB.
+; 0 (default) = automatic: keep at least max(RAM/8, 256MB) of commit limit for the guest.
+; Reporting cycle interval, in ms.
+; 0 (default) = 2000 (the Linux page_reporting_delay_ms default), clamped to [100, 60000].
+; Hold cooldown base after a full low-memory release, in s.
+; 0 (default) = 60, clamped to [1, 600]; each repeated full release doubles it.
+HKR,Parameters,EnableFpr,0x00010001,1
+HKR,Parameters,MinFreeMb,0x00010001,0
+HKR,Parameters,MinCommitMb,0x00010001,0
+HKR,Parameters,ReportIntervalMs,0x00010001,0
+HKR,Parameters,CooldownSec,0x00010001,0
 
 [Dmar.AddReg]
 HKR,Parameters,DmaRemappingCompatible,0x00010001,2
