@@ -591,6 +591,8 @@ static const struct option longopts[] = {
     {.name = "no-poll",  .has_arg = no_argument,       .val = 'N'},
     {.name = "zerocopy", .has_arg = no_argument,       .val = 'Z'},
     {.name = "io",       .has_arg = required_argument, .val = 'I'},
+    {.name = "addrlist-query", .has_arg = no_argument,  .val = 'q'},
+    {.name = "addrlist-watch", .has_arg = no_argument,  .val = 'w'},
     {0},
 };
 // clang-format on
@@ -627,6 +629,11 @@ static void usage(void)
            "                         or WriteFile()/ReadFile() on the socket handle\n"
            "                         (EvtIoWrite/EvtIoRead in the driver). Not with\n"
            "                         --zerocopy: WriteFile carries no flags.\n"
+           "  --addrlist-query       Print the local vsock CID (SIO_ADDRESS_LIST_QUERY)\n"
+           "                         and exit. Soft/observational.\n"
+           "  --addrlist-watch       Block on SIO_ADDRESS_LIST_CHANGE and print each\n"
+           "                         CID change with a timestamp (e.g. across a live\n"
+           "                         migration); runs until killed.\n"
            "\n",
            DEFAULT_PORT,
            DEFAULT_TO_SEND_BYTES,
@@ -651,12 +658,125 @@ static long strtolx(const char *arg)
     return value;
 }
 
+/* ------------------------------------------------------------------ */
+/* SIO_ADDRESS_LIST monitor. Soft/observational: prints the local     */
+/* vsock CID and watches SIO_ADDRESS_LIST_CHANGE, which fires when    */
+/* the guest CID changes (e.g. across a live migration).              */
+/* ------------------------------------------------------------------ */
+static void addrlist_stamp(char *buf, size_t len)
+{
+    SYSTEMTIME st;
+
+    GetLocalTime(&st);
+    snprintf(buf, len, "%02u:%02u:%02u.%03u", st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
+}
+
+static int addrlist_query_cid(unsigned int *pCid)
+{
+    SOCKET s = socket(g_vsock_af, SOCK_STREAM, 0);
+    char buf[256];
+    DWORD ret = 0;
+    int rc = -1;
+
+    if (s == INVALID_SOCKET)
+    {
+        return -1;
+    }
+
+    if (WSAIoctl(s, SIO_ADDRESS_LIST_QUERY, NULL, 0, buf, sizeof(buf), &ret, NULL, NULL) == 0)
+    {
+        SOCKET_ADDRESS_LIST *list = (SOCKET_ADDRESS_LIST *)buf;
+
+        if (list->iAddressCount > 0)
+        {
+            *pCid = ((struct sockaddr_vm *)list->Address[0].lpSockaddr)->svm_cid;
+            rc = 0;
+        }
+    }
+
+    closesocket(s);
+    return rc;
+}
+
+/* One-shot: print the current CID and exit. Used for the start/exit samples
+ * (the harness labels which is which). */
+static void run_addrlist_query(void)
+{
+    unsigned int cid = 0;
+    char ts[32];
+
+    addrlist_stamp(ts, sizeof(ts));
+    if (addrlist_query_cid(&cid) == 0)
+    {
+        printf("[%s] addrlist: CID = %u\n", ts, cid);
+    }
+    else
+    {
+        printf("[%s] addrlist: CID query failed (err=%d)\n", ts, WSAGetLastError());
+    }
+    fflush(stdout);
+}
+
+/* Loop: block on SIO_ADDRESS_LIST_CHANGE and print each change with the
+ * moment it fired. Runs until the parent kills it. */
+static void run_addrlist_watch(void)
+{
+    unsigned int cid = 0;
+    char ts[32];
+
+    if (addrlist_query_cid(&cid) != 0)
+    {
+        cid = (unsigned int)-1;
+    }
+    addrlist_stamp(ts, sizeof(ts));
+    printf("[%s] addrlist: watch start, CID = %u\n", ts, cid);
+    fflush(stdout);
+
+    for (;;)
+    {
+        SOCKET s = socket(g_vsock_af, SOCK_STREAM, 0);
+        unsigned int newcid = 0;
+        DWORD ret = 0;
+        int r;
+
+        if (s == INVALID_SOCKET)
+        {
+            printf("addrlist: socket() failed err=%d\n", WSAGetLastError());
+            break;
+        }
+
+        r = WSAIoctl(s, SIO_ADDRESS_LIST_CHANGE, NULL, 0, NULL, 0, &ret, NULL, NULL);
+        addrlist_stamp(ts, sizeof(ts));
+        if (r != 0)
+        {
+            printf("[%s] addrlist: SIO_ADDRESS_LIST_CHANGE err=%d, stop\n", ts, WSAGetLastError());
+            fflush(stdout);
+            closesocket(s);
+            break;
+        }
+
+        if (addrlist_query_cid(&newcid) == 0)
+        {
+            printf("[%s] addrlist: CHANGE fired, CID %u -> %u\n", ts, cid, newcid);
+            cid = newcid;
+        }
+        else
+        {
+            printf("[%s] addrlist: CHANGE fired, new CID query failed (err=%d)\n", ts, WSAGetLastError());
+        }
+        fflush(stdout);
+        closesocket(s);
+    }
+}
+
 int __cdecl main(int argc, char **argv)
 {
     unsigned long long to_send_bytes = DEFAULT_TO_SEND_BYTES;
     int rcvlowat_bytes = DEFAULT_RCVLOWAT_BYTES;
     int peer_cid = -1;
     bool sender = false;
+    bool addrlist_query = false;
+    bool addrlist_watch = false;
     /* Receiver poll strategy: WSAPoll+read by default, blocking read()
      * only when the driver doesn't implement WSAPoll (see run_receiver). */
     bool use_poll = true;
@@ -713,6 +833,12 @@ int __cdecl main(int argc, char **argv)
                     usage();
                 }
                 break;
+            case 'q': /* Address-list monitor: one-shot CID query. */
+                addrlist_query = true;
+                break;
+            case 'w': /* Address-list monitor: watch SIO_ADDRESS_LIST_CHANGE. */
+                addrlist_watch = true;
+                break;
             default:
                 usage();
         }
@@ -739,6 +865,19 @@ int __cdecl main(int argc, char **argv)
         return EXIT_FAILURE;
     }
     fprintf(stderr, "AF_VSOCK = %d\n", (int)g_vsock_af);
+
+    if (addrlist_query)
+    {
+        run_addrlist_query();
+        WSACleanup();
+        return 0;
+    }
+    if (addrlist_watch)
+    {
+        run_addrlist_watch();
+        WSACleanup();
+        return 0;
+    }
 
     if (!sender)
     {

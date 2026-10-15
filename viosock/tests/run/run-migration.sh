@@ -38,6 +38,7 @@ MIGR_PROBE_PORT2=${MIGR_PROBE_PORT2:-40001}
 MIGR_PROBE_TIMEOUT=${MIGR_PROBE_TIMEOUT:-90}  # cap per post-restore probe; a receiver whose sender never connected must not hang the run
 MIGR_CHANGE_CID=${MIGR_CHANGE_CID:-1} # 0 = restore with unchanged CID
 MIGR_NEW_CID=${MIGR_NEW_CID:-}        # explicit new CID; empty = guest_cid+1 (skipping 0..3)
+MIGR_ADDRLIST=${MIGR_ADDRLIST:-1}     # 1 = monitor guest-side SIO_ADDRESS_LIST CID (soft, print-only)
 LOCAL_BIN=${LOCAL_BIN:-/opt/vsock-test/vsock_perf}
 
 # --- args ----------------------------------------------------------------
@@ -65,6 +66,7 @@ Tunables (env-overridable, defaults in [brackets]):
   MIGR_RAMP_SECS   [12]   Seconds of transfer before the save is injected.
   MIGR_CHANGE_CID  [1]    Restore with a different guest CID (cross-host live-migration shape).
   MIGR_NEW_CID     []     Explicit new CID; empty = guest_cid+1 (skipping 0..3).
+  MIGR_ADDRLIST    [1]    Guest-side SIO_ADDRESS_LIST CID monitor (soft, print-only).
 EOF
             exit 0 ;;
         *) die "unknown arg: $1" ;;
@@ -104,6 +106,18 @@ for _ in $(seq 1 90); do
     kill -0 "$stress_pid" 2>/dev/null || { warn "  run-stress exited early — see $stress_log"; break; }
     sleep 1
 done
+# Guest-side address-list monitor (soft): sample the CID now and arm
+# a SYSTEM-session watcher (survives save/restore) that times the CID change.
+addrlist_start=""; addrlist_exit=""; addrlist_log="$LOGDIR/addrlist.log"
+if [ "$MIGR_ADDRLIST" -eq 1 ]; then
+    addrlist_start=$(timeout 30 ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" \
+        "${guest_bin_dir}\\vsock_perf.exe --addrlist-query" 2>/dev/null | tr -d '\r' | grep -oE 'CID = [0-9]+' | grep -oE '[0-9]+')
+    _guest_ssh "(echo ${guest_bin_dir}\\vsock_perf.exe --addrlist-watch ^> C:\\addrlist-watch.log 2^>^&1) > C:\\addrlist-watch.bat" >/dev/null 2>&1 || true
+    _guest_ssh "schtasks /create /tn viosock_addrlist /tr C:\\addrlist-watch.bat /sc once /st 00:00 /ru SYSTEM /f" >/dev/null 2>&1 || true
+    _guest_ssh "schtasks /run /tn viosock_addrlist" >/dev/null 2>&1 || true
+    info "  addrlist: start CID=${addrlist_start:-?}, watcher armed (SYSTEM)"
+fi
+
 info "  letting transfers ramp ${MIGR_RAMP_SECS}s"
 sleep "$MIGR_RAMP_SECS"
 
@@ -211,6 +225,16 @@ if [ "$guest_up" -eq 1 ]; then
     grep -q 'rx performance:' "$probe2_rx" && probe2_ok=1
 fi
 
+# Guest-side address-list monitor (soft): sample the now-current CID and pull the
+# watcher's change log, then retire the task. Never gates the run.
+if [ "$MIGR_ADDRLIST" -eq 1 ] && [ "$guest_up" -eq 1 ]; then
+    sleep 2
+    addrlist_exit=$(timeout 30 ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" \
+        "${guest_bin_dir}\\vsock_perf.exe --addrlist-query" 2>/dev/null | tr -d '\r' | grep -oE 'CID = [0-9]+' | grep -oE '[0-9]+')
+    timeout 30 ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" 'type C:\addrlist-watch.log' 2>/dev/null | tr -d '\r' > "$addrlist_log" || true
+    _guest_ssh 'schtasks /end /tn viosock_addrlist & schtasks /delete /tn viosock_addrlist /f' >/dev/null 2>&1 || true
+fi
+
 # --- cleanup: stop the load and any stuck guest vsock_perf ---------------
 kill "$stress_pid" 2>/dev/null || true
 wait "$stress_pid" 2>/dev/null || true
@@ -222,6 +246,15 @@ info "=== migration stability summary ==="
 printf '  connections/dir : %d\n' "$MIGR_N"
 printf '  CID             : %s\n' \
     "$([ "$new_cid" = "$(config_read "$CFG" guest_cid)" ] && echo "$guest_cid (unchanged)" || echo "$(config_read "$CFG" guest_cid) -> $new_cid")"
+if [ "$MIGR_ADDRLIST" -eq 1 ]; then
+    printf '  guest CID query : start=%s exit=%s\n' "${addrlist_start:-?}" "${addrlist_exit:-?}"
+    if [ -s "$addrlist_log" ]; then
+        printf '  guest ADDR_LIST_CHANGE:\n'
+        sed 's/^/    /' "$addrlist_log"
+    else
+        printf '  guest ADDR_LIST_CHANGE: (no change captured)\n'
+    fi
+fi
 printf '  save / restore  : rc %d / %d\n' "$save_rc" "$restore_rc"
 printf '  guest reachable : %s\n' "$([ "$guest_up" -eq 1 ] && echo yes || echo NO)"
 printf '  driver state    : %s\n' "$srv_state"
