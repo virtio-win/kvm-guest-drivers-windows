@@ -227,7 +227,7 @@ typedef enum _VIOSOCK_STATE
 #define SOCK_CLEANUP   0x20
 #define SOCK_CONNECT   0x40  // outbound: connect() was issued on this socket (distinguishes it from an accepted socket)
 #define SOCK_TX_WAIT   0x80  // a non-blocking send returned STATUS_CANT_WAIT; re-arm FD_WRITE when TX space reopens
-#define SOCK_RESET     0x100 // the peer reset the connection (OP_RST while connected) — sends report WSAECONNRESET
+#define SOCK_RESET     0x100 // abortive reset (peer OP_RST or transport reset) — recv/send report WSAECONNRESET
 
 //
 // WSAPoll entry point on the LSP path: ws2_32!WSAPoll packs the caller's
