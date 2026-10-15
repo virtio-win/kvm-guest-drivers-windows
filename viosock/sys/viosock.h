@@ -200,6 +200,9 @@ typedef struct _DEVICE_CONTEXT
 
     WDFQUEUE IoCtlQueue;
     WDFQUEUE CreateQueue;
+    // Manual queue holding pended SIO_ADDRESS_LIST_CHANGE requests until the guest
+    // CID changes on a transport reset (completed from VIOSockEvtVqProcess).
+    WDFQUEUE AddrChangeQueue;
 
     WDFINTERRUPT WdfInterrupt;
 
@@ -456,6 +459,8 @@ VIOSockGetSocketFromHandle(IN PDEVICE_CONTEXT pContext,
                            IN KPROCESSOR_MODE AccessMode);
 
 VOID VIOSockHandleTransportReset(IN PDEVICE_CONTEXT pContext);
+
+VOID VIOSockAddressListChange(IN PDEVICE_CONTEXT pContext);
 
 NTSTATUS
 VIOSockBoundListInit(IN WDFDEVICE hDevice);

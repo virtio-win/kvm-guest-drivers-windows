@@ -742,6 +742,27 @@ VIOSockEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
         return status;
     }
 
+    // Manual queue holding pended SIO_ADDRESS_LIST_CHANGE requests. They are completed
+    // when the guest CID changes on a transport reset (VIOSockEvtVqProcess ->
+    // VIOSockAddressListChange). Framework-owned while parked, so - like the accept
+    // queue - it does not hold the D0->Dx transition (no EvtIoStop needed).
+    WDF_IO_QUEUE_CONFIG_INIT(&queueConfig, WdfIoQueueDispatchManual);
+    // No EvtIoCanceledOnQueue: while a request sits in a queue the framework cancels
+    // it on its own (CancelIoEx / socket close / process exit) and completes it with
+    // STATUS_CANCELLED. That callback is only for per-request cleanup, and a parked
+    // notification holds no resources.
+    queueConfig.PowerManaged = WdfTrue;
+
+    __analysis_assume(queueConfig.EvtIoStop != 0);
+    status = WdfIoQueueCreate(hDevice, &queueConfig, WDF_NO_OBJECT_ATTRIBUTES, &pContext->AddrChangeQueue);
+    __analysis_assume(queueConfig.EvtIoStop == 0);
+
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "WdfIoQueueCreate failed (AddrChange Queue): 0x%x\n", status);
+        return status;
+    }
+
     // Create parallel queue for Write requests
     status = VIOSockWriteQueueInit(hDevice);
     if (!NT_SUCCESS(status))
