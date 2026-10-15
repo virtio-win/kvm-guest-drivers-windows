@@ -793,6 +793,60 @@ int WSPAPI VIOSockIoctl(_In_ SOCKET s,
     }
 
     //
+    // SIO_ADDRESS_LIST_QUERY returns the local address list. For vsock the only
+    // local address is the guest CID, so the list holds a single SOCKADDR_VM. The
+    // kernel returns that address as a flat SOCKADDR_VM (it cannot embed a valid
+    // user-mode lpSockaddr into a METHOD_BUFFERED output buffer); the provider owns
+    // the caller's buffer here, so it wraps the address into a SOCKET_ADDRESS_LIST
+    // with a correct user-mode lpSockaddr.
+    //
+    if (dwIoControlCode == SIO_ADDRESS_LIST_QUERY)
+    {
+        SOCKADDR_VM localAddr;
+        DWORD localReturned = 0;
+        VIRTIO_VSOCK_IOCTL_IN qParams;
+        const DWORD required = sizeof(SOCKET_ADDRESS_LIST) + sizeof(SOCKADDR_VM);
+        PSOCKET_ADDRESS_LIST pList;
+        PSOCKADDR_VM pAddrSlot;
+
+        qParams.dwIoControlCode = SIO_ADDRESS_LIST_QUERY;
+        qParams.lpvInBuffer = 0;
+        qParams.cbInBuffer = 0;
+        if (!VIOSockDeviceControlEx(s,
+                                    VIOSockIsSyncSocket(s),
+                                    IOCTL_SOCKET_IOCTL,
+                                    &qParams,
+                                    sizeof(qParams),
+                                    &localAddr,
+                                    sizeof(localAddr),
+                                    &localReturned,
+                                    NULL,
+                                    NULL,
+                                    0,
+                                    lpErrno))
+        {
+            return SOCKET_ERROR;
+        }
+
+        if (cbOutBuffer < required)
+        {
+            *lpcbBytesReturned = required;
+            return WSP_ERROR(WSAEFAULT);
+        }
+
+        // Layout: [SOCKET_ADDRESS_LIST header][SOCKADDR_VM]; lpSockaddr points at
+        // the trailing SOCKADDR_VM inside the caller's buffer.
+        pList = (PSOCKET_ADDRESS_LIST)lpvOutBuffer;
+        pAddrSlot = (PSOCKADDR_VM)((PUCHAR)lpvOutBuffer + sizeof(SOCKET_ADDRESS_LIST));
+        *pAddrSlot = localAddr;
+        pList->iAddressCount = 1;
+        pList->Address[0].lpSockaddr = (LPSOCKADDR)pAddrSlot;
+        pList->Address[0].iSockaddrLength = sizeof(SOCKADDR_VM);
+        *lpcbBytesReturned = required;
+        return ERROR_SUCCESS;
+    }
+
+    //
     // SIO_EXT_POLL is the documented LSP entry point for WSAPoll: ws2_32!WSAPoll
     // packs the caller's WSAPOLLFD array into a WSAPOLLDATA structure and dispatches
     // it through WSPIoctl. There is no WSPPoll in WSPPROC_TABLE, so without this
