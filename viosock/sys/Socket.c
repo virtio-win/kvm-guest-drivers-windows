@@ -2764,6 +2764,7 @@ static NTSTATUS VIOSockSetSockOpt(IN WDFREQUEST Request)
 static NTSTATUS VIOSockIoctl(IN WDFREQUEST Request, OUT size_t *pLength)
 {
     PSOCKET_CONTEXT pSocket = GetSocketContextFromRequest(Request);
+    PDEVICE_CONTEXT pContext = GetDeviceContextFromRequest(Request);
     PVIRTIO_VSOCK_IOCTL_IN pInParams;
     BOOLEAN bIs32BitProcess = FALSE;
     SIZE_T stInParamsLen;
@@ -2892,9 +2893,41 @@ static NTSTATUS VIOSockIoctl(IN WDFREQUEST Request, OUT size_t *pLength)
                                      pLength);
                 break;
 
-            // TODO: implement address list change
             case SIO_ADDRESS_LIST_QUERY:
+                // The only local address is the guest CID. Return it as a flat
+                // SOCKADDR_VM; the WSP library (which owns the user-mode output
+                // buffer) wraps it into the caller's SOCKET_ADDRESS_LIST with a
+                // valid user-mode lpSockaddr pointer.
+                if (stOutBufferLen >= sizeof(SOCKADDR_VM))
+                {
+                    PSOCKADDR_VM pAddr = (PSOCKADDR_VM)lpvOutBuffer;
+
+                    RtlZeroBytes(pAddr, sizeof(*pAddr));
+                    pAddr->svm_family = AF_VSOCK;
+                    pAddr->svm_cid = (ULONG32)pContext->Config.guest_cid;
+                    pAddr->svm_port = 0;
+                    *pLength = sizeof(SOCKADDR_VM);
+                    status = STATUS_SUCCESS;
+                }
+                else
+                {
+                    *pLength = sizeof(SOCKADDR_VM);
+                    status = STATUS_BUFFER_TOO_SMALL;
+                }
+                break;
+
             case SIO_ADDRESS_LIST_CHANGE:
+                // Pend until the local address (guest CID) changes on a transport
+                // reset; completed from VIOSockEvtVqProcess -> VIOSockAddressListChange.
+                // The device-wide manual queue holds any number of pending requests
+                // and owns their cancellation.
+                status = WdfRequestForwardToIoQueue(Request, pContext->AddrChangeQueue);
+                if (NT_SUCCESS(status))
+                {
+                    status = STATUS_PENDING;
+                }
+                break;
+
             default:
                 status = STATUS_NOT_SUPPORTED;
                 break;
@@ -3243,4 +3276,21 @@ VOID VIOSockHandleTransportReset(IN PDEVICE_CONTEXT pContext)
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
+}
+
+VOID VIOSockAddressListChange(IN PDEVICE_CONTEXT pContext)
+{
+    WDFREQUEST Request;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
+
+    // The local address list (the guest CID) changed - complete every pended
+    // SIO_ADDRESS_LIST_CHANGE notification. Runs at DISPATCH_LEVEL from the event
+    // virtqueue path, so it must not be paged.
+    while (NT_SUCCESS(WdfIoQueueRetrieveNextRequest(pContext->AddrChangeQueue, &Request)))
+    {
+        WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, 0);
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "<-- %s\n", __FUNCTION__);
 }
