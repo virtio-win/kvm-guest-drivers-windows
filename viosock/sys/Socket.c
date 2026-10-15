@@ -407,7 +407,24 @@ __inline NTSTATUS VIOSockConnectedAdd(IN PSOCKET_CONTEXT pSocket)
     NTSTATUS status;
 
     WdfSpinLockAcquire(pContext->ConnectedLock);
-    status = WdfCollectionAdd(pContext->ConnectedList, pSocket->ThisSocket);
+    // Reject a connect/accept that raced a transport reset: it captured an older
+    // ResetGeneration, so it would become a lost CONNECTED entry past the reset
+    // drain (which bumps the generation under this same lock). Loopback does not
+    // ride the transport, so a reset never invalidates it.
+    if (!IsLoopbackSocket(pSocket) && pSocket->ConnectGeneration != pContext->ResetGeneration)
+    {
+        TraceEvents(TRACE_LEVEL_WARNING,
+                    DBG_SOCKET,
+                    "Socket %d: transport reset raced connect (gen %u != %u), failing\n",
+                    pSocket->SocketId,
+                    pSocket->ConnectGeneration,
+                    pContext->ResetGeneration);
+        status = STATUS_CONNECTION_RESET;
+    }
+    else
+    {
+        status = WdfCollectionAdd(pContext->ConnectedList, pSocket->ThisSocket);
+    }
     WdfSpinLockRelease(pContext->ConnectedLock);
     return status;
 }
@@ -524,7 +541,11 @@ _Requires_lock_held_(pSocket->StateLock) VIOSOCK_STATE VIOSockStateSet(IN PSOCKE
                 ASSERT(PrevState == VIOSOCK_STATE_CONNECTING || PrevState == VIOSOCK_STATE_CLOSE);
                 if (!NT_SUCCESS(VIOSockConnectedAdd(pSocket)))
                 {
-                    TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockConnectedAdd failed\n");
+                    // Add refused (a transport reset raced this connect/accept, or
+                    // OOM): do not leave a CONNECTED socket that is not in the list.
+                    // The caller sees State != CONNECTED and fails the connect.
+                    TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "VIOSockConnectedAdd refused; socket -> CLOSE\n");
+                    InterlockedExchange((PLONG)&pSocket->State, VIOSOCK_STATE_CLOSE);
                 }
                 break;
 
@@ -741,6 +762,10 @@ _Requires_lock_not_held_(pListenSocket->RxLock) NTSTATUS VIOSockAcceptEnqueuePkt
         pAccept->dst_port = pPkt->src_port;
         pAccept->peer_buf_alloc = pPkt->buf_alloc;
         pAccept->peer_fwd_cnt = pPkt->fwd_cnt;
+        // Stamp the generation at OP_REQUEST time: this is when the connection is
+        // born, so an accept that arrived before a later reset carries the stale
+        // value and is rejected even if accept() runs after the reset.
+        pAccept->Generation = pContext->ResetGeneration;
 
         WdfSpinLockAcquire(pListenSocket->RxLock);
         InsertTailList(&pListenSocket->AcceptList, &pAccept->ListEntry);
@@ -823,9 +848,21 @@ _Requires_lock_not_held_(pListenSocket->StateLock) NTSTATUS VIOSockAcceptInitSoc
         VIOSockSetFlag(pAcceptSocket, SOCK_LOOPBACK);
     }
 
+    // ConnectGeneration was inherited from the accept entry (stamped at OP_REQUEST
+    // time) by the caller, so a reset that raced this accept is caught here.
+
     // From CONNECTED on the socket is findable by the Rx/loopback paths, so the
     // peer's first packet can already race this bit - take the lock.
     VIOSockStateSet(pAcceptSocket, VIOSOCK_STATE_CONNECTED);
+    if (VIOSockStateGet(pAcceptSocket) != VIOSOCK_STATE_CONNECTED)
+    {
+        // A transport reset raced this accept: VIOSockConnectedAdd refused and
+        // rolled the state to CLOSE. Fail the accept (the caller completes the
+        // request with this error and the half-built socket is torn down) instead
+        // of handing the app a dead socket; don't respond on the dead transport.
+        // To the app it is a connection reset before it was accepted - it retries.
+        return STATUS_CONNECTION_RESET;
+    }
     status = VIOSockSendResponse(pAcceptSocket);
     VIOSockEventSetBitLocked(pAcceptSocket, FD_WRITE_BIT, status);
 
@@ -853,6 +890,7 @@ _Requires_lock_not_held_(pListenSocket->RxLock) static BOOLEAN VIOSockAcceptDequ
         pAcceptSocket->dst_port = pAccept->dst_port;
         pAcceptSocket->peer_buf_alloc = pAccept->peer_buf_alloc;
         pAcceptSocket->peer_fwd_cnt = pAccept->peer_fwd_cnt;
+        pAcceptSocket->ConnectGeneration = pAccept->Generation;
         VIOSockAcceptInitSocket(pAcceptSocket, pListenSocket);
 
         WdfObjectDelete(pAccept->Memory);
@@ -962,7 +1000,10 @@ static BOOLEAN VIOSockAcceptProcessNextRequest(IN PSOCKET_CONTEXT pListenSocket)
     }
     else
     {
-        status = STATUS_SUCCESS;
+        // A transport reset can race VIOSockAcceptInitSocket and roll the dequeued
+        // socket back to CLOSE; fail the accept then so the app is not handed a
+        // dead socket (it retries, as for a connection reset before accept()).
+        status = (VIOSockStateGet(pAcceptSocket) == VIOSOCK_STATE_CONNECTED) ? STATUS_SUCCESS : STATUS_CONNECTION_RESET;
     }
 
     if (AcceptRequest != WDF_NO_HANDLE)
@@ -1544,6 +1585,10 @@ static NTSTATUS VIOSockConnect(IN WDFREQUEST Request)
     // Mark this as an outbound socket: FD_CONNECT applies only to a socket that
     // issued connect(), never to an accepted one.
     VIOSockSetFlag(pSocket, SOCK_CONNECT);
+
+    // Capture the reset generation this connect rides; VIOSockConnectedAdd fails
+    // the connect later if a transport reset bumped the generation meanwhile.
+    pSocket->ConnectGeneration = pContext->ResetGeneration;
 
     // no lock required
     VIOSockStateSet(pSocket, VIOSOCK_STATE_CONNECTING);
@@ -3030,17 +3075,56 @@ VIOSockGetSocketFromHandle(IN PDEVICE_CONTEXT pContext,
     return WDF_NO_HANDLE;
 }
 
+// Drop a listener's stale wire pends on a transport reset (OP_REQUEST predates
+// it). Loopback pends and post-reset wire pends (current generation) survive.
+_Requires_lock_not_held_(pListenSocket->RxLock) static VOID VIOSockAcceptDrainWire(IN PSOCKET_CONTEXT pListenSocket)
+{
+    PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pListenSocket);
+    LIST_ENTRY drainList;
+    PLIST_ENTRY pEntry;
+
+    InitializeListHead(&drainList);
+
+    WdfSpinLockAcquire(pListenSocket->RxLock);
+    for (pEntry = pListenSocket->AcceptList.Flink; pEntry != &pListenSocket->AcceptList;)
+    {
+        PVIOSOCK_ACCEPT_ENTRY pAccept = CONTAINING_RECORD(pEntry, VIOSOCK_ACCEPT_ENTRY, ListEntry);
+
+        pEntry = pEntry->Flink;
+        if (!VIOSockIsLocalCid(pAccept->dst_cid, pContext->Config.guest_cid) &&
+            pAccept->Generation != pContext->ResetGeneration)
+        {
+            RemoveEntryList(&pAccept->ListEntry);
+            InsertTailList(&drainList, &pAccept->ListEntry);
+            InterlockedDecrement(&pListenSocket->AcceptPended);
+        }
+    }
+    WdfSpinLockRelease(pListenSocket->RxLock);
+
+    while (!IsListEmpty(&drainList))
+    {
+        PVIOSOCK_ACCEPT_ENTRY pAccept = CONTAINING_RECORD(RemoveHeadList(&drainList), VIOSOCK_ACCEPT_ENTRY, ListEntry);
+        WdfObjectDelete(pAccept->Memory);
+    }
+}
+
 VOID VIOSockHandleTransportReset(IN PDEVICE_CONTEXT pContext)
 {
+    LIST_ENTRY resetList;  // CONNECTED, removed from ConnectedList
+    LIST_ENTRY listenList; // LISTEN, left in BoundList
     ULONG i;
+
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
-    // Loopback sockets stay in the connected list for handle lookup but must not
-    // be reset here: they don't ride the transport. Index-based iteration with a
-    // filter — the first-item + StateSet(CLOSE) loop can no longer terminate,
-    // because loopback entries are skipped and remain at the head.
-    i = 0;
-    while (i < WdfCollectionGetCount(pContext->ConnectedList))
+    InitializeListHead(&resetList);
+    InitializeListHead(&listenList);
+
+    WdfSpinLockAcquire(pContext->ConnectedLock);
+    // Bump the generation under the lock: a connect/accept whose VIOSockConnectedAdd
+    // has not yet taken this lock will see the newer value and fail, instead of
+    // becoming a lost CONNECTED socket this drain can no longer see.
+    ++pContext->ResetGeneration;
+    for (i = 0; i < WdfCollectionGetCount(pContext->ConnectedList);)
     {
         WDFFILEOBJECT Socket = WdfCollectionGetItem(pContext->ConnectedList, i);
         PSOCKET_CONTEXT pCurrentSocket = GetSocketContext(Socket);
@@ -3051,12 +3135,103 @@ VOID VIOSockHandleTransportReset(IN PDEVICE_CONTEXT pContext)
             continue;
         }
 
-        ASSERT(VIOSockStateGet(pCurrentSocket) == VIOSOCK_STATE_CONNECTED);
+        // Remove now (a late Rx mustn't match a torn-down socket); don't advance
+        // i, the removed entry's successor slides into slot i.
+        VIOSockReferenceSocketObject(pCurrentSocket);
+        WdfCollectionRemove(pContext->ConnectedList, Socket);
+        InsertTailList(&resetList, &pCurrentSocket->ResetLink);
+    }
+    WdfSpinLockRelease(pContext->ConnectedLock);
 
-        VIOSockStateSet(pCurrentSocket, VIOSOCK_STATE_CLOSE);
-        VIOSockEventSetBit(pCurrentSocket, FD_CLOSE_BIT, STATUS_CONNECTION_RESET);
-        // Do not advance i: StateSet(CLOSE) drops the entry, next non-loopback
-        // slides into slot i.
+    // Model as a peer RST: set SOCK_RESET and the generic PeerShutdown closed-marker
+    // the readiness predicate keys off.
+    while (!IsListEmpty(&resetList))
+    {
+        PSOCKET_CONTEXT pCurrentSocket = CONTAINING_RECORD(RemoveHeadList(&resetList), SOCKET_CONTEXT, ResetLink);
+
+        BOOLEAN bWasConnected;
+
+        WdfSpinLockAcquire(pCurrentSocket->StateLock);
+        bWasConnected = (VIOSockStateSet(pCurrentSocket, VIOSOCK_STATE_CLOSE) == VIOSOCK_STATE_CONNECTED);
+        if (bWasConnected)
+        {
+            VIOSockSetFlag(pCurrentSocket, SOCK_RESET);
+            pCurrentSocket->PeerShutdown = VIRTIO_VSOCK_SHUTDOWN_MASK;
+            VIOSockEventSetBit(pCurrentSocket, FD_CLOSE_BIT, STATUS_CONNECTION_RESET);
+        }
+        WdfSpinLockRelease(pCurrentSocket->StateLock);
+
+        // Drain parked blocking recvs: PeerShutdown is set, so they complete with
+        // EOF now instead of hanging until the socket is closed.
+        if (bWasConnected)
+        {
+            VIOSockReadProcessQueue(pCurrentSocket);
+        }
+
+        VIOSockDereferenceSocketObject(pCurrentSocket);
+    }
+
+    // CONNECTING and LISTEN sockets live in BoundList; reference but do not remove
+    // them - their port binding must survive the reset.
+    WdfSpinLockAcquire(pContext->BoundLock);
+    for (i = 0; i < WdfCollectionGetCount(pContext->BoundList); ++i)
+    {
+        WDFFILEOBJECT Socket = WdfCollectionGetItem(pContext->BoundList, i);
+        PSOCKET_CONTEXT pCurrentSocket = GetSocketContext(Socket);
+
+        if (IsLoopbackSocket(pCurrentSocket))
+        {
+            continue;
+        }
+
+        switch (VIOSockStateGet(pCurrentSocket))
+        {
+            case VIOSOCK_STATE_CONNECTING:
+                VIOSockReferenceSocketObject(pCurrentSocket);
+                InsertTailList(&resetList, &pCurrentSocket->ResetLink);
+                break;
+            case VIOSOCK_STATE_LISTEN:
+                VIOSockReferenceSocketObject(pCurrentSocket);
+                InsertTailList(&listenList, &pCurrentSocket->ResetLink);
+                break;
+            default:
+                break;
+        }
+    }
+    WdfSpinLockRelease(pContext->BoundLock);
+
+    // Fail each in-flight connect (FD_CONNECT + complete the pended IRP). The
+    // RxLock pended-request slot arbitrates the race with a concurrent Rx.
+    while (!IsListEmpty(&resetList))
+    {
+        PSOCKET_CONTEXT pCurrentSocket = CONTAINING_RECORD(RemoveHeadList(&resetList), SOCKET_CONTEXT, ResetLink);
+        WDFREQUEST PendedRequest = WDF_NO_HANDLE;
+
+        VIOSockPendedRequestGetLocked(pCurrentSocket, &PendedRequest);
+
+        WdfSpinLockAcquire(pCurrentSocket->StateLock);
+        if (VIOSockStateGet(pCurrentSocket) == VIOSOCK_STATE_CONNECTING)
+        {
+            VIOSockStateSet(pCurrentSocket, VIOSOCK_STATE_CLOSE);
+            VIOSockEventSetBit(pCurrentSocket, FD_CONNECT_BIT, STATUS_CONNECTION_RESET);
+        }
+        WdfSpinLockRelease(pCurrentSocket->StateLock);
+
+        if (PendedRequest != WDF_NO_HANDLE)
+        {
+            WdfRequestComplete(PendedRequest, STATUS_CONNECTION_RESET);
+        }
+
+        VIOSockDereferenceSocketObject(pCurrentSocket);
+    }
+
+    // Drop each listener's stale wire pending connections.
+    while (!IsListEmpty(&listenList))
+    {
+        PSOCKET_CONTEXT pCurrentSocket = CONTAINING_RECORD(RemoveHeadList(&listenList), SOCKET_CONTEXT, ResetLink);
+
+        VIOSockAcceptDrainWire(pCurrentSocket);
+        VIOSockDereferenceSocketObject(pCurrentSocket);
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);

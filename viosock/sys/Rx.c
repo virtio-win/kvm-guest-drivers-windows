@@ -534,14 +534,24 @@ _Requires_lock_not_held_(pSocket->StateLock) VOID VIOSockRxPktHandleConnecting(I
                 case VIRTIO_VSOCK_OP_RESPONSE:
                     WdfSpinLockAcquire(pSocket->StateLock);
                     VIOSockStateSet(pSocket, VIOSOCK_STATE_CONNECTED);
-                    bSetEvent = VIOSockEventMarkBit(pSocket, FD_CONNECT_BIT, STATUS_SUCCESS);
-                    if (bTxHasSpace)
+                    if (VIOSockStateGet(pSocket) == VIOSOCK_STATE_CONNECTED)
                     {
-                        bSetEvent |= VIOSockEventMarkBit(pSocket, FD_WRITE_BIT, STATUS_SUCCESS);
+                        bSetEvent = VIOSockEventMarkBit(pSocket, FD_CONNECT_BIT, STATUS_SUCCESS);
+                        if (bTxHasSpace)
+                        {
+                            bSetEvent |= VIOSockEventMarkBit(pSocket, FD_WRITE_BIT, STATUS_SUCCESS);
+                        }
+                        VIOSockEventNotify(pSocket, bSetEvent);
+                        status = STATUS_SUCCESS;
                     }
-                    VIOSockEventNotify(pSocket, bSetEvent);
+                    else
+                    {
+                        // A transport reset raced the connect: VIOSockConnectedAdd
+                        // refused and rolled the state to CLOSE; fall to the failure
+                        // path below to fail the connect with WSAECONNRESET.
+                        status = STATUS_CONNECTION_RESET;
+                    }
                     WdfSpinLockRelease(pSocket->StateLock);
-                    status = STATUS_SUCCESS;
                     break;
                 case VIRTIO_VSOCK_OP_INVALID:
                     if (PendedRequest != WDF_NO_HANDLE)
