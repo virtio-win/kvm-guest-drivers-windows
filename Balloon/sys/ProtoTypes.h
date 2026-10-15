@@ -41,6 +41,9 @@
 #define VIRTIO_BALLOON_F_MUST_TELL_HOST 0 /* Tell before reclaiming pages */
 #define VIRTIO_BALLOON_F_STATS_VQ       1 /* Memory status virtqueue */
 
+/* Size of a PFN in the balloon interface. */
+#define VIRTIO_BALLOON_PFN_SHIFT        12
+
 typedef struct _VIRTIO_BALLOON_CONFIG
 {
     u32 num_pages;
@@ -81,7 +84,8 @@ typedef struct _DEVICE_CONTEXT
 
     volatile ULONG num_pages;
     ULONG num_pfns;
-    PPFN_NUMBER pfns_table;
+    /* 32-bit PFNs, as required by the virtio spec (5.5.6) */
+    PULONG pfns_table;
     NPAGED_LOOKASIDE_LIST LookAsideList;
     BOOLEAN bListInitialized;
     SINGLE_LIST_ENTRY PageListHead;
