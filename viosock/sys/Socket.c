@@ -3001,6 +3001,13 @@ _Requires_lock_not_held_(pSocket->StateLock) NTSTATUS VIOSockStateValidate(PSOCK
     {
         status = STATUS_LOCAL_DISCONNECT;
     }
+    else if (VIOSockIsFlag(pSocket, SOCK_RESET))
+    {
+        // Abortive close (peer RST / transport reset): both directions fail with
+        // WSAECONNRESET, ahead of the PeerShutdown closed-marker that would
+        // otherwise read as a graceful peer shutdown.
+        status = STATUS_CONNECTION_RESET;
+    }
     else if (bIsPeerShutdown)
     {
         status = STATUS_REMOTE_DISCONNECT;
@@ -3143,8 +3150,9 @@ VOID VIOSockHandleTransportReset(IN PDEVICE_CONTEXT pContext)
     }
     WdfSpinLockRelease(pContext->ConnectedLock);
 
-    // Model as a peer RST: set SOCK_RESET and the generic PeerShutdown closed-marker
-    // the readiness predicate keys off.
+    // Model as a peer RST: SOCK_RESET makes recv/send report WSAECONNRESET (via
+    // VIOSockStateValidate), plus the generic PeerShutdown closed-marker the
+    // readiness predicate keys off.
     while (!IsListEmpty(&resetList))
     {
         PSOCKET_CONTEXT pCurrentSocket = CONTAINING_RECORD(RemoveHeadList(&resetList), SOCKET_CONTEXT, ResetLink);
