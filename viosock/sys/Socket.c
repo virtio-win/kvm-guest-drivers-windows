@@ -2259,6 +2259,20 @@ struct timeval
 
 #define USEC_PER_SEC 1000000L
 
+// SoError read-and-clear under StateLock, kept out of the paged getsockopt
+// handler so the spinlock is not taken in pageable code (SDV C28150).
+static NTSTATUS VIOSockReadClearSoError(IN PSOCKET_CONTEXT pSocket)
+{
+    NTSTATUS SoError;
+
+    WdfSpinLockAcquire(pSocket->StateLock);
+    SoError = pSocket->SoError;
+    pSocket->SoError = STATUS_SUCCESS;
+    WdfSpinLockRelease(pSocket->StateLock);
+
+    return SoError;
+}
+
 static NTSTATUS VIOSockGetSockOpt(IN WDFREQUEST Request, OUT size_t *pLength)
 {
     PSOCKET_CONTEXT pSocket = GetSocketContextFromRequest(Request);
@@ -2359,10 +2373,7 @@ static NTSTATUS VIOSockGetSockOpt(IN WDFREQUEST Request, OUT size_t *pLength)
 
             // read-and-clear, as the option is specified; the value is the
             // NTSTATUS of the failure, viosocklib maps it to a Winsock error
-            WdfSpinLockAcquire(pSocket->StateLock);
-            *(PULONG)pOptVal = (ULONG)pSocket->SoError;
-            pSocket->SoError = STATUS_SUCCESS;
-            WdfSpinLockRelease(pSocket->StateLock);
+            *(PULONG)pOptVal = (ULONG)VIOSockReadClearSoError(pSocket);
             pOpt->optlen = sizeof(ULONG);
             break;
 
