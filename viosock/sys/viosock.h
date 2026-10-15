@@ -184,6 +184,9 @@ typedef struct _DEVICE_CONTEXT
 
     WDFSPINLOCK ConnectedLock;
     _Guarded_by_(ConnectedLock) WDFCOLLECTION ConnectedList;
+    // Bumped under ConnectedLock on every transport reset; a connect/accept that
+    // began under an older value is completing against a dead transport.
+    volatile ULONG ResetGeneration;
 
     WDFWAITLOCK SelectLock;
     _Guarded_by_(SelectLock) LIST_ENTRY SelectList;
@@ -304,6 +307,11 @@ typedef struct _VIOSOCK_ACCEPT_ENTRY
     ULONG32 dst_port;
     ULONG32 peer_buf_alloc;
     ULONG32 peer_fwd_cnt;
+    // Device ResetGeneration captured when this incoming connection (OP_REQUEST)
+    // was queued. A transport reset arriving before the accept completes bumps the
+    // generation, so VIOSockConnectedAdd rejects the accept instead of promoting a
+    // dead connection to CONNECTED.
+    ULONG Generation;
 } VIOSOCK_ACCEPT_ENTRY, *PVIOSOCK_ACCEPT_ENTRY;
 
 typedef struct _SOCKET_CONTEXT
@@ -313,6 +321,14 @@ typedef struct _SOCKET_CONTEXT
 
     _Interlocked_ volatile LONG Flags;
     LONG SocketId; // for debug
+
+    LIST_ENTRY ResetLink;
+
+    // Device ResetGeneration this connection rode: captured at connect() for an
+    // outbound socket, or inherited from the incoming OP_REQUEST (the accept
+    // entry's Generation) for an accepted one. If it no longer matches at
+    // VIOSockConnectedAdd, a transport reset raced and the add fails.
+    ULONG ConnectGeneration;
 
     VIRTIO_VSOCK_TYPE type;
 
@@ -403,6 +419,16 @@ WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(SOCKET_CONTEXT, GetSocketContext);
 #define IsControlRequest(r)            VIOSockIsFlag(GetSocketContextFromRequest(r), SOCK_CONTROL)
 
 #define IsLoopbackSocket(s)            (VIOSockIsFlag(s, SOCK_LOOPBACK))
+
+__inline VOID VIOSockReferenceSocketObject(IN PSOCKET_CONTEXT pSocket)
+{
+    ObReferenceObject(WdfFileObjectWdmGetFileObject(pSocket->ThisSocket));
+}
+
+__inline VOID VIOSockDereferenceSocketObject(IN PSOCKET_CONTEXT pSocket)
+{
+    ObDereferenceObject(WdfFileObjectWdmGetFileObject(pSocket->ThisSocket));
+}
 
 //////////////////////////////////////////////////////////////////////////
 // Device functions
