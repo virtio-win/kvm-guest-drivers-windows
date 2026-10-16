@@ -168,6 +168,9 @@ _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxVqCleanup(IN PDEVICE_CO
         }
     }
 
+    // NULL under the lock so a racing sender sees the teardown and bails
+    pContext->TxVq = NULL;
+
     WdfSpinLockRelease(pContext->TxLock);
 
     for (CurrentItem = CompletionList.Flink; CurrentItem != &CompletionList; CurrentItem = CurrentItem->Flink)
@@ -203,7 +206,6 @@ _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxVqCleanup(IN PDEVICE_CO
         pContext->TxPktSliced = NULL;
         pContext->TxPktNum = 0;
     }
-    pContext->TxVq = NULL;
 }
 
 NTSTATUS
@@ -321,6 +323,12 @@ _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxVqProcess(IN PDEVICE_CO
     InitializeListHead(&CompletionList);
 
     WdfSpinLockAcquire(pContext->TxLock);
+    if (!pContext->TxVq)
+    {
+        // device torn down (suspend/remove): the vq is gone, drop the work
+        WdfSpinLockRelease(pContext->TxLock);
+        return;
+    }
     do
     {
         virtqueue_disable_cb(pContext->TxVq);
@@ -403,6 +411,14 @@ _Requires_lock_not_held_(pContext->TxLock) static VOID VIOSockTxDequeue(PDEVICE_
 
     WdfSpinLockAcquire(pContext->TxLock);
 
+    if (!pContext->TxVq)
+    {
+        // device torn down (suspend/remove): the vq is gone, drop the work
+        WdfSpinLockRelease(pContext->TxLock);
+        InterlockedExchange(&lInProgress, 0);
+        return;
+    }
+
     while (!IsListEmpty(&pContext->TxList))
     {
         PVIOSOCK_TX_ENTRY pTxEntry = CONTAINING_RECORD(pContext->TxList.Flink, VIOSOCK_TX_ENTRY, ListEntry);
@@ -440,14 +456,16 @@ _Requires_lock_not_held_(pContext->TxLock) static VOID VIOSockTxDequeue(PDEVICE_
         }
     }
 
-    InterlockedExchange(&lInProgress, 0);
-
-    WdfSpinLockRelease(pContext->TxLock);
-
+    // kick under the lock: add_buf and the doorbell must be atomic against
+    // the teardown that NULLs and frees the vq
     if (bKick)
     {
         virtqueue_kick(pContext->TxVq);
     }
+
+    InterlockedExchange(&lInProgress, 0);
+
+    WdfSpinLockRelease(pContext->TxLock);
 
     if (bRestartRx)
     {
