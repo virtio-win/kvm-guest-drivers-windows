@@ -116,6 +116,19 @@ void NdisPollHandler::HandlePoll(NDIS_POLL_DATA *PollData)
     DPrintf(POLL_PRINT_LEVEL, "#%d", m_Index);
     CDpcIrqlRaiser raise;
 
+    // Take part in the same protocol as the interrupt DPCs (ParaNdis_RXTXDPCWorkBody):
+    // PreventDPCServicing() clears bEnableInterruptHandlingDPC and waits for counterDPCInside
+    // to drain before ParaNdis_PowerOff() / cleanup delete the virtqueues. Without this a poll
+    // running during or after the power-down (e.g. hibernation) calls ProcessRxRing() on a
+    // deleted RX queue: virtqueue_get_buf(NULL) -> bugcheck 0xD1 reading 0x48.
+    InterlockedIncrement(&m_AdapterContext->counterDPCInside);
+    if (!m_AdapterContext->bEnableInterruptHandlingDPC)
+    {
+        InterlockedDecrement(&m_AdapterContext->counterDPCInside);
+        DPrintf(POLL_PRINT_LEVEL, "#%d skipped: DPC servicing disabled", m_Index);
+        return;
+    }
+
     // RX
     RxPoll(m_AdapterContext, m_Index, PollData->Receive);
     if (PollData->Receive.NumberOfIndicatedNbls || PollData->Receive.NumberOfRemainingNbls)
@@ -150,6 +163,7 @@ void NdisPollHandler::HandlePoll(NDIS_POLL_DATA *PollData)
     {
         ParaNdisPollNotify(m_AdapterContext, m_Index, "Self");
     }
+    InterlockedDecrement(&m_AdapterContext->counterDPCInside);
 }
 
 #else
