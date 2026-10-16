@@ -425,6 +425,10 @@ _Requires_lock_not_held_(pContext->RxLock) VOID VIOSockRxVqCleanup(IN PDEVICE_CO
     {
         VIOSockRxPktCleanup(pContext, CONTAINING_RECORD(pListEntry, VIOSOCK_RX_PKT, RxPktListEntry));
     }
+
+    // NULL under the lock so a racing rx pass sees the teardown and bails
+    pContext->RxVq = NULL;
+
     WdfSpinLockRelease(pContext->RxLock);
 
     VIOSockRxCbCleanup(pContext);
@@ -435,7 +439,6 @@ _Requires_lock_not_held_(pContext->RxLock) VOID VIOSockRxVqCleanup(IN PDEVICE_CO
         pContext->RxPktVA = NULL;
     }
 
-    pContext->RxVq = NULL;
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
 }
 
@@ -994,6 +997,12 @@ _Requires_lock_not_held_(pContext->RxLock) VOID VIOSockRxVqProcess(IN PDEVICE_CO
     InitializeListHead(&CompletionList);
 
     WdfSpinLockAcquire(pContext->RxLock);
+    if (!pContext->RxVq)
+    {
+        // device torn down (suspend/remove): the vq is gone, drop the work
+        WdfSpinLockRelease(pContext->RxLock);
+        return;
+    }
     do
     {
         virtqueue_disable_cb(pContext->RxVq);
