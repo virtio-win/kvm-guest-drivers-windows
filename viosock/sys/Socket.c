@@ -309,12 +309,6 @@ static BOOLEAN VIOSockBoundFindByPortCallback(IN PSOCKET_CONTEXT pSocket, IN PVO
     return pSocket->src_port == (ULONG32)(ULONG_PTR)pCallbackContext;
 }
 
-_Requires_lock_not_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundFindByPortLocked(IN PDEVICE_CONTEXT pContext,
-                                                                                           IN ULONG32 ulSrcPort)
-{
-    return VIOSockBoundEnumLocked(pContext, VIOSockBoundFindByPortCallback, (PVOID)ulSrcPort);
-}
-
 _Requires_lock_not_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundFindByPortLockedReferenced(
                                                                                                     IN PDEVICE_CONTEXT pContext,
                                                                                                     IN ULONG32 ulSrcPort)
@@ -325,7 +319,7 @@ _Requires_lock_not_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundFindBy
     pSocket = VIOSockBoundEnum(pContext, VIOSockBoundFindByPortCallback, (PVOID)ulSrcPort);
     if (pSocket)
     {
-        WdfObjectReference(pSocket->ThisSocket);
+        VIOSockReferenceSocketObject(pSocket);
     }
     WdfSpinLockRelease(pContext->BoundLock);
 
@@ -347,23 +341,6 @@ _Requires_lock_not_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundFindBy
                                                                                            IN PFILE_OBJECT pFileObject)
 {
     return VIOSockBoundEnumLocked(pContext, VIOSockFindByFileCallback, pFileObject);
-}
-
-_Requires_lock_not_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundFindByFileLockedReferenced(
-                                                                                                    IN PDEVICE_CONTEXT pContext,
-                                                                                                    IN PFILE_OBJECT pFileObject)
-{
-    PSOCKET_CONTEXT pSocket;
-
-    WdfSpinLockAcquire(pContext->BoundLock);
-    pSocket = VIOSockBoundEnum(pContext, VIOSockFindByFileCallback, pFileObject);
-    if (pSocket)
-    {
-        WdfObjectReference(pSocket->ThisSocket);
-    }
-    WdfSpinLockRelease(pContext->BoundLock);
-
-    return pSocket;
 }
 
 NTSTATUS
@@ -479,33 +456,27 @@ static BOOLEAN VIOSockConnectedFindByRxPktCallback(IN PSOCKET_CONTEXT pSocket, I
             pPkt->dst_port == pSocket->src_port);
 }
 
-_Requires_lock_not_held_(pContext->ConnectedLock) PSOCKET_CONTEXT VIOSockConnectedFindByRxPktLocked(IN PDEVICE_CONTEXT pContext,
+_Requires_lock_not_held_(pContext->ConnectedLock) PSOCKET_CONTEXT VIOSockConnectedFindByRxPktLockedReferenced(
+                                                                                                    IN PDEVICE_CONTEXT pContext,
                                                                                                     IN PVIRTIO_VSOCK_HDR pPkt)
 {
-    return VIOSockConnectedEnumLocked(pContext, VIOSockConnectedFindByRxPktCallback, pPkt);
+    PSOCKET_CONTEXT pSocket;
+
+    WdfSpinLockAcquire(pContext->ConnectedLock);
+    pSocket = VIOSockConnectedEnum(pContext, VIOSockConnectedFindByRxPktCallback, pPkt);
+    if (pSocket)
+    {
+        VIOSockReferenceSocketObject(pSocket);
+    }
+    WdfSpinLockRelease(pContext->ConnectedLock);
+
+    return pSocket;
 }
 
 _Requires_lock_not_held_(pContext->ConnectedLock) PSOCKET_CONTEXT VIOSockConnectedFindByFileLocked(IN PDEVICE_CONTEXT pContext,
                                                                                                    IN PFILE_OBJECT pFileObject)
 {
     return VIOSockConnectedEnumLocked(pContext, VIOSockFindByFileCallback, pFileObject);
-}
-
-_Requires_lock_not_held_(pContext->ConnectedLock) PSOCKET_CONTEXT VIOSockConnectedFindByFileLockedReferenced(
-                                                                                                    IN PDEVICE_CONTEXT pContext,
-                                                                                                    IN PFILE_OBJECT pFileObject)
-{
-    PSOCKET_CONTEXT pSocket;
-
-    WdfSpinLockAcquire(pContext->ConnectedLock);
-    pSocket = VIOSockConnectedEnum(pContext, VIOSockFindByFileCallback, pFileObject);
-    if (pSocket)
-    {
-        WdfObjectReference(pSocket->ThisSocket);
-    }
-    WdfSpinLockRelease(pContext->ConnectedLock);
-
-    return pSocket;
 }
 
 _Requires_lock_held_(pSocket->StateLock) VIOSOCK_STATE VIOSockStateSet(IN PSOCKET_CONTEXT pSocket,
@@ -835,6 +806,8 @@ _Requires_lock_not_held_(pListenSocket->StateLock) NTSTATUS VIOSockAcceptInitSoc
 
     WdfSpinLockAcquire(pListenSocket->StateLock);
     pAcceptSocket->EventsMask = ~FD_ACCEPT & pListenSocket->EventsMask;
+    // Inherited ref is dropped in VIOSockObjectCleanup (object cleanup, not a close
+    // callback) so it fires even if a transport reset later fails this accept's create.
     if (pAcceptSocket->EventsMask && pListenSocket->EventObject)
     {
         ObReferenceObject(pListenSocket->EventObject);
@@ -1243,7 +1216,7 @@ NTSTATUS VIOSockCreate(IN WDFDEVICE WdfDevice, IN WDFREQUEST Request)
                     if (ListenSocket != WDF_NO_HANDLE)
                     {
                         status = VIOSockAcceptForward(ListenSocket, Request);
-                        WdfObjectDereference(ListenSocket);
+                        VIOSockDereferenceSocketObject(GetSocketContext(ListenSocket));
                     }
                     else
                     {
@@ -3095,18 +3068,22 @@ VIOSockGetSocketFromHandle(IN PDEVICE_CONTEXT pContext,
 
     if (NT_SUCCESS(status))
     {
-        PSOCKET_CONTEXT pSocket = VIOSockConnectedFindByFileLockedReferenced(pContext, pFileObj);
+        PSOCKET_CONTEXT pSocket = VIOSockConnectedFindByFileLocked(pContext, pFileObj);
         if (!pSocket)
         {
-            pSocket = VIOSockBoundFindByFileLockedReferenced(pContext, pFileObj);
+            pSocket = VIOSockBoundFindByFileLocked(pContext, pFileObj);
         }
-
-        ObDereferenceObject(pFileObj);
 
         if (pSocket)
         {
             return pSocket->ThisSocket;
         }
+
+        ObDereferenceObject(pFileObj);
+    }
+    else
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "ObReferenceObjectByHandle failed: 0x%x\n", status);
     }
 
     return WDF_NO_HANDLE;

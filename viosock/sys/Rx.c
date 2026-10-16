@@ -889,18 +889,20 @@ VOID VIOSockRxPktHandle(IN PDEVICE_CONTEXT pContext, IN PVIRTIO_VSOCK_HDR pPktHd
     BOOLEAN bEnqueued = FALSE;
     PSOCKET_CONTEXT pSocket = NULL;
 
-    // find socket
-    pSocket = VIOSockConnectedFindByRxPktLocked(pContext, pPktHdr);
+    // Referenced lookup: the collection lock is dropped before we touch the
+    // socket's per-file-object locks below, so pin the file object across the gap
+    pSocket = VIOSockConnectedFindByRxPktLockedReferenced(pContext, pPktHdr);
     if (!pSocket)
     {
         // no connected socket for incoming packet
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "No connected socket found\n");
-        pSocket = VIOSockBoundFindByPortLocked(pContext, pPktHdr->dst_port);
+        pSocket = VIOSockBoundFindByPortLockedReferenced(pContext, pPktHdr->dst_port);
     }
 
     if (pSocket && pSocket->type != pPktHdr->type)
     {
         TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "Invalid socket %d type\n", pSocket->SocketId);
+        VIOSockDereferenceSocketObject(pSocket);
         pSocket = NULL;
     }
     if (!pSocket)
@@ -966,6 +968,8 @@ VOID VIOSockRxPktHandle(IN PDEVICE_CONTEXT pContext, IN PVIRTIO_VSOCK_HDR pPktHd
                     VIOSockSendResetNoSock(pContext, pPktHdr);
                 }
         }
+
+        VIOSockDereferenceSocketObject(pSocket);
     }
 
     if (bLoopback)

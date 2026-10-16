@@ -468,15 +468,12 @@ VIOSockBoundListInit(IN WDFDEVICE hDevice);
 NTSTATUS
 VIOSockBoundAdd(IN PSOCKET_CONTEXT pSocket, IN ULONG32 svm_port);
 
-_Requires_lock_not_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundFindByPortLocked(IN PDEVICE_CONTEXT pContext,
-                                                                                           IN ULONG32 ulSrcPort);
+_Requires_lock_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundFindByPort(IN PDEVICE_CONTEXT pContext,
+                                                                                 IN ULONG32 ulSrcPort);
 
 _Requires_lock_not_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundFindByPortLockedReferenced(
                                                                                                     IN PDEVICE_CONTEXT pContext,
                                                                                                     IN ULONG32 ulSrcPort);
-
-_Requires_lock_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundFindByPort(IN PDEVICE_CONTEXT pContext,
-                                                                                 IN ULONG32 ulSrcPort);
 
 _Requires_lock_not_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundFindByFileLocked(IN PDEVICE_CONTEXT pContext,
                                                                                            IN PFILE_OBJECT pFileObject);
@@ -484,7 +481,8 @@ _Requires_lock_not_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundFindBy
 NTSTATUS
 VIOSockConnectedListInit(IN WDFDEVICE hDevice);
 
-_Requires_lock_not_held_(pContext->ConnectedLock) PSOCKET_CONTEXT VIOSockConnectedFindByRxPktLocked(IN PDEVICE_CONTEXT pContext,
+_Requires_lock_not_held_(pContext->ConnectedLock) PSOCKET_CONTEXT VIOSockConnectedFindByRxPktLockedReferenced(
+                                                                                                    IN PDEVICE_CONTEXT pContext,
                                                                                                     IN PVIRTIO_VSOCK_HDR pPkt);
 
 _Requires_lock_held_(pSocket->StateLock) VIOSOCK_STATE VIOSockStateSet(IN PSOCKET_CONTEXT pSocket,
