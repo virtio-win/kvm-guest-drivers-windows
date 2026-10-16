@@ -149,6 +149,9 @@
       <AdditionalLibraryDirectories>..\..\VirtIO\$(OutDir);..\..\VirtIO\WDF\$(OutDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>%(AdditionalDependencies);virtiolib.lib;virtiolib_wdf.lib;ntstrsafe.lib;wdmsec.lib</AdditionalDependencies>
     </Link>
+    <ResourceCompile>
+      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
     <FilesToPackage Include="$(TargetPath)" />
@@ -162,6 +165,8 @@
     <Inf Include="balloon.inx" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="balloonwmi.h" />
+    <ClInclude Include="debugdata.h" />
     <ClInclude Include="ntddkex.h" />
     <ClInclude Include="precomp.h" />
     <ClInclude Include="ProtoTypes.h" />
@@ -178,6 +183,9 @@
     <ClCompile Include="memstat.c" />
     <ClCompile Include="queue.c" />
     <ClCompile Include="utils.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <Mofcomp Include="balloon.mof" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <Import Project="$(MSBuildProjectDirectory)\..\..\build\Driver.Common.targets" />
