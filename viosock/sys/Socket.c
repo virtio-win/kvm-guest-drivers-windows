@@ -1815,15 +1815,32 @@ static NTSTATUS VIOSockListen(IN WDFREQUEST Request)
     return status;
 }
 
-__inline NTSTATUS VIOSockGetEventFromHandle(IN HANDLE hEvent, IN KPROCESSOR_MODE AccessMode, OUT PKEVENT *pEvent)
+PKEVENT
+VIOSockGetEventFromHandle(IN ULONGLONG uEvent, IN BOOLEAN bIs32BitProcess, IN KPROCESSOR_MODE AccessMode)
 {
-    // hEvent normally arrives from user mode (WSAEventSelect / WSAEnumNetworkEvents
-    // IOCTL input buffer); the caller passes its requestor mode so the lookup goes
-    // through the right domain and does not trip Driver Verifier's 0xC4/0xF6 check.
-    // DesiredAccess=0 keeps the reference alive without the full-access rights the
-    // event's user opener typically does not grant; KeSetEvent/KeClearEvent operate
-    // on the raw object pointer and do not re-check.
-    return ObReferenceObjectByHandle(hEvent, 0, *ExEventObjectType, AccessMode, (PVOID)pEvent, NULL);
+    NTSTATUS status;
+    PKEVENT pEvent = NULL;
+    HANDLE hEvent;
+
+#ifdef _WIN64
+    if (bIs32BitProcess)
+    {
+        hEvent = Handle32ToHandle((void *POINTER_32)(ULONG)uEvent);
+    }
+    else
+#endif //_WIN64
+    {
+        hEvent = (HANDLE)uEvent;
+    }
+
+    status = ObReferenceObjectByHandle(hEvent, 0, *ExEventObjectType, AccessMode, (PVOID)&pEvent, NULL);
+
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "ObReferenceObjectByHandle failed: 0x%x\n", status);
+    }
+
+    return pEvent;
 }
 
 _Requires_lock_not_held_(pSocket->StateLock) static VOID VIOSockEventUnregister(IN PSOCKET_CONTEXT pSocket,
@@ -1871,7 +1888,6 @@ static NTSTATUS VIOSockEnumNetEvents(IN WDFREQUEST Request, OUT size_t *pLength)
     PVIRTIO_VSOCK_NETWORK_EVENTS lpNetworkEvents;
     SIZE_T stNetworkEventsLen;
     NTSTATUS status;
-    HANDLE hEvent = NULL;
     PKEVENT pEvent = NULL;
 
     PAGED_CODE();
@@ -1898,24 +1914,14 @@ static NTSTATUS VIOSockEnumNetEvents(IN WDFREQUEST Request, OUT size_t *pLength)
     // minimum length guaranteed by WdfRequestRetrieveOutputBuffer above
     _Analysis_assume_(stNetworkEventsLen >= sizeof(*lpNetworkEvents));
 
-#ifdef _WIN64
-    if (WdfRequestIsFrom32BitProcess(Request))
+    if (*pEventObject)
     {
-        hEvent = Handle32ToHandle((void *POINTER_32)(ULONG)*pEventObject);
-    }
-    else
-#endif //_WIN64
-    {
-        hEvent = (HANDLE)(ULONG_PTR)*pEventObject;
-    }
-
-    if (hEvent)
-    {
-        status = VIOSockGetEventFromHandle(hEvent, WdfRequestGetRequestorMode(Request), &pEvent);
-        if (!NT_SUCCESS(status))
+        pEvent = VIOSockGetEventFromHandle(*pEventObject,
+                                           WdfRequestIsFrom32BitProcess(Request),
+                                           WdfRequestGetRequestorMode(Request));
+        if (!pEvent)
         {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockGetEventFromHandle failed: 0x%x\n", status);
-            return status;
+            return STATUS_INVALID_PARAMETER;
         }
     }
 
@@ -2051,30 +2057,18 @@ static NTSTATUS VIOSockEventSelect(IN WDFREQUEST Request)
 
     if (pEventSelect->lNetworkEvents)
     {
-        HANDLE hEvent;
-
-#ifdef _WIN64
-        if (WdfRequestIsFrom32BitProcess(Request))
-        {
-            hEvent = Handle32ToHandle((void *POINTER_32)pEventSelect->hEventObject);
-        }
-        else
-#endif //_WIN64
-        {
-            hEvent = (HANDLE)pEventSelect->hEventObject;
-        }
-
-        if (!hEvent)
+        if (!pEventSelect->hEventObject)
         {
             TraceEvents(TRACE_LEVEL_WARNING, DBG_IOCTLS, "Invalid hEventObject\n");
             return STATUS_INVALID_PARAMETER;
         }
 
-        status = VIOSockGetEventFromHandle(hEvent, WdfRequestGetRequestorMode(Request), &pEvent);
-        if (!NT_SUCCESS(status))
+        pEvent = VIOSockGetEventFromHandle(pEventSelect->hEventObject,
+                                           WdfRequestIsFrom32BitProcess(Request),
+                                           WdfRequestGetRequestorMode(Request));
+        if (!pEvent)
         {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "VIOSockGetEventFromHandle failed: 0x%x\n", status);
-            return status;
+            return STATUS_INVALID_PARAMETER;
         }
     }
 
