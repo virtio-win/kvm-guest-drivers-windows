@@ -413,6 +413,56 @@ static VOID HandleGetVolumeName(IN PDEVICE_CONTEXT Context, IN WDFREQUEST Reques
     WdfRequestCompleteWithInformation(Request, STATUS_SUCCESS, size);
 }
 
+// Called in the context of the requesting thread (see VirtFsEvtIoInCallerContext).
+// The read buffer of IOCTL_VIRTFS_FUSE_REQUEST_READ is a user-mode pointer embedded
+// in the output buffer, so it is not described by the IRP and can only be probed and
+// locked here: the sequential queue may present the request to VirtFsEvtIoDeviceControl
+// later from the completion DPC, i.e. at DISPATCH_LEVEL in an arbitrary process context.
+static NTSTATUS LockFuseReadBuffer(IN WDFREQUEST Request, IN PREQUEST_CONTEXT ReqContext)
+{
+    NTSTATUS status;
+    struct fuse_out_for_read *out_buf;
+    uint64_t pointer;
+    PVOID buffer;
+    ULONG length;
+
+    status = WdfRequestRetrieveOutputBuffer(Request, sizeof(*out_buf), (PVOID *)&out_buf, NULL);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "WdfRequestRetrieveOutputBuffer failed: %!STATUS!", status);
+        return status;
+    }
+
+    // the output buffer is the caller's memory, fetch the parameters only once
+    pointer = *(volatile uint64_t *)&out_buf->original_pointer;
+    length = *(volatile uint32_t *)&out_buf->hdr.len;
+    buffer = (PVOID)(ULONG_PTR)pointer;
+
+    if (buffer == NULL || (ULONG_PTR)buffer != pointer)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "Invalid read buffer %I64x", pointer);
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (length == 0 || length > MAXULONG - sizeof(struct fuse_out_header))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "Invalid read length %u", length);
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    status = WdfRequestProbeAndLockUserBufferForWrite(Request, buffer, length, &ReqContext->ReadBuffer);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "WdfRequestProbeAndLockUserBufferForWrite failed: %!STATUS!", status);
+        ReqContext->ReadBuffer = NULL;
+        return status;
+    }
+
+    ReqContext->ReadBufferLength = length;
+
+    return STATUS_SUCCESS;
+}
+
 static VOID HandleFuseRead(IN PDEVICE_CONTEXT Context,
                            IN WDFREQUEST Request,
                            IN size_t OutputBufferLength,
@@ -422,6 +472,17 @@ static VOID HandleFuseRead(IN PDEVICE_CONTEXT Context,
     PVIRTIO_FS_REQUEST fs_req;
     PVOID in_buf, out_buf;
     BOOLEAN hiprio;
+    PREQUEST_CONTEXT reqContext = GetRequestContext(Request);
+
+    // This may run at DISPATCH_LEVEL in an arbitrary process context, so the
+    // user-mode read buffer must not be touched here, only the one locked by
+    // VirtFsEvtIoInCallerContext.
+    if (reqContext->ReadBuffer == NULL)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "Read buffer is not locked");
+        status = STATUS_INVALID_DEVICE_REQUEST;
+        goto complete_wdf_req_no_fs_req;
+    }
 
     if (InputBufferLength < sizeof(struct fuse_in_header))
     {
@@ -460,22 +521,14 @@ static VOID HandleFuseRead(IN PDEVICE_CONTEXT Context,
         goto complete_wdf_req_no_fs_req;
     }
 
-    PVOID originalBuffer = (PVOID)(ULONG_PTR)((struct fuse_out_for_read *)out_buf)->original_pointer;
-    ULONG originalBufferLen = ((struct fuse_out_for_read *)out_buf)->hdr.len;
+    WDFMEMORY userMem = reqContext->ReadBuffer;
+    ULONG originalBufferLen = reqContext->ReadBufferLength;
     ULONG outHeaderLength = sizeof(((struct fuse_out_for_read *)out_buf)->hdr);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "read length %d", originalBufferLen);
 
     fs_req->Request = Request;
     fs_req->Cancellable = FALSE;
-
-    WDFMEMORY userMem;
-    status = WdfRequestProbeAndLockUserBufferForWrite(Request, originalBuffer, originalBufferLen, &userMem);
-    if (!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "WdfRequestProbeAndLockUserBufferForWrite failed");
-        goto complete_wdf_req;
-    }
 
     PMDL firstMdl = IoAllocateMdl(out_buf, outHeaderLength, FALSE, FALSE, NULL);
     if (!firstMdl)
@@ -516,10 +569,12 @@ static VOID HandleFuseRead(IN PDEVICE_CONTEXT Context,
     hiprio = FALSE;
 
     status = VirtFsEnqueueRequest(Context, fs_req, hiprio);
-    if (NT_SUCCESS(status))
+    if (!NT_SUCCESS(status))
     {
-        return;
+        // the request is already in the requests list, this will take care of it
+        FailFsRequest(Context, fs_req);
     }
+    return;
 
 complete_wdf_req:
     FreeVirtFsRequest(fs_req);
@@ -664,6 +719,43 @@ complete_wdf_req:
 complete_wdf_req_no_fs_req:
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "Complete Request: %p Status: %!STATUS!", Request, status);
     WdfRequestComplete(Request, status);
+}
+
+VOID VirtFsEvtIoInCallerContext(IN WDFDEVICE Device, IN WDFREQUEST Request)
+{
+    NTSTATUS status;
+    WDF_REQUEST_PARAMETERS params;
+    PREQUEST_CONTEXT reqContext = GetRequestContext(Request);
+
+    reqContext->ReadBuffer = NULL;
+    reqContext->ReadBufferLength = 0;
+
+    WDF_REQUEST_PARAMETERS_INIT(&params);
+    WdfRequestGetParameters(Request, &params);
+
+    if (params.Type != WdfRequestTypeDeviceControl)
+    {
+        // only device control requests have a queue, see VirtFsEvtDeviceAdd
+        WdfRequestComplete(Request, STATUS_INVALID_DEVICE_REQUEST);
+        return;
+    }
+
+    if (params.Parameters.DeviceIoControl.IoControlCode == IOCTL_VIRTFS_FUSE_REQUEST_READ)
+    {
+        status = LockFuseReadBuffer(Request, reqContext);
+        if (!NT_SUCCESS(status))
+        {
+            WdfRequestComplete(Request, status);
+            return;
+        }
+    }
+
+    status = WdfDeviceEnqueueRequest(Device, Request);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_IOCTL, "WdfDeviceEnqueueRequest failed: %!STATUS!", status);
+        WdfRequestComplete(Request, status);
+    }
 }
 
 VOID VirtFsEvtIoDeviceControl(IN WDFQUEUE Queue,
