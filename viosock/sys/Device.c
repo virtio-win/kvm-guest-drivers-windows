@@ -1141,8 +1141,8 @@ static VOID VIOSockSelectCleanupFds(IN PVIOSOCK_SELECT_PKT pPkt,
         ASSERT(pHandleSet[i].Socket);
 
         InterlockedDecrement(&GetSocketContext(pHandleSet[i].Socket)->SelectRefs[iFdSet]); // dereference socket
-        WdfObjectDereference(pHandleSet[i].Socket);
-        pHandleSet[i].Socket = NULL;
+        VIOSockDereferenceSocketObject(GetSocketContext(pHandleSet[i].Socket));
+        pHandleSet[i].Socket = WDF_NO_HANDLE;
     }
 
     pPkt->FdCount[iFdSet] = 0;
@@ -1190,7 +1190,7 @@ static VOID VIOSockPollCleanupPkt(IN PVIOSOCK_SELECT_PKT pPkt)
             }
             InterlockedDecrement(&pSocket->SelectRefs[FDSET_EXCPT]);
 
-            WdfObjectDereference(pPollFd->Socket);
+            VIOSockDereferenceSocketObject(GetSocketContext(pPollFd->Socket));
             pPollFd->Socket = WDF_NO_HANDLE;
         }
     }
@@ -1668,7 +1668,7 @@ static BOOLEAN VIOSockSelectCopyFds(IN PDEVICE_CONTEXT pContext,
 
                 if (VIOSockIsFlag(pSocket, SOCK_CLEANUP))
                 {
-                    WdfObjectDereference(pSocket->ThisSocket);
+                    VIOSockDereferenceSocketObject(pSocket);
                     break;
                 }
                 pHandleSet[i].hSocket = hSocket;
