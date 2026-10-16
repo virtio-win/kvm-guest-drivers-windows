@@ -1379,6 +1379,13 @@ VOID VIOSockCleanup(IN WDFFILEOBJECT FileObject)
         WdfRequestComplete(Request, STATUS_CANCELLED);
     }
 
+    // Loopback CONNECTING close: emit RST via the generic path so the pending
+    // accept entry on the listener gets cleaned up (VIOSockRxPktHandleListen).
+    if (IsLoopbackSocket(pSocket) && PrevState == VIOSOCK_STATE_CONNECTING)
+    {
+        VIOSockSendReset(pSocket, FALSE);
+    }
+
     if (PrevState == VIOSOCK_STATE_LISTEN)
     {
         VIOSockAcceptCleanup(pSocket);
@@ -1391,13 +1398,6 @@ VOID VIOSockCleanup(IN WDFFILEOBJECT FileObject)
         VIOSockWriteProcessQueue(pSocket);
         VIOSockReadProcessQueue(pSocket);
         VIOSockReadCleanupCb(pSocket);
-    }
-
-    // Loopback CONNECTING close: emit RST via the generic path so the pending
-    // accept entry on the listener gets cleaned up (VIOSockRxPktHandleListen).
-    if (IsLoopbackSocket(pSocket) && PrevState == VIOSOCK_STATE_CONNECTING)
-    {
-        VIOSockSendReset(pSocket, FALSE);
     }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "Socket %d closed\n", pSocket->SocketId);
