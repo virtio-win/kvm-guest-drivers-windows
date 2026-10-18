@@ -719,15 +719,35 @@ _Requires_lock_not_held_(pListenSocket->RxLock) NTSTATUS VIOSockAcceptEnqueuePkt
         return STATUS_CONNECTION_RESET;
     }
 
-    // accepted list is empty
-    if (lAcceptPended == 1)
+    // Allocate the queue entry up front: the check for a pended accept() and the
+    // insert into AcceptList below must happen under one RxLock hold, or an
+    // accept() that has just found the list empty and is about to pend itself
+    // (VIOSockAccept) misses this connection and sleeps forever while later
+    // connections pile up behind it until the backlog is full (lost wakeup).
+    status = WdfMemoryCreateFromLookaside(pContext->AcceptMemoryList, &Memory);
+    if (!NT_SUCCESS(status))
     {
-        WDFREQUEST PendedRequest;
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "WdfMemoryCreateFromLookaside failed: 0x%x\n", status);
+        Memory = WDF_NO_HANDLE;
+    }
 
-        VIOSockPendedRequestGetLocked(pListenSocket, &PendedRequest);
-        if (PendedRequest)
+    WdfSpinLockAcquire(pListenSocket->RxLock);
+    {
+        WDFREQUEST PendedRequest = WDF_NO_HANDLE;
+
+        // Any pended accept() takes the connection directly, whatever the count:
+        // checking only when AcceptPended == 1 strands a waiter once one entry
+        // has been queued while it was not yet pended.
+        VIOSockPendedRequestGet(pListenSocket, &PendedRequest);
+        if (PendedRequest != WDF_NO_HANDLE)
         {
             PSOCKET_CONTEXT pAcceptSocket = GetSocketContextFromRequest(PendedRequest);
+
+            WdfSpinLockRelease(pListenSocket->RxLock);
+            if (Memory != WDF_NO_HANDLE)
+            {
+                WdfObjectDelete(Memory);
+            }
 
             InterlockedDecrement(&pListenSocket->AcceptPended);
 
@@ -741,31 +761,31 @@ _Requires_lock_not_held_(pListenSocket->RxLock) NTSTATUS VIOSockAcceptEnqueuePkt
             WdfRequestComplete(PendedRequest, STATUS_SUCCESS);
             return STATUS_SUCCESS;
         }
+
+        if (Memory != WDF_NO_HANDLE)
+        {
+            PVIOSOCK_ACCEPT_ENTRY pAccept = WdfMemoryGetBuffer(Memory, NULL);
+
+            pAccept->Memory = Memory;
+            pAccept->ConnectSocket = WDF_NO_HANDLE;
+
+            pAccept->dst_cid = (ULONG32)pPkt->src_cid;
+            pAccept->dst_port = pPkt->src_port;
+            pAccept->peer_buf_alloc = pPkt->buf_alloc;
+            pAccept->peer_fwd_cnt = pPkt->fwd_cnt;
+
+            InsertTailList(&pListenSocket->AcceptList, &pAccept->ListEntry);
+        }
     }
+    WdfSpinLockRelease(pListenSocket->RxLock);
 
-    status = WdfMemoryCreateFromLookaside(pContext->AcceptMemoryList, &Memory);
-
-    if (NT_SUCCESS(status))
+    if (Memory != WDF_NO_HANDLE)
     {
-        PVIOSOCK_ACCEPT_ENTRY pAccept = WdfMemoryGetBuffer(Memory, NULL);
-
-        pAccept->Memory = Memory;
-        pAccept->ConnectSocket = WDF_NO_HANDLE;
-
-        pAccept->dst_cid = (ULONG32)pPkt->src_cid;
-        pAccept->dst_port = pPkt->src_port;
-        pAccept->peer_buf_alloc = pPkt->buf_alloc;
-        pAccept->peer_fwd_cnt = pPkt->fwd_cnt;
-
-        WdfSpinLockAcquire(pListenSocket->RxLock);
-        InsertTailList(&pListenSocket->AcceptList, &pAccept->ListEntry);
-        WdfSpinLockRelease(pListenSocket->RxLock);
         VIOSockEventSetBit(pListenSocket, FD_ACCEPT_BIT, STATUS_SUCCESS);
         status = STATUS_PENDING;
     }
     else
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "WdfMemoryCreateFromLookaside failed: 0x%x\n", status);
         InterlockedDecrement(&pListenSocket->AcceptPended);
     }
 
@@ -913,6 +933,36 @@ _Requires_lock_not_held_(pListenSocket->RxLock) static VOID VIOSockAcceptCleanup
     WdfSpinLockRelease(pListenSocket->RxLock);
 }
 
+// Re-check AcceptList and pend Request under the same RxLock hold that
+// VIOSockAcceptEnqueuePkt uses for "hand to the pended request, else queue", so a
+// connection that arrived after VIOSockAcceptDequeue found the list empty is not
+// left queued behind a sleeping accept. Not pageable: it runs under a spinlock.
+// Returns STATUS_RETRY if the list is no longer empty. noinline: its only caller
+// (VIOSockAccept) is pageable, and inlining would pull the locked section back in.
+_Requires_lock_not_held_(pListenSocket->RxLock) static __declspec(noinline) NTSTATUS VIOSockAcceptPendIfEmptyLocked(
+                                                                                                    IN PSOCKET_CONTEXT pListenSocket,
+                                                                                                    IN WDFREQUEST Request)
+{
+    NTSTATUS status;
+
+    WdfSpinLockAcquire(pListenSocket->RxLock);
+    if (!IsListEmpty(&pListenSocket->AcceptList))
+    {
+        status = STATUS_RETRY;
+    }
+    else if (pListenSocket->PendedRequest == WDF_NO_HANDLE)
+    {
+        status = VIOSockPendedRequestSet(pListenSocket, Request, MAXLONGLONG);
+    }
+    else
+    {
+        status = STATUS_DEVICE_BUSY;
+    }
+    WdfSpinLockRelease(pListenSocket->RxLock);
+
+    return status;
+}
+
 static NTSTATUS VIOSockAccept(IN HANDLE hListenSocket, IN WDFREQUEST Request)
 {
     NTSTATUS status;
@@ -955,28 +1005,25 @@ static NTSTATUS VIOSockAccept(IN HANDLE hListenSocket, IN WDFREQUEST Request)
 
             VIOSockEventClearBitLocked(pListenSocket, FD_ACCEPT_BIT);
 
-            if (!VIOSockAcceptDequeue(pListenSocket, pAcceptSocket, &bSetBit))
+            while (!VIOSockAcceptDequeue(pListenSocket, pAcceptSocket, &bSetBit))
             {
                 if (VIOSockIsNonBlocking(pListenSocket))
                 {
                     status = STATUS_CANT_WAIT;
+                    break;
                 }
-                else
-                {
-                    if (pListenSocket->PendedRequest == WDF_NO_HANDLE)
-                    {
-                        status = VIOSockPendedRequestSetLocked(pListenSocket, Request, MAXLONGLONG);
-                    }
-                    else
-                    {
-                        status = STATUS_DEVICE_BUSY;
-                    }
 
-                    if (NT_SUCCESS(status))
-                    {
-                        status = STATUS_PENDING;
-                    }
+                status = VIOSockAcceptPendIfEmptyLocked(pListenSocket, Request);
+                if (status == STATUS_RETRY)
+                {
+                    continue; // a connection arrived since the dequeue above
                 }
+
+                if (NT_SUCCESS(status))
+                {
+                    status = STATUS_PENDING;
+                }
+                break;
             }
         }
 
