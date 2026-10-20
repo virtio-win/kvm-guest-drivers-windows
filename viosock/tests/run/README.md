@@ -527,25 +527,34 @@ different binary or extra flags (mirrors the same knob in
 
 ## Stress harness
 
-`run-stress.sh` fans out many concurrent `vsock_perf` pairs in both
-directions at once — each on its own vsock port — to exercise the
-per-socket state machine and the acceptor pending queue in parallel.
-Requires `prepare-perf.sh`. Guest-side receivers and senders each
-fan out inside one PowerShell script, so a run opens two SSH sessions
-regardless of the connection count.
+`run-stress.sh` fans out many concurrent `vsock_perf` pairs in three
+directions at once — forward (guest -> host), reverse (host -> guest)
+and loopback (guest -> guest via `VMADDR_CID_LOCAL`), each connection on
+its own vsock port — to exercise the per-socket state machine and the
+acceptor pending queue in parallel, with the wire and loopback paths
+loaded together. Requires `prepare-perf.sh`. Each guest role
+(receivers, senders) of a direction fans out inside one PowerShell
+script, so a run opens at most four SSH sessions regardless of the
+connection count.
 
 Pass = every child returns exit 0 and the guest driver is still
 Running. Aggregate RX/TX Gbps is printed for reference; per-connection
 best-case belongs in `run-perf.sh`.
 
-`--loopback` (or `STRESS_LOOPBACK=1`) points both ends at
-`VMADDR_CID_LOCAL` on the guest — the host does not participate and
-the driver's loopback path takes the whole load.
+`--loopback` (or `STRESS_LOOPBACK=1`) is short for `--only loopback`:
+the host does not participate and the driver's loopback path takes the
+whole load.
+
+Loopback has two receive-side modes (`--lb-mode` / `STRESS_LB_MODE`):
+`server` (default) runs one guest `vsock_perf --accept N` on
+`LB_PORT_BASE` that drains every connection in its own thread, and the
+N senders all connect to that one port; `procs` runs one receiver
+process per connection on `LB_PORT_BASE+i`, as forward/reverse do.
 
 ```sh
-./run-stress.sh --config <cfg>                    # host <-> guest, 2*64 conns
+./run-stress.sh --config <cfg>                    # all three directions, 3*64 conns
 ./run-stress.sh --config <cfg> --connections 32
-./run-stress.sh --config <cfg> --only forward     # guest is sender only
+./run-stress.sh --config <cfg> --only forward,reverse   # wire only, 2*64 conns
 ./run-stress.sh --config <cfg> --loopback         # guest <-> guest via CID_LOCAL
 ```
 
@@ -553,12 +562,14 @@ Env-tunables (defaults in brackets):
 
 | Var                 | Default     | Meaning                                                |
 |---------------------|-------------|--------------------------------------------------------|
-| `STRESS_N`          | `64`        | Connections per direction (2*N total).                 |
+| `STRESS_N`          | `64`        | Connections per direction (3*N total).                 |
 | `STRESS_BYTES`      | `1G`        | Bytes per connection.                                  |
 | `STRESS_BUF`        | `64K`       | Buffer size (both sides).                              |
 | `STRESS_LOOPBACK`   | `0`         | `1` = same as `--loopback`.                            |
+| `STRESS_LB_MODE`    | `server`    | Loopback receive side: `server` or `procs`.            |
 | `FWD_PORT_BASE`     | `20000`     | Base port for Linux receivers (forward).               |
 | `REV_PORT_BASE`     | `30000`     | Base port for Windows receivers (reverse).             |
+| `LB_PORT_BASE`      | `50000`     | Loopback port (server mode) / base port (procs mode).  |
 | `SERVER_GRACE_SECS` | `3`         | Sleep between receiver launches and sender fan-out.    |
 | `GUEST_STRESS_DIR`  | `C:\stress` | Guest-side scratch dir for per-connection logs.        |
 
@@ -591,9 +602,12 @@ Pass criterion (stability only):
 * a fresh post-restore guest→host `vsock_perf` transfer completes,
 * a fresh post-restore host→guest transfer to the new CID completes
   (this is the check that proves the guest driver actually adopted the
-  CID we asked for on restore).
+  CID we asked for on restore),
+* every loopback transfer of the load completes within
+  `MIGR_LOAD_TIMEOUT` — loopback (`VMADDR_CID_LOCAL`) never touches the
+  transport, so the reset must leave it alone.
 
-The load's own transfers are expected to be reset by the save/restore
+The load's wire transfers are expected to be reset by the save/restore
 and are **not** part of the pass criterion — they are only there to
 put real in-flight traffic through the reset path.
 
@@ -609,7 +623,8 @@ Env-tunables (defaults in brackets):
 
 | Var               | Default | Meaning                                                    |
 |-------------------|---------|------------------------------------------------------------|
-| `MIGR_N`          | `8`     | Connections per direction for the load.                    |
+| `MIGR_N`          | `8`     | Connections per direction for the load (3 directions).     |
+| `MIGR_LOAD_TIMEOUT` | `600` | Cap on the load's transfers; loopback ones must finish.    |
 | `MIGR_BYTES`      | `4G`    | Bytes per connection (large enough to still be in flight). |
 | `MIGR_RAMP_SECS`  | `12`    | Seconds of transfer before the save is injected.           |
 | `MIGR_CHANGE_CID` | `1`     | `0` = restore with the same CID.                           |
