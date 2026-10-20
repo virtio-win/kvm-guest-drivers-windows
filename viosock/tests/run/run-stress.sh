@@ -1,21 +1,22 @@
 #!/usr/bin/env bash
-# run-stress.sh — bidirectional multi-connection vsock stress test.
+# run-stress.sh — multi-direction multi-connection vsock stress test.
 #
 # Launches N vsock_perf sender/receiver pairs in each direction at once
-# (2·N connections total) between the Linux host and the Windows guest,
 # and checks that every connection completes and the driver survives.
+# Directions: forward (guest -> Linux host), reverse (Linux host -> guest)
+# and loopback (guest -> guest via VMADDR_CID_LOCAL), all three by default
+# (3·N connections total).
 #
 # Each connection uses its own vsock port so the Windows acceptor pending
 # queue and the guest driver's per-socket state machine are exercised in
 # parallel, not serialized on a single listen socket.
 #
-# Guest-side fan-out is done inside ONE PowerShell script per direction
-# (receivers on the guest, then senders on the guest) via Start-Process +
-# Wait-Process, so we open two SSH sessions total — not 2·N — regardless
-# of how many connections the sweep is running.
+# Guest-side fan-out is done inside ONE PowerShell script per guest role
+# (receivers, senders) and direction via Start-Process + Wait-Process, so
+# a run opens at most four SSH sessions regardless of the connection count.
 #
 # Pass criterion:
-#   * every 2·N vsock_perf child (local and guest-side) returned exit 0,
+#   * every vsock_perf child (local and guest-side) returned exit 0,
 #   * VirtioSocket service is still Running on the guest after the run.
 #
 # Aggregate RX/TX Gbps is emitted for reference; best-case per-connection
@@ -27,7 +28,7 @@ _here=$(cd "$(dirname "$0")" && pwd)
 . "$_here/_lib.sh"
 
 # --- tunables (env-overridable) ------------------------------------------
-STRESS_N=${STRESS_N:-32}
+STRESS_N=${STRESS_N:-64}
 STRESS_BYTES=${STRESS_BYTES:-1G}
 STRESS_BUF=${STRESS_BUF:-64K}
 # Upper bound on any single vsock_perf child (both sides).  A receiver whose
@@ -36,6 +37,10 @@ STRESS_BUF=${STRESS_BUF:-64K}
 STRESS_TIMEOUT_SECS=${STRESS_TIMEOUT_SECS:-900}
 FWD_PORT_BASE=${FWD_PORT_BASE:-20000}
 REV_PORT_BASE=${REV_PORT_BASE:-30000}
+LB_PORT_BASE=${LB_PORT_BASE:-50000}
+# loopback receive side: "server" = one vsock_perf --accept N on LB_PORT_BASE (the senders share
+# that port), "procs" = one receiver process per connection on LB_PORT_BASE+i
+STRESS_LB_MODE=${STRESS_LB_MODE:-server}
 SERVER_GRACE_SECS=${SERVER_GRACE_SECS:-3}
 GUEST_STRESS_DIR=${GUEST_STRESS_DIR:-'C:\stress'}
 
@@ -55,27 +60,36 @@ while [ $# -gt 0 ]; do
         --only)         DIRS="$2";      shift 2 ;;
         --local-bin)    LOCAL_BIN="$2"; shift 2 ;;
         --loopback)     LOOPBACK=1;     shift ;;
+        --lb-mode)      STRESS_LB_MODE="$2"; shift 2 ;;
         -h|--help)
             cat >&2 <<EOF
 Usage: $0 [--config <cfg>] [--logdir <dir>]
           [--variant posix|wsa|overlapped]
           [--connections N] [--bytes <sz>] [--buf-size <sz>]
-          [--only forward,reverse] [--local-bin <path>]
+          [--only forward,reverse,loopback] [--loopback] [--lb-mode server|procs]
+          [--local-bin <path>]
 
-Runs N vsock_perf pairs in each direction in parallel (2·N connections
-total). Guest-side receivers (reverse) and senders (forward) each fan
-out inside a single PowerShell script; only 2 SSH sessions to the guest
-are opened per run. Ports are FWD_PORT_BASE+i for forward, REV_PORT_BASE+i
-for reverse. All logs land in --logdir (default: /tmp/vsock-stress-\$\$).
+Runs N vsock_perf pairs in each direction in parallel (3·N connections
+with all three directions). Each guest role (receivers, senders) of a
+direction fans out inside a single PowerShell script, one SSH session
+each. Ports are FWD_PORT_BASE+i for forward, REV_PORT_BASE+i for reverse,
+LB_PORT_BASE+i for loopback in procs mode; in the default server mode one
+guest receiver serves every loopback connection on LB_PORT_BASE.
+--loopback is short for --only loopback.
+All logs land in --logdir (default: /tmp/vsock-stress-\$\$).
 
 Tunables (env-overridable, defaults in [brackets]):
-  STRESS_N          [32]      Connections per direction.
+  STRESS_N          [64]      Connections per direction.
   STRESS_BYTES      [1G]      Bytes per connection.
   STRESS_BUF        [64K]     Buffer size (both sides).
   STRESS_TIMEOUT_SECS [900]   Per-connection wall-clock cap; stragglers are
                               killed and counted as failures.
   FWD_PORT_BASE     [20000]   Forward-connection port base (Linux receivers).
   REV_PORT_BASE     [30000]   Reverse-connection port base (Windows receivers).
+  LB_PORT_BASE      [50000]   Loopback-connection port base (Windows receivers).
+  STRESS_LOOPBACK   [0]       1 = same as --loopback.
+  STRESS_LB_MODE    [server]  Loopback receive side: server (one --accept N
+                              receiver) or procs (a receiver per connection).
   SERVER_GRACE_SECS [3]       Sleep between receiver launches and sender fan-out.
   GUEST_STRESS_DIR  [C:\stress] Guest-side scratch dir for per-connection logs.
 EOF
@@ -85,6 +99,7 @@ EOF
 done
 
 case "$VARIANT" in posix|wsa|overlapped) ;; *) die "--variant must be posix|wsa|overlapped" ;; esac
+case "$STRESS_LB_MODE" in server|procs) ;; *) die "--lb-mode must be server|procs" ;; esac
 [ "$STRESS_N" -gt 0 ] 2>/dev/null || die "--connections must be a positive integer"
 
 CFG=$(discover_config "$CFG") || exit $?
@@ -92,16 +107,23 @@ guest_load "$CFG"
 host_cid=$(config_read  "$CFG" host_cid);  [ -n "$host_cid"  ] || die "config has no host_cid="
 guest_cid=$(config_read "$CFG" guest_cid); [ -n "$guest_cid" ] || die "config has no guest_cid="
 
-# --loopback: both ends of every connection live on the guest; senders target
-# VMADDR_CID_LOCAL (1) so the guest driver's loopback path is exercised. The
-# host does not participate — no Linux receivers, no Linux senders.
-if [ "$LOOPBACK" -eq 1 ]; then
-    host_cid=1
-    guest_cid=1
-    info "== stress: --loopback mode: guest ⇄ guest via VMADDR_CID_LOCAL (host_cid=guest_cid=1) =="
+# What directions to run
+[ "$LOOPBACK" -eq 1 ] && DIRS="loopback"
+run_fwd=1; run_rev=1; run_lb=1
+if [ -n "$DIRS" ]; then
+    run_fwd=0; run_rev=0; run_lb=0
+    IFS=',' read -ra parts <<< "$DIRS"
+    for p in "${parts[@]}"; do
+        case "$p" in
+            forward)  run_fwd=1 ;;
+            reverse)  run_rev=1 ;;
+            loopback) run_lb=1 ;;
+            *) die "unknown --only stage: $p" ;;
+        esac
+    done
 fi
 
-[ "$LOOPBACK" -eq 1 ] || [ -x "$LOCAL_BIN" ] || die "no vsock_perf at $LOCAL_BIN — run prepare-perf.sh first"
+[ "$run_fwd" -eq 0 ] && [ "$run_rev" -eq 0 ] || [ -x "$LOCAL_BIN" ] || die "no vsock_perf at $LOCAL_BIN — run prepare-perf.sh first"
 
 if [ -z "$LOGDIR" ]; then
     LOGDIR=$(mktemp -d /tmp/vsock-stress-XXXXXX) || die "mktemp failed"
@@ -116,20 +138,6 @@ case "$VARIANT" in
     overlapped) guest_variant_flag='--variant overlapped' ;;
 esac
 guest_exe_path="${guest_bin_dir}\\vsock_perf.exe"
-
-# What directions to run
-run_fwd=1; run_rev=1
-if [ -n "$DIRS" ]; then
-    run_fwd=0; run_rev=0
-    IFS=',' read -ra parts <<< "$DIRS"
-    for p in "${parts[@]}"; do
-        case "$p" in
-            forward) run_fwd=1 ;;
-            reverse) run_rev=1 ;;
-            *) die "unknown --only stage: $p" ;;
-        esac
-    done
-fi
 
 # --- guest-side fan-out via one PowerShell per direction ----------------
 # Each script spawns N vsock_perf.exe processes with Start-Process, waits
@@ -149,19 +157,25 @@ fi
 # each connection is judged post-hoc on the host by looking for the
 # `rx performance:` / `tx performance:` line in the log (vsock_perf
 # prints it only on a clean run).
+# gen_ps_rx <prefix> <port_base> [<accept_n>]: receivers on <port_base>+i, logs <prefix>_<i>_rx;
+# with <accept_n>, one receiver serving that many connections on <port_base>, log <prefix>_srv_rx.
 gen_ps_rx() {
-    local var_flag_prefix=""
+    local prefix="$1" port_base="$2" accept_n="${3:-}" var_flag_prefix=""
+    local count="$STRESS_N" name="${prefix}_\${i}_rx" extra=""
+    if [ -n "$accept_n" ]; then
+        count=1; name="${prefix}_srv_rx"; extra=", '--accept', '$accept_n'"
+    fi
     [ -n "$guest_variant_flag" ] && var_flag_prefix="$guest_variant_flag "
     cat <<EOF
 \$ErrorActionPreference = 'Continue'
 New-Item -ItemType Directory -Path '$GUEST_STRESS_DIR' -Force | Out-Null
-Get-ChildItem '$GUEST_STRESS_DIR\\rev_*.log','$GUEST_STRESS_DIR\\rev_*.err' -ErrorAction SilentlyContinue | Remove-Item
+Get-ChildItem '$GUEST_STRESS_DIR\\${prefix}_*_rx.log','$GUEST_STRESS_DIR\\${prefix}_*_rx.err' -ErrorAction SilentlyContinue | Remove-Item
 \$procs = @()
-for (\$i = 0; \$i -lt $STRESS_N; \$i++) {
-    \$port = $REV_PORT_BASE + \$i
-    \$log  = "$GUEST_STRESS_DIR\\rev_\${i}_rx.log"
-    \$err  = "$GUEST_STRESS_DIR\\rev_\${i}_rx.err"
-    \$args = @('${var_flag_prefix}--port'.Split(' ') | Where-Object { \$_ -ne '' }) + @("\$port", '--buf-size', '$STRESS_BUF')
+for (\$i = 0; \$i -lt $count; \$i++) {
+    \$port = $port_base + \$i
+    \$log  = "$GUEST_STRESS_DIR\\${name}.log"
+    \$err  = "$GUEST_STRESS_DIR\\${name}.err"
+    \$args = @('${var_flag_prefix}--port'.Split(' ') | Where-Object { \$_ -ne '' }) + @("\$port", '--buf-size', '$STRESS_BUF'$extra)
     \$procs += Start-Process -FilePath '$guest_exe_path' -ArgumentList \$args \`
         -RedirectStandardOutput \$log -RedirectStandardError \$err \`
         -NoNewWindow -PassThru
@@ -177,19 +191,21 @@ foreach (\$p in \$procs) {
 EOF
 }
 
+# gen_ps_tx <prefix> <port_base> <peer_cid> [<step>]: senders to <peer_cid>:<port_base>+i*step
+# (step 1 by default, 0 = all on <port_base>), logs <prefix>_<i>_tx.
 gen_ps_tx() {
-    local var_flag_prefix=""
+    local prefix="$1" port_base="$2" peer_cid="$3" step="${4:-1}" var_flag_prefix=""
     [ -n "$guest_variant_flag" ] && var_flag_prefix="$guest_variant_flag "
     cat <<EOF
 \$ErrorActionPreference = 'Continue'
 New-Item -ItemType Directory -Path '$GUEST_STRESS_DIR' -Force | Out-Null
-Get-ChildItem '$GUEST_STRESS_DIR\\fwd_*.log','$GUEST_STRESS_DIR\\fwd_*.err' -ErrorAction SilentlyContinue | Remove-Item
+Get-ChildItem '$GUEST_STRESS_DIR\\${prefix}_*_tx.log','$GUEST_STRESS_DIR\\${prefix}_*_tx.err' -ErrorAction SilentlyContinue | Remove-Item
 \$procs = @()
 for (\$i = 0; \$i -lt $STRESS_N; \$i++) {
-    \$port = $FWD_PORT_BASE + \$i
-    \$log  = "$GUEST_STRESS_DIR\\fwd_\${i}_tx.log"
-    \$err  = "$GUEST_STRESS_DIR\\fwd_\${i}_tx.err"
-    \$args = @('${var_flag_prefix}--sender'.Split(' ') | Where-Object { \$_ -ne '' }) + @('$host_cid', '--port', "\$port", '--bytes', '$STRESS_BYTES', '--buf-size', '$STRESS_BUF')
+    \$port = $port_base + \$i * $step
+    \$log  = "$GUEST_STRESS_DIR\\${prefix}_\${i}_tx.log"
+    \$err  = "$GUEST_STRESS_DIR\\${prefix}_\${i}_tx.err"
+    \$args = @('${var_flag_prefix}--sender'.Split(' ') | Where-Object { \$_ -ne '' }) + @('$peer_cid', '--port', "\$port", '--bytes', '$STRESS_BYTES', '--buf-size', '$STRESS_BUF')
     \$procs += Start-Process -FilePath '$guest_exe_path' -ArgumentList \$args \`
         -RedirectStandardOutput \$log -RedirectStandardError \$err \`
         -NoNewWindow -PassThru
@@ -208,74 +224,8 @@ EOF
 # --- local (Linux) fan-out ----------------------------------------------
 declare -a LOCAL_PIDS=() LOCAL_NAMES=()
 
-# --loopback mirrors the guest fan-out for the roles normally played by
-# the Linux side: forward receivers listen on FWD_PORT_BASE + i on the
-# guest, reverse senders send to VMADDR_CID_LOCAL:REV_PORT_BASE + i on
-# the guest. Same PowerShell shape as gen_ps_rx / gen_ps_tx, distinct
-# log/port prefixes so the two rx sets and two tx sets don't collide.
-gen_ps_rx_fwd() {
-    local var_flag_prefix=""
-    [ -n "$guest_variant_flag" ] && var_flag_prefix="$guest_variant_flag "
-    cat <<EOF
-\$ErrorActionPreference = 'Continue'
-New-Item -ItemType Directory -Path '$GUEST_STRESS_DIR' -Force | Out-Null
-Get-ChildItem '$GUEST_STRESS_DIR\\fwd_*_rx.log','$GUEST_STRESS_DIR\\fwd_*_rx.err' -ErrorAction SilentlyContinue | Remove-Item
-\$procs = @()
-for (\$i = 0; \$i -lt $STRESS_N; \$i++) {
-    \$port = $FWD_PORT_BASE + \$i
-    \$log  = "$GUEST_STRESS_DIR\\fwd_\${i}_rx.log"
-    \$err  = "$GUEST_STRESS_DIR\\fwd_\${i}_rx.err"
-    \$args = @('${var_flag_prefix}--port'.Split(' ') | Where-Object { \$_ -ne '' }) + @("\$port", '--buf-size', '$STRESS_BUF')
-    \$procs += Start-Process -FilePath '$guest_exe_path' -ArgumentList \$args \`
-        -RedirectStandardOutput \$log -RedirectStandardError \$err \`
-        -NoNewWindow -PassThru
-}
-# one deadline for the whole batch, not per child: with a per-child wait N stuck children would
-# hold the session for N x STRESS_TIMEOUT_SECS
-\$deadline = [DateTime]::UtcNow.AddSeconds($STRESS_TIMEOUT_SECS)
-foreach (\$p in \$procs) {
-    \$left = [int][Math]::Max(1, (\$deadline - [DateTime]::UtcNow).TotalMilliseconds)
-    if (-not \$p.WaitForExit(\$left)) { try { \$p.Kill() } catch {} }
-}
-[Console]::Out.WriteLine("DONE:$STRESS_N")
-EOF
-}
-
-gen_ps_tx_rev() {
-    local var_flag_prefix=""
-    [ -n "$guest_variant_flag" ] && var_flag_prefix="$guest_variant_flag "
-    cat <<EOF
-\$ErrorActionPreference = 'Continue'
-New-Item -ItemType Directory -Path '$GUEST_STRESS_DIR' -Force | Out-Null
-Get-ChildItem '$GUEST_STRESS_DIR\\rev_*_tx.log','$GUEST_STRESS_DIR\\rev_*_tx.err' -ErrorAction SilentlyContinue | Remove-Item
-\$procs = @()
-for (\$i = 0; \$i -lt $STRESS_N; \$i++) {
-    \$port = $REV_PORT_BASE + \$i
-    \$log  = "$GUEST_STRESS_DIR\\rev_\${i}_tx.log"
-    \$err  = "$GUEST_STRESS_DIR\\rev_\${i}_tx.err"
-    \$args = @('${var_flag_prefix}--sender'.Split(' ') | Where-Object { \$_ -ne '' }) + @('$guest_cid', '--port', "\$port", '--bytes', '$STRESS_BYTES', '--buf-size', '$STRESS_BUF')
-    \$procs += Start-Process -FilePath '$guest_exe_path' -ArgumentList \$args \`
-        -RedirectStandardOutput \$log -RedirectStandardError \$err \`
-        -NoNewWindow -PassThru
-}
-# one deadline for the whole batch, not per child: with a per-child wait N stuck children would
-# hold the session for N x STRESS_TIMEOUT_SECS
-\$deadline = [DateTime]::UtcNow.AddSeconds($STRESS_TIMEOUT_SECS)
-foreach (\$p in \$procs) {
-    \$left = [int][Math]::Max(1, (\$deadline - [DateTime]::UtcNow).TotalMilliseconds)
-    if (-not \$p.WaitForExit(\$left)) { try { \$p.Kill() } catch {} }
-}
-[Console]::Out.WriteLine("DONE:$STRESS_N")
-EOF
-}
-
 start_local_forward_receivers() {
     local i port name log
-    if [ "$LOOPBACK" -eq 1 ]; then
-        _guest_ps "$(gen_ps_rx_fwd)" > "$LOGDIR/guest_fwd_rx.log" 2>&1 &
-        LOCAL_PIDS+=($!); LOCAL_NAMES+=("guest_fwd_rx")
-        return
-    fi
     for i in $(seq 0 $((STRESS_N - 1))); do
         port=$((FWD_PORT_BASE + i))
         name="fwd_$i"
@@ -288,11 +238,6 @@ start_local_forward_receivers() {
 
 start_local_reverse_senders() {
     local i port name log
-    if [ "$LOOPBACK" -eq 1 ]; then
-        _guest_ps "$(gen_ps_tx_rev)" > "$LOGDIR/guest_rev_tx.log" 2>&1 &
-        LOCAL_PIDS+=($!); LOCAL_NAMES+=("guest_rev_tx")
-        return
-    fi
     for i in $(seq 0 $((STRESS_N - 1))); do
         port=$((REV_PORT_BASE + i))
         name="rev_$i"
@@ -316,10 +261,21 @@ fi
 
 guest_rx_pid=""
 if [ "$run_rev" -eq 1 ]; then
-    ps_rx=$(gen_ps_rx)
-    _guest_ps "$ps_rx" > "$LOGDIR/guest_rev_rx.log" 2>&1 &
+    _guest_ps "$(gen_ps_rx rev "$REV_PORT_BASE")" > "$LOGDIR/guest_rev_rx.log" 2>&1 &
     guest_rx_pid=$!
     info "  reverse: $STRESS_N guest receivers spawned via single ssh (pid=$guest_rx_pid)"
+fi
+
+guest_lb_rx_pid=""; lb_tx_step=1
+if [ "$run_lb" -eq 1 ]; then
+    if [ "$STRESS_LB_MODE" = server ]; then
+        _guest_ps "$(gen_ps_rx lb "$LB_PORT_BASE" "$STRESS_N")" > "$LOGDIR/guest_lb_rx.log" 2>&1 &
+        lb_tx_step=0
+    else
+        _guest_ps "$(gen_ps_rx lb "$LB_PORT_BASE")" > "$LOGDIR/guest_lb_rx.log" 2>&1 &
+    fi
+    guest_lb_rx_pid=$!
+    info "  loopback: $STRESS_LB_MODE mode, receivers for $STRESS_N connections spawned via single ssh (pid=$guest_lb_rx_pid)"
 fi
 
 info "sleeping ${SERVER_GRACE_SECS}s for receivers to bind..."
@@ -334,10 +290,17 @@ fi
 
 guest_tx_pid=""
 if [ "$run_fwd" -eq 1 ]; then
-    ps_tx=$(gen_ps_tx)
-    _guest_ps "$ps_tx" > "$LOGDIR/guest_fwd_tx.log" 2>&1 &
+    _guest_ps "$(gen_ps_tx fwd "$FWD_PORT_BASE" "$host_cid")" > "$LOGDIR/guest_fwd_tx.log" 2>&1 &
     guest_tx_pid=$!
     info "  forward: $STRESS_N guest senders spawned via single ssh (pid=$guest_tx_pid)"
+fi
+
+guest_lb_tx_pid=""
+if [ "$run_lb" -eq 1 ]; then
+    # VMADDR_CID_LOCAL: the driver's loopback path, the host never sees these
+    _guest_ps "$(gen_ps_tx lb "$LB_PORT_BASE" 1 "$lb_tx_step")" > "$LOGDIR/guest_lb_tx.log" 2>&1 &
+    guest_lb_tx_pid=$!
+    info "  loopback: $STRESS_N guest senders spawned via single ssh (pid=$guest_lb_tx_pid)"
 fi
 
 info "waiting for completion..."
@@ -362,7 +325,7 @@ for i in "${!LOCAL_PIDS[@]}"; do
     fi
 done
 
-# Wait for the two guest-side ssh sessions, bounded by the same deadline (plus a minute for the
+# Wait for the guest-side ssh sessions, bounded by the same deadline (plus a minute for the
 # guest-side script to kill its own stragglers). Past that the session is killed together with
 # the guest's vsock_perf processes: a child that never exits must not hang the run.
 wait_guest_session() {
@@ -379,6 +342,8 @@ wait_guest_session() {
 }
 [ -n "$guest_rx_pid" ] && wait_guest_session "$guest_rx_pid" "guest reverse-rx"
 [ -n "$guest_tx_pid" ] && wait_guest_session "$guest_tx_pid" "guest forward-tx"
+[ -n "$guest_lb_rx_pid" ] && wait_guest_session "$guest_lb_rx_pid" "guest loopback-rx"
+[ -n "$guest_lb_tx_pid" ] && wait_guest_session "$guest_lb_tx_pid" "guest loopback-tx"
 
 t1=$(date +%s)
 elapsed=$((t1 - t0))
@@ -389,6 +354,9 @@ if [ "$run_rev" -eq 1 ]; then
 fi
 if [ "$run_fwd" -eq 1 ]; then
     scp "${_guest_scp_opts[@]}" "${_guest_ssh_host}:${GUEST_STRESS_DIR//\\//}/fwd_*.log" "$LOGDIR/" >/dev/null 2>&1 || true
+fi
+if [ "$run_lb" -eq 1 ]; then
+    scp "${_guest_scp_opts[@]}" "${_guest_ssh_host}:${GUEST_STRESS_DIR//\\//}/lb_*.log" "$LOGDIR/" >/dev/null 2>&1 || true
 fi
 
 # Strip CRLF from every log so grep / awk see LF.
@@ -411,10 +379,26 @@ count_missing_perf() {
     done
     echo "$fail"
 }
+# The --accept server logs every connection as "conn <i>: ..." in one file.
+count_missing_conn_perf() {
+    local log="$1" n="$2" ok
+    ok=$(grep -oE '^conn [0-9]+: rx performance:' "$log" 2>/dev/null | sort -u | wc -l)
+    echo $((n - ok))
+}
 guest_rx_fail=0
 guest_tx_fail=0
 [ "$run_rev" -eq 1 ] && guest_rx_fail=$(count_missing_perf rev rx "$STRESS_N")
 [ "$run_fwd" -eq 1 ] && guest_tx_fail=$(count_missing_perf fwd tx "$STRESS_N")
+lb_rx_fail=0
+lb_tx_fail=0
+if [ "$run_lb" -eq 1 ]; then
+    if [ "$STRESS_LB_MODE" = server ]; then
+        lb_rx_fail=$(count_missing_conn_perf "$LOGDIR/lb_srv_rx.log" "$STRESS_N")
+    else
+        lb_rx_fail=$(count_missing_perf lb rx "$STRESS_N")
+    fi
+    lb_tx_fail=$(count_missing_perf lb tx "$STRESS_N")
+fi
 
 # --- driver sanity on the guest -----------------------------------------
 srv_state=$(_guest_ssh 'sc query VirtioSocket' 2>/dev/null \
@@ -435,6 +419,8 @@ fwd_rx_sum=$(sum_gbps "$LOGDIR/fwd_*_rx.log")
 fwd_tx_sum=$(sum_gbps "$LOGDIR/fwd_*_tx.log")
 rev_rx_sum=$(sum_gbps "$LOGDIR/rev_*_rx.log")
 rev_tx_sum=$(sum_gbps "$LOGDIR/rev_*_tx.log")
+lb_rx_sum=$(sum_gbps "$LOGDIR/lb_*_rx.log")
+lb_tx_sum=$(sum_gbps "$LOGDIR/lb_*_tx.log")
 
 # --- report -------------------------------------------------------------
 total_tx_fail=$((local_fail + guest_tx_fail))
@@ -450,6 +436,9 @@ printf '  wall time       : %d s\n' "$elapsed"
 printf '  local failures  : %d / %d\n' "$local_fail" "${#LOCAL_PIDS[@]}"
 printf '  guest-rx fails  : %d / %d\n' "$guest_rx_fail" "$([ "$run_rev" -eq 1 ] && echo "$STRESS_N" || echo 0)"
 printf '  guest-tx fails  : %d / %d\n' "$guest_tx_fail" "$([ "$run_fwd" -eq 1 ] && echo "$STRESS_N" || echo 0)"
+if [ "$run_lb" -eq 1 ]; then
+    printf '  loopback fails  : rx=%d tx=%d / %d (%s mode)\n' "$lb_rx_fail" "$lb_tx_fail" "$STRESS_N" "$STRESS_LB_MODE"
+fi
 printf '  driver state    : %s\n' "$srv_state"
 if [ "$run_fwd" -eq 1 ]; then
     printf '  forward aggregate: RX=%s Gbps  TX=%s Gbps\n' "$fwd_rx_sum" "$fwd_tx_sum"
@@ -457,14 +446,18 @@ fi
 if [ "$run_rev" -eq 1 ]; then
     printf '  reverse aggregate: RX=%s Gbps  TX=%s Gbps\n' "$rev_rx_sum" "$rev_tx_sum"
 fi
+if [ "$run_lb" -eq 1 ]; then
+    printf '  loopback aggregate: RX=%s Gbps  TX=%s Gbps\n' "$lb_rx_sum" "$lb_tx_sum"
+fi
 
 # --- exit --------------------------------------------------------------
 driver_ok=0
 case "$srv_state" in *RUNNING*|*[[:space:]]4*|4*) driver_ok=1 ;; esac
-if [ "$local_fail" -eq 0 ] && [ "$guest_rx_fail" -eq 0 ] && [ "$guest_tx_fail" -eq 0 ] && [ "$driver_ok" -eq 1 ]; then
+if [ "$local_fail" -eq 0 ] && [ "$guest_rx_fail" -eq 0 ] && [ "$guest_tx_fail" -eq 0 ] &&
+   [ "$lb_rx_fail" -eq 0 ] && [ "$lb_tx_fail" -eq 0 ] && [ "$driver_ok" -eq 1 ]; then
     info "=== PASS ==="
     exit 0
 else
-    err "=== FAIL (local=$local_fail guest-rx=$guest_rx_fail guest-tx=$guest_tx_fail driver=$srv_state) ==="
+    err "=== FAIL (local=$local_fail guest-rx=$guest_rx_fail guest-tx=$guest_tx_fail lb-rx=$lb_rx_fail lb-tx=$lb_tx_fail driver=$srv_state) ==="
     exit 1
 fi
