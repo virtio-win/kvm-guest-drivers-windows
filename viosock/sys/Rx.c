@@ -1186,19 +1186,10 @@ _Requires_lock_not_held_(pSocket->RxLock) static NTSTATUS VIOSockReadForward(IN 
     status = WdfRequestForwardToIoQueue(Request, pSocket->ReadQueue);
     if (NT_SUCCESS(status))
     {
-        ULONG QueueRequests;
-
-        // The ReadQueue has no ready-notify callback to avoid recursion, so start the dequeue worker
-        // ourselves on the empty->non-empty edge. QueueRequests counts only requests
-        // still in the queue (not ones already pulled into a running worker), so == 1
-        // means our forward made the queue non-empty and no worker is draining it. If a
-        // worker is already running it will pick this request up on its own - no need to
-        // kick it per request.
-        WdfIoQueueGetState(pSocket->ReadQueue, &QueueRequests, NULL);
-        if (QueueRequests == 1)
-        {
-            VIOSockReadProcessQueue(pSocket);
-        }
+        // The ReadQueue has no ready-notify callback to avoid recursion, so kick the
+        // dequeue worker after every forward: an "empty -> 1 request" edge check misses
+        // two concurrent forwards that both see 2. A kick while a worker runs only bumps it.
+        VIOSockReadProcessQueue(pSocket);
     }
     else
     {
