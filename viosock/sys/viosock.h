@@ -475,9 +475,6 @@ _Requires_lock_not_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundFindBy
                                                                                                     IN PDEVICE_CONTEXT pContext,
                                                                                                     IN ULONG32 ulSrcPort);
 
-_Requires_lock_not_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundFindByFileLocked(IN PDEVICE_CONTEXT pContext,
-                                                                                           IN PFILE_OBJECT pFileObject);
-
 NTSTATUS
 VIOSockConnectedListInit(IN WDFDEVICE hDevice);
 

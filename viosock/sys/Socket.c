@@ -291,19 +291,6 @@ _Requires_lock_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundEnum(IN PD
     return pSocket;
 }
 
-_Requires_lock_not_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundEnumLocked(IN PDEVICE_CONTEXT pContext,
-                                                                                     IN PSOCKET_CALLBACK pEnumCallback,
-                                                                                     IN PVOID pCallbackContext)
-{
-    PSOCKET_CONTEXT pSocket;
-
-    WdfSpinLockAcquire(pContext->BoundLock);
-    pSocket = VIOSockBoundEnum(pContext, pEnumCallback, pCallbackContext);
-    WdfSpinLockRelease(pContext->BoundLock);
-
-    return pSocket;
-}
-
 static BOOLEAN VIOSockBoundFindByPortCallback(IN PSOCKET_CONTEXT pSocket, IN PVOID pCallbackContext)
 {
     return pSocket->src_port == (ULONG32)(ULONG_PTR)pCallbackContext;
@@ -330,17 +317,6 @@ _Requires_lock_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundFindByPort
                                                                                  IN ULONG32 ulSrcPort)
 {
     return VIOSockBoundEnum(pContext, VIOSockBoundFindByPortCallback, (PVOID)ulSrcPort);
-}
-
-static BOOLEAN VIOSockFindByFileCallback(IN PSOCKET_CONTEXT pSocket, IN PVOID pCallbackContext)
-{
-    return WdfFileObjectWdmGetFileObject(pSocket->ThisSocket) == (PFILE_OBJECT)pCallbackContext;
-}
-
-_Requires_lock_not_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundFindByFileLocked(IN PDEVICE_CONTEXT pContext,
-                                                                                           IN PFILE_OBJECT pFileObject)
-{
-    return VIOSockBoundEnumLocked(pContext, VIOSockFindByFileCallback, pFileObject);
 }
 
 NTSTATUS
@@ -436,19 +412,6 @@ _Requires_lock_held_(pContext->ConnectedLock) PSOCKET_CONTEXT VIOSockConnectedEn
     return pSocket;
 }
 
-_Requires_lock_not_held_(pContext->ConnectedLock) PSOCKET_CONTEXT VIOSockConnectedEnumLocked(IN PDEVICE_CONTEXT pContext,
-                                                                                             IN PSOCKET_CALLBACK pEnumCallback,
-                                                                                             IN PVOID pCallbackContext)
-{
-    PSOCKET_CONTEXT pSocket;
-
-    WdfSpinLockAcquire(pContext->ConnectedLock);
-    pSocket = VIOSockConnectedEnum(pContext, pEnumCallback, pCallbackContext);
-    WdfSpinLockRelease(pContext->ConnectedLock);
-
-    return pSocket;
-}
-
 static BOOLEAN VIOSockConnectedFindByRxPktCallback(IN PSOCKET_CONTEXT pSocket, IN PVOID pCallbackContext)
 {
     PVIRTIO_VSOCK_HDR pPkt = (PVIRTIO_VSOCK_HDR)pCallbackContext;
@@ -473,12 +436,6 @@ _Requires_lock_not_held_(pContext->ConnectedLock) PSOCKET_CONTEXT VIOSockConnect
     return pSocket;
 }
 
-_Requires_lock_not_held_(pContext->ConnectedLock) PSOCKET_CONTEXT VIOSockConnectedFindByFileLocked(IN PDEVICE_CONTEXT pContext,
-                                                                                                   IN PFILE_OBJECT pFileObject)
-{
-    return VIOSockConnectedEnumLocked(pContext, VIOSockFindByFileCallback, pFileObject);
-}
-
 _Requires_lock_held_(pSocket->StateLock) VIOSOCK_STATE VIOSockStateSet(IN PSOCKET_CONTEXT pSocket,
                                                                        IN VIOSOCK_STATE NewState)
 {
@@ -499,10 +456,9 @@ _Requires_lock_held_(pSocket->StateLock) VIOSOCK_STATE VIOSockStateSet(IN PSOCKE
     // -> CLOSE). Removing on CLOSING - not only on CLOSE - stops a dying socket
     // from shadowing a new connect() that reuses the same 4-tuple: the OP_REQUEST
     // would otherwise be matched to it and dropped instead of reaching the listener.
-    // Loopback sockets are members too: the connected list is the handle-lookup
-    // path used by select/poll (VIOSockGetSocketFromHandle), and an accepted
-    // loopback socket must be findable there. The Rx and transport-reset consumers
-    // filter loopback out at their own callsites.
+    // Loopback sockets are members too: loopback packets are routed to their
+    // receiving socket through this list, like wire ones. The transport-reset
+    // consumer filters loopback out at its own callsite.
     if (PrevState != NewState)
     {
         switch (NewState)
@@ -3068,15 +3024,19 @@ VIOSockGetSocketFromHandle(IN PDEVICE_CONTEXT pContext,
 
     if (NT_SUCCESS(status))
     {
-        PSOCKET_CONTEXT pSocket = VIOSockConnectedFindByFileLocked(pContext, pFileObj);
-        if (!pSocket)
+        // Resolve any socket of this device, whatever its state: a socket that left
+        // CONNECTED (CLOSING, or CLOSE with data still buffered) is in neither the
+        // connected nor the bound list, yet select/poll must still see its EOF/reset.
+        WDFFILEOBJECT Socket = WDF_NO_HANDLE;
+
+        if (pFileObj->DeviceObject == WdfDeviceWdmGetDeviceObject(pContext->ThisDevice))
         {
-            pSocket = VIOSockBoundFindByFileLocked(pContext, pFileObj);
+            Socket = WdfDeviceGetFileObject(pContext->ThisDevice, pFileObj);
         }
 
-        if (pSocket)
+        if (Socket != WDF_NO_HANDLE && !VIOSockIsFlag(GetSocketContext(Socket), SOCK_CONTROL))
         {
-            return pSocket->ThisSocket;
+            return Socket;
         }
 
         ObDereferenceObject(pFileObj);
