@@ -3181,6 +3181,9 @@ VOID VIOSockHandleTransportReset(IN PDEVICE_CONTEXT pContext)
         if (bWasConnected)
         {
             VIOSockReadProcessQueue(pCurrentSocket);
+            // Parked blocking sends wait for credit that never comes after a reset;
+            // the pump's per-bite validation fails them with WSAECONNRESET.
+            VIOSockWriteProcessQueue(pCurrentSocket);
         }
 
         VIOSockDereferenceSocketObject(pCurrentSocket);
