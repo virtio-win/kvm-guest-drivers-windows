@@ -1246,16 +1246,9 @@ _Requires_lock_not_held_(pSocket->TxLock) static NTSTATUS VIOSockWriteForward(IN
     status = WdfRequestForwardToIoQueue(Request, pSocket->WriteQueue);
     if (NT_SUCCESS(status))
     {
-        ULONG QueueRequests;
-
-        // No ready-notify callback (recursion — see VIOSockReadForward):
-        // start the pump ourselves on the empty->non-empty edge; a running
-        // pump pass picks the request up on its own.
-        WdfIoQueueGetState(pSocket->WriteQueue, &QueueRequests, NULL);
-        if (QueueRequests == 1)
-        {
-            VIOSockWriteProcessQueue(pSocket);
-        }
+        // No ready-notify callback (recursion — see VIOSockReadForward): kick
+        // the pump after every forward, a running pump is only bumped.
+        VIOSockWriteProcessQueue(pSocket);
     }
     else
     {
