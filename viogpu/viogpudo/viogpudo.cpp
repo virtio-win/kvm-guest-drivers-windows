@@ -3683,7 +3683,7 @@ void VioGpuAdapter::DestroyFrameBufferObj(BOOLEAN bReset, BOOLEAN bKeepBuffer)
             delete m_pFrameBuf;
         }
         m_pFrameBuf = NULL;
-        m_Idr.PutId(resid);
+        // resid came from GetFreshId() and is never reused, so it doesn't go back to the free list
     }
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
@@ -3910,14 +3910,13 @@ BOOLEAN VioGpuAdapter::CreateFrameBufferObj(PVIDEO_MODE_INFORMATION pModeInfo, C
     format = ColorFormat(pCurrentMode->DispInfo.ColorFormat);
     DbgPrint(TRACE_LEVEL_INFORMATION,
              ("---> %s - (%d -> %d)\n", __FUNCTION__, pCurrentMode->DispInfo.ColorFormat, format));
-    resid = m_Idr.GetId();
+    resid = m_Idr.GetFreshId();
     m_CtrlQueue.CreateResource(resid, format, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight);
     obj = new (NonPagedPoolNx) VioGpuObj();
     if (!obj->Init(size, &m_FrameSegment))
     {
         DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s Failed to init obj size = %d\n", __FUNCTION__, size));
         m_CtrlQueue.DestroyResource(resid);
-        m_Idr.PutId(resid);
         delete obj;
         return FALSE;
     }
