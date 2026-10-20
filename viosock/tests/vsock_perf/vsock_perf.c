@@ -15,6 +15,8 @@
  *     the pinned pages (no SO_ZEROCOPY setsockopt, no MSG_ERRQUEUE completion
  *     reaping as on Linux).
  *   - Monotonic timing uses current_nsec() from compat.h (QueryPerformanceCounter).
+ *   - --accept <n> (Windows-only): one receiver process serves <n> connections on
+ *     one listener, a thread per connection.
  */
 
 #include "compat.h"
@@ -77,17 +79,55 @@ static unsigned long long memparse(const char *ptr)
     return ret;
 }
 
-static void vsock_increase_buf_size(int fd)
+/*
+ * --accept N: one listener serves N connections, one thread each. A failure ends
+ * only its own connection. Every line of a connection carries a "conn <i>: " tag
+ * and is flushed at once, so a run killed by a timeout still shows which
+ * connections finished.
+ */
+static unsigned int accept_conns = 0;
+
+/* conn < 0 is the single-connection mode: exit on error as upstream does. */
+static int rx_fail(int conn, const char *what, bool use_errno)
+{
+    if (conn < 0)
+    {
+        if (use_errno)
+        {
+            perror(what);
+        }
+        else
+        {
+            fprintf(stderr, "%s\n", what);
+        }
+        exit(EXIT_FAILURE);
+    }
+
+    if (use_errno)
+    {
+        fprintf(stderr, "conn %d: %s: %s\n", conn, what, strerror(errno));
+    }
+    else
+    {
+        fprintf(stderr, "conn %d: %s\n", conn, what);
+    }
+    fflush(stderr);
+    return -1;
+}
+
+static int vsock_increase_buf_size(int fd, int conn)
 {
     if (setsockopt(fd, g_vsock_af, SO_VM_SOCKETS_BUFFER_MAX_SIZE, &vsock_buf_bytes, sizeof(vsock_buf_bytes)))
     {
-        error("setsockopt(SO_VM_SOCKETS_BUFFER_MAX_SIZE)");
+        return rx_fail(conn, "setsockopt(SO_VM_SOCKETS_BUFFER_MAX_SIZE)", true);
     }
 
     if (setsockopt(fd, g_vsock_af, SO_VM_SOCKETS_BUFFER_SIZE, &vsock_buf_bytes, sizeof(vsock_buf_bytes)))
     {
-        error("setsockopt(SO_VM_SOCKETS_BUFFER_SIZE)");
+        return rx_fail(conn, "setsockopt(SO_VM_SOCKETS_BUFFER_SIZE)", true);
     }
+
+    return 0;
 }
 
 static int vsock_connect(unsigned int cid, unsigned int connect_port)
@@ -196,70 +236,40 @@ static ssize_t perf_recv_file(int fd, void *buf, size_t len)
  * The flag is unused on the Linux side; upstream Linux vsock_perf
  * doesn't know about it. Pass it only to the Windows binary.
  */
-static void run_receiver(int rcvlowat_bytes, bool use_poll)
+/* Drain one accepted connection to EOF and report it. Returns 0 on EOF, -1 on a
+ * failure (only in --accept mode; the single-connection mode exits instead). */
+static int rx_drain(int client_fd, int rcvlowat_bytes, bool use_poll, int conn)
 {
     unsigned int read_cnt;
     long long rx_begin_ns;
     long long in_read_ns;
     unsigned long long total_recv;
-    int client_fd;
-    char *data;
-    int fd;
-    struct sockaddr_vm svm = {
-                                                                                                        .svm_family = (ADDRESS_FAMILY)g_vsock_af,
-                                                                                                        .svm_port = port,
-                                                                                                        .svm_cid = VMADDR_CID_ANY,
-    };
-    struct sockaddr_vm clientaddr;
-    socklen_t clientaddr_len = sizeof(clientaddr);
+    char *data = NULL;
+    char tag[32] = "";
+    int rc = -1;
 
-    printf("Run as receiver\n");
-    printf("Listen port %u\n", port);
-    printf("RX buffer %llu bytes\n", buf_size_bytes);
-    printf("vsock buffer %llu bytes\n", vsock_buf_bytes);
-    printf("SO_RCVLOWAT %d bytes\n", rcvlowat_bytes);
-    if (io_file)
+    if (conn >= 0)
     {
-        printf("File I/O (ReadFile)\n");
+        snprintf(tag, sizeof(tag), "conn %d: ", conn);
     }
 
-    fd = socket(g_vsock_af, SOCK_STREAM, 0);
-
-    if (fd < 0)
+    if (vsock_increase_buf_size(client_fd, conn))
     {
-        error("socket");
+        goto out;
     }
-
-    if (bind(fd, (struct sockaddr *)&svm, sizeof(svm)) < 0)
-    {
-        error("bind");
-    }
-
-    if (listen(fd, 1) < 0)
-    {
-        error("listen");
-    }
-
-    client_fd = accept(fd, (struct sockaddr *)&clientaddr, &clientaddr_len);
-
-    if (client_fd < 0)
-    {
-        error("accept");
-    }
-
-    vsock_increase_buf_size(client_fd);
 
     if (setsockopt(client_fd, SOL_SOCKET, SO_RCVLOWAT, &rcvlowat_bytes, sizeof(rcvlowat_bytes)))
     {
-        error("setsockopt(SO_RCVLOWAT)");
+        rx_fail(conn, "setsockopt(SO_RCVLOWAT)", true);
+        goto out;
     }
 
     data = malloc((size_t)buf_size_bytes);
 
     if (!data)
     {
-        fprintf(stderr, "'malloc()' failed\n");
-        exit(EXIT_FAILURE);
+        rx_fail(conn, "'malloc()' failed", false);
+        goto out;
     }
 
     read_cnt = 0;
@@ -281,13 +291,14 @@ static void run_receiver(int rcvlowat_bytes, bool use_poll)
 
             if (poll(&fds, 1, -1) < 0)
             {
-                error("poll");
+                rx_fail(conn, "poll", true);
+                goto out;
             }
 
             if (fds.revents & POLLERR)
             {
-                fprintf(stderr, "'poll()' error\n");
-                exit(EXIT_FAILURE);
+                rx_fail(conn, "'poll()' error", false);
+                goto out;
             }
 
             if (!(fds.revents & POLLIN))
@@ -313,22 +324,168 @@ static void run_receiver(int rcvlowat_bytes, bool use_poll)
 
         if (bytes_read < 0)
         {
-            perror("read");
-            exit(EXIT_FAILURE);
+            rx_fail(conn, "read", true);
+            goto out;
         }
 
         total_recv += bytes_read;
     }
 
-    printf("total bytes received: %llu\n", total_recv);
-    printf("rx performance: %f Gbits/s\n", get_gbps(total_recv * 8, current_nsec() - rx_begin_ns));
-    printf("total time in 'read()': %f sec\n", (float)in_read_ns / NSEC_PER_SEC);
-    printf("average time in 'read()': %f ns\n", read_cnt ? (float)in_read_ns / read_cnt : 0.0f);
-    printf("%s: %u\n", use_poll ? "POLLIN wakeups" : "read() calls", read_cnt);
+    printf("%stotal bytes received: %llu\n", tag, total_recv);
+    printf("%srx performance: %f Gbits/s\n", tag, get_gbps(total_recv * 8, current_nsec() - rx_begin_ns));
+    printf("%stotal time in 'read()': %f sec\n", tag, (float)in_read_ns / NSEC_PER_SEC);
+    printf("%saverage time in 'read()': %f ns\n", tag, read_cnt ? (float)in_read_ns / read_cnt : 0.0f);
+    printf("%s%s: %u\n", tag, use_poll ? "POLLIN wakeups" : "read() calls", read_cnt);
+    fflush(stdout);
+    rc = 0;
 
+out:
     free(data);
     close(client_fd);
+    return rc;
+}
+
+static int rx_listen(int backlog, int rcvlowat_bytes)
+{
+    int fd;
+    struct sockaddr_vm svm = {
+                                                                                                        .svm_family = (ADDRESS_FAMILY)g_vsock_af,
+                                                                                                        .svm_port = port,
+                                                                                                        .svm_cid = VMADDR_CID_ANY,
+    };
+
+    printf("Run as receiver\n");
+    printf("Listen port %u\n", port);
+    printf("RX buffer %llu bytes\n", buf_size_bytes);
+    printf("vsock buffer %llu bytes\n", vsock_buf_bytes);
+    printf("SO_RCVLOWAT %d bytes\n", rcvlowat_bytes);
+    if (io_file)
+    {
+        printf("File I/O (ReadFile)\n");
+    }
+
+    fd = socket(g_vsock_af, SOCK_STREAM, 0);
+
+    if (fd < 0)
+    {
+        error("socket");
+    }
+
+    if (bind(fd, (struct sockaddr *)&svm, sizeof(svm)) < 0)
+    {
+        error("bind");
+    }
+
+    if (listen(fd, backlog) < 0)
+    {
+        error("listen");
+    }
+
+    return fd;
+}
+
+static void run_receiver(int rcvlowat_bytes, bool use_poll)
+{
+    int client_fd;
+    int fd;
+    struct sockaddr_vm clientaddr;
+    socklen_t clientaddr_len = sizeof(clientaddr);
+
+    fd = rx_listen(1, rcvlowat_bytes);
+
+    client_fd = accept(fd, (struct sockaddr *)&clientaddr, &clientaddr_len);
+
+    if (client_fd < 0)
+    {
+        error("accept");
+    }
+
+    rx_drain(client_fd, rcvlowat_bytes, use_poll, -1);
     close(fd);
+}
+
+struct rx_conn
+{
+    int fd;
+    int conn;
+    int rcvlowat_bytes;
+    bool use_poll;
+};
+
+static unsigned __stdcall rx_conn_thread(void *arg)
+{
+    struct rx_conn *c = arg;
+
+    return rx_drain(c->fd, c->rcvlowat_bytes, c->use_poll, c->conn) ? 1 : 0;
+}
+
+/* Returns the number of connections that did not complete cleanly. */
+static unsigned int run_receiver_accept(int rcvlowat_bytes, bool use_poll)
+{
+    struct rx_conn *conns;
+    HANDLE *threads;
+    unsigned int i, started = 0, failed = 0;
+    int fd;
+
+    conns = calloc(accept_conns, sizeof(*conns));
+    threads = calloc(accept_conns, sizeof(*threads));
+    if (!conns || !threads)
+    {
+        fprintf(stderr, "'calloc()' failed\n");
+        exit(EXIT_FAILURE);
+    }
+
+    fd = rx_listen((int)accept_conns, rcvlowat_bytes);
+    printf("Accept %u connections\n", accept_conns);
+    fflush(stdout);
+
+    for (i = 0; i < accept_conns; i++)
+    {
+        struct sockaddr_vm clientaddr;
+        socklen_t clientaddr_len = sizeof(clientaddr);
+        int client_fd = accept(fd, (struct sockaddr *)&clientaddr, &clientaddr_len);
+
+        if (client_fd < 0)
+        {
+            rx_fail((int)i, "accept", true);
+            break;
+        }
+
+        printf("conn %u: accepted\n", i);
+        fflush(stdout);
+
+        conns[i] = (struct rx_conn){client_fd, (int)i, rcvlowat_bytes, use_poll};
+        threads[i] = (HANDLE)_beginthreadex(NULL, 0, rx_conn_thread, &conns[i], 0, NULL);
+        if (!threads[i])
+        {
+            rx_fail((int)i, "_beginthreadex", true);
+            close(client_fd);
+            break;
+        }
+        started++;
+    }
+
+    for (i = 0; i < started; i++)
+    {
+        DWORD code = 1;
+
+        WaitForSingleObject(threads[i], INFINITE);
+        GetExitCodeThread(threads[i], &code);
+        CloseHandle(threads[i]);
+        if (code)
+        {
+            failed++;
+        }
+    }
+    failed += accept_conns - started;
+
+    printf("connections completed: %u/%u\n", accept_conns - failed, accept_conns);
+    fflush(stdout);
+
+    close(fd);
+    free(threads);
+    free(conns);
+    return failed;
 }
 
 static void run_sender(int peer_cid, unsigned long long to_send_bytes)
@@ -591,6 +748,7 @@ static const struct option longopts[] = {
     {.name = "no-poll",  .has_arg = no_argument,       .val = 'N'},
     {.name = "zerocopy", .has_arg = no_argument,       .val = 'Z'},
     {.name = "io",       .has_arg = required_argument, .val = 'I'},
+    {.name = "accept",   .has_arg = required_argument, .val = 'A'},
     {.name = "addrlist-query", .has_arg = no_argument,  .val = 'q'},
     {.name = "addrlist-watch", .has_arg = no_argument,  .val = 'w'},
     {0},
@@ -629,6 +787,10 @@ static void usage(void)
            "                         or WriteFile()/ReadFile() on the socket handle\n"
            "                         (EvtIoWrite/EvtIoRead in the driver). Not with\n"
            "                         --zerocopy: WriteFile carries no flags.\n"
+           "  --accept   <n>         Receiver: accept <n> connections on the one\n"
+           "                         listening port and drain each in its own\n"
+           "                         thread. Lines are tagged \"conn <i>: \"; the\n"
+           "                         exit code is non-zero if any connection failed.\n"
            "  --addrlist-query       Print the local vsock CID (SIO_ADDRESS_LIST_QUERY)\n"
            "                         and exit. Soft/observational.\n"
            "  --addrlist-watch       Block on SIO_ADDRESS_LIST_CHANGE and print each\n"
@@ -833,6 +995,13 @@ int __cdecl main(int argc, char **argv)
                     usage();
                 }
                 break;
+            case 'A': /* Receiver: N connections on one listener. */
+                accept_conns = (unsigned int)strtolx(optarg);
+                if (!accept_conns)
+                {
+                    usage();
+                }
+                break;
             case 'q': /* Address-list monitor: one-shot CID query. */
                 addrlist_query = true;
                 break;
@@ -879,7 +1048,14 @@ int __cdecl main(int argc, char **argv)
         return 0;
     }
 
-    if (!sender)
+    if (!sender && accept_conns)
+    {
+        unsigned int failed = run_receiver_accept(rcvlowat_bytes, use_poll);
+
+        WSACleanup();
+        return failed ? EXIT_FAILURE : 0;
+    }
+    else if (!sender)
     {
         run_receiver(rcvlowat_bytes, use_poll);
     }
