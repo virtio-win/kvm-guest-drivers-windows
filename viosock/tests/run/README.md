@@ -36,7 +36,12 @@ Two flows are supported from the same set of scripts:
 | `run-perf.sh`      | Automated `vsock_perf` sweep: forward + reverse × default and large buffer. Prints an RX/TX-Gbps summary. |
 | `perf-one.sh`      | One-shot manual `vsock_perf` run for interactive tuning — pick direction + any perf knobs on the CLI. |
 | `run-stress.sh`    | Bidirectional multi-connection stress on `vsock_perf`. |
+| `_migr.sh`         | Sourced helpers shared by the migration runners: restore-CID plan, `virsh save`/`restore`, guest-up wait, driver state. |
 | `run-migration.sh` | Driver stability across `virsh save`/`virsh restore` under `run-stress.sh` load — verifies the transport-reset path. |
+| `_wsk.sh`          | Sourced helpers driving the kernel-mode WSK perf driver (service `wskperf`) through its registry keys. |
+| `install-wsk.sh`   | scp `viosockwsk-perf.sys` into `guest_wsk_dir` (default `C:\wsk-test`) and create the `wskperf` kernel service if missing. Manual only. |
+| `run-wsk-stress.sh` | Multi-connection stress through the kernel WSK path (forward, then reverse). Manual only. |
+| `run-wsk-migration.sh` | Driver stability across `virsh save`/`restore` under kernel WSK load. Manual only. |
 
 
 ## Config file
@@ -629,3 +634,88 @@ Env-tunables (defaults in brackets):
 | `MIGR_RAMP_SECS`  | `12`    | Seconds of transfer before the save is injected.           |
 | `MIGR_CHANGE_CID` | `1`     | `0` = restore with the same CID.                           |
 | `MIGR_NEW_CID`    | unset   | Explicit new CID; empty = first free CID above 3.         |
+
+## Kernel-mode (WSK) harness
+
+The same stress and migration shapes driven through the in-kernel WSK
+path instead of Winsock: the guest side is the test driver
+`viosock/tests/viosock-wsk-perf` (`viosockwsk-perf.sys`, kernel service
+`wskperf`), the host side the Linux `vsock_perf`. **Manual only** — these
+runners are not part of `ci-run.sh`; run them by hand against a guest
+that has the perf driver installed.
+
+The perf driver takes its load description from the service's
+`Parameters` registry key (`Mode`, `PeerCid`, `Port`, `BytesMB`,
+`BufSize`, `Connections`), starts one thread per connection in
+`DriverEntry` (connection *i* uses `Port+i`) and, when the last thread
+finishes, writes the aggregate into the `Results` key (`Ok`, `Failed`,
+`Status` = first failing NTSTATUS, `Bytes`, `ElapsedUs`, `MbitPerSec`,
+`Stalls`, and `Done=1` last). `_wsk.sh` wraps that: `reg add` →
+`sc start` → poll `Done` → `reg query` → `sc stop`. One service instance
+plays one role at a time, so the directions run back to back.
+
+### Setup
+
+```sh
+# build viosock/tests/viosock-wsk-perf (buildAll.bat, test-signed), then:
+./install-wsk.sh --config <cfg> --from <dir with viosockwsk-perf.sys>
+```
+
+`install-wsk.sh` stops the service if it is running, copies the driver
+into `guest_wsk_dir` (config key, default `C:\wsk-test`) and creates the
+demand-start kernel service `wskperf` unless it already exists. The
+guest needs test signing on, as for the viosock driver itself. The
+Linux `vsock_perf` comes from `prepare-perf-host.sh`.
+
+### Stress
+
+```sh
+./run-wsk-stress.sh --config <cfg>                   # 32 conns, 1 GB each, forward then reverse
+./run-wsk-stress.sh --config <cfg> --connections 64 --bytes-mb 256
+./run-wsk-stress.sh --config <cfg> --only reverse
+```
+
+Forward = N kernel sender threads → N Linux receivers on
+`FWD_PORT_BASE+i`; reverse = N Linux senders → N kernel receiver threads
+on `REV_PORT_BASE+i`. Pass per direction = the driver reports `Ok=N`,
+`Failed=0`, every Linux `vsock_perf` exited 0, the service stops cleanly
+(its unload joins the threads — a thread that never returns is a
+finding) and VirtioSocket is still Running. The first failing NTSTATUS
+is printed next to the counts.
+
+| Var                | Default | Meaning                                   |
+|--------------------|---------|-------------------------------------------|
+| `WSK_N`            | `32`    | Connections per direction.                |
+| `WSK_BYTES_MB`     | `1024`  | MB per connection.                        |
+| `WSK_BUF`          | `65536` | Buffer size, both sides.                  |
+| `WSK_TIMEOUT_SECS` | `900`   | Cap per direction (driver Done + Linux).  |
+| `WSK_SERVICE`      | `wskperf` | Kernel service name on the guest.       |
+| `FWD_PORT_BASE` / `REV_PORT_BASE` | `20000` / `30000` | Base ports.     |
+
+### Migration
+
+```sh
+./run-wsk-migration.sh --config <cfg>                 # 8 kernel senders, 16 GB each
+./run-wsk-migration.sh --config <cfg> --connections 32
+MIGR_CHANGE_CID=0 ./run-wsk-migration.sh --config <cfg>
+```
+
+Load = N kernel sender threads → N Linux receivers; the `virsh save`
+hits them mid-transfer and the restore (with a new CID by default, see
+`_migr.sh`) replays the transport reset. Pass = every load connection
+was established at save time, save/restore succeeded, the guest is
+reachable, VirtioSocket is Running, **the load service stops within
+`MIGR_STOP_TIMEOUT`** (the senders' pending `WskSend` must fail and the
+threads return — a thread stuck in the reset is what this run is
+after), and a fresh 8 MB kernel transfer completes in each direction,
+the host→kernel one on the new CID. The load's own transfers are
+expected to fail with `STATUS_CONNECTION_RESET` and are reported, not
+asserted.
+
+| Var                 | Default | Meaning                                             |
+|---------------------|---------|-----------------------------------------------------|
+| `MIGR_N`            | `8`     | Kernel sender connections for the load.             |
+| `MIGR_BYTES_MB`     | `16384` | MB per connection (large enough to be in flight).   |
+| `MIGR_RAMP_SECS`    | `3`     | Seconds of transfer before the save.                |
+| `MIGR_STOP_TIMEOUT` | `120`   | Cap on stopping the load service after the restore. |
+| `MIGR_CHANGE_CID` / `MIGR_NEW_CID` | `1` / unset | As for `run-migration.sh`.         |
