@@ -44,12 +44,18 @@
     - Port      - port to listen on / connect to (default 1234).
     - BufSize   - size of the transfer buffer in bytes (default 128 KB).
     - BytesMB   - amount of data the sender transmits, in MB (default 1024).
+    - Connections - number of concurrent connections (default 1, max 256);
+                  connection i uses Port + i, each one has its own thread.
 
-    The receiver accepts connections in a loop and drains each one until
-    EOF; the sender pushes BytesMB and disconnects. Results (bytes,
-    elapsed time, Mbit/s) are reported via WPP at the information level.
-    The other endpoint is anything that speaks a raw byte stream: the
-    Linux vsock_perf, socat, etc. */
+    A receiver thread accepts one connection and drains it until EOF; a
+    sender thread pushes BytesMB and disconnects. Per-connection results
+    (bytes, elapsed time, Mbit/s) go to WPP at the information level; the
+    aggregate is written to the Results subkey of the service key when the
+    last thread finishes (Done, Ok, Failed, Status, Bytes, ElapsedUs,
+    MbitPerSec, Stalls; Status is the first failed thread's NTSTATUS), so a
+    harness can poll it with reg query. The other endpoint is
+    anything that speaks a raw byte stream: the Linux vsock_perf, socat,
+    etc. */
 
 #include <ntifs.h>
 #include <ntstrsafe.h>
@@ -76,12 +82,16 @@
 #define TRANSPORT_VSOCK       0
 #define TRANSPORT_TCP         1
 
+#define DEFAULT_CONNECTIONS   1
+#define MAX_CONNECTIONS       256
+
 static ULONG _mode = DEFAULT_MODE_RECEIVER;
 static ULONG _transport = TRANSPORT_VSOCK;
 static ULONG _peerCid = DEFAULT_PEER_CID;
 static ULONG _port = DEFAULT_PORT;
 static ULONG _bufSize = DEFAULT_BUF_SIZE;
 static ULONG _bytesMB = DEFAULT_BYTES_MB;
+static ULONG _connections = DEFAULT_CONNECTIONS;
 static IN_ADDR _peerIp;
 static WCHAR _peerAddrBuffer[32];
 static UNICODE_STRING _peerAddrString = {0, sizeof(_peerAddrBuffer) - sizeof(WCHAR), _peerAddrBuffer};
@@ -94,8 +104,22 @@ typedef union _PERF_SOCKADDR {
     SOCKADDR_IN In;
 } PERF_SOCKADDR;
 
+/* One slot per connection thread; the last thread to finish folds them into
+ * the Results registry key. */
+typedef struct _PERF_RESULT
+{
+    NTSTATUS Status;
+    ULONGLONG Bytes;
+    ULONGLONG ElapsedUs;
+    ULONGLONG Stalls;
+} PERF_RESULT, *PPERF_RESULT;
+
 static volatile LONG _terminate;
-static PETHREAD _workerThread;
+static volatile LONG _running;
+static PETHREAD *_workerThreads;
+static ULONG _workerCount;
+static PPERF_RESULT _results;
+static UNICODE_STRING _resultsKeyPath;
 static PDEVICE_OBJECT _shutdownDeviceObject = NULL;
 static WSK_REGISTRATION _vioWskRegistration;
 static WSK_PROVIDER_NPI _vioWskProviderNPI;
@@ -154,7 +178,13 @@ static NTSTATUS _GeneralIrpComplete(_In_ PDEVICE_OBJECT DeviceObject, _In_ PIRP 
         IoReuseIrp((aIrp), STATUS_UNSUCCESSFUL);                                                                       \
     } while (FALSE)
 
-static void _ReportResult(_In_ const char *Role, _In_ ULONGLONG Bytes, _In_ LARGE_INTEGER Start, _In_ LARGE_INTEGER End)
+static void _ReportResult(_In_ ULONG Index,
+                          _In_ const char *Role,
+                          _In_ ULONGLONG Bytes,
+                          _In_ LARGE_INTEGER Start,
+                          _In_ LARGE_INTEGER End,
+                          _In_ NTSTATUS Status,
+                          _In_ ULONGLONG Stalls)
 {
     LARGE_INTEGER freq;
     ULONGLONG elapsedUs = 0;
@@ -168,7 +198,98 @@ static void _ReportResult(_In_ const char *Role, _In_ ULONGLONG Bytes, _In_ LARG
     }
 
     mbitPerSec = Bytes * 8ULL / elapsedUs;
-    DEBUG_INFO("PERF %s: %I64u bytes in %I64u us -> %I64u Mbit/s\n", Role, Bytes, elapsedUs, mbitPerSec);
+    DEBUG_INFO("PERF %s %u: %I64u bytes in %I64u us -> %I64u Mbit/s, status 0x%x\n",
+               Role,
+               Index,
+               Bytes,
+               elapsedUs,
+               mbitPerSec,
+               Status);
+    _results[Index].Status = Status;
+    _results[Index].Bytes = Bytes;
+    _results[Index].ElapsedUs = elapsedUs;
+    _results[Index].Stalls = Stalls;
+}
+
+static void _SetResultValue(_In_ HANDLE Key, _In_ PCWSTR Name, _In_ ULONG Type, _In_ PVOID Data, _In_ ULONG Size)
+{
+    UNICODE_STRING name;
+    NTSTATUS status;
+
+    RtlInitUnicodeString(&name, Name);
+    status = ZwSetValueKey(Key, &name, 0, Type, Data, Size);
+    if (!NT_SUCCESS(status))
+    {
+        DEBUG_ERROR("ZwSetValueKey(%ws): 0x%x", Name, status);
+    }
+}
+
+/* Results subkey of the service key: Done flips to 1 last, so a reader that
+ * sees it can trust the other values. */
+static void _WriteResults(_In_ BOOLEAN Done)
+{
+    OBJECT_ATTRIBUTES oa;
+    HANDLE key = NULL;
+    NTSTATUS status;
+    ULONG i;
+    ULONG ok = 0;
+    ULONG failed = 0;
+    ULONG done = Done ? 1 : 0;
+    NTSTATUS firstFailure = STATUS_SUCCESS;
+    ULONGLONG bytes = 0;
+    ULONGLONG elapsedUs = 0;
+    ULONGLONG stalls = 0;
+    ULONGLONG mbitPerSec = 0;
+
+    for (i = 0; i < _workerCount && Done; ++i)
+    {
+        if (NT_SUCCESS(_results[i].Status))
+        {
+            ++ok;
+        }
+        else
+        {
+            if (failed++ == 0)
+            {
+                firstFailure = _results[i].Status;
+            }
+        }
+        bytes += _results[i].Bytes;
+        stalls += _results[i].Stalls;
+        if (_results[i].ElapsedUs > elapsedUs)
+        {
+            elapsedUs = _results[i].ElapsedUs;
+        }
+    }
+    if (elapsedUs)
+    {
+        mbitPerSec = bytes * 8ULL / elapsedUs;
+    }
+
+    InitializeObjectAttributes(&oa, &_resultsKeyPath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
+    status = ZwCreateKey(&key, KEY_SET_VALUE, &oa, 0, NULL, REG_OPTION_NON_VOLATILE, NULL);
+    if (!NT_SUCCESS(status))
+    {
+        DEBUG_ERROR("ZwCreateKey(Results): 0x%x", status);
+        return;
+    }
+
+    _SetResultValue(key, L"Connections", REG_DWORD, &_workerCount, sizeof(_workerCount));
+    _SetResultValue(key, L"Ok", REG_DWORD, &ok, sizeof(ok));
+    _SetResultValue(key, L"Failed", REG_DWORD, &failed, sizeof(failed));
+    _SetResultValue(key, L"Status", REG_DWORD, &firstFailure, sizeof(firstFailure));
+    _SetResultValue(key, L"Bytes", REG_QWORD, &bytes, sizeof(bytes));
+    _SetResultValue(key, L"ElapsedUs", REG_QWORD, &elapsedUs, sizeof(elapsedUs));
+    _SetResultValue(key, L"MbitPerSec", REG_QWORD, &mbitPerSec, sizeof(mbitPerSec));
+    _SetResultValue(key, L"Stalls", REG_QWORD, &stalls, sizeof(stalls));
+    _SetResultValue(key, L"Done", REG_DWORD, &done, sizeof(done));
+    ZwClose(key);
+    DEBUG_INFO("PERF results: ok %u, failed %u, %I64u bytes, %I64u Mbit/s aggregate, done %u\n",
+               ok,
+               failed,
+               bytes,
+               mbitPerSec,
+               done);
 }
 
 static NTSTATUS _CloseSocket(_In_ PWSK_SOCKET Socket, _In_ PIRP Irp, _In_ PKEVENT Event)
@@ -188,12 +309,13 @@ static NTSTATUS _CloseSocket(_In_ PWSK_SOCKET Socket, _In_ PIRP Irp, _In_ PKEVEN
     return iosb.Status;
 }
 
-static void _SenderLoop(_In_ PIRP Irp, _In_ PKEVENT Event, _In_ PWSK_BUF Buffer)
+static void _SenderLoop(_In_ ULONG Index, _In_ PIRP Irp, _In_ PKEVENT Event, _In_ PWSK_BUF Buffer)
 {
     IO_STATUS_BLOCK iosb;
     PERF_SOCKADDR localAddr;
     PERF_SOCKADDR remoteAddr;
     ULONG protocol = 0;
+    ULONG port = _port + Index;
     PWSK_SOCKET socket = NULL;
     LARGE_INTEGER start;
     LARGE_INTEGER end;
@@ -201,6 +323,7 @@ static void _SenderLoop(_In_ PIRP Irp, _In_ PKEVENT Event, _In_ PWSK_BUF Buffer)
     ULONGLONG total = 0;
     ULONGLONG stalls = 0;
     ULONGLONG target = (ULONGLONG)_bytesMB << 20;
+    NTSTATUS result = STATUS_SUCCESS;
 
     memset(&localAddr, 0, sizeof(localAddr));
     memset(&remoteAddr, 0, sizeof(remoteAddr));
@@ -210,7 +333,7 @@ static void _SenderLoop(_In_ PIRP Irp, _In_ PKEVENT Event, _In_ PWSK_BUF Buffer)
         localAddr.In.sin_family = AF_INET;
         localAddr.In.sin_addr = _localIp;
         remoteAddr.In.sin_family = AF_INET;
-        remoteAddr.In.sin_port = RtlUshortByteSwap((USHORT)_port);
+        remoteAddr.In.sin_port = RtlUshortByteSwap((USHORT)port);
         remoteAddr.In.sin_addr = _peerIp;
     }
     else
@@ -220,10 +343,11 @@ static void _SenderLoop(_In_ PIRP Irp, _In_ PKEVENT Event, _In_ PWSK_BUF Buffer)
         localAddr.Vm.svm_port = (UINT)VMADDR_PORT_ANY;
         remoteAddr.Vm.svm_family = AF_VSOCK;
         remoteAddr.Vm.svm_cid = _peerCid;
-        remoteAddr.Vm.svm_port = _port;
+        remoteAddr.Vm.svm_port = port;
     }
 
     retryDelay.QuadPart = -10000000;
+    iosb.Status = STATUS_CANCELLED; /* unload before the first connect attempt */
 
     while (!InterlockedCompareExchange(&_terminate, 1, 1))
     {
@@ -248,18 +372,21 @@ static void _SenderLoop(_In_ PIRP Irp, _In_ PKEVENT Event, _In_ PWSK_BUF Buffer)
             break;
         }
 
-        DEBUG_WARNING("Unable to connect, port %u (0x%x), retrying\n", _port, iosb.Status);
+        DEBUG_WARNING("Unable to connect, port %u (0x%x), retrying\n", port, iosb.Status);
         KeDelayExecutionThread(KernelMode, FALSE, &retryDelay);
     }
 
     if (!socket)
     {
+        start = KeQueryPerformanceCounter(NULL);
+        _ReportResult(Index, "sender", 0, start, start, NT_SUCCESS(iosb.Status) ? STATUS_CANCELLED : iosb.Status, 0);
         return;
     }
 
-    DEBUG_INFO("PERF sender: connected (transport %u, port %u), sending %I64u bytes in %u-byte chunks\n",
+    DEBUG_INFO("PERF sender %u: connected (transport %u, port %u), sending %I64u bytes in %u-byte chunks\n",
+               Index,
                _transport,
-               _port,
+               port,
                target,
                _bufSize);
     start = KeQueryPerformanceCounter(NULL);
@@ -281,6 +408,7 @@ static void _SenderLoop(_In_ PIRP Irp, _In_ PKEVENT Event, _In_ PWSK_BUF Buffer)
         if (!NT_SUCCESS(iosb.Status) || iosb.Information == 0)
         {
             DEBUG_ERROR("Send failed: 0x%x (%I64u bytes transferred)", iosb.Status, (ULONGLONG)iosb.Information);
+            result = NT_SUCCESS(iosb.Status) ? STATUS_CONNECTION_DISCONNECTED : iosb.Status;
             break;
         }
 
@@ -288,8 +416,11 @@ static void _SenderLoop(_In_ PIRP Irp, _In_ PKEVENT Event, _In_ PWSK_BUF Buffer)
     }
 
     end = KeQueryPerformanceCounter(NULL);
-    DEBUG_INFO("PERF sender: %I64u zero-credit stalls\n", stalls);
-    _ReportResult("sender", total, start, end);
+    if (NT_SUCCESS(result) && total < target)
+    {
+        result = STATUS_CANCELLED; /* cut short by unload */
+    }
+    _ReportResult(Index, "sender", total, start, end, result, stalls);
     WSK_SYNCHRONOUS_CALL(Irp,
                          Event,
                          ((PWSK_PROVIDER_CONNECTION_DISPATCH)socket->Dispatch)->WskDisconnect(socket, NULL, 0, Irp),
@@ -304,15 +435,21 @@ static void _SenderLoop(_In_ PIRP Irp, _In_ PKEVENT Event, _In_ PWSK_BUF Buffer)
     return;
 }
 
-static void _ReceiverLoop(_In_ PIRP Irp, _In_ PKEVENT Event, _In_ PWSK_BUF Buffer)
+static void _ReceiverLoop(_In_ ULONG Index, _In_ PIRP Irp, _In_ PKEVENT Event, _In_ PWSK_BUF Buffer)
 {
     IO_STATUS_BLOCK iosb;
     ULONG nonBlocking = 0;
     PERF_SOCKADDR listenAddr;
     ADDRESS_FAMILY family = AF_VSOCK;
     ULONG protocol = 0;
+    ULONG port = _port + Index;
     PWSK_SOCKET listenSocket = NULL;
+    PWSK_SOCKET clientSocket = NULL;
     LARGE_INTEGER acceptDelay;
+    LARGE_INTEGER start;
+    LARGE_INTEGER end;
+    ULONGLONG total = 0;
+    NTSTATUS result = STATUS_SUCCESS;
 
     memset(&listenAddr, 0, sizeof(listenAddr));
     if (_transport == TRANSPORT_TCP)
@@ -321,13 +458,13 @@ static void _ReceiverLoop(_In_ PIRP Irp, _In_ PKEVENT Event, _In_ PWSK_BUF Buffe
         protocol = IPPROTO_TCP;
         listenAddr.In.sin_family = AF_INET;
         listenAddr.In.sin_addr = _localIp;
-        listenAddr.In.sin_port = RtlUshortByteSwap((USHORT)_port);
+        listenAddr.In.sin_port = RtlUshortByteSwap((USHORT)port);
     }
     else
     {
         listenAddr.Vm.svm_family = AF_VSOCK;
         listenAddr.Vm.svm_cid = (UINT)VMADDR_CID_ANY;
-        listenAddr.Vm.svm_port = _port;
+        listenAddr.Vm.svm_port = port;
     }
 
     acceptDelay.QuadPart = -10000000;
@@ -346,9 +483,11 @@ static void _ReceiverLoop(_In_ PIRP Irp, _In_ PKEVENT Event, _In_ PWSK_BUF Buffe
                                                                 NULL,
                                                                 Irp),
                          &iosb);
+    start = KeQueryPerformanceCounter(NULL);
     if (!NT_SUCCESS(iosb.Status))
     {
         DEBUG_ERROR("Unable to create listen socket: 0x%x", iosb.Status);
+        _ReportResult(Index, "receiver", 0, start, start, iosb.Status, 0);
         return;
     }
 
@@ -359,7 +498,8 @@ static void _ReceiverLoop(_In_ PIRP Irp, _In_ PKEVENT Event, _In_ PWSK_BUF Buffe
                          &iosb);
     if (!NT_SUCCESS(iosb.Status))
     {
-        DEBUG_ERROR("Unable to bind to port %u: 0x%x", _port, iosb.Status);
+        DEBUG_ERROR("Unable to bind to port %u: 0x%x", port, iosb.Status);
+        result = iosb.Status;
         goto CloseListenSocket;
     }
 
@@ -386,89 +526,102 @@ static void _ReceiverLoop(_In_ PIRP Irp, _In_ PKEVENT Event, _In_ PWSK_BUF Buffe
         if (!NT_SUCCESS(iosb.Status))
         {
             DEBUG_ERROR("Unable to make the listen socket non-blocking: 0x%x", iosb.Status);
+            result = iosb.Status;
             goto CloseListenSocket;
         }
     }
 
-    DEBUG_INFO("PERF receiver: listening on port %u, buffer %u bytes\n", _port, _bufSize);
+    DEBUG_INFO("PERF receiver %u: listening on port %u, buffer %u bytes\n", Index, port, _bufSize);
     nonBlocking = FALSE;
+    /* One connection per thread: poll accept until it arrives or unload. */
+    iosb.Status = STATUS_CANT_WAIT;
     while (!InterlockedCompareExchange(&_terminate, 1, 1))
     {
-        PWSK_SOCKET clientSocket = NULL;
-        LARGE_INTEGER start;
-        LARGE_INTEGER end;
-        ULONGLONG total = 0;
-
         WSK_SYNCHRONOUS_CALL(Irp,
                              Event,
                              ((PWSK_PROVIDER_LISTEN_DISPATCH)listenSocket->Dispatch)->WskAccept(listenSocket, WSK_FLAG_CONNECTION_SOCKET, NULL, NULL, NULL, NULL, Irp),
                              &iosb);
-        if (iosb.Status == STATUS_CANT_WAIT)
+        if (iosb.Status != STATUS_CANT_WAIT)
         {
-            KeDelayExecutionThread(KernelMode, FALSE, &acceptDelay);
-            continue;
+            break;
         }
+        KeDelayExecutionThread(KernelMode, FALSE, &acceptDelay);
+    }
 
-        if (iosb.Status == STATUS_CANCELLED)
-        {
-            break; /* driver unload cancelled the pended accept */
-        }
+    if (!NT_SUCCESS(iosb.Status) || iosb.Status == STATUS_CANT_WAIT)
+    {
+        /* STATUS_CANCELLED / CANT_WAIT here: unload got there first. */
+        DEBUG_ERROR("Unable to accept: 0x%x", iosb.Status);
+        result = (iosb.Status == STATUS_CANT_WAIT) ? STATUS_CANCELLED : iosb.Status;
+        goto CloseListenSocket;
+    }
 
+    clientSocket = (PWSK_SOCKET)iosb.Information;
+    if (_transport == TRANSPORT_VSOCK)
+    {
+        WSK_SYNCHRONOUS_CALL(Irp,
+                             Event,
+                             ((PWSK_PROVIDER_LISTEN_DISPATCH)clientSocket->Dispatch)
+                                                                                                                                 ->WskControlSocket(clientSocket,
+                                                                                                                                                    WskIoctl,
+                                                                                                                                                    FIONBIO,
+                                                                                                                                                    0,
+                                                                                                                                                    sizeof(nonBlocking),
+                                                                                                                                                    &nonBlocking,
+                                                                                                                                                    0,
+                                                                                                                                                    NULL,
+                                                                                                                                                    NULL,
+                                                                                                                                                    Irp),
+                             &iosb);
         if (!NT_SUCCESS(iosb.Status))
         {
-            DEBUG_ERROR("Unable to accept: 0x%x", iosb.Status);
+            DEBUG_ERROR("Unable to make the accepted socket blocking: 0x%x", iosb.Status);
+            result = iosb.Status;
+            goto CloseClientSocket;
+        }
+    }
+
+    start = KeQueryPerformanceCounter(NULL);
+    while (!InterlockedCompareExchange(&_terminate, 1, 1))
+    {
+        WSK_SYNCHRONOUS_CALL(Irp,
+                             Event,
+                             ((PWSK_PROVIDER_CONNECTION_DISPATCH)clientSocket->Dispatch)->WskReceive(clientSocket, Buffer, 0, Irp),
+                             &iosb);
+        if (!NT_SUCCESS(iosb.Status))
+        {
+            DEBUG_WARNING("Receive failed: 0x%x (%I64u bytes so far)\n", iosb.Status, total);
+            result = iosb.Status;
             break;
         }
 
-        clientSocket = (PWSK_SOCKET)iosb.Information;
-        if (_transport == TRANSPORT_VSOCK)
+        if (iosb.Information == 0)
         {
-            WSK_SYNCHRONOUS_CALL(Irp,
-                                 Event,
-                                 ((PWSK_PROVIDER_LISTEN_DISPATCH)clientSocket->Dispatch)->WskControlSocket(clientSocket, WskIoctl, FIONBIO, 0, sizeof(nonBlocking), &nonBlocking, 0, NULL, NULL, Irp),
-                                 &iosb);
-            if (!NT_SUCCESS(iosb.Status))
-            {
-                DEBUG_ERROR("Unable to make the accepted socket blocking: 0x%x", iosb.Status);
-                _CloseSocket(clientSocket, Irp, Event);
-                continue;
-            }
+            result = STATUS_SUCCESS; /* EOF - the peer closed the connection */
+            goto CloseClientSocket;
         }
 
-        start = KeQueryPerformanceCounter(NULL);
-        while (!InterlockedCompareExchange(&_terminate, 1, 1))
-        {
-            WSK_SYNCHRONOUS_CALL(Irp,
-                                 Event,
-                                 ((PWSK_PROVIDER_CONNECTION_DISPATCH)clientSocket->Dispatch)->WskReceive(clientSocket, Buffer, 0, Irp),
-                                 &iosb);
-            if (!NT_SUCCESS(iosb.Status))
-            {
-                DEBUG_WARNING("Receive failed: 0x%x (%I64u bytes so far)\n", iosb.Status, total);
-                break;
-            }
-
-            if (iosb.Information == 0)
-            {
-                break; /* EOF - the peer closed the connection */
-            }
-
-            total += iosb.Information;
-        }
-
-        end = KeQueryPerformanceCounter(NULL);
-        _ReportResult("receiver", total, start, end);
-        _CloseSocket(clientSocket, Irp, Event);
+        total += iosb.Information;
     }
+    if (NT_SUCCESS(result))
+    {
+        result = STATUS_CANCELLED; /* no EOF: cut short by unload */
+    }
+
+CloseClientSocket:
+    _CloseSocket(clientSocket, Irp, Event);
 
 CloseListenSocket:
     _CloseSocket(listenSocket, Irp, Event);
+    end = KeQueryPerformanceCounter(NULL);
+    _ReportResult(Index, "receiver", total, start, end, result, 0);
 
     return;
 }
 
 static void _PerfThreadRoutine(_In_opt_ PVOID Context)
 {
+    ULONG index = (ULONG)(ULONG_PTR)Context;
     KEVENT event;
     PIRP irp = NULL;
     PMDL mdl = NULL;
@@ -476,8 +629,7 @@ static void _PerfThreadRoutine(_In_opt_ PVOID Context)
     WSK_BUF wskBuf;
     DEBUG_ENTER_FUNCTION("Context=0x%p", Context);
 
-    UNREFERENCED_PARAMETER(Context);
-
+    _results[index].Status = STATUS_INSUFFICIENT_RESOURCES;
     buffer = ExAllocatePoolUninitialized(NonPagedPool, _bufSize, VIOWSK_PERF_TAG);
     if (!buffer)
     {
@@ -507,11 +659,11 @@ static void _PerfThreadRoutine(_In_opt_ PVOID Context)
     KeInitializeEvent(&event, NotificationEvent, FALSE);
     if (_mode == DEFAULT_MODE_RECEIVER)
     {
-        _ReceiverLoop(irp, &event, &wskBuf);
+        _ReceiverLoop(index, irp, &event, &wskBuf);
     }
     else
     {
-        _SenderLoop(irp, &event, &wskBuf);
+        _SenderLoop(index, irp, &event, &wskBuf);
     }
 
     IoFreeIrp(irp);
@@ -520,8 +672,69 @@ FreeMdl:
 FreeBuffer:
     ExFreePoolWithTag(buffer, VIOWSK_PERF_TAG);
 Exit:
+    if (InterlockedDecrement(&_running) == 0)
+    {
+        _WriteResults(TRUE);
+    }
+
     DEBUG_EXIT_FUNCTION_VOID();
     return;
+}
+
+static void _StopWorkers(void)
+{
+    ULONG i;
+
+    InterlockedExchange(&_terminate, 1);
+    for (i = 0; i < _workerCount; ++i)
+    {
+        if (_workerThreads[i])
+        {
+            KeWaitForSingleObject(_workerThreads[i], Executive, KernelMode, FALSE, NULL);
+            ObDereferenceObject(_workerThreads[i]);
+            _workerThreads[i] = NULL;
+        }
+    }
+}
+
+static NTSTATUS _StartWorkers(void)
+{
+    NTSTATUS status = STATUS_SUCCESS;
+    OBJECT_ATTRIBUTES oa;
+    CLIENT_ID clientId;
+    HANDLE hThread = NULL;
+    ULONG i;
+
+    InitializeObjectAttributes(&oa, NULL, OBJ_KERNEL_HANDLE, NULL, NULL);
+    _running = (LONG)_workerCount;
+    for (i = 0; i < _workerCount; ++i)
+    {
+        status = PsCreateSystemThread(&hThread,
+                                      SYNCHRONIZE,
+                                      &oa,
+                                      NULL,
+                                      &clientId,
+                                      _PerfThreadRoutine,
+                                      (PVOID)(ULONG_PTR)i);
+        if (!NT_SUCCESS(status))
+        {
+            /* Threads never started will not decrement _running. */
+            InterlockedAdd(&_running, -(LONG)(_workerCount - i));
+            _StopWorkers();
+            return status;
+        }
+
+        status = ObReferenceObjectByHandle(hThread, SYNCHRONIZE, *PsThreadType, KernelMode, &_workerThreads[i], NULL);
+        ZwClose(hThread);
+        if (!NT_SUCCESS(status))
+        {
+            InterlockedAdd(&_running, -(LONG)(_workerCount - i - 1));
+            _StopWorkers();
+            return status;
+        }
+    }
+
+    return STATUS_SUCCESS;
 }
 
 static void _LoadRegistryParameters(_In_ PUNICODE_STRING RegistryPath)
@@ -529,7 +742,7 @@ static void _LoadRegistryParameters(_In_ PUNICODE_STRING RegistryPath)
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
     PWCHAR ParamsPath = NULL;
     SIZE_T ParamsPathSize = 0;
-    RTL_QUERY_REGISTRY_TABLE Table[9];
+    RTL_QUERY_REGISTRY_TABLE Table[10];
     DEBUG_ENTER_FUNCTION("RegistryPath=\"%wZ\"", RegistryPath);
 
     ParamsPathSize = RegistryPath->Length + sizeof(L"\\Parameters");
@@ -572,6 +785,10 @@ static void _LoadRegistryParameters(_In_ PUNICODE_STRING RegistryPath)
     Table[7].Flags = RTL_QUERY_REGISTRY_DIRECT;
     Table[7].Name = L"LocalAddr";
     Table[7].EntryContext = &_localAddrString;
+    Table[8].Flags = RTL_QUERY_REGISTRY_DIRECT | RTL_QUERY_REGISTRY_TYPECHECK;
+    Table[8].Name = L"Connections";
+    Table[8].EntryContext = &_connections;
+    Table[8].DefaultType = (REG_DWORD << RTL_QUERY_REGISTRY_TYPECHECK_SHIFT) | REG_NONE;
     Status = RtlQueryRegistryValues(RTL_REGISTRY_ABSOLUTE | RTL_REGISTRY_OPTIONAL, ParamsPath, Table, NULL, NULL);
     if (!NT_SUCCESS(Status))
     {
@@ -581,6 +798,11 @@ static void _LoadRegistryParameters(_In_ PUNICODE_STRING RegistryPath)
     if (_bufSize == 0 || _bufSize > (64 * 1024 * 1024))
     {
         _bufSize = DEFAULT_BUF_SIZE;
+    }
+
+    if (_connections == 0 || _connections > MAX_CONNECTIONS)
+    {
+        _connections = (_connections == 0) ? DEFAULT_CONNECTIONS : MAX_CONNECTIONS;
     }
 
     if (_peerAddrString.Length > 0)
@@ -613,13 +835,15 @@ static void _LoadRegistryParameters(_In_ PUNICODE_STRING RegistryPath)
 
     ExFreePoolWithTag(ParamsPath, VIOWSK_PERF_TAG);
 Exit:
-    DEBUG_EXIT_FUNCTION("void, _mode=%u, _transport=%u, _peerCid=%u, _port=%u, _bufSize=%u, _bytesMB=%u",
+    DEBUG_EXIT_FUNCTION("void, _mode=%u, _transport=%u, _peerCid=%u, _port=%u, _bufSize=%u, _bytesMB=%u, "
+                        "_connections=%u",
                         _mode,
                         _transport,
                         _peerCid,
                         _port,
                         _bufSize,
-                        _bytesMB);
+                        _bytesMB,
+                        _connections);
     return;
 }
 
@@ -689,33 +913,80 @@ static void DriverUnload(_In_ PDRIVER_OBJECT DriverObject)
 
     UNREFERENCED_PARAMETER(DriverObject);
 
-    InterlockedExchange(&_terminate, 1);
-    KeWaitForSingleObject(_workerThread, Executive, KernelMode, FALSE, NULL);
-    ObDereferenceObject(_workerThread);
+    _StopWorkers();
     _WskDetach();
     IoDeleteDevice(_shutdownDeviceObject);
+    ExFreePoolWithTag(_workerThreads, VIOWSK_PERF_TAG);
+    ExFreePoolWithTag(_results, VIOWSK_PERF_TAG);
+    ExFreePoolWithTag(_resultsKeyPath.Buffer, VIOWSK_PERF_TAG);
 
     DEBUG_EXIT_FUNCTION_VOID();
     WPP_CLEANUP(DriverObject);
     return;
 }
 
+/* Results key path = <service key>\Results, kept for the run (RegistryPath
+ * is only valid during DriverEntry); worker and result arrays sized by
+ * Connections. */
+static NTSTATUS _AllocateRunState(_In_ PUNICODE_STRING RegistryPath)
+{
+    static const WCHAR suffix[] = L"\\Results";
+    USHORT length = (USHORT)(RegistryPath->Length + sizeof(suffix) - sizeof(WCHAR));
+
+    _resultsKeyPath.Buffer = ExAllocatePoolZero(PagedPool, length, VIOWSK_PERF_TAG);
+    _workerThreads = ExAllocatePoolZero(NonPagedPool, _connections * sizeof(PETHREAD), VIOWSK_PERF_TAG);
+    _results = ExAllocatePoolZero(NonPagedPool, _connections * sizeof(PERF_RESULT), VIOWSK_PERF_TAG);
+    if (!_resultsKeyPath.Buffer || !_workerThreads || !_results)
+    {
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    RtlCopyMemory(_resultsKeyPath.Buffer, RegistryPath->Buffer, RegistryPath->Length);
+    RtlCopyMemory((PUCHAR)_resultsKeyPath.Buffer + RegistryPath->Length, suffix, sizeof(suffix) - sizeof(WCHAR));
+    _resultsKeyPath.Length = length;
+    _resultsKeyPath.MaximumLength = length;
+    _workerCount = _connections;
+
+    return STATUS_SUCCESS;
+}
+
+static void _FreeRunState(void)
+{
+    if (_workerThreads)
+    {
+        ExFreePoolWithTag(_workerThreads, VIOWSK_PERF_TAG);
+    }
+    if (_results)
+    {
+        ExFreePoolWithTag(_results, VIOWSK_PERF_TAG);
+    }
+    if (_resultsKeyPath.Buffer)
+    {
+        ExFreePoolWithTag(_resultsKeyPath.Buffer, VIOWSK_PERF_TAG);
+    }
+}
+
 NTSTATUS
 DriverEntry(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING RegistryPath)
 {
-    CLIENT_ID clientId;
-    OBJECT_ATTRIBUTES oa;
-    HANDLE hThread = NULL;
     PDEVICE_OBJECT Device = NULL;
     NTSTATUS Status = STATUS_UNSUCCESSFUL;
     WPP_INIT_TRACING(DriverObject, RegistryPath);
     DEBUG_ENTER_FUNCTION("DriverObject=0x%p; RegistryPath=\"%wZ\"", DriverObject, RegistryPath);
 
     _LoadRegistryParameters(RegistryPath);
+    Status = _AllocateRunState(RegistryPath);
+    if (!NT_SUCCESS(Status))
+    {
+        goto FreeRunState;
+    }
+
+    /* Done=0 before the first thread runs, so a stale result is never read. */
+    _WriteResults(FALSE);
     Status = IoCreateDevice(DriverObject, 0, NULL, FILE_DEVICE_UNKNOWN, 0, FALSE, &Device);
     if (!NT_SUCCESS(Status))
     {
-        goto Exit;
+        goto FreeRunState;
     }
 
     Status = _WskAttach(DriverObject, RegistryPath, Device);
@@ -724,18 +995,9 @@ DriverEntry(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING RegistryPath)
         goto DeleteDevice;
     }
 
-    InitializeObjectAttributes(&oa, NULL, OBJ_KERNEL_HANDLE, NULL, NULL);
-    Status = PsCreateSystemThread(&hThread, SYNCHRONIZE, &oa, NULL, &clientId, _PerfThreadRoutine, NULL);
+    Status = _StartWorkers();
     if (!NT_SUCCESS(Status))
     {
-        goto WskDetach;
-    }
-
-    Status = ObReferenceObjectByHandle(hThread, SYNCHRONIZE, *PsThreadType, KernelMode, &_workerThread, NULL);
-    ZwClose(hThread);
-    if (!NT_SUCCESS(Status))
-    {
-        InterlockedExchange(&_terminate, 1);
         goto WskDetach;
     }
 
@@ -752,9 +1014,10 @@ DeleteDevice:
     {
         IoDeleteDevice(Device);
     }
-Exit:
+FreeRunState:
     if (!NT_SUCCESS(Status))
     {
+        _FreeRunState();
         WPP_CLEANUP(DriverObject);
     }
 
