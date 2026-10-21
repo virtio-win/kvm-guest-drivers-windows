@@ -32,6 +32,8 @@ set -uo pipefail
 _here=$(cd "$(dirname "$0")" && pwd)
 # shellcheck source=./_lib.sh
 . "$_here/_lib.sh"
+# shellcheck source=./_migr.sh
+. "$_here/_migr.sh"
 
 # --- tunables (env-overridable) ------------------------------------------
 MIGR_N=${MIGR_N:-8}                   # connections per direction — the load knob
@@ -168,74 +170,24 @@ info "  load up: wire $wire_up/$want_wire, guest vsock_perf ${guest_procs:-?}/$w
 sleep "$MIGR_RAMP_SECS"
 
 # --- phase 2: save/restore mid-transfer (transport reset) ----------------
-sr="$LOGDIR/$guest_name.migr.sr"
-newxml=""
-new_cid="$guest_cid"
-if [ "$MIGR_CHANGE_CID" -eq 1 ]; then
-    if [ -n "$MIGR_NEW_CID" ]; then
-        new_cid="$MIGR_NEW_CID"
-    else
-        # The first CID above the reserved 0..3 that differs from ours and is not held by another
-        # running domain on this host: a restore into a taken CID fails ("failed to set guest
-        # cid: Address already in use") and the guest is gone with it.
-        used_cids=$(for d in $(virsh list --name 2>/dev/null); do
-                        virsh dumpxml "$d" 2>/dev/null | grep -oE "<cid[^/]*address='[0-9]+'" | grep -oE "[0-9]+'$" | tr -d "'"
-                    done)
-        new_cid=$((guest_cid + 1))
-        while [ "$new_cid" -le 3 ] || [ "$new_cid" -eq "$guest_cid" ] || grep -qx "$new_cid" <<<"$used_cids"; do
-            new_cid=$((new_cid + 1))
-        done
-    fi
-    [ "$new_cid" != "$guest_cid" ] || die "MIGR_NEW_CID=$new_cid equals current guest_cid"
-    newxml="$LOGDIR/$guest_name.new.xml"
-    virsh dumpxml "$guest_name" > "$newxml" || die "virsh dumpxml $guest_name failed"
-    grep -qE "<cid[^/]*/>" "$newxml" || die "domain XML has no <cid .../> to swap"
-    # Normalize to auto='no' address='new' — with auto='yes' libvirt may re-pick a CID on restore.
-    sed -i -E "s|<cid[^/]*/>|<cid auto='no' address='$new_cid'/>|" "$newxml"
-    info "  CID plan: $guest_cid -> $new_cid  (XML: $newxml)"
-fi
+migr_plan_cid "$guest_name" "$guest_cid" "$LOGDIR"
 
 inflight_ok=0
 load_all_up && inflight_ok=1
 inflight="wire $wire_up/$want_wire, guest vsock_perf ${guest_procs:-?}/$want_procs, loopback accepted ${lb_accepted:-?}/$want_lb (finished ${lb_done:-?})"
 info "  in flight at save: $inflight"
 
-info "== virsh save $guest_name (mid-transfer) =="
-save_rc=0;    virsh save    "$guest_name" "$sr" --running || save_rc=$?
-info "  save rc=$save_rc state=$(virsh domstate "$guest_name" 2>/dev/null)"
-sleep 2
-if [ -n "$newxml" ]; then
-    info "== virsh restore --xml (CID $guest_cid -> $new_cid) =="
-    restore_rc=0; virsh restore "$sr" --xml "$newxml" --running || restore_rc=$?
-else
-    info "== virsh restore =="
-    restore_rc=0; virsh restore "$sr" --running || restore_rc=$?
-fi
-info "  restore rc=$restore_rc state=$(virsh domstate "$guest_name" 2>/dev/null)"
-if [ "$restore_rc" -eq 0 ]; then
-    rm -f "$sr"
-else
-    warn "  restore FAILED (rc=$restore_rc) — keeping the saved state for manual recovery: $sr"
-fi
+migr_save_restore "$guest_name" "$guest_cid" "$LOGDIR"
 
 # From now on the guest lives at the (possibly new) CID; subsequent probes target it.
 guest_cid="$new_cid"
 
 # --- phase 3: stability assertions ---------------------------------------
 # 3a. guest reachable again
-guest_up=0
-for _ in $(seq 1 60); do
-    if _guest_ssh 'echo up' >/dev/null 2>&1; then guest_up=1; break; fi
-    sleep 2
-done
+migr_wait_guest
 
 # 3b. driver still Running
-# (bounded: after the restore an ssh session has been seen to stay open on a live TCP connection
-# after its command had finished, which hung the run)
-srv_state=$(timeout 60 ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" 'sc query VirtioSocket' 2>/dev/null \
-    | tr -d '\r' | awk -F: '/STATE/ {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2; exit}')
-[ -n "$srv_state" ] || srv_state='<unknown>'
-driver_ok=0; case "$srv_state" in *RUNNING*|*[[:space:]]4*|4*) driver_ok=1 ;; esac
+migr_driver_state
 
 # 3c. a fresh vsock connection still completes (forward: local receiver, guest sender)
 probe_ok=0
