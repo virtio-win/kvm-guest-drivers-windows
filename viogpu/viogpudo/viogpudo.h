@@ -44,7 +44,8 @@ typedef struct
     UINT FlexResolution : 1;
     UINT UsePhysicalMemory : 1;
     UINT UsePresentProgress : 1;
-    UINT Unused : 25;
+    UINT UseFreshResourceId : 1;
+    UINT Unused : 24;
 } DRIVER_STATUS_FLAG;
 
 #pragma pack(pop)
@@ -303,6 +304,14 @@ class VioGpuDod
     void SetUsePresentProgress(BOOLEAN enable)
     {
         m_Flags.UsePresentProgress = enable;
+    }
+    BOOLEAN IsUseFreshResourceId() const
+    {
+        return m_Flags.UseFreshResourceId;
+    }
+    void SetUseFreshResourceId(BOOLEAN enable)
+    {
+        m_Flags.UseFreshResourceId = enable;
     }
     void SetPersistentDispMode0Width(USHORT res)
     {

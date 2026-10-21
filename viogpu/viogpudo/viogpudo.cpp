@@ -2281,6 +2281,14 @@ NTSTATUS VioGpuDod::GetRegisterInfo(void)
         SetUsePresentProgress(!!value);
     }
 
+    // Optional, off unless set: see CreateFrameBufferObj()
+    value = 0;
+    StatusOptional = ReadRegistryDWORD(DevInstRegKeyHandle, L"UseFreshResourceId", &value);
+    if (NT_SUCCESS(StatusOptional))
+    {
+        SetUseFreshResourceId(!!value);
+    }
+
     // The following keys are optional and no need to report error if them are missing
     value = 0;
     StatusOptional = ReadRegistryDWORD(DevInstRegKeyHandle, L"PersistentDispMode0Width", &value);
@@ -3683,7 +3691,10 @@ void VioGpuAdapter::DestroyFrameBufferObj(BOOLEAN bReset, BOOLEAN bKeepBuffer)
             delete m_pFrameBuf;
         }
         m_pFrameBuf = NULL;
-        // resid came from GetFreshId() and is never reused, so it doesn't go back to the free list
+        if (!m_pVioGpuDod->IsUseFreshResourceId())
+        {
+            m_Idr.PutId(resid);
+        }
     }
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
@@ -3910,13 +3921,21 @@ BOOLEAN VioGpuAdapter::CreateFrameBufferObj(PVIDEO_MODE_INFORMATION pModeInfo, C
     format = ColorFormat(pCurrentMode->DispInfo.ColorFormat);
     DbgPrint(TRACE_LEVEL_INFORMATION,
              ("---> %s - (%d -> %d)\n", __FUNCTION__, pCurrentMode->DispInfo.ColorFormat, format));
-    resid = m_Idr.GetFreshId();
+    // A mode change destroys the framebuffer resource and creates the next one right away. By default the id that was
+    // just released is reused, which is fine for QEMU, but Apple's Virtualization.framework then displays the new
+    // resource with the layout of the old one. UseFreshResourceId (set by the INF for that hypervisor's PCI
+    // subsystem id) makes every framebuffer get an id that was never used.
+    resid = m_pVioGpuDod->IsUseFreshResourceId() ? m_Idr.GetFreshId() : m_Idr.GetId();
     m_CtrlQueue.CreateResource(resid, format, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight);
     obj = new (NonPagedPoolNx) VioGpuObj();
     if (!obj->Init(size, &m_FrameSegment))
     {
         DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s Failed to init obj size = %d\n", __FUNCTION__, size));
         m_CtrlQueue.DestroyResource(resid);
+        if (!m_pVioGpuDod->IsUseFreshResourceId())
+        {
+            m_Idr.PutId(resid);
+        }
         delete obj;
         return FALSE;
     }
