@@ -173,6 +173,35 @@ VIOSockBoundListInit(IN WDFDEVICE hDevice)
     return status;
 }
 
+_Requires_lock_held_(pContext->BoundLock) static NTSTATUS VIOSockBoundInsert(IN PDEVICE_CONTEXT pContext,
+                                                                             IN PSOCKET_CONTEXT pSocket,
+                                                                             IN ULONG32 svm_port)
+{
+    NTSTATUS status;
+
+    // Cleanup sets SOCK_CLEANUP before VIOSockBoundRemove takes BoundLock, so a
+    // socket inserted here is either seen as SOCK_BOUND there or refused here.
+    if (VIOSockIsFlag(pSocket, SOCK_CLEANUP))
+    {
+        return STATUS_INVALID_HANDLE;
+    }
+
+    // IOCTLs are parallel: a concurrent bind/autobind on this socket may have won
+    if (VIOSockIsFlag(pSocket, SOCK_BOUND))
+    {
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    pSocket->src_port = svm_port;
+    status = WdfCollectionAdd(pContext->BoundList, pSocket->ThisSocket);
+    if (NT_SUCCESS(status))
+    {
+        VIOSockSetFlag(pSocket, SOCK_BOUND);
+    }
+
+    return status;
+}
+
 NTSTATUS
 VIOSockBoundAdd(IN PSOCKET_CONTEXT pSocket, IN ULONG32 svm_port)
 {
@@ -212,8 +241,7 @@ VIOSockBoundAdd(IN PSOCKET_CONTEXT pSocket, IN ULONG32 svm_port)
             if (!VIOSockBoundFindByPort(pContext, svm_port))
             {
                 bFound = TRUE;
-                pSocket->src_port = svm_port;
-                status = WdfCollectionAdd(pContext->BoundList, pSocket->ThisSocket);
+                status = VIOSockBoundInsert(pContext, pSocket, svm_port);
             }
             WdfSpinLockRelease(pContext->BoundLock);
 
@@ -239,15 +267,9 @@ VIOSockBoundAdd(IN PSOCKET_CONTEXT pSocket, IN ULONG32 svm_port)
         }
         else
         {
-            pSocket->src_port = svm_port;
-            status = WdfCollectionAdd(pContext->BoundList, pSocket->ThisSocket);
+            status = VIOSockBoundInsert(pContext, pSocket, svm_port);
         }
         WdfSpinLockRelease(pContext->BoundLock);
-    }
-
-    if (NT_SUCCESS(status))
-    {
-        VIOSockSetFlag(pSocket, SOCK_BOUND);
     }
 
     return status;
@@ -1245,6 +1267,8 @@ VOID VIOSockCleanup(IN WDFFILEOBJECT FileObject)
         return;
     }
 
+    // Before VIOSockBoundRemove: a bind/connect IOCTL still in flight must not re-add us
+    VIOSockSetFlag(pSocket, SOCK_CLEANUP);
     VIOSockBoundRemove(pSocket);
 
     if (VIOSockStateGet(pSocket) == VIOSOCK_STATE_CONNECTED || VIOSockStateGet(pSocket) == VIOSOCK_STATE_CLOSING)
@@ -1331,7 +1355,6 @@ VOID VIOSockCleanup(IN WDFFILEOBJECT FileObject)
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "Socket %d closed\n", pSocket->SocketId);
 
-    VIOSockSetFlag(pSocket, SOCK_CLEANUP);
     if (pSocket->SelectRefs[FDSET_READ] || pSocket->SelectRefs[FDSET_WRITE] || pSocket->SelectRefs[FDSET_EXCPT])
     {
         VIOSockSelectEnqueueWorkItem(GetDeviceContextFromSocket(pSocket));
@@ -1489,7 +1512,12 @@ static NTSTATUS VIOSockConnect(IN WDFREQUEST Request)
     {
         // autobind
         status = VIOSockBoundAdd(pSocket, VMADDR_PORT_ANY);
-        if (!NT_SUCCESS(status))
+        if (status == STATUS_INVALID_PARAMETER)
+        {
+            // A concurrent bind() won the race: connect from the port it bound
+            status = STATUS_SUCCESS;
+        }
+        else if (!NT_SUCCESS(status))
         {
             TraceEvents(TRACE_LEVEL_WARNING, DBG_SOCKET, "VIOSockBoundAdd failed: 0x%x\n", status);
             return status;
