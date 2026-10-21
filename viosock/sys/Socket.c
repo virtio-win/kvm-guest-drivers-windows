@@ -3057,7 +3057,10 @@ VIOSockGetSocketFromHandle(IN PDEVICE_CONTEXT pContext,
         // connected nor the bound list, yet select/poll must still see its EOF/reset.
         WDFFILEOBJECT Socket = WDF_NO_HANDLE;
 
-        if (pFileObj->DeviceObject == WdfDeviceWdmGetDeviceObject(pContext->ThisDevice))
+        // A socket file names either our FDO (viosocklib opens \Device\Viosock) or
+        // the PDO (viosockwsk opens the device interface, a link to the PDO's name).
+        if (pFileObj->DeviceObject == WdfDeviceWdmGetDeviceObject(pContext->ThisDevice) ||
+            pFileObj->DeviceObject == WdfDeviceWdmGetPhysicalDevice(pContext->ThisDevice))
         {
             Socket = WdfDeviceGetFileObject(pContext->ThisDevice, pFileObj);
         }
