@@ -309,6 +309,195 @@ static void validate_unknown_sockopt(void)
     }
 }
 
+/*
+ * A close racing bind() and two concurrent bind()s on one socket must not
+ * leave the socket in the driver's bound list: once the socket is closed,
+ * its ports are bindable again, and only one of two concurrent binds wins
+ * (the other gets WSAEINVAL, as for a bind on an already bound socket).
+ * Timing-dependent: a pass is weak evidence, a failure is a real leak.
+ */
+#define BIND_RACE_ROUNDS  1000
+#define BIND_RACE_SPAN_US 20
+
+struct bind_race_round
+{
+    volatile LONG ready;
+    volatile LONG go;
+};
+
+struct bind_race_ctx
+{
+    SOCKET s;
+    unsigned int port;
+    struct bind_race_round *round;
+    LONGLONG delay;
+    int rc;
+    int err;
+};
+
+/* Per-process ports: the loopback sweep runs two vsock_test instances on one guest. */
+static unsigned int bind_race_port(unsigned int slot)
+{
+    return 0x40000000u + ((unsigned int)GetCurrentProcessId() & 0xffffu) * 4u + slot;
+}
+
+static int bind_port(SOCKET s, unsigned int port)
+{
+    struct sockaddr_vm addr = {0};
+    addr.svm_family = g_vsock_af;
+    addr.svm_cid = VMADDR_CID_ANY;
+    addr.svm_port = port;
+    return bind(s, (const struct sockaddr *)&addr, sizeof(addr));
+}
+
+static void spin_ticks(LONGLONG ticks)
+{
+    LARGE_INTEGER now, end;
+
+    QueryPerformanceCounter(&end);
+    end.QuadPart += ticks;
+    do
+    {
+        YieldProcessor();
+        QueryPerformanceCounter(&now);
+    } while (now.QuadPart < end.QuadPart);
+}
+
+/*
+ * Signed start skew for a round, sweeping -span..+span QPC ticks: the two
+ * paths take a near-constant time, so a fixed start would probe one point.
+ */
+static LONGLONG bind_race_skew(int round)
+{
+    LARGE_INTEGER freq;
+    LONGLONG span;
+
+    QueryPerformanceFrequency(&freq);
+    span = freq.QuadPart * BIND_RACE_SPAN_US / 1000000;
+    return (round % (2 * span + 1)) - span;
+}
+
+static DWORD WINAPI bind_race_worker(LPVOID arg)
+{
+    struct bind_race_ctx *c = arg;
+
+    InterlockedIncrement(&c->round->ready);
+    while (!c->round->go)
+    {
+        YieldProcessor();
+    }
+    spin_ticks(c->delay);
+    c->rc = bind_port(c->s, c->port);
+    c->err = WSAGetLastError();
+    return 0;
+}
+
+static HANDLE bind_race_start(struct bind_race_ctx *c, const char *what)
+{
+    HANDLE th = CreateThread(NULL, 0, bind_race_worker, c, 0, NULL);
+    if (!th)
+    {
+        fprintf(stderr, "posix-validate: %s: CreateThread failed: %lu\n", what, GetLastError());
+        exit(EXIT_FAILURE);
+    }
+    return th;
+}
+
+/* Release the workers only once all are spinning, so thread start-up latency doesn't swamp the skew. */
+static void bind_race_go(struct bind_race_round *r, LONG workers)
+{
+    while (r->ready < workers)
+    {
+        YieldProcessor();
+    }
+    InterlockedExchange(&r->go, 1);
+}
+
+static void bind_race_join(HANDLE th)
+{
+    WaitForSingleObject(th, INFINITE);
+    CloseHandle(th);
+}
+
+static void expect_port_free(unsigned int port, const char *what, int round)
+{
+    SOCKET s = fresh_vsock_socket(what);
+    if (bind_port(s, port) == SOCKET_ERROR)
+    {
+        fprintf(stderr,
+                "posix-validate: %s: round %d: port %u still bound after close: WSA %d\n",
+                what,
+                round,
+                port,
+                WSAGetLastError());
+        exit(EXIT_FAILURE);
+    }
+    closesocket(s);
+}
+
+static void validate_bind_close_race(void)
+{
+    const char *what = "bind/close race";
+    unsigned int port = bind_race_port(0);
+    int i;
+
+    for (i = 0; i < BIND_RACE_ROUNDS; i++)
+    {
+        struct bind_race_round r = {0, 0};
+        LONGLONG skew = bind_race_skew(i);
+        struct bind_race_ctx c = {fresh_vsock_socket(what), port, &r, skew > 0 ? skew : 0, 0, 0};
+        HANDLE th = bind_race_start(&c, what);
+
+        bind_race_go(&r, 1);
+        spin_ticks(skew < 0 ? -skew : 0);
+        closesocket(c.s);
+        bind_race_join(th);
+        expect_port_free(port, what, i);
+    }
+}
+
+static void validate_bind_concurrent(void)
+{
+    const char *what = "concurrent bind";
+    int i;
+
+    for (i = 0; i < BIND_RACE_ROUNDS; i++)
+    {
+        struct bind_race_round r = {0, 0};
+        LONGLONG skew = bind_race_skew(i);
+        SOCKET s = fresh_vsock_socket(what);
+        struct bind_race_ctx c[2] = {{s, bind_race_port(1), &r, skew > 0 ? skew : 0, 0, 0},
+                                     {s, bind_race_port(2), &r, skew < 0 ? -skew : 0, 0, 0}};
+        HANDLE th;
+        int loser;
+
+        /* This thread binds c[0] itself: a third spinning thread would starve on 2 vCPUs. */
+        th = bind_race_start(&c[1], what);
+        bind_race_go(&r, 1);
+        spin_ticks(c[0].delay);
+        c[0].rc = bind_port(s, c[0].port);
+        c[0].err = WSAGetLastError();
+        bind_race_join(th);
+        closesocket(s);
+
+        loser = (c[0].rc == 0) ? 1 : 0;
+        if ((c[0].rc == 0) == (c[1].rc == 0) || c[loser].err != WSAEINVAL)
+        {
+            fprintf(stderr,
+                    "posix-validate: %s: round %d: expected one success and one WSAEINVAL, got rc=%d/%d WSA %d/%d\n",
+                    what,
+                    i,
+                    c[0].rc,
+                    c[1].rc,
+                    c[0].err,
+                    c[1].err);
+            exit(EXIT_FAILURE);
+        }
+        expect_port_free(c[0].port, what, i);
+        expect_port_free(c[1].port, what, i);
+    }
+}
+
 void posix_validate_all(void)
 {
     validate_getfiletype_and_osfhandle();
@@ -318,4 +507,6 @@ void posix_validate_all(void)
     validate_unknown_sockopt();
     validate_select_all_null();
     validate_select_timeout();
+    validate_bind_close_race();
+    validate_bind_concurrent();
 }
