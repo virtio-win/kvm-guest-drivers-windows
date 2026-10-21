@@ -685,7 +685,7 @@ VIOSockEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
         return status;
     }
 
-    // Create sequential queue for IoCtl requests.
+    // Create parallel queue for IoCtl requests.
     // Power-managed: IOCTL_SELECT / WSAPoll are held driver-owned (cancelable) for an
     // indeterminate time on this queue. Rather than hang the D0->Dx transition, they are
     // drained in EvtDeviceSelfManagedIoSuspend (VIOSockSelectIoSuspend), which runs before
