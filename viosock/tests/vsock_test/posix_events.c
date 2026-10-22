@@ -355,6 +355,77 @@ static void ev_select_returns_when_sockets_closed(enum select_set set)
 }
 
 /*
+ * A blocking accept() is an IRP_MJ_CREATE parked on the listener's
+ * accept queue.  CancelSynchronousIo() on the waiting thread must take
+ * it back out: accept() returns WSAEINTR (STATUS_CANCELLED) at once.
+ */
+struct accept_cancel_ctx
+{
+    SOCKET listener;
+    HANDLE done;
+    SOCKET accepted;
+    int err;
+};
+
+static DWORD WINAPI accept_cancel_worker(LPVOID arg)
+{
+    struct accept_cancel_ctx *c = (struct accept_cancel_ctx *)arg;
+
+    c->accepted = accept(c->listener, NULL, NULL);
+    c->err = WSAGetLastError();
+    SetEvent(c->done);
+    return 0;
+}
+
+static void ev_accept_cancelled_by_cancel_synchronous_io(void)
+{
+    struct accept_cancel_ctx c = {INVALID_SOCKET, NULL, INVALID_SOCKET, 0};
+    HANDLE th;
+    DWORD t0;
+
+    c.listener = select_close_listener();
+    c.done = CreateEvent(NULL, TRUE, FALSE, NULL);
+    th = c.done ? CreateThread(NULL, 0, accept_cancel_worker, &c, 0, NULL) : NULL;
+    if (!th)
+    {
+        fprintf(stderr, "posix-events: accept-cancel: worker setup failed: %lu\n", GetLastError());
+        exit(EXIT_FAILURE);
+    }
+
+    Sleep(200); /* let the accept pend in the driver */
+    /* ERROR_NOT_FOUND: the create has not reached the driver yet. */
+    t0 = GetTickCount();
+    while (!CancelSynchronousIo(th))
+    {
+        if (GetLastError() != ERROR_NOT_FOUND || GetTickCount() - t0 > 2000)
+        {
+            fprintf(stderr, "posix-events: accept-cancel: CancelSynchronousIo failed: %lu\n", GetLastError());
+            exit(EXIT_FAILURE);
+        }
+        Sleep(10);
+    }
+
+    if (WaitForSingleObject(c.done, 5000) != WAIT_OBJECT_0)
+    {
+        fprintf(stderr, "posix-events: accept-cancel: accept still pending 5 s after CancelSynchronousIo\n");
+        exit(EXIT_FAILURE);
+    }
+    WaitForSingleObject(th, 1000);
+    CloseHandle(th);
+    CloseHandle(c.done);
+    closesocket(c.listener);
+
+    if (c.accepted != INVALID_SOCKET || c.err != WSAEINTR)
+    {
+        fprintf(stderr,
+                "posix-events: accept-cancel: accept returned %s WSA %d, expected WSAEINTR\n",
+                c.accepted == INVALID_SOCKET ? "error" : "a socket",
+                c.err);
+        exit(EXIT_FAILURE);
+    }
+}
+
+/*
  * select() writefds bit gets set on a freshly connected socket
  * (send buffer has room).  Exercises the write branch of select().
  */
@@ -617,6 +688,7 @@ void posix_events_all(unsigned int self_cid)
     ev_select_returns_when_sockets_closed(SET_READ);
     ev_select_returns_when_sockets_closed(SET_WRITE);
     ev_select_returns_when_sockets_closed(SET_EXCEPT);
+    ev_accept_cancelled_by_cancel_synchronous_io();
 
     /* The writefds check needs an in-process pair against
      * connect(g_self_cid); outside the loopback sweep --peer-cid is the
