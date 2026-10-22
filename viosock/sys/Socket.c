@@ -1918,7 +1918,9 @@ static NTSTATUS VIOSockGetPeerName(IN WDFREQUEST Request, OUT size_t *pLength)
     // minimum length guaranteed by WdfRequestRetrieveInputBuffer above
     _Analysis_assume_(stAddrLen >= sizeof(*pAddr));
 
-    if (VIOSockStateGet(pSocket) == VIOSOCK_STATE_CONNECTED)
+    // A socket whose peer has closed (CLOSING) keeps its peer address. WSPAccept
+    // asks for it right after the accept, and the peer can close in between.
+    if (VIOSockStateGet(pSocket) == VIOSOCK_STATE_CONNECTED || VIOSockStateGet(pSocket) == VIOSOCK_STATE_CLOSING)
     {
         RtlZeroBytes(pAddr, sizeof(*pAddr));
         pAddr->svm_family = AF_VSOCK;
