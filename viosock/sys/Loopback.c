@@ -40,6 +40,7 @@ _Requires_lock_not_held_(pListenSocket->RxLock) static NTSTATUS VIOSockLoopbackA
     PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pListenSocket);
     NTSTATUS status;
     WDFMEMORY Memory;
+    WDFREQUEST PendedRequest = WDF_NO_HANDLE;
     LONG lAcceptPended;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s\n", __FUNCTION__);
@@ -52,38 +53,20 @@ _Requires_lock_not_held_(pListenSocket->RxLock) static NTSTATUS VIOSockLoopbackA
         return STATUS_CONNECTION_RESET;
     }
 
-    // accepted list is empty
-    if (lAcceptPended == 1)
+    // Allocate the queue entry up front: as in VIOSockAcceptEnqueuePkt, the check
+    // for a pended accept() and the insert into AcceptList must happen under one
+    // RxLock hold, or an accept() that has just found the list empty and is about
+    // to pend itself misses this connection and sleeps forever (lost wakeup).
+    status = WdfMemoryCreateFromLookaside(pContext->AcceptMemoryList, &Memory);
+    if (!NT_SUCCESS(status))
     {
-        WDFREQUEST PendedRequest;
-
-        VIOSockPendedRequestGetLocked(pListenSocket, &PendedRequest);
-        if (PendedRequest)
-        {
-            PSOCKET_CONTEXT pAcceptSocket = GetSocketContextFromRequest(PendedRequest);
-
-            InterlockedDecrement(&pListenSocket->AcceptPended);
-
-            pAcceptSocket->dst_cid = pContext->Config.guest_cid;
-            pAcceptSocket->dst_port = pConnectSocket->src_port;
-            pAcceptSocket->peer_buf_alloc = pConnectSocket->buf_alloc;
-            pAcceptSocket->peer_fwd_cnt = pConnectSocket->fwd_cnt;
-
-            // link accepted socket to connecting one
-            pAcceptSocket->LoopbackSocket = pConnectSocket->ThisSocket;
-            VioSockReference(pAcceptSocket->LoopbackSocket);
-            VIOSockSetFlag(pAcceptSocket, SOCK_LOOPBACK);
-
-            VIOSockAcceptInitSocket(pAcceptSocket, pListenSocket);
-
-            WdfRequestComplete(PendedRequest, STATUS_SUCCESS);
-            return STATUS_SUCCESS;
-        }
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "WdfMemoryCreateFromLookaside failed: 0x%x\n", status);
+        Memory = WDF_NO_HANDLE;
     }
 
-    status = WdfMemoryCreateFromLookaside(pContext->AcceptMemoryList, &Memory);
-
-    if (NT_SUCCESS(status))
+    WdfSpinLockAcquire(pListenSocket->RxLock);
+    VIOSockPendedRequestGet(pListenSocket, &PendedRequest);
+    if (PendedRequest == WDF_NO_HANDLE && Memory != WDF_NO_HANDLE)
     {
         PVIOSOCK_ACCEPT_ENTRY pAccept = WdfMemoryGetBuffer(Memory, NULL);
 
@@ -96,16 +79,43 @@ _Requires_lock_not_held_(pListenSocket->RxLock) static NTSTATUS VIOSockLoopbackA
         pAccept->peer_buf_alloc = pConnectSocket->buf_alloc;
         pAccept->peer_fwd_cnt = pConnectSocket->fwd_cnt;
 
-        WdfSpinLockAcquire(pListenSocket->RxLock);
         InsertTailList(&pListenSocket->AcceptList, &pAccept->ListEntry);
-        WdfSpinLockRelease(pListenSocket->RxLock);
+    }
+    WdfSpinLockRelease(pListenSocket->RxLock);
 
+    if (PendedRequest != WDF_NO_HANDLE)
+    {
+        PSOCKET_CONTEXT pAcceptSocket = GetSocketContextFromRequest(PendedRequest);
+
+        if (Memory != WDF_NO_HANDLE)
+        {
+            WdfObjectDelete(Memory);
+        }
+
+        InterlockedDecrement(&pListenSocket->AcceptPended);
+
+        pAcceptSocket->dst_cid = pContext->Config.guest_cid;
+        pAcceptSocket->dst_port = pConnectSocket->src_port;
+        pAcceptSocket->peer_buf_alloc = pConnectSocket->buf_alloc;
+        pAcceptSocket->peer_fwd_cnt = pConnectSocket->fwd_cnt;
+
+        // link accepted socket to connecting one
+        pAcceptSocket->LoopbackSocket = pConnectSocket->ThisSocket;
+        VioSockReference(pAcceptSocket->LoopbackSocket);
+        VIOSockSetFlag(pAcceptSocket, SOCK_LOOPBACK);
+
+        VIOSockAcceptInitSocket(pAcceptSocket, pListenSocket);
+
+        WdfRequestComplete(PendedRequest, STATUS_SUCCESS);
+        status = STATUS_SUCCESS;
+    }
+    else if (Memory != WDF_NO_HANDLE)
+    {
         VIOSockEventSetBitLocked(pListenSocket, FD_ACCEPT_BIT, STATUS_SUCCESS);
         status = STATUS_PENDING;
     }
     else
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_SOCKET, "WdfMemoryCreateFromLookaside failed: 0x%x\n", status);
         InterlockedDecrement(&pListenSocket->AcceptPended);
     }
 
