@@ -185,3 +185,39 @@ VOID _PARANDIS_ADAPTER::RaiseUnrecoverableError(PCSTR Message)
     DPrintf(0, "%s", Message);
     NdisMRemoveMiniport(MiniportHandle);
 }
+
+VOID _PARANDIS_ADAPTER::FailAdapter(PCSTR Message, ULONG DiagnosticValue, ULONG CallerLine)
+{
+    // Atomic test-and-set: with RSS, multiple RX queues can race here, and
+    // only the first should log/drain - the rest just return.
+    if (InterlockedExchange(&bAdapterFailed, TRUE))
+    {
+        return;
+    }
+
+    // Log to the System Event Log too, not just DPrintf's trace session.
+    // Bypasses the NDIS_ERR macro so the logged line is the caller's
+    // (CallerLine), not always this line.
+    NdisWriteErrorLogEntry(MiniportHandle, NDIS_ERROR_CODE_DRIVER_FAILURE, 2, CallerLine, DiagnosticValue);
+
+    // See FailureSyncBarrier() for why this is needed.
+    for (UINT i = 0; i < nPathBundles; i++)
+    {
+        pPathBundles[i].rxPath.FailureSyncBarrier();
+    }
+
+    // Drain in-flight TX work so NDIS doesn't see it as hung; reuses the
+    // same cleanup real surprise removal already does.
+    for (UINT i = 0; i < nPathBundles; i++)
+    {
+        static_cast<CObserver<SMNotifications> &>(pPathBundles[i].txPath).Notify(SMNotifications::SupriseRemoved);
+    }
+
+    // CX has nothing to drain (SendControlMessage times out on its own);
+    // just stop it touching hardware for new commands.
+    CXPath.Notify(SMNotifications::SupriseRemoved);
+
+    // Ask NDIS to remove the miniport (Code 43); RX/TX/CX no longer depend
+    // on this succeeding to stop.
+    RaiseUnrecoverableError(Message);
+}
