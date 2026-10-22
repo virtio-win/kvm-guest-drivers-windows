@@ -52,6 +52,9 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
 #define __DRIVER_NAME "BALLOON: "
 
+/* Virtio balloon spec (5.5.6) requires 32-bit page numbers, unlike Windows' pointer-width PFN_NUMBER */
+typedef ULONG VIRTIO_BALLOON_PAGE_NUMBER, *PVIRTIO_BALLOON_PAGE_NUMBER;
+
 typedef struct
 {
     SINGLE_LIST_ENTRY SingleListEntry;
@@ -82,7 +85,7 @@ typedef struct _DEVICE_CONTEXT
 
     volatile ULONG num_pages;
     ULONG num_pfns;
-    PPFN_NUMBER pfns_table;
+    PVIRTIO_BALLOON_PAGE_NUMBER pfns_table;
     NPAGED_LOOKASIDE_LIST LookAsideList;
     BOOLEAN bListInitialized;
     SINGLE_LIST_ENTRY PageListHead;

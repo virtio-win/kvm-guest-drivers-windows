@@ -151,11 +151,12 @@ BalloonFill(IN WDFOBJECT WdfDevice, IN size_t num)
     }
 #endif // !BALLOON_INFLATE_IGNORE_LOWMEM
 
-    num = min(num, PAGE_SIZE / sizeof(PFN_NUMBER));
+    num = min(num, PAGE_SIZE / sizeof(VIRTIO_BALLOON_PAGE_NUMBER));
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "Inflate balloon with %d pages.\n", num);
 
     LowAddress.QuadPart = 0;
-    HighAddress.QuadPart = (ULONGLONG)-1;
+    /* Keep page numbers within 32 bits, as required by virtio spec */
+    HighAddress.QuadPart = ((ULONGLONG)MAXULONG << PAGE_SHIFT) | (PAGE_SIZE - 1);
     SkipBytes.QuadPart = 0;
 
     pPageMdl = MmAllocatePagesForMdlEx(LowAddress,
@@ -199,7 +200,14 @@ BalloonFill(IN WDFOBJECT WdfDevice, IN size_t num)
     ctx->num_pfns = (ULONG)num;
     ctx->num_pages += ctx->num_pfns;
 
-    RtlCopyMemory(ctx->pfns_table, MmGetMdlPfnArray(pPageMdl), ctx->num_pfns * sizeof(PFN_NUMBER));
+    /* Convert pointer-width page numbers from Windows to 32-bit as required by virtio spec */
+    {
+        PPFN_NUMBER pfns = MmGetMdlPfnArray(pPageMdl);
+        for (ULONG i = 0; i < ctx->num_pfns; i++)
+        {
+            ctx->pfns_table[i] = (VIRTIO_BALLOON_PAGE_NUMBER)pfns[i];
+        }
+    }
 
     status = BalloonTellHost(WdfDevice, ctx->InfVirtQueue);
 
@@ -232,7 +240,14 @@ BalloonLeak(IN WDFOBJECT WdfDevice, IN size_t num)
     ctx->num_pfns = (ULONG)num;
     ctx->num_pages -= ctx->num_pfns;
 
-    RtlCopyMemory(ctx->pfns_table, MmGetMdlPfnArray(pPageMdl), ctx->num_pfns * sizeof(PFN_NUMBER));
+    /* Convert pointer-width page numbers from Windows to 32-bit as required by virtio spec */
+    {
+        PPFN_NUMBER pfns = MmGetMdlPfnArray(pPageMdl);
+        for (ULONG i = 0; i < ctx->num_pfns; i++)
+        {
+            ctx->pfns_table[i] = (VIRTIO_BALLOON_PAGE_NUMBER)pfns[i];
+        }
+    }
 
     MmFreePagesFromMdl(pPageMdl);
     ExFreePool(pPageMdl);
