@@ -176,9 +176,10 @@ typedef BOOLEAN (*VirtIOWdfDmaTransactionCallback)(PVIRTIO_DMA_TRANSACTION_PARAM
  * 3. req = (WDFREQUEST)WDF_INVALID_HANDLE, then the buffer is PMDL describing MDL chain
  *    provided by the caller, the size describes used MDL area, offset in the MDL is 0
  * If the callback wants to return FALSE (too many elements in SG or whatever), call
- *    VirtIOWdfDeviceDmaTxComplete, then complete the request (if req != NULL), then return FALSE
- * If the callback returns TRUE, call VirtIOWdfDeviceDmaTxComplete later from InterruptDpc
- *      then complete the request.
+ *    VirtIOWdfDeviceDmaTxCompleteFinal, then complete the request (if req != NULL), then return FALSE
+ * If the callback returns TRUE, call VirtIOWdfDeviceDmaTxComplete later from InterruptDpc.
+ *    If that returns FALSE, WDF will invoke the callback again for the next SG fragment;
+ *    do not complete the request until VirtIOWdfDeviceDmaTxComplete returns TRUE.
  * If this API is used with req != NULL and with cancellable request, the problem will happen
  *      with cancelled request which SG is enqueued in TX virtq
  * IRQL: <= DISPATCH, callback is called on DISPATCH
@@ -188,8 +189,13 @@ BOOLEAN VirtIOWdfDeviceDmaTxAsync(VirtIODevice *vdev, PVIRTIO_DMA_TRANSACTION_PA
 BOOLEAN VirtIOWdfDeviceDmaRxAsync(VirtIODevice *vdev, PVIRTIO_DMA_TRANSACTION_PARAMS params,
                                   VirtIOWdfDmaTransactionCallback);
 
-/* <= DISPATCH transaction = VIRTIO_DMA_TRANSACTION_PARAMS.transaction */
-void VirtIOWdfDeviceDmaTxComplete(VirtIODevice *vdev, WDFDMATRANSACTION transaction);
+/* <= DISPATCH transaction = VIRTIO_DMA_TRANSACTION_PARAMS.transaction
+ * Returns TRUE when the whole DMA transaction is finished; FALSE if more ProgramDma
+ * transfers remain (do not complete the IRP / free the transaction cookie yet).
+ */
+BOOLEAN VirtIOWdfDeviceDmaTxComplete(VirtIODevice *vdev, WDFDMATRANSACTION transaction);
+/* Abort: stop remaining transfers and release the transaction. */
+void VirtIOWdfDeviceDmaTxCompleteFinal(VirtIODevice *vdev, WDFDMATRANSACTION transaction);
 /* <= DISPATCH transaction = VIRTIO_DMA_TRANSACTION_PARAMS.transaction */
 void VirtIOWdfDeviceDmaRxComplete(VirtIODevice *vdev, WDFDMATRANSACTION transaction, ULONG length);
 

@@ -386,11 +386,31 @@ BOOLEAN VirtIOWdfDeviceDmaRxAsync(VirtIODevice *vdev, PVIRTIO_DMA_TRANSACTION_PA
     return VirtIOWdfDeviceDmaAsync(vdev, params, callback, WdfDmaDirectionReadFromDevice);
 }
 
-void VirtIOWdfDeviceDmaTxComplete(VirtIODevice *vdev, WDFDMATRANSACTION transaction)
+BOOLEAN VirtIOWdfDeviceDmaTxComplete(VirtIODevice *vdev, WDFDMATRANSACTION transaction)
 {
-    PVIRTIO_WDF_DRIVER pWdfDriver = vdev->DeviceContext;
     PVIRTIO_WDF_DMA_TRANSACTION_CONTEXT ctx = GetDmaTransactionContext(transaction);
     NTSTATUS status;
+    BOOLEAN done;
+
+    UNREFERENCED_PARAMETER(vdev);
+
+    DPrintf(1, "%s %p\n", __FUNCTION__, transaction);
+    done = WdfDmaTransactionDmaCompleted(transaction, &status);
+    if (done) {
+        DerefTransaction(ctx);
+    } else {
+        DPrintf(1, "%s %p more transfers (status %X)\n", __FUNCTION__, transaction, status);
+    }
+    return done;
+}
+
+void VirtIOWdfDeviceDmaTxCompleteFinal(VirtIODevice *vdev, WDFDMATRANSACTION transaction)
+{
+    PVIRTIO_WDF_DMA_TRANSACTION_CONTEXT ctx = GetDmaTransactionContext(transaction);
+    NTSTATUS status;
+
+    UNREFERENCED_PARAMETER(vdev);
+
     DPrintf(1, "%s %p\n", __FUNCTION__, transaction);
     WdfDmaTransactionDmaCompletedFinal(transaction, 0, &status);
     DerefTransaction(ctx);

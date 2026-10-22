@@ -179,7 +179,7 @@ void FailFsRequest(IN PDEVICE_CONTEXT Context, IN PVIRTIO_FS_REQUEST Request)
                 Request->D2H_Params.size);
     if (Request->H2D_Params.transaction)
     {
-        VirtIOWdfDeviceDmaTxComplete(&Context->VDevice.VIODevice, Request->H2D_Params.transaction);
+        VirtIOWdfDeviceDmaTxCompleteFinal(&Context->VDevice.VIODevice, Request->H2D_Params.transaction);
         Request->H2D_Params.transaction = NULL;
     }
     if (Request->D2H_Params.transaction)
