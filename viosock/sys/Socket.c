@@ -1016,7 +1016,11 @@ static NTSTATUS VIOSockAccept(IN HANDLE hListenSocket, IN WDFREQUEST Request)
                 status = VIOSockAcceptPendIfEmptyLocked(pListenSocket, Request);
                 if (status == STATUS_RETRY)
                 {
-                    continue; // a connection arrived since the dequeue above
+                    // a connection arrived since the dequeue above; if the next
+                    // dequeue takes it, the loop ends here, so the accept must not
+                    // complete with STATUS_RETRY
+                    status = STATUS_SUCCESS;
+                    continue;
                 }
 
                 if (NT_SUCCESS(status))
