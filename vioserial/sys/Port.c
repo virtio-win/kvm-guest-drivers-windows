@@ -1219,7 +1219,7 @@ VOID VIOSerialPortWriteIoStop(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN ULONG
         // in a moment, thus, there is no need to acknowledge it here (the framework
         // will wait for the completion).
         //
-        // If the request is still in the list, ÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂÃÂ§et us requeue it for next
+        // If the request is still in the list, let us requeue it for next
         // power up.
         if (VIOSerialDetachRequest(Queue, Request))
         {
@@ -1253,8 +1253,12 @@ VOID VIOSerialPortWriteIoStop(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN ULONG
                 break;
             }
         }
-        WdfRequestComplete(Request, STATUS_OBJECT_NO_LONGER_EXISTS);
         WdfSpinLockRelease(pport->OutVqLock);
+
+        if (iter != NULL)
+        {
+            WdfRequestComplete(Request, STATUS_OBJECT_NO_LONGER_EXISTS);
+        }
     }
     else
     {
@@ -1352,6 +1356,14 @@ VIOSerialPortEvtDeviceD0Exit(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE Targ
         PWRITE_BUFFER_ENTRY entry = chunk->Parent;
 
         ExFreePoolWithTag(chunk, VIOSERIAL_DRIVER_MEMORY_TAG);
+
+        while (entry->PendingBatches.Next != NULL)
+        {
+            PSINGLE_LIST_ENTRY pe = PopEntryList(&entry->PendingBatches);
+            PWRITE_DMA_CHUNK pending = CONTAINING_RECORD(pe, WRITE_DMA_CHUNK, PendingEntry);
+            ExFreePoolWithTag(pending, VIOSERIAL_DRIVER_MEMORY_TAG);
+            InterlockedDecrement(&entry->PendingChunks);
+        }
 
         if (InterlockedDecrement(&entry->PendingChunks) == 0)
         {

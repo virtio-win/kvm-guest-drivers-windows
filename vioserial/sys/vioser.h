@@ -141,6 +141,8 @@ typedef struct _WriteBufferEntry
     BOOLEAN Failed;
     /* Pre-allocated batches not yet in VQ; submitted one-at-a-time via completion path. */
     SINGLE_LIST_ENTRY PendingBatches;
+    /* Bytes successfully handed to the virtqueue; reported as information on partial failure. */
+    ULONG SubmittedBytes;
 } WRITE_BUFFER_ENTRY, *PWRITE_BUFFER_ENTRY;
 
 /* VQ cookie + cached SG data for one chunk of at most QUEUE_DESCRIPTORS elements. */

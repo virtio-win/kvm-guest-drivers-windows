@@ -99,6 +99,7 @@ DmaWriteCallback(PVIRTIO_DMA_TRANSACTION_PARAMS params)
     Entry->PendingChunks  = 0;
     Entry->Failed         = FALSE;
     Entry->PendingBatches.Next = NULL;
+    Entry->SubmittedBytes = 0;
 
     /*
      * Pre-allocate all WRITE_DMA_CHUNK objects and cache their SG data now,
@@ -144,8 +145,14 @@ DmaWriteCallback(PVIRTIO_DMA_TRANSACTION_PARAMS params)
         }
     }
 
-    if (firstChunk == NULL)
+    if (firstChunk == NULL || Entry->Failed)
     {
+        if (firstChunk != NULL)
+        {
+            ExFreePoolWithTag(firstChunk, VIOSERIAL_DRIVER_MEMORY_TAG);
+            Entry->PendingChunks--;
+            firstChunk = NULL;
+        }
         goto error;
     }
 
@@ -179,6 +186,13 @@ DmaWriteCallback(PVIRTIO_DMA_TRANSACTION_PARAMS params)
     }
 
     PushEntryList(&Port->WriteBuffersList, &firstChunk->ListEntry);
+    {
+        ULONG i;
+        for (i = 0; i < firstChunk->NumElements; ++i)
+        {
+            Entry->SubmittedBytes += (ULONG)firstChunk->sg[i].length;
+        }
+    }
     prepared = virtqueue_kick_prepare(vq);
 
     WdfSpinLockRelease(Port->OutVqLock);
@@ -352,7 +366,7 @@ BOOLEAN VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
          * VQ now that the previous has been drained.  PendingChunks stays the
          * same (one batch left VQ, one enters), so the IRP is not completed yet.
          */
-        if (entry->PendingBatches.Next != NULL && !entry->Failed && vq != NULL)
+        if (entry->PendingBatches.Next != NULL && !entry->Failed && vq != NULL && !Port->Removed)
         {
             PSINGLE_LIST_ENTRY pe = PopEntryList(&entry->PendingBatches);
             nextChunk = CONTAINING_RECORD(pe, WRITE_DMA_CHUNK, PendingEntry);
@@ -365,7 +379,12 @@ BOOLEAN VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
             nextRet = virtqueue_add_buf(vq, nextChunk->sg, nextChunk->NumElements, 0, nextChunk, NULL, 0);
             if (nextRet >= 0)
             {
+                ULONG i;
                 PushEntryList(&Port->WriteBuffersList, &nextChunk->ListEntry);
+                for (i = 0; i < nextChunk->NumElements; ++i)
+                {
+                    entry->SubmittedBytes += (ULONG)nextChunk->sg[i].length;
+                }
                 submitNext = (virtqueue_kick_prepare(vq) != 0);
                 /* PendingChunks unchanged: one out, one in. */
             }
@@ -405,16 +424,20 @@ BOOLEAN VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
 
         if (vq != NULL && entry->dmaTransaction)
         {
-            VirtIOWdfDeviceDmaTxComplete(vq->vdev, entry->dmaTransaction);
+            VirtIOWdfDeviceDmaTxCompleteFinal(vq->vdev, entry->dmaTransaction);
             entry->dmaTransaction = NULL;
         }
 
+        WdfSpinLockAcquire(Port->OutVqLock);
         request = entry->Request;
+        entry->Request = NULL;
+        WdfSpinLockRelease(Port->OutVqLock);
+
         if (request != NULL)
         {
             if (entry->Failed)
             {
-                WdfRequestComplete(request, STATUS_INSUFFICIENT_RESOURCES);
+                WdfRequestCompleteWithInformation(request, STATUS_INSUFFICIENT_RESOURCES, entry->SubmittedBytes);
             }
             else
             {
