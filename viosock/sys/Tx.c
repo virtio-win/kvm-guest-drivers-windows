@@ -355,7 +355,7 @@ _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxVqProcess(IN PDEVICE_CO
     {
         pPkt = CONTAINING_RECORD(CurrentItem, VIOSOCK_TX_PKT, ListEntry);
 
-        VirtIOWdfDeviceDmaTxComplete(&pContext->VDevice.VIODevice, pPkt->Transaction);
+        VirtIOWdfDeviceDmaTxCompleteFinal(&pContext->VDevice.VIODevice, pPkt->Transaction);
         if (pPkt->Request != WDF_NO_HANDLE)
         {
             WdfRequestCompleteWithInformation(pPkt->Request, STATUS_SUCCESS, pPkt->Header.len);
