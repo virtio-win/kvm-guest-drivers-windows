@@ -155,6 +155,7 @@ which **Windows-side** invocation to run:
 | variant       | Guest command                                          | Notes                                                                 |
 |---------------|--------------------------------------------------------|-----------------------------------------------------------------------|
 | `posix`       | `<guest_bin_dir>\vsock_test.exe`                       | The current Linux-source port through `compat.h` (Winsock2 shim).     |
+| `posix-validate` | `<guest_bin_dir>\vsock_test.exe --variant posix`    | posix plus `posix_validate_all()` before the test; one row per list.  |
 | `posix-fs`    | `<guest_bin_dir>\vsock_test.exe --io=file`             | posix, data calls via CRT `_read`/`_write` on `_open_osfhandle`.      |
 | `wsa`         | `<guest_bin_dir>\vsock_test.exe --variant wsa`         | A native Winsock port with no `compat.h`.                   |
 | `overlapped`  | `<guest_bin_dir>\vsock_test.exe --variant overlapped`  | Same exe, overlapped IO mode.                              |
