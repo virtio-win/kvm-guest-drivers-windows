@@ -51,6 +51,7 @@
 0    posix-fs SOCK_STREAM connection reset
 0    overlapped-fs SOCK_STREAM connection reset
 1    posix  SOCK_STREAM bind only
+1    posix-validate SOCK_STREAM bind only
 1    wsa    SOCK_STREAM bind only
 1    overlapped SOCK_STREAM bind only
 2    posix  SOCK_STREAM client close

@@ -196,6 +196,10 @@ wait_local_port() {
 #   choice as a sweep-wide flag (`--bits`/`--x86`) so a single list row
 #   can be re-run against both bit-widths without touching the list.
 #
+#   posix-validate is posix plus posix_validate_all() (bind races, socket
+#   option checks), which only an explicit --variant posix runs: one row
+#   per list instead of the cost on every posix row.
+#
 #   posix-fs / overlapped-fs are the file-I/O flavours of posix /
 #   overlapped (`--io=file`: CRT _read/_write resp. ReadFile/WriteFile on
 #   the socket handle, i.e. the driver's EvtIoRead/EvtIoWrite).
@@ -211,6 +215,7 @@ variant_to_cmd() {
     esac
     case "$variant" in
         posix)         flags='' ;;
+        posix-validate) flags=' --variant posix' ;;
         posix-fs)      flags=' --io=file' ;;
         wsa)           flags=' --variant wsa' ;;
         overlapped)    flags=' --variant overlapped' ;;

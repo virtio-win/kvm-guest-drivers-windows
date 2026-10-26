@@ -9,6 +9,8 @@
 #                 posix — the compat.h-driven POSIX-source port
 #                 wsa   — the native Winsock2 port (WSASocket/WSA*, select())
 #                 overlapped — WSA* with overlapped completion
+#                 posix-validate — posix plus the posix_validate_all()
+#                   checks, run on one row only
 #                 posix-fs / overlapped-fs — the same two with --io=file:
 #                   data calls via CRT _read/_write resp. ReadFile/WriteFile
 #                   (driver EvtIoRead/EvtIoWrite); only for ids that reach
@@ -30,6 +32,7 @@
 0    posix-fs SOCK_STREAM connection reset
 0    overlapped-fs SOCK_STREAM connection reset
 1    posix  SOCK_STREAM bind only
+1    posix-validate SOCK_STREAM bind only
 1    wsa    SOCK_STREAM bind only
 1    overlapped SOCK_STREAM bind only
 2    posix  SOCK_STREAM client close
