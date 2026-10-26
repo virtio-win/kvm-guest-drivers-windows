@@ -142,6 +142,7 @@ struct VIRTFS
     ULONG RefreshIntervalSec{DEFAULT_REFRESH_INTERVAL_SEC};
     std::wstring FileSystemName{};
     std::wstring MountPoint{L"*"};
+    std::wstring VolumePrefix{};
     std::wstring Tag{};
 
     UINT32 MaxPages{0};
@@ -176,6 +177,7 @@ struct VIRTFS
            bool CaseInsensitive,
            const std::wstring &FileSystemName,
            const std::wstring &MountPoint,
+           const std::wstring &VolumePrefix,
            const std::wstring &Tag,
            bool RefreshEnabled,
            ULONG RefreshIntervalSec,
@@ -183,8 +185,8 @@ struct VIRTFS
            uint32_t OwnerUid,
            uint32_t OwnerGid)
         : DebugFlags{DebugFlags}, CaseInsensitive{CaseInsensitive}, RefreshEnabled{RefreshEnabled},
-          RefreshIntervalSec{RefreshIntervalSec}, FileSystemName{FileSystemName}, MountPoint{MountPoint}, Tag{Tag},
-          AutoOwnerIds{AutoOwnerIds}
+          RefreshIntervalSec{RefreshIntervalSec}, FileSystemName{FileSystemName}, MountPoint{MountPoint},
+          VolumePrefix{VolumePrefix}, Tag{Tag}, AutoOwnerIds{AutoOwnerIds}
     {
         if (!AutoOwnerIds)
         {
@@ -3045,6 +3047,12 @@ NTSTATUS VIRTFS::Start()
     FILETIME FileTime;
     FSP_FSCTL_VOLUME_PARAMS VolumeParams;
 
+    // Refuse a UNC prefix that VolumeParams.Prefix can't hold with its terminator before FUSE_INIT is sent.
+    if (VolumePrefix.size() >= sizeof(VolumeParams.Prefix) / sizeof(WCHAR))
+    {
+        return STATUS_NAME_TOO_LONG;
+    }
+
     Status = SubmitInitRequest();
     if (!NT_SUCCESS(Status))
     {
@@ -3077,7 +3085,17 @@ NTSTATUS VIRTFS::Start()
              sizeof(VolumeParams.FileSystemName) / sizeof(WCHAR),
              FileSystemName.empty() ? FS_SERVICE_NAME : FileSystemName.c_str());
 
-    Status = FspFileSystemCreate((PWSTR)TEXT(FSP_FSCTL_DISK_DEVICE_NAME), &VolumeParams, &VirtFsInterface, &FileSystem);
+    // With a UNC prefix (\Server\Share) the file system is a network one, which Windows treats like a network share.
+    if (!VolumePrefix.empty())
+    {
+        wcscpy_s(VolumeParams.Prefix, sizeof(VolumeParams.Prefix) / sizeof(WCHAR), VolumePrefix.c_str());
+    }
+
+    Status = FspFileSystemCreate(VolumePrefix.empty() ? (PWSTR)TEXT(FSP_FSCTL_DISK_DEVICE_NAME)
+                                                      : (PWSTR)TEXT(FSP_FSCTL_NET_DEVICE_NAME),
+                                 &VolumeParams,
+                                 &VirtFsInterface,
+                                 &FileSystem);
     if (!NT_SUCCESS(Status))
     {
         return Status;
@@ -3126,6 +3144,7 @@ static NTSTATUS ParseArgs(ULONG argc,
                           ULONG &RefreshIntervalSec,
                           std::wstring &FileSystemName,
                           std::wstring &MountPoint,
+                          std::wstring &VolumePrefix,
                           std::wstring &Tag,
                           std::wstring &Owner)
 {
@@ -3172,6 +3191,9 @@ static NTSTATUS ParseArgs(ULONG argc,
             case L'm':
                 argtos(MountPoint);
                 break;
+            case L'u':
+                argtos(VolumePrefix);
+                break;
             case L't':
                 argtos(Tag);
                 break;
@@ -3208,6 +3230,7 @@ usage:
                              "    -n Seconds          [enable notifier; 0 defaults to 3, maximum %u]\n"
                              "    -F FileSystemName   [file system name for OS]\n"
                              "    -m MountPoint       [X:|* (required if no UNC prefix)]\n"
+                             "    -u \\Server\\Share   [UNC prefix (single backslash)]\n"
                              "    -t Tag              [mount tag; max 36 symbols]\n"
                              "    -o UID:GID          [host owner UID:GID]\n";
 
@@ -3223,6 +3246,7 @@ static VOID ParseRegistry(ULONG &DebugFlags,
                           ULONG &RefreshIntervalSec,
                           std::wstring &FileSystemName,
                           std::wstring &MountPoint,
+                          std::wstring &VolumePrefix,
                           std::wstring &Owner)
 {
     RegistryGetVal(FS_SERVICE_REGKEY, L"DebugFlags", DebugFlags);
@@ -3232,6 +3256,7 @@ static VOID ParseRegistry(ULONG &DebugFlags,
     RegistryGetVal(FS_SERVICE_REGKEY, L"NotifierIntervalSec", RefreshIntervalSec);
     RegistryGetVal(FS_SERVICE_REGKEY, L"FileSystemName", FileSystemName);
     RegistryGetVal(FS_SERVICE_REGKEY, L"MountPoint", MountPoint);
+    RegistryGetVal(FS_SERVICE_REGKEY, L"VolumePrefix", VolumePrefix);
     RegistryGetVal(FS_SERVICE_REGKEY, L"Owner", Owner);
 }
 
@@ -3282,6 +3307,7 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
     bool RefreshEnabled{false};
     ULONG RefreshIntervalSec{DEFAULT_REFRESH_INTERVAL_SEC};
     std::wstring MountPoint{L"*"};
+    std::wstring VolumePrefix{};
     std::wstring FileSystemName{};
     std::wstring Tag{};
     std::wstring Owner{};
@@ -3320,6 +3346,7 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
                            RefreshIntervalSec,
                            FileSystemName,
                            MountPoint,
+                           VolumePrefix,
                            Tag,
                            Owner);
 
@@ -3337,6 +3364,7 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
                       RefreshIntervalSec,
                       FileSystemName,
                       MountPoint,
+                      VolumePrefix,
                       Owner);
     }
 
@@ -3373,6 +3401,7 @@ static NTSTATUS SvcStart(FSP_SERVICE *Service, ULONG argc, PWSTR *argv)
                             CaseInsensitive,
                             FileSystemName,
                             MountPoint,
+                            VolumePrefix,
                             Tag,
                             RefreshEnabled,
                             RefreshIntervalSec,
