@@ -203,6 +203,8 @@ typedef struct _DEVICE_CONTEXT
     // Manual queue holding pended SIO_ADDRESS_LIST_CHANGE requests until the guest
     // CID changes on a transport reset (completed from VIOSockEvtVqProcess).
     WDFQUEUE AddrChangeQueue;
+    // Guest CID changed while out of D0; AddrChangeQueue is notified on SelfManagedIoRestart.
+    BOOLEAN AddrChangeOnRestart;
 
     WDFINTERRUPT WdfInterrupt;
 

@@ -865,8 +865,7 @@ static NTSTATUS VIOSockEvtDeviceD0Entry(IN WDFDEVICE Device, IN WDF_POWER_DEVICE
 {
     NTSTATUS status = STATUS_SUCCESS;
     PDEVICE_CONTEXT pContext = GetDeviceContext(Device);
-
-    UNREFERENCED_PARAMETER(PreviousState);
+    ULONG32 oldGuestCid = (ULONG32)pContext->Config.guest_cid;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> %s\n", __FUNCTION__);
 
@@ -880,6 +879,12 @@ static NTSTATUS VIOSockEvtDeviceD0Entry(IN WDFDEVICE Device, IN WDF_POWER_DEVICE
     VirtIOWdfDeviceGet(&pContext->VDevice, 0, &pContext->Config, sizeof(pContext->Config));
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "guest_cid %lld\n", pContext->Config.guest_cid);
+
+    // AddrChangeQueue is power-managed and still stopped here
+    if (PreviousState != WdfPowerDeviceD3Final && oldGuestCid != (ULONG32)pContext->Config.guest_cid)
+    {
+        pContext->AddrChangeOnRestart = TRUE;
+    }
 
     return status;
 }
@@ -964,6 +969,12 @@ VIOSockEvtDeviceSelfManagedIoRestart(IN WDFDEVICE Device)
 
     VIOSockWriteIoRestart(pContext);
     VIOSockSelectIoRestart(pContext);
+
+    if (pContext->AddrChangeOnRestart)
+    {
+        pContext->AddrChangeOnRestart = FALSE;
+        VIOSockAddressListChange(pContext);
+    }
 
     return STATUS_SUCCESS;
 }
