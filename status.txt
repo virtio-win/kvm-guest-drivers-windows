@@ -1,3 +1,36 @@
+Date    26 Oct 2026
+repo    https://github.com/virtio-win/kvm-guest-drivers-windows.git
+tag     mm325
+
+Fixed issues:
+* Update CODEOWNERS to include @YanVugenfirer and @kostyanf14
+* Add @YanVugenfirer as code owner for vioserial
+* RHEL-185365: [vioserial] clamp invalid max_nr_ports to 1
+* RHEL-267229: Fix clang error
+* viosock: tests: Add vsock_test / vsock_perf Windows ports and interop harness [SKIP-HCK-CI]
+* viosock: read the vq size from the set up virtqueue
+* netkvm: fix shared page array corruption in mergeable RX assembly
+* [vioscsi] Fix off-by one errors in PORT_CONFIGURATION_INFORMATION members
+* netkvm: make the TX fragmentation limit configurable and lower the default to 63
+* RHELMISC-34202: [viofs] disable PersistentAcls to fix Recycle Bin corruption
+* RHEL-178685: viostor: fix ReTrim failures on Windows 11
+* [viomem] Support MSI-X interrupts
+* [Balloon] Support MSI-X interrupts
+* [NetKVM] Do not poll virtqueues while DPC servicing is disabled
+* viosock: Fix TxEnqueued counter leak wedging non-blocking sends
+* viofs: Fix zero-copy read IOCTL probe-and-lock in wrong process context
+* RHEL-276245: [Balloon] Submit 32-bit PFNs on the inflate/deflate queues
+* RHEL-185213: [Balloon] Remove dead ASSERT
+* RHEL-244431: vioscsi: fix integer overflow/underflow in VPD identification page length calculation
+* RHEL-286746: vioserial: capture connected state at work-item queue time-
+* RHEL-286624: Tools: fall back to clang-format when clang-format-16 is not available
+* RHEL-183398: viostor: bound device-reported seg_max to srbExt->sg[] size
+* RHEL-291669: [vioscsi] Handle StorStopDevice in VioScsiProcessPnP()
+* viosock: Fix timer implementation and select timeout handling
+* RHEL-286817: vioscsi: add WMI Description qualifiers and diagnostic counters
+* RHEL-255934: vioscsi: validate SRB input before parsing INQUIRY data
+* RHEL-256099: vioscsi: fix branch condition and length check for standard INQUIRY parsing
+
 Date    14 Sep 2026
 repo    https://github.com/virtio-win/kvm-guest-drivers-windows.git
 tag     mm324
