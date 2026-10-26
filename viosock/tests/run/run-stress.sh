@@ -101,6 +101,9 @@ done
 case "$VARIANT" in posix|wsa|overlapped) ;; *) die "--variant must be posix|wsa|overlapped" ;; esac
 case "$STRESS_LB_MODE" in server|procs) ;; *) die "--lb-mode must be server|procs" ;; esac
 [ "$STRESS_N" -gt 0 ] 2>/dev/null || die "--connections must be a positive integer"
+# The guest side waits in milliseconds through an Int32.
+[[ "$STRESS_TIMEOUT_SECS" =~ ^[1-9][0-9]*$ ]] && [ "$STRESS_TIMEOUT_SECS" -le 2147483 ] ||
+    die "STRESS_TIMEOUT_SECS must be an integer in 1..2147483, got '$STRESS_TIMEOUT_SECS'"
 
 CFG=$(discover_config "$CFG") || exit $?
 guest_load "$CFG"
@@ -183,11 +186,12 @@ for (\$i = 0; \$i -lt $count; \$i++) {
 # one deadline for the whole batch, not per child: with a per-child wait N stuck children would
 # hold the session for N x STRESS_TIMEOUT_SECS
 \$deadline = [DateTime]::UtcNow.AddSeconds($STRESS_TIMEOUT_SECS)
+\$killed = 0
 foreach (\$p in \$procs) {
     \$left = [int][Math]::Max(1, (\$deadline - [DateTime]::UtcNow).TotalMilliseconds)
-    if (-not \$p.WaitForExit(\$left)) { try { \$p.Kill() } catch {} }
+    if (-not \$p.WaitForExit(\$left)) { try { \$p.Kill() } catch {}; \$killed++ }
 }
-[Console]::Out.WriteLine("DONE:$STRESS_N")
+[Console]::Out.WriteLine("DONE:$STRESS_N KILLED:\$killed")
 EOF
 }
 
@@ -213,11 +217,12 @@ for (\$i = 0; \$i -lt $STRESS_N; \$i++) {
 # one deadline for the whole batch, not per child: with a per-child wait N stuck children would
 # hold the session for N x STRESS_TIMEOUT_SECS
 \$deadline = [DateTime]::UtcNow.AddSeconds($STRESS_TIMEOUT_SECS)
+\$killed = 0
 foreach (\$p in \$procs) {
     \$left = [int][Math]::Max(1, (\$deadline - [DateTime]::UtcNow).TotalMilliseconds)
-    if (-not \$p.WaitForExit(\$left)) { try { \$p.Kill() } catch {} }
+    if (-not \$p.WaitForExit(\$left)) { try { \$p.Kill() } catch {}; \$killed++ }
 }
-[Console]::Out.WriteLine("DONE:$STRESS_N")
+[Console]::Out.WriteLine("DONE:$STRESS_N KILLED:\$killed")
 EOF
 }
 
@@ -328,22 +333,31 @@ done
 # Wait for the guest-side ssh sessions, bounded by the same deadline (plus a minute for the
 # guest-side script to kill its own stragglers). Past that the session is killed together with
 # the guest's vsock_perf processes: a child that never exits must not hang the run.
+# A session fails unless it exited 0 and reported no killed children: a child killed on the
+# deadline may have printed its performance line, and a failed session may leave stale logs.
+guest_session_fail=0
 wait_guest_session() {
-    local pid="$1" label="$2"
+    local pid="$1" label="$2" log="$3" rc killed
     while kill -0 "$pid" 2>/dev/null && [ "$(date +%s)" -lt $((deadline + 60)) ]; do
         sleep 1
     done
     if kill -0 "$pid" 2>/dev/null; then
         err "  $label still running after ${STRESS_TIMEOUT_SECS}s — killing the session and the guest's vsock_perf"
         kill "$pid" 2>/dev/null || true
-        _guest_ssh 'taskkill /F /IM vsock_perf.exe' >/dev/null 2>&1 || true
+        _guest_ssh_bounded 30 'taskkill /F /IM vsock_perf.exe' >/dev/null 2>&1 || true
     fi
-    wait "$pid" 2>/dev/null || err "  $label ssh exit rc=$?"
+    wait "$pid" 2>/dev/null
+    rc=$?
+    killed=$(tr -d '\r' < "$log" | sed -n 's/^DONE:[0-9]* KILLED:\([0-9]*\)$/\1/p')
+    if [ "$rc" -ne 0 ] || [ "${killed:-1}" -ne 0 ]; then
+        err "  $label failed: ssh rc=$rc, children killed on the deadline: ${killed:-unknown}"
+        guest_session_fail=$((guest_session_fail + 1))
+    fi
 }
-[ -n "$guest_rx_pid" ] && wait_guest_session "$guest_rx_pid" "guest reverse-rx"
-[ -n "$guest_tx_pid" ] && wait_guest_session "$guest_tx_pid" "guest forward-tx"
-[ -n "$guest_lb_rx_pid" ] && wait_guest_session "$guest_lb_rx_pid" "guest loopback-rx"
-[ -n "$guest_lb_tx_pid" ] && wait_guest_session "$guest_lb_tx_pid" "guest loopback-tx"
+[ -n "$guest_rx_pid" ] && wait_guest_session "$guest_rx_pid" "guest reverse-rx" "$LOGDIR/guest_rev_rx.log"
+[ -n "$guest_tx_pid" ] && wait_guest_session "$guest_tx_pid" "guest forward-tx" "$LOGDIR/guest_fwd_tx.log"
+[ -n "$guest_lb_rx_pid" ] && wait_guest_session "$guest_lb_rx_pid" "guest loopback-rx" "$LOGDIR/guest_lb_rx.log"
+[ -n "$guest_lb_tx_pid" ] && wait_guest_session "$guest_lb_tx_pid" "guest loopback-tx" "$LOGDIR/guest_lb_tx.log"
 
 t1=$(date +%s)
 elapsed=$((t1 - t0))
@@ -439,6 +453,7 @@ printf '  guest-tx fails  : %d / %d\n' "$guest_tx_fail" "$([ "$run_fwd" -eq 1 ] 
 if [ "$run_lb" -eq 1 ]; then
     printf '  loopback fails  : rx=%d tx=%d / %d (%s mode)\n' "$lb_rx_fail" "$lb_tx_fail" "$STRESS_N" "$STRESS_LB_MODE"
 fi
+printf '  guest sessions  : %d failed\n' "$guest_session_fail"
 printf '  driver state    : %s\n' "$srv_state"
 if [ "$run_fwd" -eq 1 ]; then
     printf '  forward aggregate: RX=%s Gbps  TX=%s Gbps\n' "$fwd_rx_sum" "$fwd_tx_sum"
@@ -454,10 +469,11 @@ fi
 driver_ok=0
 case "$srv_state" in *RUNNING*|*[[:space:]]4*|4*) driver_ok=1 ;; esac
 if [ "$local_fail" -eq 0 ] && [ "$guest_rx_fail" -eq 0 ] && [ "$guest_tx_fail" -eq 0 ] &&
-   [ "$lb_rx_fail" -eq 0 ] && [ "$lb_tx_fail" -eq 0 ] && [ "$driver_ok" -eq 1 ]; then
+   [ "$lb_rx_fail" -eq 0 ] && [ "$lb_tx_fail" -eq 0 ] && [ "$guest_session_fail" -eq 0 ] &&
+   [ "$driver_ok" -eq 1 ]; then
     info "=== PASS ==="
     exit 0
 else
-    err "=== FAIL (local=$local_fail guest-rx=$guest_rx_fail guest-tx=$guest_tx_fail lb-rx=$lb_rx_fail lb-tx=$lb_tx_fail driver=$srv_state) ==="
+    err "=== FAIL (local=$local_fail guest-rx=$guest_rx_fail guest-tx=$guest_tx_fail lb-rx=$lb_rx_fail lb-tx=$lb_tx_fail sessions=$guest_session_fail driver=$srv_state) ==="
     exit 1
 fi
