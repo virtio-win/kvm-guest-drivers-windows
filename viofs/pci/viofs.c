@@ -95,6 +95,10 @@ NTSTATUS VirtFsEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
 
     WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &pnpPowerCallbacks);
     WdfDeviceInitSetIoType(DeviceInit, WdfDeviceIoDirect);
+    WdfDeviceInitSetIoInCallerContextCallback(DeviceInit, VirtFsEvtIoInCallerContext);
+
+    WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, REQUEST_CONTEXT);
+    WdfDeviceInitSetRequestAttributes(DeviceInit, &attributes);
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, DEVICE_CONTEXT);
     attributes.EvtCleanupCallback = VirtFsEvtDeviceContextCleanup;
