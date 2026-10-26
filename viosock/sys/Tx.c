@@ -582,6 +582,7 @@ _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxCleanup(PDEVICE_CONTEXT
 
             CurrentEntry = CurrentEntry->Blink;
             RemoveEntryList(&pTxEntry->ListEntry);
+            InterlockedDecrement(&pContext->TxEnqueued);
 
             InsertTailList(&CompletionList, &pTxEntry->ListEntry); // complete later
 
@@ -651,6 +652,7 @@ static VOID VIOSockTxEnqueueCancel(IN WDFREQUEST Request)
 
     WdfSpinLockAcquire(pContext->TxLock);
     RemoveEntryList(&pTxEntry->ListEntry);
+    InterlockedDecrement(&pContext->TxEnqueued);
     VIOSockTxPutCredit(pSocket, pTxEntry->len);
 
     if (pTxEntry->Timeout)
