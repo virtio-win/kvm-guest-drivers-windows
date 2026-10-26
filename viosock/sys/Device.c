@@ -1229,8 +1229,7 @@ __inline BOOLEAN VIOSockSelectReadable(IN PSOCKET_CONTEXT pSocket)
 
 __inline BOOLEAN VIOSockSelectWritable(IN PSOCKET_CONTEXT pSocket)
 {
-    LONG lSpace = (LONG)pSocket->peer_buf_alloc - (pSocket->tx_cnt - pSocket->peer_fwd_cnt);
-    return VIOSockStateGet(pSocket) == VIOSOCK_STATE_CONNECTED && lSpace > 0;
+    return VIOSockStateGet(pSocket) == VIOSOCK_STATE_CONNECTED && VIOSockTxHasSpace(pSocket) > 0;
 }
 
 __inline BOOLEAN VIOSockSelectConnectFailed(IN PSOCKET_CONTEXT pSocket)
@@ -1949,6 +1948,7 @@ VIOSockPoll(IN WDFREQUEST Request,
     WDF_OBJECT_ATTRIBUTES Attributes;
     PVIOSOCK_SELECT_PKT pPkt = NULL;
     NTSTATUS status;
+    ULONG uFds;
     ULONG_PTR cbExpected;
 
     PAGED_CODE();
@@ -1968,14 +1968,15 @@ VIOSockPoll(IN WDFREQUEST Request,
         return STATUS_INVALID_PARAMETER;
     }
 
-    cbExpected = VIOSockPollGetSize(pPollDataIn->Fds, bIs32BitProcess);
-    if (!pPollDataIn->Fds || pPollDataIn->Fds > FD_SETSIZE || cbExpected > stPollDataInLen ||
-        cbExpected > stPollDataOutLen)
+    // pPollDataIn maps the caller's pages, which another thread may change: fetch Fds once
+    uFds = *(volatile ULONG *)&pPollDataIn->Fds;
+    cbExpected = VIOSockPollGetSize(uFds, bIs32BitProcess);
+    if (!uFds || uFds > FD_SETSIZE || cbExpected > stPollDataInLen || cbExpected > stPollDataOutLen)
     {
         TraceEvents(TRACE_LEVEL_INFORMATION,
                     DBG_SELECT,
                     "SIO_EXT_POLL: invalid parameters (fds=%u, in=%Iu, out=%Iu)\n",
-                    pPollDataIn->Fds,
+                    uFds,
                     stPollDataInLen,
                     stPollDataOutLen);
         return STATUS_INVALID_PARAMETER;
@@ -1986,6 +1987,7 @@ VIOSockPoll(IN WDFREQUEST Request,
     // operates on lpvOutBuffer, which will be copied back to the
     // user output buffer on request completion.
     RtlMoveMemory(pPollDataOut, pPollDataIn, cbExpected);
+    pPollDataOut->Fds = uFds;
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&Attributes, VIOSOCK_SELECT_PKT);
 
