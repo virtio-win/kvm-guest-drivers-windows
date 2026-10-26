@@ -44,7 +44,11 @@
 // socket ioctls
 #define IOCTL_SOCKET_BIND             DEFINE_SOCKET_IOCTL(1)
 #define IOCTL_SOCKET_CONNECT          DEFINE_SOCKET_IOCTL(2)
-#define IOCTL_SOCKET_READ             CTL_CODE(FILE_DEVICE_SOCKET, 0x800 | (3), METHOD_OUT_DIRECT, FILE_READ_ACCESS)
+// METHOD_BUFFERED: the small-recv path — no page pinning, the io-manager copies
+// the data back on completion. Input (READ_PARAMS) and output share the system
+// buffer, so the flags are consumed at dispatch, before any data lands in it.
+// Large reads go through IRP_MJ_READ or IOCTL_SOCKET_RECV_EX (both direct).
+#define IOCTL_SOCKET_RECV             CTL_CODE(FILE_DEVICE_SOCKET, 0x800 | (3), METHOD_BUFFERED, FILE_READ_ACCESS)
 #define IOCTL_SOCKET_SHUTDOWN         DEFINE_SOCKET_IOCTL(4)
 #define IOCTL_SOCKET_LISTEN           DEFINE_SOCKET_IOCTL(5)
 #define IOCTL_SOCKET_ENUM_NET_EVENTS  DEFINE_SOCKET_IOCTL(6)
@@ -54,6 +58,13 @@
 #define IOCTL_SOCKET_GET_SOCK_OPT     DEFINE_SOCKET_IOCTL(10)
 #define IOCTL_SOCKET_SET_SOCK_OPT     DEFINE_SOCKET_IOCTL(11)
 #define IOCTL_SOCKET_IOCTL            DEFINE_SOCKET_IOCTL(12)
+#define IOCTL_SOCKET_RECV_EX          DEFINE_SOCKET_IOCTL(13)
+// METHOD_BUFFERED: the small-send path, mirror of IOCTL_SOCKET_RECV. The
+// input buffer is the bare payload, no parameter block (the lib resolves all
+// send flags itself); the sent byte count returns via IRP.Information. Large
+// or gathered sends go through IOCTL_SOCKET_SEND_EX (locked MDL chain).
+#define IOCTL_SOCKET_SEND             CTL_CODE(FILE_DEVICE_SOCKET, 0x800 | (14), METHOD_BUFFERED, FILE_WRITE_ACCESS)
+#define IOCTL_SOCKET_SEND_EX          DEFINE_SOCKET_IOCTL(15)
 
 /*VSOCK address family value*/
 #ifndef AF_VSOCK
@@ -85,10 +96,37 @@ typedef struct _VIRTIO_VSOCK_PARAMS
 #define MSG_WAITALL 0x8
 #endif
 
+#define VIOSOCK_SG_MAX_BUFFERS   64
+
+// Upper bound on how much memory one request may pin. Far above any realistic
+// recv, and it keeps an unprivileged caller from asking the kernel to lock down
+// arbitrary amounts of memory.
+#define VIOSOCK_SG_MAX_TOTAL_LEN (64 * 1024 * 1024)
+
 typedef struct _VIRTIO_VSOCK_READ_PARAMS
 {
     ULONG Flags;
 } VIRTIO_VSOCK_READ_PARAMS, *PVIRTIO_VSOCK_READ_PARAMS;
+
+// Wire form of a user WSABUF: fixed layout, so a 32-bit process on WoW64 sends
+// the same block as a 64-bit one (the kernel widens the pointer itself)
+typedef struct _VIRTIO_VSOCK_WSABUF
+{
+    ULONG dwLen;
+    ULONG _pad;
+    ULONGLONG lpBuffer;
+} VIRTIO_VSOCK_WSABUF, *PVIRTIO_VSOCK_WSABUF;
+
+// The buffer array travels inline, so the io-manager captures it along with the
+// rest of the input block. There is no output buffer: the transferred byte count
+// is returned via IRP.Information (lpBytesReturned / OVERLAPPED.InternalHigh),
+// and MSG_PARTIAL (future SEQPACKET) via the completion status.
+typedef struct _VIRTIO_VSOCK_SEND_RECV_PARAMS
+{
+    ULONG dwFlags;
+    ULONG dwBufferCount;
+    VIRTIO_VSOCK_WSABUF Buffers[1];
+} VIRTIO_VSOCK_SEND_RECV_PARAMS, *PVIRTIO_VSOCK_SEND_RECV_PARAMS;
 
 // microsecs to 100-nanosec intervals
 #define USEC_TO_NANO(us) ((LONGLONG)(us)*10)
@@ -156,6 +194,9 @@ typedef struct _VIRTIO_VSOCK_FD_SET
     UINT fd_count;                  /* how many are SET? */
     ULONGLONG fd_array[FD_SETSIZE]; /* an array of SOCKETs */
 } VIRTIO_VSOCK_FD_SET, *PVIRTIO_VSOCK_FD_SET;
+
+// Sentinel value for VIRTIO_VSOCK_SELECT.Timeout: wait indefinitely (no timer).
+#define VSOCK_TIMEOUT_INFINITE MAXLONGLONG
 
 typedef struct _VIRTIO_VSOCK_SELECT
 {

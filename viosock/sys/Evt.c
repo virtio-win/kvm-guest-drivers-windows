@@ -183,11 +183,20 @@ _IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockEvtVqProcess(IN PDEVICE_CONTEXT 
 
     if (bNotify)
     {
+        ULONG32 oldGuestCid = pContext->Config.guest_cid;
+
         VirtIOWdfDeviceGet(&pContext->VDevice, 0, &pContext->Config, sizeof(pContext->Config));
 
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "New guest_cid %lld\n", pContext->Config.guest_cid);
 
         VIOSockHandleTransportReset(pContext);
+
+        // The local address list is the guest CID; notify SIO_ADDRESS_LIST_CHANGE
+        // waiters only when it actually changed (e.g. after a live migration).
+        if (oldGuestCid != pContext->Config.guest_cid)
+        {
+            VIOSockAddressListChange(pContext);
+        }
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);

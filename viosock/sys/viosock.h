@@ -101,7 +101,6 @@ typedef struct VirtIOBufferDescriptor VIOSOCK_SG_DESC, *PVIOSOCK_SG_DESC;
 #define VIRTIO_VSOCK_DEFAULT_RX_BUF_SIZE (1024 * 4)
 #define VIRTIO_VSOCK_MAX_PKT_BUF_SIZE    (1024 * 64)
 
-#define VSOCK_CLOSE_TIMEOUT              SEC_TO_NANO(8)
 #define VSOCK_DEFAULT_CONNECT_TIMEOUT    SEC_TO_NANO(2)
 #define VSOCK_DEFAULT_BUFFER_SIZE        (1024 * 256)
 #define VSOCK_DEFAULT_BUFFER_MAX_SIZE    (1024 * 256)
@@ -111,16 +110,30 @@ typedef struct VirtIOBufferDescriptor VIOSOCK_SG_DESC, *PVIOSOCK_SG_DESC;
 
 #define LAST_RESERVED_PORT               1023
 #define MAX_PORT_RETRIES                 24
-#define INVALID_THREAD_ID                LONG64_ERROR
 //////////////////////////////////////////////////////////////////////////
 #define VIOSOCK_TIMER_TOLERANCE          MSEC_TO_NANO(50)
+#define VIOSOCK_TIMER_TOLERANCE_TICKS    llTimerToleranceTicks
+#define VIOSOCK_TIMER_TIME_INCREMENT     ulTimeIncrement
+
+extern ULONG ulTimeIncrement;
+extern LONGLONG llTimerToleranceTicks;
+
+// All fields of VIOSOCK_TIMER must be read and written under the caller's lock
+// (e.g. WdfWaitLock or WdfSpinLock that guards the associated request list).
 typedef struct _VIOSOCK_TIMER
 {
     WDFTIMER Timer;
-    LONGLONG StartTime; // ticks when timer started
-    LONGLONG Timeout;   // timeout in 100ns
-    ULONG StartRefs;
+    LONGLONG Deadline; // absolute tick count of expiry
+    ULONG StartRefs;   // stop timer if refs = 0
 } VIOSOCK_TIMER, *PVIOSOCK_TIMER;
+
+// Per-request deadline tracking; must be accessed under the same lock as VIOSOCK_TIMER.
+// Deadline == MAXLONGLONG means no expiry. Always initialize with VIOSockTimerEntryInit
+// because WDF zero-initializes object contexts (Deadline=0 would look like tick 0 = expired).
+typedef struct _VIOSOCK_TIMER_ENTRY
+{
+    LONGLONG Deadline; // absolute tick count of expiry (MAXLONGLONG = no deadline, 0 = not initialized)
+} VIOSOCK_TIMER_ENTRY, *PVIOSOCK_TIMER_ENTRY;
 
 #define VIOSOCK_DEVICE_NAME L"\\Device\\Viosock"
 
@@ -153,9 +166,9 @@ typedef struct _DEVICE_CONTEXT
     LONG TxPktNum; // Num of slices in TxPktSliced
     _Guarded_by_(TxLock) LONG TxQueuedReply;
     _Guarded_by_(TxLock) LIST_ENTRY TxList;
-    _Guarded_by_(TxLock) VIOSOCK_TIMER TxTimer;
-    WDFLOOKASIDE TxMemoryList;
-    _Interlocked_ volatile LONG TxEnqueued;
+    WDFLOOKASIDE TxMemoryList;            // TX entries (one shape, full-chunk sg list)
+    WDFLOOKASIDE TxBufferMemoryList;      // 64K skb copy buffers
+    WDFLOOKASIDE TxSmallBufferMemoryList; // 2-page skb copy buffers (short sends, tail/credit-squeezed chunks)
     _Interlocked_ volatile LONG TxPktAllocated;
 
     WDFLOOKASIDE AcceptMemoryList;
@@ -171,14 +184,25 @@ typedef struct _DEVICE_CONTEXT
 
     WDFSPINLOCK ConnectedLock;
     _Guarded_by_(ConnectedLock) WDFCOLLECTION ConnectedList;
+    // Bumped under ConnectedLock on every transport reset; a connect/accept that
+    // began under an older value is completing against a dead transport.
+    volatile ULONG ResetGeneration;
 
     WDFWAITLOCK SelectLock;
     _Guarded_by_(SelectLock) LIST_ENTRY SelectList;
     _Interlocked_ volatile LONG SelectInProgress;
     WDFWORKITEM SelectWorkitem;
     _Guarded_by_(SelectLock) VIOSOCK_TIMER SelectTimer;
+    // Set in EvtDeviceSelfManagedIoSuspend (device leaving D0), cleared on restart.
+    // While set, pending and incoming select()/poll() are completed instead of pended,
+    // so the power-managed IoCtl queue has nothing driver-owned to wait on at D0 exit.
+    _Guarded_by_(SelectLock) BOOLEAN PowerSuspended;
 
     WDFQUEUE IoCtlQueue;
+    WDFQUEUE CreateQueue;
+    // Manual queue holding pended SIO_ADDRESS_LIST_CHANGE requests until the guest
+    // CID changes on a transport reset (completed from VIOSockEvtVqProcess).
+    WDFQUEUE AddrChangeQueue;
 
     WDFINTERRUPT WdfInterrupt;
 
@@ -203,16 +227,94 @@ typedef enum _VIOSOCK_STATE
 #define SOCK_LINGER    0x04
 #define SOCK_NON_BLOCK 0x08
 #define SOCK_LOOPBACK  0x10
+#define SOCK_CLEANUP   0x20
+#define SOCK_CONNECT   0x40  // outbound: connect() was issued on this socket (distinguishes it from an accepted socket)
+#define SOCK_TX_WAIT   0x80  // a non-blocking send returned STATUS_CANT_WAIT; re-arm FD_WRITE when TX space reopens
+#define SOCK_RESET     0x100 // abortive reset (peer OP_RST or transport reset) — recv/send report WSAECONNRESET
+
+//
+// WSAPoll entry point on the LSP path: ws2_32!WSAPoll packs the caller's
+// WSAPOLLFD array into a single WSAPOLLDATA and dispatches via WSPIoctl.
+// Kernel cannot include winsock2.h / mswsock.h, so mirror the layouts here.
+//
+#define SIO_EXT_POLL   _WSAIORW(IOC_WS2, 31)
+
+#ifndef POLLRDNORM
+#define POLLRDNORM 0x0100
+#define POLLRDBAND 0x0200
+#define POLLIN     (POLLRDNORM | POLLRDBAND)
+#define POLLPRI    0x0400
+
+#define POLLWRNORM 0x0010
+#define POLLOUT    (POLLWRNORM)
+#define POLLWRBAND 0x0020
+
+#define POLLERR    0x0001
+#define POLLHUP    0x0002
+#define POLLNVAL   0x0004
+#endif
+
+#define INVALID_HANDLE    ((ULONGLONG)(-1))
+#define INVALID_HANDLE_32 ((ULONG)(-1))
+
+//
+// VIOSOCK_POLL_FD / VIOSOCK_POLL_DATA mirror WSAPOLLFD / WSAPOLLDATA for native
+// (64-bit-process) callers; VIOSOCK_POLL_FD32 / VIOSOCK_POLL_DATA32 mirror the
+// WOW64 (32-bit-process) layout where SOCKET shrinks to 4 bytes and the
+// header carries no 8-byte-alignment padding.
+//
+//   Native x64: FD = 16 bytes (8 + 2 + 2 + 4 pad),
+//               DATA header = 16 bytes (4 + 4 + 4 + 4 pad before 8-aligned array).
+//   WOW64    :  FD32 = 8 bytes (4 + 2 + 2),
+//               DATA32 header = 12 bytes (4 + 4 + 4, no trailing pad).
+//
+typedef struct _VIOSOCK_POLL_FD
+{
+    ULONGLONG Fd;
+    SHORT Events;
+    SHORT Revents;
+} VIOSOCK_POLL_FD, *PVIOSOCK_POLL_FD;
+
+typedef struct _VIOSOCK_POLL_DATA
+{
+    INT Result;
+    ULONG Fds;
+    INT Timeout;
+    VIOSOCK_POLL_FD FdArray[1];
+} VIOSOCK_POLL_DATA, *PVIOSOCK_POLL_DATA;
+
+typedef struct _VIOSOCK_POLL_FD32
+{
+    ULONG Fd;
+    SHORT Events;
+    SHORT Revents;
+} VIOSOCK_POLL_FD32, *PVIOSOCK_POLL_FD32;
+
+typedef struct _VIOSOCK_POLL_DATA32
+{
+    INT Result;
+    ULONG Fds;
+    INT Timeout;
+    VIOSOCK_POLL_FD32 FdArray[1];
+} VIOSOCK_POLL_DATA32, *PVIOSOCK_POLL_DATA32;
+
+C_ASSERT(FIELD_OFFSET(VIOSOCK_POLL_DATA, Result) == FIELD_OFFSET(VIOSOCK_POLL_DATA32, Result));
+C_ASSERT(FIELD_OFFSET(VIOSOCK_POLL_DATA, Fds) == FIELD_OFFSET(VIOSOCK_POLL_DATA32, Fds));
+C_ASSERT(FIELD_OFFSET(VIOSOCK_POLL_DATA, Timeout) == FIELD_OFFSET(VIOSOCK_POLL_DATA32, Timeout));
 
 typedef struct _VIOSOCK_ACCEPT_ENTRY
 {
     LIST_ENTRY ListEntry;
     WDFMEMORY Memory;
-    WDFFILEOBJECT ConnectSocket;
     ULONG32 dst_cid;
     ULONG32 dst_port;
     ULONG32 peer_buf_alloc;
     ULONG32 peer_fwd_cnt;
+    // Device ResetGeneration captured when this incoming connection (OP_REQUEST)
+    // was queued. A transport reset arriving before the accept completes bumps the
+    // generation, so VIOSockConnectedAdd rejects the accept instead of promoting a
+    // dead connection to CONNECTED.
+    ULONG Generation;
 } VIOSOCK_ACCEPT_ENTRY, *PVIOSOCK_ACCEPT_ENTRY;
 
 typedef struct _SOCKET_CONTEXT
@@ -223,6 +325,14 @@ typedef struct _SOCKET_CONTEXT
     _Interlocked_ volatile LONG Flags;
     LONG SocketId; // for debug
 
+    LIST_ENTRY ResetLink;
+
+    // Device ResetGeneration this connection rode: captured at connect() for an
+    // outbound socket, or inherited from the incoming OP_REQUEST (the accept
+    // entry's Generation) for an accepted one. If it no longer matches at
+    // VIOSockConnectedAdd, a transport reset raced and the add fails.
+    ULONG ConnectGeneration;
+
     VIRTIO_VSOCK_TYPE type;
 
     ULONG32 dst_cid;
@@ -232,8 +342,8 @@ typedef struct _SOCKET_CONTEXT
     WDFSPINLOCK StateLock;
     _Interlocked_ volatile VIOSOCK_STATE State;
     LONGLONG ConnectTimeout;
-    ULONG SendTimeout;
-    ULONG RecvTimeout;
+    LONGLONG SendTimeout;
+    LONGLONG RecvTimeout;
     ULONG32 BufferMinSize;
     ULONG32 BufferMaxSize;
     ULONG32 PeerShutdown;
@@ -245,9 +355,12 @@ typedef struct _SOCKET_CONTEXT
     _Guarded_by_(StateLock) ULONG EventsMask;
     _Guarded_by_(StateLock) ULONG Events;
     _Guarded_by_(StateLock) NTSTATUS EventsStatus[FD_MAX_EVENTS];
+    // last asynchronous failure (connect failure, connection reset), reported
+    // and cleared by getsockopt(SO_ERROR)
+    _Guarded_by_(StateLock) NTSTATUS SoError;
 
-    WDFSPINLOCK RxLock;          // accept list lock for listen socket
-    LONG64 RxProcessingThreadId; // Prevents recursion in
+    WDFSPINLOCK RxLock;                                // accept list lock for listen socket
+    _Interlocked_ volatile LONG ReadDequeueInProgress; // recv-dequeue worker serialization
     _Guarded_by_(RxLock) LIST_ENTRY RxCbList;
     _Guarded_by_(RxLock) volatile ULONG RxBytes; // used bytes in rx buffer
     _Guarded_by_(RxLock) ULONG RxBuffers;        // used rx buffers (for debug)
@@ -255,23 +368,39 @@ typedef struct _SOCKET_CONTEXT
     WDFQUEUE ReadQueue;
     _Guarded_by_(RxLock) VIOSOCK_TIMER ReadTimer;
 
+    // Per-socket send FIFO (Tx refactor): data-carrying requests from all three
+    // entry points (IRP_MJ_WRITE, IOCTL_SOCKET_SEND, IOCTL_SOCKET_SEND_EX) park
+    // here, framework-cancellable, until the slicer pump consumes them head-first.
+    WDFSPINLOCK TxLock;
+    _Interlocked_ volatile LONG WriteEnqueueInProgress; // send-enqueue worker serialization
+    WDFQUEUE WriteQueue;
+    _Guarded_by_(TxLock) VIOSOCK_TIMER WriteTimer;
+    _Interlocked_ volatile LONG BytesUnsent; // SIOCOUTQ: bytes sliced but not yet consumed by the host
+    KEVENT TxIdleEvent;                      // signaled while BytesUnsent == 0; SO_LINGER close waits on it
+
     _Guarded_by_(RxLock) WDFREQUEST PendedRequest;
-    VIOSOCK_TIMER PendedTimer;
+    _Guarded_by_(RxLock) VIOSOCK_TIMER PendedTimer;
 
     _Guarded_by_(RxLock) LIST_ENTRY AcceptList;
     LONG Backlog;
     _Interlocked_ volatile LONG AcceptPended;
 
+    // Pending accept() requests (multiple), power-managed WDF queue on the listen
+    // socket. Framework-owned while parked, so it does not block the D0->Dx
+    // transition. Matched against AcceptList by VIOSockAcceptProcessQueue.
+    WDFQUEUE AcceptQueue;
+    _Interlocked_ volatile LONG AcceptMatchInProgress;
+
     ULONG32 buf_alloc;
     _Guarded_by_(RxLock) ULONG32 fwd_cnt;
     ULONG32 last_fwd_cnt;
+    ULONG RcvLowat; // SO_RCVLOWAT: report the socket readable only once RxBytes >= RcvLowat
 
     _Guarded_by_(StateLock) ULONG32 peer_buf_alloc;
     _Guarded_by_(StateLock) ULONG32 peer_fwd_cnt;
     _Guarded_by_(StateLock) ULONG32 tx_cnt;
 
     USHORT LingerTime;
-    WDFFILEOBJECT LoopbackSocket;
 
     volatile LONG SelectRefs[FDSET_MAX];
 } SOCKET_CONTEXT, *PSOCKET_CONTEXT;
@@ -294,6 +423,16 @@ WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(SOCKET_CONTEXT, GetSocketContext);
 
 #define IsLoopbackSocket(s)            (VIOSockIsFlag(s, SOCK_LOOPBACK))
 
+__inline VOID VIOSockReferenceSocketObject(IN PSOCKET_CONTEXT pSocket)
+{
+    ObReferenceObject(WdfFileObjectWdmGetFileObject(pSocket->ThisSocket));
+}
+
+__inline VOID VIOSockDereferenceSocketObject(IN PSOCKET_CONTEXT pSocket)
+{
+    ObDereferenceObject(WdfFileObjectWdmGetFileObject(pSocket->ThisSocket));
+}
+
 //////////////////////////////////////////////////////////////////////////
 // Device functions
 
@@ -304,17 +443,24 @@ VIOSockInterruptInit(IN WDFDEVICE hDevice);
 
 //////////////////////////////////////////////////////////////////////////
 // Socket functions
-EVT_WDF_DEVICE_FILE_CREATE VIOSockCreateStub;
 EVT_WDF_FILE_CLEANUP VIOSockCleanup;
 EVT_WDF_OBJECT_CONTEXT_CLEANUP VIOSockObjectCleanup;
+
+NTSTATUS
+VIOSockCreate(IN WDFDEVICE WdfDevice, IN WDFREQUEST Request);
 
 NTSTATUS
 VIOSockDeviceControl(IN WDFREQUEST Request, IN ULONG IoControlCode, IN OUT size_t *pLength);
 
 WDFFILEOBJECT
-VIOSockGetSocketFromHandle(IN PDEVICE_CONTEXT pContext, IN ULONGLONG uSocket, IN BOOLEAN bIs32BitProcess);
+VIOSockGetSocketFromHandle(IN PDEVICE_CONTEXT pContext,
+                           IN ULONGLONG uSocket,
+                           IN BOOLEAN bIs32BitProcess,
+                           IN KPROCESSOR_MODE AccessMode);
 
 VOID VIOSockHandleTransportReset(IN PDEVICE_CONTEXT pContext);
+
+VOID VIOSockAddressListChange(IN PDEVICE_CONTEXT pContext);
 
 NTSTATUS
 VIOSockBoundListInit(IN WDFDEVICE hDevice);
@@ -322,19 +468,18 @@ VIOSockBoundListInit(IN WDFDEVICE hDevice);
 NTSTATUS
 VIOSockBoundAdd(IN PSOCKET_CONTEXT pSocket, IN ULONG32 svm_port);
 
-_Requires_lock_not_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundFindByPortLocked(IN PDEVICE_CONTEXT pContext,
-                                                                                           IN ULONG32 ulSrcPort);
-
 _Requires_lock_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundFindByPort(IN PDEVICE_CONTEXT pContext,
                                                                                  IN ULONG32 ulSrcPort);
 
-_Requires_lock_not_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundFindByFileLocked(IN PDEVICE_CONTEXT pContext,
-                                                                                           IN PFILE_OBJECT pFileObject);
+_Requires_lock_not_held_(pContext->BoundLock) PSOCKET_CONTEXT VIOSockBoundFindByPortLockedReferenced(
+                                                                                                    IN PDEVICE_CONTEXT pContext,
+                                                                                                    IN ULONG32 ulSrcPort);
 
 NTSTATUS
 VIOSockConnectedListInit(IN WDFDEVICE hDevice);
 
-_Requires_lock_not_held_(pContext->ConnectedLock) PSOCKET_CONTEXT VIOSockConnectedFindByRxPktLocked(IN PDEVICE_CONTEXT pContext,
+_Requires_lock_not_held_(pContext->ConnectedLock) PSOCKET_CONTEXT VIOSockConnectedFindByRxPktLockedReferenced(
+                                                                                                    IN PDEVICE_CONTEXT pContext,
                                                                                                     IN PVIRTIO_VSOCK_HDR pPkt);
 
 _Requires_lock_held_(pSocket->StateLock) VIOSOCK_STATE VIOSockStateSet(IN PSOCKET_CONTEXT pSocket,
@@ -354,18 +499,15 @@ __inline BOOLEAN VIOSockIsDone(PSOCKET_CONTEXT pSocket)
     return !!KeReadStateEvent(&pSocket->CloseEvent);
 }
 
-_Requires_lock_held_(pSocket->RxLock) NTSTATUS VIOSockPendedRequestSetEx(IN PSOCKET_CONTEXT pSocket,
-                                                                         IN WDFREQUEST Request,
-                                                                         IN LONGLONG Timeout,
-                                                                         IN BOOLEAN Resume);
-
-#define VIOSockPendedRequestSet(s, r, t) VIOSockPendedRequestSetEx(s, r, t, FALSE)
+_Requires_lock_held_(pSocket->RxLock) NTSTATUS VIOSockPendedRequestSet(IN PSOCKET_CONTEXT pSocket,
+                                                                       IN WDFREQUEST Request,
+                                                                       IN LONGLONG Deadline);
 
 _Requires_lock_not_held_(pSocket->RxLock) NTSTATUS VIOSockPendedRequestSetLocked(IN PSOCKET_CONTEXT pSocket,
                                                                                  IN WDFREQUEST Request,
-                                                                                 IN LONGLONG Timeout);
+                                                                                 IN LONGLONG Deadline);
 
-#define VIOSockPendedRequestSetResume(s, r) VIOSockPendedRequestSetEx(s, r, 0, TRUE)
+#define VIOSockPendedRequestSetResume(s, r) VIOSockPendedRequestSet(s, r, 0)
 
 _Requires_lock_not_held_(pSocket->RxLock) NTSTATUS VIOSockPendedRequestSetResumeLocked(IN PSOCKET_CONTEXT pSocket,
                                                                                        IN WDFREQUEST Request);
@@ -386,7 +528,22 @@ _Requires_lock_not_held_(pListenSocket->RxLock) NTSTATUS VIOSockAcceptEnqueuePkt
 _Requires_lock_not_held_(pListenSocket->RxLock) VOID VIOSockAcceptRemovePkt(IN PSOCKET_CONTEXT pListenSocket,
                                                                             IN PVIRTIO_VSOCK_HDR pPkt);
 
+// Pair backlogged connections (AcceptList) with pending accept requests
+// (AcceptQueue). Safe to call from any context that just enqueued to
+// either side; serialized internally.
+VOID VIOSockAcceptProcessQueue(IN PSOCKET_CONTEXT pListenSocket);
+
 _IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockSelectRun(IN PSOCKET_CONTEXT pSocket);
+_IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockSelectEnqueueWorkItem(IN PDEVICE_CONTEXT pContext);
+
+NTSTATUS
+VIOSockPoll(IN WDFREQUEST Request,
+            IN BOOLEAN bIs32BitProcess,
+            IN PVIOSOCK_POLL_DATA pPollDataIn,
+            IN size_t stPollDataInLen,
+            IN PVIOSOCK_POLL_DATA pPollDataOut,
+            IN size_t stPollDataOutLen,
+            IN OUT size_t *pLength);
 
 /*
  * WinSock 2 extension -- bit values and indices for FD_XXX network events
@@ -426,10 +583,83 @@ _Requires_lock_not_held_(pSocket->StateLock) VOID VIOSockEventClearBitLocked(IN 
                                                                              IN ULONG uClearBit);
 
 //////////////////////////////////////////////////////////////////////////
+// Chained Buffer entry
+typedef struct _VIOSOCK_RX_CB
+{
+    union {
+        SINGLE_LIST_ENTRY FreeListEntry;
+        LIST_ENTRY ListEntry; // Request buffer list
+    };
+
+    PVOID BufferVA;            // common buffer of VIRTIO_VSOCK_DEFAULT_RX_BUF_SIZE bytes
+    PHYSICAL_ADDRESS BufferPA; // common buffer PA
+
+    PCHAR ReadPtr;
+    ULONG BytesToRead;
+    ULONG DataLen; // Valid data len (pkt.header.len)
+
+    WDFMEMORY Memory;
+    struct _VIOSOCK_TX_ENTRY *TxEntry; // loopback: the peer's TX entry backing BufferVA
+} VIOSOCK_RX_CB, *PVIOSOCK_RX_CB;
+
+//////////////////////////////////////////////////////////////////////////
 // Tx functions
+
+#define VIOSOCK_DMA_TX_PAGES       BYTES_TO_PAGES(VIRTIO_VSOCK_MAX_PKT_BUF_SIZE)
+
+// A 64K chunk may start at an arbitrary page offset, hence +1
+#define VIOSOCK_TX_SG_MAX_ELEMENTS (VIOSOCK_DMA_TX_PAGES + 1)
+
+// One entry shape for everything (TxMemoryList), the SgList is sized for the
+// largest chunk. Kinds differ only by content:
+//  command   (len == 0)                — header only, SgList unused;
+//  zero-copy (len != 0, Buffer == 0)   — SgList to be filled from the request
+//                                        MDL pages;
+//  skb       (len != 0, Buffer != 0)   — a copy buffer from TxBufferMemoryList,
+//                                        its physical pages pre-fill the SgList.
+// Commands never outlive the vq insert, so their oversized tail costs only
+// transient TxList residency (≤ the reply throttle) — not worth a second shape.
+typedef struct _VIOSOCK_TX_ENTRY
+{
+    LIST_ENTRY ListEntry;
+    WDFMEMORY Memory;
+    WDFREQUEST Request;
+    WDFFILEOBJECT Socket;
+    PVOID Buffer;           // skb copy buffer VA, NULL otherwise
+    WDFMEMORY BufferMemory; // lookaside handle of Buffer, WDF_NO_HANDLE otherwise
+
+    VIRTIO_VSOCK_HDR PacketHeader;
+    BOOLEAN Reply;
+
+    ULONG SgCount; // filled SgList elements (0 for command entries)
+    union {
+        VIOSOCK_SG_DESC SgList[VIOSOCK_TX_SG_MAX_ELEMENTS]; // trailing: VIOSOCK_TX_SG_MAX_ELEMENTS for data entries
+        VIOSOCK_RX_CB Cb;
+    } BufferDesc;
+} VIOSOCK_TX_ENTRY, *PVIOSOCK_TX_ENTRY;
+
+PVIOSOCK_TX_ENTRY VIOSockTxAllocateEntry(IN PDEVICE_CONTEXT pContext,
+                                         IN PSOCKET_CONTEXT pSocket OPTIONAL,
+                                         IN ULONG BufferLen);
+VOID VIOSockTxFreeEntry(PVIOSOCK_TX_ENTRY pTxEntry);
 
 NTSTATUS
 VIOSockWriteQueueInit(IN WDFDEVICE hDevice);
+
+NTSTATUS
+VIOSockWriteSocketQueueInit(IN PSOCKET_CONTEXT pSocket);
+
+// Per-socket Tx pump, common for wire and loopback sockets — the paths diverge
+// at VIOSockTxInsertEntry (wire → TxList/vq, loopback → synchronous delivery
+// via VIOSockRxPktHandle).
+_Requires_lock_not_held_(pSocket->TxLock) VOID VIOSockWriteProcessQueue(IN PSOCKET_CONTEXT pSocket);
+
+// Both the guest's own CID and VMADDR_CID_LOCAL address the guest itself
+// (loopback), mirroring Linux vsock_use_local_transport().
+__inline BOOLEAN VIOSockIsLocalCid(IN ULONG32 ulCid, IN ULONG32 ulGuestCid)
+{
+    return ulCid == ulGuestCid || ulCid == VMADDR_CID_LOCAL;
+}
 
 NTSTATUS
 VIOSockTxVqInit(IN PDEVICE_CONTEXT pContext);
@@ -441,23 +671,17 @@ _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxVqProcess(IN PDEVICE_CO
 _Requires_lock_not_held_(pSocket->StateLock) NTSTATUS VIOSockStateValidate(PSOCKET_CONTEXT pSocket, BOOLEAN bTx);
 
 NTSTATUS
-VIOSockTxEnqueue(IN PSOCKET_CONTEXT pSocket,
-                 IN VIRTIO_VSOCK_OP Op,
-                 IN ULONG32 Flags OPTIONAL,
-                 IN BOOLEAN Reply,
-                 IN WDFREQUEST Request OPTIONAL);
+VIOSockTxEnqueueCommand(IN PSOCKET_CONTEXT pSocket, IN VIRTIO_VSOCK_OP Op, IN ULONG32 Flags OPTIONAL, IN BOOLEAN Reply);
 
-#define VIOSockSendCreditUpdate(s) VIOSockTxEnqueue(s, VIRTIO_VSOCK_OP_CREDIT_UPDATE, 0, FALSE, WDF_NO_HANDLE)
+#define VIOSockSendCreditUpdate(s) VIOSockTxEnqueueCommand(s, VIRTIO_VSOCK_OP_CREDIT_UPDATE, 0, FALSE)
 
-#define VIOSockSendConnect(s)      VIOSockTxEnqueue(s, VIRTIO_VSOCK_OP_REQUEST, 0, FALSE, WDF_NO_HANDLE)
+#define VIOSockSendConnect(s)      VIOSockTxEnqueueCommand(s, VIRTIO_VSOCK_OP_REQUEST, 0, FALSE)
 
-#define VIOSockSendShutdown(s, f)  VIOSockTxEnqueue(s, VIRTIO_VSOCK_OP_SHUTDOWN, f, FALSE, WDF_NO_HANDLE)
+#define VIOSockSendShutdown(s, f)  VIOSockTxEnqueueCommand(s, VIRTIO_VSOCK_OP_SHUTDOWN, f, FALSE)
 
-#define VIOSockSendWrite(s, rq)    VIOSockTxEnqueue(s, VIRTIO_VSOCK_OP_RW, 0, FALSE, rq)
+#define VIOSockSendReset(s, r)     VIOSockTxEnqueueCommand(s, VIRTIO_VSOCK_OP_RST, 0, r)
 
-#define VIOSockSendReset(s, r)     VIOSockTxEnqueue(s, VIRTIO_VSOCK_OP_RST, 0, r, WDF_NO_HANDLE)
-
-#define VIOSockSendResponse(s)     VIOSockTxEnqueue(s, VIRTIO_VSOCK_OP_RESPONSE, 0, TRUE, WDF_NO_HANDLE)
+#define VIOSockSendResponse(s)     VIOSockTxEnqueueCommand(s, VIRTIO_VSOCK_OP_RESPONSE, 0, TRUE)
 
 _Requires_lock_not_held_(pContext->TxLock) NTSTATUS VIOSockSendResetNoSock(IN PDEVICE_CONTEXT pContext,
                                                                            IN PVIRTIO_VSOCK_HDR pHeader);
@@ -467,10 +691,16 @@ _Requires_lock_not_held_(pSocket->StateLock) __inline ULONG32 VIOSockTxGetCredit
 
 )
 {
-    ULONG32 uRet;
+    ULONG32 uRet, uTxBuf;
+    LONG lAvail;
 
     WdfSpinLockAcquire(pSocket->StateLock);
-    uRet = pSocket->peer_buf_alloc - (pSocket->tx_cnt - pSocket->peer_fwd_cnt);
+    // Cap the TX window at min(peer rx buffer, our own buffer config) —
+    // mirrors Linux tx_buf_size. Signed arithmetic guards against underflow
+    // when the peer shrinks buf_alloc while bytes are in flight.
+    uTxBuf = (pSocket->peer_buf_alloc < pSocket->buf_alloc) ? pSocket->peer_buf_alloc : pSocket->buf_alloc;
+    lAvail = (LONG)uTxBuf - (LONG)(pSocket->tx_cnt - pSocket->peer_fwd_cnt);
+    uRet = (lAvail > 0) ? (ULONG32)lAvail : 0;
     if (uRet > uCredit)
     {
         uRet = uCredit;
@@ -493,7 +723,9 @@ _Requires_lock_not_held_(pSocket->StateLock) __inline VOID VIOSockTxPutCredit(IN
 
 _Requires_lock_held_(pSocket->StateLock) __inline LONG VIOSockTxHasSpace(IN PSOCKET_CONTEXT pSocket)
 {
-    LONG lBytes = (LONG)pSocket->peer_buf_alloc - (pSocket->tx_cnt - pSocket->peer_fwd_cnt);
+    // TX window capped at min(peer rx buffer, our own buffer) — see VIOSockTxGetCredit.
+    ULONG32 uTxBuf = (pSocket->peer_buf_alloc < pSocket->buf_alloc) ? pSocket->peer_buf_alloc : pSocket->buf_alloc;
+    LONG lBytes = (LONG)uTxBuf - (LONG)(pSocket->tx_cnt - pSocket->peer_fwd_cnt);
     if (lBytes < 0)
     {
         lBytes = 0;
@@ -528,6 +760,12 @@ VOID VIOSockWriteIoSuspend(IN PDEVICE_CONTEXT pContext);
 
 VOID VIOSockWriteIoRestart(IN PDEVICE_CONTEXT pContext);
 
+NTSTATUS
+VIOSockSendBuffered(IN WDFREQUEST Request);
+
+NTSTATUS
+VIOSockSendEx(IN WDFREQUEST Request);
+
 //////////////////////////////////////////////////////////////////////////
 // Rx functions
 
@@ -548,14 +786,44 @@ _Requires_lock_not_held_(pSocket->StateLock) __inline VOID VIOSockRxIncTxPkt(IN 
 
 _Requires_lock_not_held_(pContext->RxLock) VOID VIOSockRxVqProcess(IN PDEVICE_CONTEXT pContext);
 
-_Requires_lock_not_held_(pSocket->RxLock) NTSTATUS VIOSockRxRequestEnqueueCb(IN PSOCKET_CONTEXT pSocket,
-                                                                             IN WDFREQUEST Request,
-                                                                             IN ULONG Length);
+// Unified packet dispatcher. bLoopback selects the containing struct
+// (VIOSOCK_RX_PKT.Header for wire, VIOSOCK_TX_ENTRY.PacketHeader for
+// loopback); the dispatcher CONTAINING_RECORDs it back when needed.
+VOID VIOSockRxPktHandle(IN PDEVICE_CONTEXT pContext, IN PVIRTIO_VSOCK_HDR pPktHdr, IN BOOLEAN bLoopback);
+
+// Loopback delivery: wrap the peer's TX entry into an Rx CB of pSocket.
+_Requires_lock_not_held_(pSocket->RxLock) BOOLEAN VIOSockRxEnqueueTxEntry(IN PSOCKET_CONTEXT pSocket,
+                                                                          IN PVIOSOCK_TX_ENTRY pTxEntry);
+
+VOID VIOSockRxProcessTxHasSpace(IN PSOCKET_CONTEXT pSocket);
 
 __inline ULONG VIOSockRxHasData(IN PSOCKET_CONTEXT pSocket)
 {
     return pSocket->RxBytes;
 }
+
+// SO_RCVLOWAT readiness: the socket is reported readable only when at least
+// RcvLowat bytes are buffered (mirrors Linux vsock_data_ready()/poll()).
+// RcvLowat defaults to 1, so the comparison matches the prior "has any data"
+// behavior for sockets that never set SO_RCVLOWAT.
+__inline BOOLEAN VIOSockRxReadReady(IN PSOCKET_CONTEXT pSocket)
+{
+    return (pSocket->RxBytes >= pSocket->RcvLowat);
+}
+
+_Requires_lock_not_held_(pSocket->StateLock) __inline VOID VIOSockEventSetReadBitLocked(IN PSOCKET_CONTEXT pSocket)
+{
+    if (VIOSockRxReadReady(pSocket))
+    {
+        VIOSockEventSetBitLocked(pSocket, FD_READ_BIT, STATUS_SUCCESS);
+    }
+}
+
+_Requires_lock_not_held_(pSocket->StateLock) VOID VIOSockRxPktHandleConnecting(IN PSOCKET_CONTEXT pSocket,
+                                                                               IN PVIRTIO_VSOCK_HDR pPkt,
+                                                                               IN BOOLEAN bTxHasSpace);
+
+VOID VIOSockRxPktHandleDisconnecting(IN PSOCKET_CONTEXT pSocket, IN PVIRTIO_VSOCK_HDR pPkt);
 
 NTSTATUS
 VIOSockReadQueueInit(IN WDFDEVICE hDevice);
@@ -563,18 +831,51 @@ VIOSockReadQueueInit(IN WDFDEVICE hDevice);
 NTSTATUS
 VIOSockReadSocketQueueInit(IN PSOCKET_CONTEXT pSocket);
 
-_Requires_lock_not_held_(pSocket->RxLock) BOOLEAN VIOSockReadDequeueCb(IN PSOCKET_CONTEXT pSocket);
-
-_Requires_lock_not_held_(pSocket->RxLock) __inline VOID VIOSockReadProcessDequeueCb(IN PSOCKET_CONTEXT pSocket)
-{
-    while (VIOSockReadDequeueCb(pSocket))
-        ;
-}
+_Requires_lock_not_held_(pSocket->RxLock) VOID VIOSockReadProcessQueue(IN PSOCKET_CONTEXT pSocket);
 
 _Requires_lock_not_held_(pSocket->RxLock) VOID VIOSockReadCleanupCb(IN PSOCKET_CONTEXT pSocket);
 
+_Requires_lock_not_held_(pSocket->RxLock) VOID VIOSockReadDiscardCb(IN PSOCKET_CONTEXT pSocket);
+
 NTSTATUS
-VIOSockReadWithFlags(IN WDFREQUEST Request);
+VIOSockRecvBuffered(IN WDFREQUEST Request);
+
+NTSTATUS
+VIOSockRecvEx(IN WDFREQUEST Request);
+
+//////////////////////////////////////////////////////////////////////////
+// Scatter-gather buffer chain attached to a data-carrying request.
+// Built from the user WSABUF array of IOCTL_SOCKET_RECV_EX by VIOSockSgPrepare;
+// plain Read/Write requests may later be wrapped into the same context as a
+// single borrowed MDL.
+
+typedef struct _VIOSOCK_SG_CTX
+{
+    PMDL MdlChain;  // locked MDLs linked via Mdl->Next in WSABUF order;
+                    // per-buffer lengths are MmGetMdlByteCount().
+                    // MDL ownership is encoded by the context cleanup callback:
+                    // VIOSockSgPrepare builds its own chain and attaches the
+                    // callback that unlocks/frees it (unlocking also releases the
+                    // system mappings); a context wrapping a borrowed MDL (e.g.
+                    // the WDF request MDL — locked and possibly mapped by the I/O
+                    // manager) is allocated without the callback, leaving the MDL
+                    // to its owner.
+    ULONG TotalLen; // sum of all chain buffer lengths
+} VIOSOCK_SG_CTX, *PVIOSOCK_SG_CTX;
+
+WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIOSOCK_SG_CTX, GetRequestSgContext);
+
+NTSTATUS
+VIOSockSgPrepare(IN WDFREQUEST Request, IN LOCK_OPERATION LockOp);
+
+// System mapping is only needed by the copying paths (Rx CB copy-out, buffered Tx);
+// the zero-copy Tx path feeds the virtqueue with physical addresses straight from
+// the MDL and never maps. The mapping is created once and cached inside the MDL
+// itself; MmUnlockPages releases it. Callable at <= DISPATCH_LEVEL, NULL on failure.
+__inline PVOID VIOSockSgMapMdl(IN PMDL Mdl)
+{
+    return MmGetSystemAddressForMdlSafe(Mdl, NormalPagePriority | MdlMappingNoExecute);
+}
 
 //////////////////////////////////////////////////////////////////////////
 // Event functions
@@ -585,123 +886,133 @@ _IRQL_requires_max_(PASSIVE_LEVEL) VOID VIOSockEvtVqCleanup(IN PDEVICE_CONTEXT p
 _IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockEvtVqProcess(IN PDEVICE_CONTEXT pContext);
 
 //////////////////////////////////////////////////////////////////////////
-BOOLEAN
-VIOSockLoopbackAcceptDequeue(IN PSOCKET_CONTEXT pAcceptSocket, IN PVIOSOCK_ACCEPT_ENTRY pAcceptEntry);
-
-NTSTATUS
-VIOSockLoopbackTxEnqueue(IN PSOCKET_CONTEXT pSocket,
-                         IN VIRTIO_VSOCK_OP Op,
-                         IN ULONG32 Flags OPTIONAL,
-                         IN WDFREQUEST Request OPTIONAL,
-                         IN ULONG Length OPTIONAL);
-
-//////////////////////////////////////////////////////////////////////////
-__inline NTSTATUS VIOSockTimerCreate(IN PVIOSOCK_TIMER pTimer, IN WDFOBJECT ParentObject, IN PFN_WDF_TIMER EvtTimerFunc)
+__inline LONGLONG VIOSockTimerTimeoutToTicks(IN LONGLONG Timeout)
 {
-    WDF_OBJECT_ATTRIBUTES Attributes;
-    WDF_TIMER_CONFIG timerConfig;
-
-    pTimer->Timeout = 0;
-    pTimer->StartTime = 0;
-    pTimer->StartRefs = 0;
-
-    WDF_TIMER_CONFIG_INIT(&timerConfig, EvtTimerFunc);
-
-    WDF_OBJECT_ATTRIBUTES_INIT(&Attributes);
-    Attributes.ParentObject = ParentObject;
-
-    return WdfTimerCreate(&timerConfig, &Attributes, &pTimer->Timer);
+    return Timeout / VIOSOCK_TIMER_TIME_INCREMENT;
 }
 
-VOID VIOSockTimerStart(IN PVIOSOCK_TIMER pTimer, IN LONGLONG Timeout);
+__inline LONGLONG VIOSockTimerTicksToTimeout(IN LONGLONG Ticks)
+{
+    return Ticks * VIOSOCK_TIMER_TIME_INCREMENT;
+}
 
-__inline VOID VIOSockTimerSet(IN PVIOSOCK_TIMER pTimer, IN LONGLONG Timeout)
+__inline LONGLONG VIOSockTimerTicksToDeadline(IN LONGLONG Ticks)
 {
     LARGE_INTEGER liTicks;
 
-    if (!Timeout || Timeout == LONGLONG_MAX)
+    KeQueryTickCount(&liTicks);
+    return liTicks.QuadPart + Ticks;
+}
+
+__inline LONGLONG VIOSockTimerDeadlineRemainingTicks(IN LONGLONG Deadline)
+{
+    LARGE_INTEGER liNow;
+    LONGLONG llRemaining;
+
+    KeQueryTickCount(&liNow);
+    llRemaining = (Deadline - liNow.QuadPart);
+    return llRemaining > 0 ? llRemaining : 0;
+}
+
+__inline BOOLEAN VIOSockTimerDeadlineIsExpired(IN LONGLONG Deadline)
+{
+    return VIOSockTimerDeadlineRemainingTicks(Deadline) <= VIOSOCK_TIMER_TOLERANCE_TICKS;
+}
+
+__inline LONGLONG VIOSockTimerTimeoutToDeadline(IN LONGLONG Timeout)
+{
+    return Timeout == MAXLONGLONG ? MAXLONGLONG : VIOSockTimerTicksToDeadline(VIOSockTimerTimeoutToTicks(Timeout));
+}
+
+// Caller must ensure Deadline != MAXLONGLONG; passing MAXLONGLONG overflows on multiply.
+__inline LONGLONG VIOSockTimerDeadlineToTimeout(IN LONGLONG Deadline)
+{
+    return Deadline == MAXLONGLONG ? MAXLONGLONG
+                                   : VIOSockTimerTicksToTimeout(VIOSockTimerDeadlineRemainingTicks(Deadline));
+}
+
+__inline BOOLEAN VIOSockTimerEntryIsSet(IN PVIOSOCK_TIMER_ENTRY pEntry)
+{
+    return pEntry->Deadline != MAXLONGLONG;
+}
+
+__inline VOID VIOSockTimerEntryInit(IN PVIOSOCK_TIMER_ENTRY pEntry)
+{
+    pEntry->Deadline = MAXLONGLONG;
+}
+
+__inline LONGLONG VIOSockTimerEntryRemainingTicks(IN PVIOSOCK_TIMER_ENTRY pEntry)
+{
+    if (!VIOSockTimerEntryIsSet(pEntry))
+    {
+        return MAXLONGLONG;
+    }
+
+    return VIOSockTimerDeadlineRemainingTicks(pEntry->Deadline);
+}
+
+// Safe to call without a prior IsSet check: MAXLONGLONG - now is always a large positive
+// value, so RemainingTicks > TOLERANCE_TICKS and the function returns FALSE for unset entries.
+__inline BOOLEAN VIOSockTimerEntryIsExpired(IN PVIOSOCK_TIMER_ENTRY pEntry)
+{
+    return VIOSockTimerDeadlineIsExpired(pEntry->Deadline);
+}
+
+NTSTATUS VIOSockTimerCreate(IN PVIOSOCK_TIMER pTimer, IN WDFOBJECT ParentObject, IN PFN_WDF_TIMER EvtTimerFunc);
+
+VOID VIOSockTimerStartDeadline(IN PVIOSOCK_TIMER pTimer, IN PVIOSOCK_TIMER_ENTRY pEntry OPTIONAL, IN LONGLONG Deadline);
+
+__inline VOID VIOSockTimerStartTimeout(IN PVIOSOCK_TIMER pTimer,
+                                       IN PVIOSOCK_TIMER_ENTRY pEntry OPTIONAL,
+                                       IN LONGLONG Timeout)
+{
+    ASSERT(Timeout > 0);
+    if (Timeout > 0)
+    {
+        VIOSockTimerStartDeadline(pTimer, pEntry, VIOSockTimerTimeoutToDeadline(Timeout));
+    }
+}
+
+__inline VOID VIOSockTimerSetDeadline(IN PVIOSOCK_TIMER pTimer, IN LONGLONG Deadline)
+{
+    LONGLONG Timeout;
+
+    ASSERT(Deadline > 0);
+    if (!Deadline || Deadline == MAXLONGLONG)
     {
         ASSERT(!pTimer->StartRefs);
-        pTimer->StartTime = 0;
-        pTimer->Timeout = 0;
+        pTimer->Deadline = MAXLONGLONG;
         return;
     }
 
-    ASSERT(Timeout > VIOSOCK_TIMER_TOLERANCE);
-    if (Timeout <= VIOSOCK_TIMER_TOLERANCE)
-    {
-        Timeout = VIOSOCK_TIMER_TOLERANCE + 1;
-    }
-
-    KeQueryTickCount(&liTicks);
-
-    pTimer->StartTime = liTicks.QuadPart;
-    pTimer->Timeout = Timeout;
+    pTimer->Deadline = Deadline;
+    Timeout = VIOSockTimerDeadlineToTimeout(Deadline);
     WdfTimerStart(pTimer->Timer, -Timeout);
+}
+
+__inline VOID VIOSockTimerSetTimeout(IN PVIOSOCK_TIMER pTimer, IN LONGLONG Timeout)
+{
+    ASSERT(Timeout > 0);
+    VIOSockTimerSetDeadline(pTimer, VIOSockTimerTimeoutToDeadline(Timeout));
 }
 
 __inline VOID VIOSockTimerCancel(IN PVIOSOCK_TIMER pTimer)
 {
     WdfTimerStop(pTimer->Timer, FALSE);
-    pTimer->Timeout = 0;
-    pTimer->StartTime = 0;
+    pTimer->Deadline = MAXLONGLONG;
 }
 
 __inline VOID VIOSockTimerDeref(IN PVIOSOCK_TIMER pTimer, IN BOOLEAN bStop)
 {
     ASSERT(pTimer->StartRefs);
-    if (--pTimer->StartRefs == 0 && bStop)
+    if (--pTimer->StartRefs == 0)
     {
-        VIOSockTimerCancel(pTimer);
+        pTimer->Deadline = MAXLONGLONG;
+        if (bStop)
+        {
+            WdfTimerStop(pTimer->Timer, FALSE);
+        }
     }
-}
-
-__inline LONGLONG VIOSockTimerPassed(IN PVIOSOCK_TIMER pTimer)
-{
-    LARGE_INTEGER liTicks;
-
-    KeQueryTickCount(&liTicks);
-
-    return (liTicks.QuadPart - pTimer->StartTime) * KeQueryTimeIncrement();
-}
-
-__inline BOOLEAN VIOSockTimerSuspend(IN PVIOSOCK_TIMER pTimer)
-{
-    if (WdfTimerStop(pTimer->Timer, FALSE))
-    {
-        return pTimer->Timeout > VIOSockTimerPassed(pTimer) + VIOSOCK_TIMER_TOLERANCE;
-    }
-    return TRUE;
-}
-
-__inline BOOLEAN VIOSockTimerResume(IN PVIOSOCK_TIMER pTimer)
-{
-    LONGLONG llTimeout = VIOSockTimerPassed(pTimer);
-
-    if (pTimer->Timeout > llTimeout + VIOSOCK_TIMER_TOLERANCE)
-    {
-        VIOSockTimerSet(pTimer, pTimer->Timeout - llTimeout);
-        return TRUE;
-    }
-    return FALSE;
-}
-
-//////////////////////////////////////////////////////////////////////////
-
-__inline VOID VioSockReference(IN WDFFILEOBJECT Socket)
-{
-    ObReferenceObject(WdfFileObjectWdmGetFileObject(Socket));
-    WdfObjectReference(Socket);
-
-    return;
-}
-
-__inline VOID VioSockDereference(IN WDFFILEOBJECT Socket)
-{
-    WdfObjectDereference(Socket);
-    ObDereferenceObject(WdfFileObjectWdmGetFileObject(Socket));
-
-    return;
 }
 
 #endif /* VIOSOCK_H */

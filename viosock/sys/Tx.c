@@ -35,64 +35,83 @@
 #endif
 
 EVT_WDF_IO_QUEUE_IO_WRITE VIOSockWrite;
-EVT_WDF_REQUEST_CANCEL VIOSockTxEnqueueCancel;
-EVT_WDF_TIMER VIOSockTxTimerFunc;
+EVT_WDF_IO_QUEUE_IO_CANCELED_ON_QUEUE VIOSockWriteIoCanceledOnQueue;
+EVT_WDF_TIMER VIOSockWriteTimerFunc;
 
 #ifdef ALLOC_PRAGMA
 #pragma alloc_text(PAGE, VIOSockWriteQueueInit)
+#pragma alloc_text(PAGE, VIOSockWriteSocketQueueInit)
 #endif
-
-#define VIOSOCK_DMA_TX_PAGES BYTES_TO_PAGES(VIRTIO_VSOCK_MAX_PKT_BUF_SIZE)
 
 typedef struct _VIOSOCK_TX_PKT
 {
     VIRTIO_VSOCK_HDR Header;
     PHYSICAL_ADDRESS PhysAddr; // packet addr
-    WDFDMATRANSACTION Transaction;
+    // Producing entry; its buffers must outlive the flight, so it is
+    // released only when the host consumes the packet.
+    PVIOSOCK_TX_ENTRY TxEntry;
     union {
         BYTE IndirectDescs[SIZE_OF_SINGLE_INDIRECT_DESC *
                            (1 + (VIOSOCK_DMA_TX_PAGES + 1))]; // Header + sglist(maybe not aligned)
-        struct
-        {
-            LIST_ENTRY ListEntry;
-            WDFREQUEST Request;
-        };
+        LIST_ENTRY ListEntry; // consumed-packet completion list (IndirectDescs are done by then)
     };
 } VIOSOCK_TX_PKT, *PVIOSOCK_TX_PKT;
 
-typedef enum _VIOSOCK_TX_STATE
+// Separate two-page lookaside for small chunks (acks, tail/credit-squeezed
+// bites) instead of wasting a 64K buffer; matches the lib's small-send
+// threshold, but not coupled to it.
+#define VIOSOCK_TX_SMALL_BUFFER_SIZE (2 * PAGE_SIZE)
+
+typedef struct _VIOSOCK_TX_CONTEXT
 {
-    VioSockTxUninitialized = 0,
-    VioSockTxEnqueued,
-    VioSockTxReady,
-    VioSockTxTimeout,
-    VioSockTxStopped
-} VIOSOCK_TX_STATE;
+    // In-flight zero-copy chunks + 1 slicer bias held until the request is
+    // fully sliced (including while parked in the WriteQueue), so the counter
+    // cannot hit zero while the request is framework-owned. Whoever
+    // decrements to zero completes the request.
+    LONG RefCounter;
+    BOOLEAN ZeroCopy; // snapshot at forward: MSG_ZEROCOPY in the SEND_EX params on a non-loopback socket
+    ULONG BufferLen;
+    ULONG BytesToWrite;
+    PVOID ToWritePtr;
+    PMDL CurrentMdl;
+    ULONG MdlBytesToWrite;
 
-typedef struct _VIOSOCK_TX_ENTRY
+    union {
+        struct
+        {
+            VIOSOCK_TIMER_ENTRY TimerEntry;
+            LONG Counter; // timer-scan generation (see VIOSockWriteTimerFunc)
+        };
+        struct
+        {
+            LIST_ENTRY ListEntry; // expired-request completion list of the timer scan
+            WDFREQUEST ThisRequest;
+        };
+    };
+} VIOSOCK_TX_CONTEXT, *PVIOSOCK_TX_CONTEXT;
+
+WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIOSOCK_TX_CONTEXT, GetRequestTxContext);
+
+// Drop one reference on a send request; the one who reaches zero completes it.
+// Sliced bytes are committed to the wire, so any progress completes as success
+// with the byte count (an error would make the application resend them);
+// Status applies only when nothing was sliced. The caller stops the deadline
+// timer BEFORE the deref — the deref never touches it (the union arm may be gone).
+static VOID VIOSockTxRequestComplete(IN WDFREQUEST Request, IN NTSTATUS Status)
 {
-    LIST_ENTRY ListEntry;
-    WDFMEMORY Memory;
-    WDFREQUEST Request;
-    WDFFILEOBJECT Socket;
-    //    VIOSOCK_TX_STATE State;
+    PVIOSOCK_TX_CONTEXT pRequest = GetRequestTxContext(Request);
 
-    ULONG64 dst_cid;
-    ULONG32 src_port;
-    ULONG32 dst_port;
+    if (InterlockedDecrement(&pRequest->RefCounter) == 0)
+    {
+        ULONG uBytesWritten = pRequest->BufferLen - pRequest->BytesToWrite;
 
-    ULONG32 len;
-    USHORT op;
-    BOOLEAN reply;
-    ULONG32 flags;
-    USHORT type;
-
-    LONGLONG Timeout; // 100ns
-} VIOSOCK_TX_ENTRY, *PVIOSOCK_TX_ENTRY;
-
-WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIOSOCK_TX_ENTRY, GetRequestTxContext);
+        WdfRequestCompleteWithInformation(Request, uBytesWritten ? STATUS_SUCCESS : Status, uBytesWritten);
+    }
+}
 
 _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxDequeue(PDEVICE_CONTEXT pContext);
+
+static VOID VIOSockTxEntryUnsentSub(IN PVIOSOCK_TX_ENTRY pTxEntry);
 
 //////////////////////////////////////////////////////////////////////////
 _Requires_lock_held_(pContext->TxLock) static PVIOSOCK_TX_PKT VIOSockTxPktAlloc(IN PDEVICE_CONTEXT pContext,
@@ -106,19 +125,9 @@ _Requires_lock_held_(pContext->TxLock) static PVIOSOCK_TX_PKT VIOSockTxPktAlloc(
     if (pPkt)
     {
         pPkt->PhysAddr = PA;
-        pPkt->Transaction = WDF_NO_HANDLE;
-        if (pTxEntry->Socket != WDF_NO_HANDLE)
-        {
-            VIOSockRxIncTxPkt(GetSocketContext(pTxEntry->Socket), &pPkt->Header);
-        }
+        pPkt->TxEntry = NULL;
+        RtlCopyMemory(&pPkt->Header, &pTxEntry->PacketHeader, sizeof(VIRTIO_VSOCK_HDR));
         pPkt->Header.src_cid = pContext->Config.guest_cid;
-        pPkt->Header.dst_cid = pTxEntry->dst_cid;
-        pPkt->Header.src_port = pTxEntry->src_port;
-        pPkt->Header.dst_port = pTxEntry->dst_port;
-        pPkt->Header.len = pTxEntry->len;
-        pPkt->Header.type = pTxEntry->type;
-        pPkt->Header.op = pTxEntry->op;
-        pPkt->Header.flags = pTxEntry->flags;
         InterlockedIncrement(&pContext->TxPktAllocated);
     }
     return pPkt;
@@ -147,32 +156,48 @@ _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxVqCleanup(IN PDEVICE_CO
 
     while (pPkt = (PVIOSOCK_TX_PKT)virtqueue_detach_unused_buf(pContext->TxVq))
     {
-        if (pPkt->Transaction != WDF_NO_HANDLE)
+        if (pPkt->TxEntry)
         {
-            pPkt->Request = WdfDmaTransactionGetRequest(pPkt->Transaction);
-
-            // postpone to complete transaction
+            // postpone the entry release: it may complete a zero-copy request
             InsertTailList(&CompletionList, &pPkt->ListEntry);
         }
         else
         {
             // just free packet
-            pPkt->Request = WDF_NO_HANDLE;
             VIOSockTxPktFree(pContext, pPkt);
         }
     }
+
+    // NULL under the lock so a racing sender sees the teardown and bails
+    pContext->TxVq = NULL;
 
     WdfSpinLockRelease(pContext->TxLock);
 
     for (CurrentItem = CompletionList.Flink; CurrentItem != &CompletionList; CurrentItem = CurrentItem->Flink)
     {
-        pPkt = CONTAINING_RECORD(CurrentItem, VIOSOCK_TX_PKT, ListEntry);
+        PVIOSOCK_TX_ENTRY pTxEntry;
+        BOOLEAN bAlwaysTrue = TRUE;
 
-        VirtIOWdfDeviceDmaTxComplete(&pContext->VDevice.VIODevice, pPkt->Transaction);
-        if (pPkt->Request != WDF_NO_HANDLE)
+        pPkt = CONTAINING_RECORD(CurrentItem, VIOSOCK_TX_PKT, ListEntry);
+        pTxEntry = pPkt->TxEntry;
+
+        // Packets never reached the host: zero-copy chunks still complete
+        // through the refcount, buffers go back to the lookasides.
+        //
+        // Hidden from SDV (here and in the other consumption-side completions):
+        // it cannot track pTxEntry->Request through the lookaside buffer, so
+        // the field aliases whatever request its one-request model holds and
+        // the completion gets flagged as invalidreqaccess. Real ownership is
+        // refcount-based (only zero-copy sets pTxEntry->Request).
+        __analysis_assume(bAlwaysTrue == FALSE);
+
+        if (bAlwaysTrue && pTxEntry->Request != WDF_NO_HANDLE)
         {
-            WdfRequestCompleteWithInformation(pPkt->Request, STATUS_INVALID_DEVICE_STATE, pPkt->Header.len);
+            VIOSockTxRequestComplete(pTxEntry->Request, STATUS_SUCCESS);
         }
+
+        VIOSockTxEntryUnsentSub(pTxEntry);
+        VIOSockTxFreeEntry(pTxEntry);
     };
 
     if (pContext->TxPktSliced)
@@ -181,7 +206,6 @@ _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxVqCleanup(IN PDEVICE_CO
         pContext->TxPktSliced = NULL;
         pContext->TxPktNum = 0;
     }
-    pContext->TxVq = NULL;
 }
 
 NTSTATUS
@@ -224,53 +248,34 @@ VIOSockTxVqInit(IN PDEVICE_CONTEXT pContext)
 
 _Requires_lock_held_(pContext->TxLock) static BOOLEAN VIOSockTxPktInsert(IN PDEVICE_CONTEXT pContext,
                                                                          IN PVIOSOCK_TX_PKT pPkt,
-                                                                         IN PVIRTIO_DMA_TRANSACTION_PARAMS pParams OPTIONAL)
+                                                                         IN PVIOSOCK_TX_ENTRY pTxEntry)
 {
     VIOSOCK_SG_DESC sg[VIOSOCK_DMA_TX_PAGES + 2];
-    ULONG uElements = 1, uPktLen = 0;
+    ULONG uElements = 1;
     PVOID va_indirect = NULL;
     ULONGLONG phys_indirect = 0;
-    PSCATTER_GATHER_LIST SgList = NULL;
 
     int ret;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
-    if (pParams)
-    {
-        ASSERT(pParams->transaction);
-        pPkt->Transaction = pParams->transaction;
-        SgList = pParams->sgList;
-    }
-
     sg[0].length = sizeof(VIRTIO_VSOCK_HDR);
     sg[0].physAddr.QuadPart = pPkt->PhysAddr.QuadPart + FIELD_OFFSET(VIOSOCK_TX_PKT, Header);
 
-    if (SgList)
+    // The payload spans come pre-built in the entry: the skb buffer pages for
+    // copy chunks, the request MDL pages for zero-copy chunks, none for
+    // commands. Their total length equals Header.len by construction.
+    if (pTxEntry->SgCount)
     {
         ULONG i;
 
-        for (i = 0; i < SgList->NumberOfElements; i++)
+        ASSERT(pTxEntry->SgCount <= VIOSOCK_TX_SG_MAX_ELEMENTS);
+
+        for (i = 0; i < pTxEntry->SgCount; i++)
         {
-            if (i + 1 >= VIOSOCK_DMA_TX_PAGES + 2)
-            {
-                TraceEvents(TRACE_LEVEL_ERROR,
-                            DBG_WRITE,
-                            "Error creating sg list, number of sg elements exceeds limit.\n");
-                return FALSE;
-            }
-
-            sg[i + 1].length = SgList->Elements[i].Length;
-            sg[i + 1].physAddr = SgList->Elements[i].Address;
-
-            uPktLen += SgList->Elements[i].Length;
-            if (uPktLen >= pPkt->Header.len)
-            {
-                sg[++i].length -= uPktLen - pPkt->Header.len;
-                break;
-            }
+            sg[i + 1] = pTxEntry->BufferDesc.SgList[i];
         }
-        uElements += i;
+        uElements += pTxEntry->SgCount;
     }
 
     if (uElements > 1)
@@ -279,9 +284,11 @@ _Requires_lock_held_(pContext->TxLock) static BOOLEAN VIOSockTxPktInsert(IN PDEV
         phys_indirect = pPkt->PhysAddr.QuadPart + FIELD_OFFSET(VIOSOCK_TX_PKT, IndirectDescs);
     }
 
+    pPkt->TxEntry = pTxEntry;
+
     TraceEvents(TRACE_LEVEL_INFORMATION,
                 DBG_WRITE,
-                "Send packet %!Op! (%d:%d --> %d:%d), len: %d, flags: %d, buf_alloc: %d, fwd_cnt: %d\n",
+                "Send packet %!Op! (%u:%u --> %u:%u), len: %u, flags: %u, buf_alloc: %u, fwd_cnt: %u\n",
                 pPkt->Header.op,
                 (ULONG)pPkt->Header.src_cid,
                 pPkt->Header.src_port,
@@ -310,14 +317,18 @@ _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxVqProcess(IN PDEVICE_CO
     PVIOSOCK_TX_PKT pPkt;
     UINT len;
     LIST_ENTRY CompletionList, *CurrentItem;
-    NTSTATUS status;
-    WDFREQUEST Request;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
 
     InitializeListHead(&CompletionList);
 
     WdfSpinLockAcquire(pContext->TxLock);
+    if (!pContext->TxVq)
+    {
+        // device torn down (suspend/remove): the vq is gone, drop the work
+        WdfSpinLockRelease(pContext->TxLock);
+        return;
+    }
     do
     {
         virtqueue_disable_cb(pContext->TxVq);
@@ -326,24 +337,22 @@ _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxVqProcess(IN PDEVICE_CO
         {
             TraceEvents(TRACE_LEVEL_INFORMATION,
                         DBG_WRITE,
-                        "Free packet %!Op! (%d:%d --> %d:%d)\n",
+                        "Free packet %!Op! (%u:%u --> %u:%u)\n",
                         pPkt->Header.op,
                         (ULONG)pPkt->Header.src_cid,
                         pPkt->Header.src_port,
                         (ULONG)pPkt->Header.dst_cid,
                         pPkt->Header.dst_port);
 
-            if (pPkt->Transaction != WDF_NO_HANDLE)
+            if (pPkt->TxEntry)
             {
-                pPkt->Request = WdfDmaTransactionGetRequest(pPkt->Transaction);
-
-                // postpone to complete transaction
+                // postpone the entry release: it may complete a zero-copy
+                // request, which must not happen under the spinlock
                 InsertTailList(&CompletionList, &pPkt->ListEntry);
             }
             else
             {
                 // just free packet
-                pPkt->Request = WDF_NO_HANDLE;
                 VIOSockTxPktFree(pContext, pPkt);
             }
         }
@@ -353,13 +362,23 @@ _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxVqProcess(IN PDEVICE_CO
 
     for (CurrentItem = CompletionList.Flink; CurrentItem != &CompletionList; CurrentItem = CurrentItem->Flink)
     {
-        pPkt = CONTAINING_RECORD(CurrentItem, VIOSOCK_TX_PKT, ListEntry);
+        PVIOSOCK_TX_ENTRY pTxEntry;
+        BOOLEAN bAlwaysTrue = TRUE;
 
-        VirtIOWdfDeviceDmaTxComplete(&pContext->VDevice.VIODevice, pPkt->Transaction);
-        if (pPkt->Request != WDF_NO_HANDLE)
+        pPkt = CONTAINING_RECORD(CurrentItem, VIOSOCK_TX_PKT, ListEntry);
+        pTxEntry = pPkt->TxEntry;
+
+        // Host consumed the packet: drop the zero-copy request reference
+        // (the last one completes the request), release the entry.
+        // Hidden from SDV — see the consumption-side note in VIOSockTxVqCleanup
+        __analysis_assume(bAlwaysTrue == FALSE);
+
+        if (bAlwaysTrue && pTxEntry->Request != WDF_NO_HANDLE)
         {
-            WdfRequestCompleteWithInformation(pPkt->Request, STATUS_SUCCESS, pPkt->Header.len);
+            VIOSockTxRequestComplete(pTxEntry->Request, STATUS_SUCCESS);
         }
+        VIOSockTxEntryUnsentSub(pTxEntry);
+        VIOSockTxFreeEntry(pTxEntry);
     };
 
     // cleanup pkt locked
@@ -373,37 +392,6 @@ _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxVqProcess(IN PDEVICE_CO
     VIOSockTxDequeue(pContext);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
-}
-
-_IRQL_requires_max_(DISPATCH_LEVEL) static BOOLEAN VIOSockTxDequeueCallback(IN PVIRTIO_DMA_TRANSACTION_PARAMS pParams)
-{
-    PVIOSOCK_TX_PKT pPkt = pParams->param1;
-    PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket((PSOCKET_CONTEXT)pParams->param2);
-    BOOLEAN bRes;
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
-
-    WdfSpinLockAcquire(pContext->TxLock);
-    bRes = VIOSockTxPktInsert(pContext, pPkt, pParams);
-    if (!bRes)
-    {
-        VIOSockTxPktFree(pContext, pPkt);
-    }
-    WdfSpinLockRelease(pContext->TxLock);
-
-    if (!bRes)
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "VIOSockTxPktInsert failed\n");
-
-        VirtIOWdfDeviceDmaTxComplete(&pContext->VDevice.VIODevice, pParams->transaction);
-        WdfRequestComplete(pParams->req, STATUS_INSUFFICIENT_RESOURCES);
-    }
-    else
-    {
-        virtqueue_kick(pContext->TxVq);
-    }
-
-    return bRes;
 }
 
 _Requires_lock_not_held_(pContext->TxLock) static VOID VIOSockTxDequeue(PDEVICE_CONTEXT pContext)
@@ -423,11 +411,18 @@ _Requires_lock_not_held_(pContext->TxLock) static VOID VIOSockTxDequeue(PDEVICE_
 
     WdfSpinLockAcquire(pContext->TxLock);
 
+    if (!pContext->TxVq)
+    {
+        // device torn down (suspend/remove): the vq is gone, drop the work
+        WdfSpinLockRelease(pContext->TxLock);
+        InterlockedExchange(&lInProgress, 0);
+        return;
+    }
+
     while (!IsListEmpty(&pContext->TxList))
     {
         PVIOSOCK_TX_ENTRY pTxEntry = CONTAINING_RECORD(pContext->TxList.Flink, VIOSOCK_TX_ENTRY, ListEntry);
         PVIOSOCK_TX_PKT pPkt = VIOSockTxPktAlloc(pContext, pTxEntry);
-        NTSTATUS status;
 
         // can't allocate packet, stop dequeue
         if (!pPkt)
@@ -436,112 +431,41 @@ _Requires_lock_not_held_(pContext->TxLock) static VOID VIOSockTxDequeue(PDEVICE_
         }
 
         RemoveHeadList(&pContext->TxList);
-        InterlockedDecrement(&pContext->TxEnqueued);
-        // pTxEntry->State = VioSockTxReady;
 
-        bReply = pTxEntry->reply;
+        bReply = pTxEntry->Reply;
 
-        if (pTxEntry->Request)
+        if (!VIOSockTxPktInsert(pContext, pPkt, pTxEntry))
         {
-            ASSERT(pTxEntry->Socket != WDF_NO_HANDLE);
-            ASSERT(pTxEntry->len && !bReply);
-            status = WdfRequestUnmarkCancelable(pTxEntry->Request);
+            ASSERT(FALSE);
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "VIOSockTxPktInsert failed\n");
 
-            if (NT_SUCCESS(status))
-            {
-                PSOCKET_CONTEXT pSocket = GetSocketContext(pTxEntry->Socket);
-                VIRTIO_DMA_TRANSACTION_PARAMS params = {0};
+            InsertHeadList(&pContext->TxList, &pTxEntry->ListEntry);
 
-                if (pTxEntry->Timeout)
-                {
-                    VIOSockTimerDeref(&pContext->TxTimer, TRUE);
-                }
-
-                WdfSpinLockRelease(pContext->TxLock);
-
-                status = VIOSockStateValidate(pSocket, TRUE);
-                if (status == STATUS_REMOTE_DISCONNECT)
-                {
-                    status = STATUS_LOCAL_DISCONNECT;
-                }
-
-                if (NT_SUCCESS(status))
-                {
-                    params.req = pTxEntry->Request;
-
-                    params.param1 = pPkt;
-                    params.param2 = pSocket;
-
-                    // create transaction
-                    if (!VirtIOWdfDeviceDmaTxAsync(&pContext->VDevice.VIODevice, &params, VIOSockTxDequeueCallback))
-                    {
-                        if (params.transaction)
-                        {
-                            VirtIOWdfDeviceDmaTxComplete(&pContext->VDevice.VIODevice, params.transaction);
-                        }
-                        status = STATUS_INSUFFICIENT_RESOURCES;
-                    }
-                }
-
-                if (!NT_SUCCESS(status))
-                {
-                    WdfRequestComplete(pTxEntry->Request, status);
-                }
-
-                WdfSpinLockAcquire(pContext->TxLock);
-
-                if (!NT_SUCCESS(status))
-                {
-                    VIOSockTxPktFree(pContext, pPkt);
-                }
-            }
-            else
-            {
-                ASSERT(status == STATUS_CANCELLED);
-                TraceEvents(TRACE_LEVEL_WARNING, DBG_WRITE, "Write request canceled\n");
-                InitializeListHead(&pTxEntry->ListEntry); // cancellation routine removes element from the list
-            }
+            VIOSockTxPktFree(pContext, pPkt);
+            break;
         }
-        else
+
+        bKick = TRUE;
+
+        if (bReply)
         {
-            ASSERT(pTxEntry->Memory != WDF_NO_HANDLE);
-            if (VIOSockTxPktInsert(pContext, pPkt, NULL))
-            {
-                bKick = TRUE;
-                WdfObjectDelete(pTxEntry->Memory);
-            }
-            else
-            {
-                ASSERT(FALSE);
-                TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "VIOSockTxPktInsert failed\n");
+            LONG lVal = --pContext->TxQueuedReply;
 
-                InsertHeadList(&pContext->TxList, &pTxEntry->ListEntry);
-                InterlockedIncrement(&pContext->TxEnqueued);
-                // pTxEntry->State = VioSockTxEnqueued;
-
-                VIOSockTxPktFree(pContext, pPkt);
-                bReply = FALSE;
-                break;
-            }
-
-            if (bReply)
-            {
-                LONG lVal = --pContext->TxQueuedReply;
-
-                /* Do we now have resources to resume rx processing? */
-                bRestartRx = (lVal + 1 == pContext->RxPktNum);
-            }
+            /* Do we now have resources to resume rx processing? */
+            bRestartRx = (lVal + 1 == pContext->RxPktNum);
         }
+    }
+
+    // kick under the lock: add_buf and the doorbell must be atomic against
+    // the teardown that NULLs and frees the vq
+    if (bKick)
+    {
+        virtqueue_kick(pContext->TxVq);
     }
 
     InterlockedExchange(&lInProgress, 0);
 
     WdfSpinLockRelease(pContext->TxLock);
-
-    if (bKick)
-    {
-        virtqueue_kick(pContext->TxVq);
-    }
 
     if (bRestartRx)
     {
@@ -572,25 +496,12 @@ _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxCleanup(PDEVICE_CONTEXT
 
         if (Socket == WDF_NO_HANDLE || pTxEntry->Socket == Socket)
         {
-            if (pTxEntry->Request)
-            {
-                if (!NT_SUCCESS(WdfRequestUnmarkCancelable(pTxEntry->Request)))
-                {
-                    continue;
-                }
-            }
-
             CurrentEntry = CurrentEntry->Blink;
             RemoveEntryList(&pTxEntry->ListEntry);
 
             InsertTailList(&CompletionList, &pTxEntry->ListEntry); // complete later
 
-            if (pTxEntry->Timeout)
-            {
-                VIOSockTimerDeref(&pContext->TxTimer, TRUE);
-            }
-
-            if (pTxEntry->reply)
+            if (pTxEntry->Reply)
             {
                 ++lCnt;
             }
@@ -622,15 +533,15 @@ _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxCleanup(PDEVICE_CONTEXT
                                                            VIOSOCK_TX_ENTRY,
                                                            ListEntry);
 
-            if (pTxEntry->Request)
+            // A dropped zero-copy chunk releases its request reference.
+            // Hidden from SDV — see the consumption-side note in VIOSockTxVqCleanup
+            if (pTxEntry->Request != WDF_NO_HANDLE)
             {
-                WdfRequestComplete(pTxEntry->Request, Status);
+                VIOSockTxRequestComplete(pTxEntry->Request, Status);
             }
 
-            if (pTxEntry->Memory)
-            {
-                WdfObjectDelete(pTxEntry->Memory);
-            }
+            VIOSockTxEntryUnsentSub(pTxEntry);
+            VIOSockTxFreeEntry(pTxEntry);
         }
     }
 
@@ -641,82 +552,360 @@ _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxCleanup(PDEVICE_CONTEXT
 }
 
 //////////////////////////////////////////////////////////////////////////
-static VOID VIOSockTxEnqueueCancel(IN WDFREQUEST Request)
-{
-    PSOCKET_CONTEXT pSocket = GetSocketContextFromRequest(Request);
-    PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pSocket);
-    PVIOSOCK_TX_ENTRY pTxEntry = GetRequestTxContext(Request);
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
-
-    WdfSpinLockAcquire(pContext->TxLock);
-    RemoveEntryList(&pTxEntry->ListEntry);
-    VIOSockTxPutCredit(pSocket, pTxEntry->len);
-
-    if (pTxEntry->Timeout)
-    {
-        VIOSockTimerDeref(&pContext->TxTimer, TRUE);
-    }
-
-    WdfSpinLockRelease(pContext->TxLock);
-
-    WdfRequestComplete(Request, STATUS_CANCELLED);
-}
-
-NTSTATUS
-VIOSockTxEnqueue(IN PSOCKET_CONTEXT pSocket,
-                 IN VIRTIO_VSOCK_OP Op,
-                 IN ULONG32 Flags OPTIONAL,
-                 IN BOOLEAN Reply,
-                 IN WDFREQUEST Request OPTIONAL)
+PVIOSOCK_TX_ENTRY VIOSockTxAllocateEntry(IN PDEVICE_CONTEXT pContext,
+                                         IN PSOCKET_CONTEXT pSocket OPTIONAL,
+                                         IN ULONG BufferLen)
 {
     NTSTATUS status;
-    PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pSocket);
     PVIOSOCK_TX_ENTRY pTxEntry = NULL;
-    ULONG uLen;
-    WDFMEMORY Memory = WDF_NO_HANDLE;
+    WDFMEMORY Memory;
+    BOOLEAN bSkipSgList = FALSE;
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
-
-    if (IsLoopbackSocket(pSocket))
+    status = WdfMemoryCreateFromLookaside(pContext->TxMemoryList, &Memory);
+    if (!NT_SUCCESS(status))
     {
-        return VIOSockLoopbackTxEnqueue(pSocket,
-                                        Op,
-                                        Flags,
-                                        Request,
-                                        (Request == WDF_NO_HANDLE) ? 0 : GetRequestTxContext(Request)->len);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "WdfMemoryCreateFromLookaside failed: 0x%x\n", status);
+        return NULL;
     }
 
-    if (Request == WDF_NO_HANDLE)
-    {
+    pTxEntry = WdfMemoryGetBuffer(Memory, NULL);
+    pTxEntry->Memory = Memory;
+    pTxEntry->Request = WDF_NO_HANDLE;
+    pTxEntry->Buffer = NULL;
+    pTxEntry->BufferMemory = WDF_NO_HANDLE;
+    pTxEntry->SgCount = 0;
+    pTxEntry->PacketHeader.len = BufferLen;
 
-        status = WdfMemoryCreateFromLookaside(pContext->TxMemoryList, &Memory);
-        if (NT_SUCCESS(status))
-        {
-            pTxEntry = WdfMemoryGetBuffer(Memory, NULL);
-            pTxEntry->Memory = Memory;
-            pTxEntry->Request = WDF_NO_HANDLE;
-            pTxEntry->len = 0;
-        }
-        else
-        {
-            TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "WdfMemoryCreateFromLookaside failed: 0x%x\n", status);
-        }
+    if (pSocket)
+    {
+        VIRTIO_VSOCK_HDR CreditHdr;
+
+        pTxEntry->Socket = pSocket->ThisSocket;
+        pTxEntry->PacketHeader.src_port = pSocket->src_port;
+        pTxEntry->PacketHeader.dst_cid = pSocket->dst_cid;
+        pTxEntry->PacketHeader.dst_port = pSocket->dst_port;
+        pTxEntry->PacketHeader.type = (USHORT)pSocket->type;
+
+        // Snapshot the credit fields (as Linux does at skb creation): the
+        // entry never touches the socket afterwards; the Socket handle above
+        // stays a plain cookie (loopback routing at insert, debugging).
+        VIOSockRxIncTxPkt(pSocket, &CreditHdr);
+        pTxEntry->PacketHeader.buf_alloc = CreditHdr.buf_alloc;
+        pTxEntry->PacketHeader.fwd_cnt = CreditHdr.fwd_cnt;
+
+        WdfObjectReference(pTxEntry->Socket);
+        bSkipSgList = IsLoopbackSocket(pSocket);
     }
     else
     {
-        status = VIOSockStateValidate(pSocket, TRUE);
-        if (status == STATUS_REMOTE_DISCONNECT)
+        pTxEntry->Socket = WDF_NO_HANDLE;
+        pTxEntry->PacketHeader.buf_alloc = 0;
+        pTxEntry->PacketHeader.fwd_cnt = 0;
+    }
+
+    if (BufferLen)
+    {
+        WDFMEMORY BufferMemory;
+        PCHAR va;
+        ULONG uRemaining;
+
+        // WDFMEMORY remembers its parent lookaside, so the free needs no
+        // extra bookkeeping.
+        status = WdfMemoryCreateFromLookaside((BufferLen <= VIOSOCK_TX_SMALL_BUFFER_SIZE) ? pContext->TxSmallBufferMemoryList
+                                                                                          : pContext->TxBufferMemoryList,
+                                              &BufferMemory);
+        if (!NT_SUCCESS(status))
         {
-            status = STATUS_LOCAL_DISCONNECT;
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "WdfMemoryCreateFromLookaside(skb) failed: 0x%x\n", status);
+            VIOSockTxFreeEntry(pTxEntry);
+            return NULL;
         }
 
-        if (NT_SUCCESS(status))
+        pTxEntry->BufferMemory = BufferMemory;
+        pTxEntry->Buffer = WdfMemoryGetBuffer(BufferMemory, NULL);
+
+        // we don't need sglist for loopback socket
+        if (bSkipSgList)
         {
-            pTxEntry = GetRequestTxContext(Request);
-            pTxEntry->Request = Request;
-            pTxEntry->Memory = WDF_NO_HANDLE;
+            return pTxEntry;
         }
+        // Describe the buffer page by page for the virtqueue. NOTE: raw
+        // physical addresses — fine while VIRTIO_F_ACCESS_PLATFORM is off.
+        va = (PCHAR)pTxEntry->Buffer;
+        uRemaining = BufferLen;
+        while (uRemaining)
+        {
+            ULONG cb = min(uRemaining, PAGE_SIZE - BYTE_OFFSET(va));
+
+            ASSERT(pTxEntry->SgCount < VIOSOCK_TX_SG_MAX_ELEMENTS);
+            pTxEntry->BufferDesc.SgList[pTxEntry->SgCount].physAddr = MmGetPhysicalAddress(va);
+            pTxEntry->BufferDesc.SgList[pTxEntry->SgCount].length = cb;
+            ++pTxEntry->SgCount;
+
+            va += cb;
+            uRemaining -= cb;
+        }
+    }
+
+    return pTxEntry;
+}
+
+VOID VIOSockTxFreeEntry(PVIOSOCK_TX_ENTRY pTxEntry)
+{
+    if (pTxEntry->BufferMemory != WDF_NO_HANDLE)
+    {
+        WdfObjectDelete(pTxEntry->BufferMemory);
+    }
+
+    if (pTxEntry->Socket != WDF_NO_HANDLE)
+    {
+        WdfObjectDereference(pTxEntry->Socket);
+    }
+    WdfObjectDelete(pTxEntry->Memory);
+}
+
+// Undo the SIOCOUTQ accounting of a wire data chunk once the host has
+// consumed it (or the chunk is dropped at cleanup). Only sliced data entries
+// carry both a socket cookie and a payload; loopback entries are never
+// counted and never reach the callers of this helper.
+static VOID VIOSockTxEntryUnsentSub(IN PVIOSOCK_TX_ENTRY pTxEntry)
+{
+    if (pTxEntry->Socket != WDF_NO_HANDLE && pTxEntry->PacketHeader.len)
+    {
+        PSOCKET_CONTEXT pSocket = GetSocketContext(pTxEntry->Socket);
+
+        if (InterlockedExchangeAdd(&pSocket->BytesUnsent, -(LONG)pTxEntry->PacketHeader.len) ==
+            (LONG)pTxEntry->PacketHeader.len)
+        {
+            KeSetEvent(&pSocket->TxIdleEvent, IO_NO_INCREMENT, FALSE);
+        }
+    }
+}
+
+static __inline VOID VIOSockTxEntrySetRequest(PVIOSOCK_TX_ENTRY pTxEntry, IN WDFREQUEST Request)
+{
+    pTxEntry->Request = Request;
+    InterlockedIncrement(&GetRequestTxContext(Request)->RefCounter);
+}
+
+// Append a fully initialized entry to the global TxList. Returns TRUE when
+// the caller should kick TxVq processing (a future fast path may kick itself
+// and return FALSE).
+static BOOLEAN VIOSockTxInsertEntry(IN PDEVICE_CONTEXT pContext, IN PVIOSOCK_TX_ENTRY pTxEntry)
+{
+    // The wire/loopback divergence point: a loopback entry is delivered
+    // synchronously and never touches the TxList/vq machinery.
+    if (pTxEntry->Socket != WDF_NO_HANDLE && IsLoopbackSocket(GetSocketContext(pTxEntry->Socket)) ||
+        pTxEntry->Socket == WDF_NO_HANDLE && VIOSockIsLocalCid((ULONG32)pTxEntry->PacketHeader.dst_cid,
+                                                               pContext->Config.guest_cid))
+    {
+        pTxEntry->PacketHeader.src_cid = pTxEntry->PacketHeader.dst_cid;
+        VIOSockRxPktHandle(pContext, &pTxEntry->PacketHeader, TRUE);
+
+        return FALSE;
+    }
+
+    WdfSpinLockAcquire(pContext->TxLock);
+
+    if (pTxEntry->Reply)
+    {
+        pContext->TxQueuedReply++;
+    }
+
+    InsertTailList(&pContext->TxList, &pTxEntry->ListEntry);
+
+    WdfSpinLockRelease(pContext->TxLock);
+
+    return TRUE;
+}
+
+//////////////////////////////////////////////////////////////////////////
+// The write-side twin of the VIOSockReadCopy* family: move one chunk from the
+// request source into the entry, advancing the request cursor. Unlike the
+// read side, a copied chunk cannot come out short (credit already taken, the
+// SgList pre-sized), hence the NTSTATUS contract.
+
+// Flat source (IRP_MJ_WRITE / buffered IOCTL_SOCKET_SEND): one mapped span
+// behind ToWritePtr.
+static NTSTATUS VIOSockWriteCopyFlat(IN PVIOSOCK_TX_CONTEXT pRequest, IN PVIOSOCK_TX_ENTRY pTxEntry, IN ULONG uLen)
+{
+    memcpy(pTxEntry->Buffer, pRequest->ToWritePtr, uLen);
+    pRequest->ToWritePtr = (PCHAR)pRequest->ToWritePtr + uLen;
+
+    return STATUS_SUCCESS;
+}
+
+// SG source (IOCTL_SOCKET_SEND_EX): walk the locked MDL chain segment by
+// segment, mapping each next MDL on first touch (the mapping is cached in the
+// MDL and released by MmUnlockPages at request cleanup).
+static NTSTATUS VIOSockWriteCopySg(IN PVIOSOCK_TX_CONTEXT pRequest, IN PVIOSOCK_TX_ENTRY pTxEntry, IN ULONG uLen)
+{
+    PCHAR pDst = (PCHAR)pTxEntry->Buffer;
+
+    while (uLen)
+    {
+        ULONG uChunk = (uLen < pRequest->MdlBytesToWrite) ? uLen : pRequest->MdlBytesToWrite;
+
+        if (!uChunk)
+        {
+            // current MDL drained, switch the cursor to the next one
+            PMDL pNextMdl = pRequest->CurrentMdl->Next;
+
+            ASSERT(pNextMdl); // BytesToWrite != 0 means the chain has more data
+            if (!pNextMdl)
+            {
+                return STATUS_INTERNAL_ERROR;
+            }
+
+            pRequest->ToWritePtr = VIOSockSgMapMdl(pNextMdl);
+            if (!pRequest->ToWritePtr)
+            {
+                TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "Failed to map the next Mdl\n");
+                return STATUS_INSUFFICIENT_RESOURCES;
+            }
+            pRequest->CurrentMdl = pNextMdl;
+            pRequest->MdlBytesToWrite = MmGetMdlByteCount(pNextMdl);
+            continue;
+        }
+
+        memcpy(pDst, pRequest->ToWritePtr, uChunk);
+        pDst += uChunk;
+        pRequest->ToWritePtr = (PCHAR)pRequest->ToWritePtr + uChunk;
+        pRequest->MdlBytesToWrite -= uChunk;
+        uLen -= uChunk;
+    }
+
+    return STATUS_SUCCESS;
+}
+
+// Zero-copy "copy": no data moves — the entry SgList is filled with the
+// physical pages of the request MDL chain at the cursor. The chunk may
+// legally come out SHORT: a scattered chain can exhaust the SG slots before
+// uLen bytes are placed. *puLen returns the bytes actually placed; the caller
+// gives the credit for the remainder back. Contiguous spans are merged.
+static NTSTATUS VIOSockWriteCopyZeroCopy(IN PVIOSOCK_TX_CONTEXT pRequest,
+                                         IN PVIOSOCK_TX_ENTRY pTxEntry,
+                                         IN OUT PULONG puLen)
+{
+    ULONG uLen = *puLen;
+    ULONG uPlaced = 0;
+
+    ASSERT(pRequest->CurrentMdl);
+    if (!pRequest->CurrentMdl)
+    {
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    while (uLen)
+    {
+        PPFN_NUMBER pPfn;
+        PHYSICAL_ADDRESS Pa;
+        ULONG uMdlOffset, uPageOffset, cb;
+
+        if (!pRequest->MdlBytesToWrite)
+        {
+            // current MDL drained, switch the cursor to the next one
+            PMDL pNextMdl = pRequest->CurrentMdl->Next;
+
+            ASSERT(pNextMdl); // BytesToWrite != 0 means the chain has more data
+            if (!pNextMdl)
+            {
+                return STATUS_INTERNAL_ERROR;
+            }
+
+            pRequest->CurrentMdl = pNextMdl;
+            pRequest->MdlBytesToWrite = MmGetMdlByteCount(pNextMdl);
+        }
+
+        // Position within the current MDL: the PFN array is indexed from the
+        // page containing the MDL start (ByteOffset within that page).
+        uMdlOffset = MmGetMdlByteOffset(pRequest->CurrentMdl) +
+                     (MmGetMdlByteCount(pRequest->CurrentMdl) - pRequest->MdlBytesToWrite);
+        pPfn = MmGetMdlPfnArray(pRequest->CurrentMdl);
+        uPageOffset = uMdlOffset & (PAGE_SIZE - 1);
+
+        cb = min(uLen, min(pRequest->MdlBytesToWrite, PAGE_SIZE - uPageOffset));
+
+        Pa.QuadPart = ((ULONGLONG)pPfn[uMdlOffset >> PAGE_SHIFT] << PAGE_SHIFT) + uPageOffset;
+
+        if (pTxEntry->SgCount &&
+            pTxEntry->BufferDesc.SgList[pTxEntry->SgCount - 1].physAddr.QuadPart + pTxEntry->BufferDesc.SgList[pTxEntry->SgCount - 1].length ==
+                                                                                                                (ULONGLONG)Pa.QuadPart)
+        {
+            // physically contiguous with the previous span — extend it
+            pTxEntry->BufferDesc.SgList[pTxEntry->SgCount - 1].length += cb;
+        }
+        else if (pTxEntry->SgCount < VIOSOCK_TX_SG_MAX_ELEMENTS)
+        {
+            pTxEntry->BufferDesc.SgList[pTxEntry->SgCount].physAddr = Pa;
+            pTxEntry->BufferDesc.SgList[pTxEntry->SgCount].length = cb;
+            ++pTxEntry->SgCount;
+        }
+        else
+        {
+            // out of SG slots — close the chunk short, the caller returns the
+            // credit for the unplaced remainder
+            break;
+        }
+
+        pRequest->MdlBytesToWrite -= cb;
+        uLen -= cb;
+        uPlaced += cb;
+    }
+
+    // At least the first span always fits: the entry arrives with an empty SgList
+    ASSERT(uPlaced);
+
+    *puLen = uPlaced;
+    return STATUS_SUCCESS;
+}
+
+static __inline NTSTATUS VIOSockWriteCopy(IN PVIOSOCK_TX_CONTEXT pRequest,
+                                          IN PVIOSOCK_TX_ENTRY pTxEntry,
+                                          IN OUT PULONG puLen)
+{
+    if (pRequest->ZeroCopy)
+    {
+        return VIOSockWriteCopyZeroCopy(pRequest, pTxEntry, puLen);
+    }
+
+    // The copying variants never shorten the chunk
+    return pRequest->CurrentMdl ? VIOSockWriteCopySg(pRequest, pTxEntry, *puLen)
+                                : VIOSockWriteCopyFlat(pRequest, pTxEntry, *puLen);
+}
+
+// One bite of the slicer: re-validate the socket (it may have died while the
+// request was parked), take up to one packet worth of credit, push the chunk.
+// The return status drives the pump loop:
+//   STATUS_MORE_ENTRIES — chunk enqueued, bytes remain: bite again;
+//   STATUS_SUCCESS      — request fully sliced;
+//   STATUS_CANT_WAIT    — peer credit exhausted, nothing bitten (would-block:
+//                         the NB path passes it to completion as is, the
+//                         blocking path requeues);
+//   anything else       — failure, credit returned; complete with it.
+static NTSTATUS VIOSockWriteEnqueueRequest(IN PSOCKET_CONTEXT pSocket, IN WDFREQUEST Request)
+{
+    PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pSocket);
+    PVIOSOCK_TX_CONTEXT pRequest = GetRequestTxContext(Request);
+    PVIOSOCK_TX_ENTRY pTxEntry = NULL;
+    ULONG uLen, uPlaced;
+    NTSTATUS status;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
+
+    if (!pRequest->BytesToWrite)
+    {
+        return STATUS_SUCCESS;
+    }
+
+    // Own and peer shutdown both fail with PIPE_DISCONNECTED (Linux EPIPE unification);
+    // like AFD, it maps to WSAESHUTDOWN and to ERROR_PIPE_NOT_CONNECTED for WriteFile.
+    // An abortive reset is already reported as STATUS_CONNECTION_RESET (WSAECONNRESET)
+    // by VIOSockStateValidate and must not be folded into PIPE_DISCONNECTED here.
+    status = VIOSockStateValidate(pSocket, TRUE);
+    if (status == STATUS_REMOTE_DISCONNECT || status == STATUS_LOCAL_DISCONNECT)
+    {
+        status = STATUS_PIPE_DISCONNECTED;
     }
 
     if (!NT_SUCCESS(status))
@@ -724,143 +913,498 @@ VIOSockTxEnqueue(IN PSOCKET_CONTEXT pSocket,
         return status;
     }
 
-    ASSERT(pTxEntry);
-    pTxEntry->Socket = pSocket->ThisSocket;
-    pTxEntry->src_port = pSocket->src_port;
-    pTxEntry->dst_cid = pSocket->dst_cid;
-    pTxEntry->dst_port = pSocket->dst_port;
-    pTxEntry->type = (USHORT)pSocket->type;
-    pTxEntry->op = Op;
-    pTxEntry->reply = Reply;
-    pTxEntry->flags = Flags;
-    pTxEntry->Timeout = 0;
-
-    uLen = VIOSockTxGetCredit(pSocket, pTxEntry->len);
-    if (pTxEntry->len && !uLen)
+    uLen = VIOSockTxGetCredit(pSocket,
+                              (pRequest->BytesToWrite < VIRTIO_VSOCK_MAX_PKT_BUF_SIZE) ? pRequest->BytesToWrite
+                                                                                       : VIRTIO_VSOCK_MAX_PKT_BUF_SIZE);
+    if (!uLen)
     {
-        ASSERT(pTxEntry->Request);
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE, "No free space on peer\n");
-
-        return STATUS_BUFFER_TOO_SMALL;
+        return STATUS_CANT_WAIT;
     }
 
-    WdfSpinLockAcquire(pContext->TxLock);
-
-    if (Request != WDF_NO_HANDLE)
+    // a zero-copy entry needs no skb buffer: its SgList points at the request pages
+    pTxEntry = VIOSockTxAllocateEntry(pContext, pSocket, pRequest->ZeroCopy ? 0 : uLen);
+    if (!pTxEntry)
     {
-        pTxEntry->len = uLen;
-        status = WdfRequestMarkCancelableEx(Request, VIOSockTxEnqueueCancel);
-        if (!NT_SUCCESS(status))
+        VIOSockTxPutCredit(pSocket, uLen);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    pTxEntry->PacketHeader.op = VIRTIO_VSOCK_OP_RW;
+    pTxEntry->PacketHeader.flags = 0;
+    pTxEntry->Reply = FALSE;
+
+    uPlaced = uLen;
+    status = VIOSockWriteCopy(pRequest, pTxEntry, &uPlaced);
+    if (!NT_SUCCESS(status))
+    {
+        VIOSockTxFreeEntry(pTxEntry);
+        VIOSockTxPutCredit(pSocket, uLen);
+        return status;
+    }
+
+    if (uPlaced < uLen)
+    {
+        // zero-copy chunk closed short on SG capacity — return the extra credit
+        VIOSockTxPutCredit(pSocket, uLen - uPlaced);
+    }
+    pTxEntry->PacketHeader.len = uPlaced;
+
+    if (pRequest->ZeroCopy)
+    {
+        // the chunk references the request pages — hold the request until consumed
+        VIOSockTxEntrySetRequest(pTxEntry, Request);
+    }
+
+    pRequest->BytesToWrite -= uPlaced;
+
+    if (!IsLoopbackSocket(pSocket))
+    {
+        // SIOCOUTQ accounting (Linux unsent_bytes parity): the chunk counts
+        // from slicing until the host consumes it. The 0 -> len edge cannot
+        // race the draining side: with nothing in flight there is nobody to
+        // decrement, and this entry becomes consumable only after the insert
+        // below.
+        if (InterlockedExchangeAdd(&pSocket->BytesUnsent, (LONG)pTxEntry->PacketHeader.len) == 0)
         {
-            ASSERT(status == STATUS_CANCELLED);
-            TraceEvents(TRACE_LEVEL_WARNING, DBG_WRITE, "Write request canceled: 0x%x\n", status);
-
-            VIOSockTxPutCredit(pSocket, pTxEntry->len);
-            WdfSpinLockRelease(pContext->TxLock);
-
-            if (pTxEntry->Memory != WDF_NO_HANDLE)
-            {
-                WdfObjectDelete(pTxEntry->Memory);
-            }
-
-            return status; // caller completes failed requests
-        }
-
-        if (pSocket->SendTimeout != LONG_MAX)
-        {
-            pTxEntry->Timeout = WDF_ABS_TIMEOUT_IN_MS(pSocket->SendTimeout);
-            VIOSockTimerStart(&pContext->TxTimer, pTxEntry->Timeout);
+            KeClearEvent(&pSocket->TxIdleEvent);
         }
     }
 
-    if (pTxEntry->reply)
+    if (VIOSockTxInsertEntry(pContext, pTxEntry))
     {
-        pContext->TxQueuedReply++;
+        VIOSockTxVqProcess(pContext);
     }
 
-    InterlockedIncrement(&pContext->TxEnqueued);
-    InsertTailList(&pContext->TxList, &pTxEntry->ListEntry);
-    // pTxEntry->State = VioSockTxEnqueued;
-
-    WdfSpinLockRelease(pContext->TxLock);
-
-    VIOSockTxVqProcess(pContext);
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
+
+    return STATUS_MORE_ENTRIES;
+}
+
+NTSTATUS VIOSockTxEnqueueCommand(IN PSOCKET_CONTEXT pSocket,
+                                 IN VIRTIO_VSOCK_OP Op,
+                                 IN ULONG32 Flags OPTIONAL,
+                                 IN BOOLEAN Reply)
+{
+    PDEVICE_CONTEXT pContext = GetDeviceContextFromSocket(pSocket);
+    PVIOSOCK_TX_ENTRY pTxEntry = NULL;
+    NTSTATUS status;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
+
+    pTxEntry = VIOSockTxAllocateEntry(pContext, pSocket, 0);
+    if (!pTxEntry)
+    {
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    pTxEntry->PacketHeader.op = Op;
+    pTxEntry->Reply = Reply;
+    pTxEntry->PacketHeader.flags = Flags;
+
+    if (VIOSockTxInsertEntry(pContext, pTxEntry))
+    {
+        VIOSockTxVqProcess(pContext);
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
+
+    return STATUS_SUCCESS;
+}
+
+// Park a blocking request back into the WriteQueue to wait for credit.
+// Mirrors VIOSockReadRequeue: an expired deadline refuses the requeue with
+// STATUS_IO_TIMEOUT, otherwise the deadline timer is re-armed.
+_Requires_lock_held_(pSocket->TxLock) static NTSTATUS VIOSockWriteRequeue(IN PSOCKET_CONTEXT pSocket,
+                                                                          IN WDFREQUEST Request)
+{
+    NTSTATUS status;
+    PVIOSOCK_TX_CONTEXT pRequest = GetRequestTxContext(Request);
+
+    if (VIOSockTimerEntryIsExpired(&pRequest->TimerEntry))
+    {
+        return STATUS_IO_TIMEOUT;
+    }
+
+    status = WdfRequestRequeue(Request);
+
+    ASSERT(NT_SUCCESS(status));
+
+    if (NT_SUCCESS(status))
+    {
+        // continue timer
+        if (VIOSockTimerEntryIsSet(&pRequest->TimerEntry))
+        {
+            VIOSockTimerStartDeadline(&pSocket->WriteTimer, NULL, pRequest->TimerEntry.Deadline);
+        }
+    }
 
     return status;
 }
 
-//////////////////////////////////////////////////////////////////////////
-static BOOLEAN VIOSockWriteIsAvailable(PDEVICE_CONTEXT pContext, PSOCKET_CONTEXT pSocket)
+_Requires_lock_not_held_(pSocket->TxLock) static BOOLEAN VIOSockWriteProcessNextRequest(IN PSOCKET_CONTEXT pSocket)
 {
-    if (VIOSockIsNonBlocking(pSocket))
-    {
-        // do not enqueue request for non-blocking socket if queue if full
-        if (pContext->TxEnqueued + pContext->TxPktAllocated >= pContext->TxPktNum)
-        {
-            return FALSE;
-        }
-    }
-    return TRUE;
-}
-
-static VOID VIOSockWrite(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN size_t Length)
-{
-    PDEVICE_CONTEXT pContext = GetDeviceContext(WdfIoQueueGetDevice(Queue));
-    NTSTATUS status;
-    WDF_OBJECT_ATTRIBUTES attributes;
-    PSOCKET_CONTEXT pSocket = GetSocketContextFromRequest(Request);
-    PVIOSOCK_TX_ENTRY pRequest;
+    WDFREQUEST Request;
+    PVIOSOCK_TX_CONTEXT pRequest;
+    NTSTATUS status = STATUS_SUCCESS;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
 
-    if (IsControlRequest(Request))
+    status = WdfIoQueueRetrieveNextRequest(pSocket->WriteQueue, &Request);
+    if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_WARNING, DBG_WRITE, "Invalid socket %d for write\n", pSocket->SocketId);
+        TraceEvents(TRACE_LEVEL_INFORMATION,
+                    DBG_WRITE,
+                    "The write queue is empty, exiting from VIOSockWriteProcessNextRequest\n");
+        return FALSE;
+    }
 
-        WdfRequestComplete(Request, STATUS_NOT_SOCKET);
+    pRequest = GetRequestTxContext(Request);
+
+    // the deadline timer pauses while the request is driver-owned
+    WdfSpinLockAcquire(pSocket->TxLock);
+    if (VIOSockTimerEntryIsSet(&pRequest->TimerEntry))
+    {
+        VIOSockTimerDeref(&pSocket->WriteTimer, TRUE);
+    }
+    WdfSpinLockRelease(pSocket->TxLock);
+
+    do
+    {
+        status = VIOSockWriteEnqueueRequest(pSocket, Request);
+    } while (status == STATUS_MORE_ENTRIES);
+
+    if (status == STATUS_CANT_WAIT)
+    {
+        // Peer credit exhausted, nothing bitten on the last pass.
+        if (VIOSockIsNonBlocking(pSocket))
+        {
+            // FD_WRITE is edge-triggered: drop it and arm the re-record.
+            // The clear must precede the arm so a concurrent Rx re-arm cannot
+            // be wiped; a transient miss leaves SOCK_TX_WAIT armed and
+            // self-heals on the next inbound packet.
+            VIOSockEventClearBitLocked(pSocket, FD_WRITE_BIT);
+            VIOSockSetFlag(pSocket, SOCK_TX_WAIT);
+
+            // CANT_WAIT rides into the completion below: partial progress
+            // completes as success with the byte count, zero progress as
+            // WSAEWOULDBLOCK. Keep draining the queue.
+        }
+        else
+        {
+            WdfSpinLockAcquire(pSocket->TxLock);
+            status = VIOSockWriteRequeue(pSocket, Request);
+            WdfSpinLockRelease(pSocket->TxLock);
+
+            if (NT_SUCCESS(status))
+            {
+                return FALSE;
+            }
+            // expired deadline or a failed requeue: complete below
+        }
+    }
+
+    // Drop the slicer bias; the last reference completes the request.
+    VIOSockTxRequestComplete(Request, status);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
+
+    return TRUE;
+}
+
+static __inline BOOLEAN VIOSockWriteEnqueueAlreadyActive(IN PSOCKET_CONTEXT pSocket)
+{
+    return InterlockedIncrement(&pSocket->WriteEnqueueInProgress) != 1;
+}
+
+static __inline VOID VIOSockWriteEnqueueReset(IN PSOCKET_CONTEXT pSocket)
+{
+    InterlockedExchange(&pSocket->WriteEnqueueInProgress, 1);
+}
+
+static __inline BOOLEAN VIOSockWriteEnqueueWorkArrived(IN PSOCKET_CONTEXT pSocket)
+{
+    return (BOOLEAN)(InterlockedCompareExchange(&pSocket->WriteEnqueueInProgress, 0, 1) != 1);
+}
+
+_Requires_lock_not_held_(pSocket->TxLock) VOID VIOSockWriteProcessQueue(IN PSOCKET_CONTEXT pSocket)
+{
+    BOOLEAN bRestart;
+
+    // Single-instance enqueue worker: the 0->1 bump elects the owner, any
+    // later caller only bumps the counter and returns, so triggers never
+    // recurse or run concurrently. The owner re-arms at the top of each pass
+    // and stops only when the queue is drained AND no bump arrived meanwhile.
+    if (VIOSockWriteEnqueueAlreadyActive(pSocket))
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE, "Write enqueue worker already running, bump and return\n");
         return;
     }
 
-    if (Length > VIRTIO_VSOCK_MAX_PKT_BUF_SIZE)
+    do
     {
-        Length = VIRTIO_VSOCK_MAX_PKT_BUF_SIZE;
+        VIOSockWriteEnqueueReset(pSocket);
+        bRestart = VIOSockWriteProcessNextRequest(pSocket);
+    } while (bRestart || VIOSockWriteEnqueueWorkArrived(pSocket));
+}
+
+//////////////////////////////////////////////////////////////////////////
+// Park a data-carrying send request (IRP_MJ_WRITE, IOCTL_SOCKET_SEND[_EX]) in
+// the per-socket write queue, where it stays framework-owned (cancellable)
+// until the slicer pump retrieves it.
+_Requires_lock_not_held_(pSocket->TxLock) static NTSTATUS VIOSockWriteForward(IN PSOCKET_CONTEXT pSocket,
+                                                                              IN WDFREQUEST Request,
+                                                                              IN ULONG Flags)
+{
+    PVIOSOCK_SG_CTX pSgCtx;
+    PVIOSOCK_TX_CONTEXT pRequest;
+    WDF_OBJECT_ATTRIBUTES attributes;
+    WDF_REQUEST_PARAMETERS Parameters;
+    NTSTATUS status;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
+
+    if (VIOSockIsFlag(pSocket, SOCK_CONTROL))
+    {
+        TraceEvents(TRACE_LEVEL_WARNING, DBG_WRITE, "Invalid socket %d for write\n", pSocket->SocketId);
+        return STATUS_NOT_SOCKET;
     }
 
-    WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, VIOSOCK_TX_ENTRY);
+    if (Flags & MSG_ZEROCOPY)
+    {
+        // Refuse zero-copy on a non-blocking socket rather than silently
+        // degrade to a copy: the completion inherently waits for host
+        // consumption and the flag is an explicit no-copy contract.
+        // Deliberately stricter than Linux (there it is a best-effort hint).
+        if (VIOSockIsNonBlocking(pSocket))
+        {
+            TraceEvents(TRACE_LEVEL_WARNING,
+                        DBG_WRITE,
+                        "Zero-copy send on non-blocking socket %d refused",
+                        pSocket->SocketId);
+            return STATUS_CANT_WAIT;
+        }
+    }
+
+    WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, VIOSOCK_TX_CONTEXT);
     status = WdfObjectAllocateContext(Request, &attributes, &pRequest);
     if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "WdfObjectAllocateContext failed: 0x%x\n", status);
+        return status;
+    }
 
-        WdfRequestComplete(Request, status);
-        return;
+    pRequest->ZeroCopy = FALSE;
+    pSgCtx = GetRequestSgContext(Request);
+    if (pSgCtx)
+    {
+        // Loopback silently degrades to the copy path — delivery there is a
+        // synchronous copy anyway, pinning pages would buy nothing.
+        pRequest->ZeroCopy = (Flags & MSG_ZEROCOPY) && !IsLoopbackSocket(pSocket);
+
+        if (!pRequest->ZeroCopy)
+        {
+            // only the copying path needs a system mapping
+            pRequest->ToWritePtr = VIOSockSgMapMdl(pSgCtx->MdlChain);
+            if (!pRequest->ToWritePtr)
+            {
+                TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "Failed to map the first Mdl\n");
+                return STATUS_INSUFFICIENT_RESOURCES;
+            }
+        }
+        pRequest->CurrentMdl = pSgCtx->MdlChain;
+        pRequest->MdlBytesToWrite = MmGetMdlByteCount(pSgCtx->MdlChain);
+        pRequest->BufferLen = pRequest->BytesToWrite = pSgCtx->TotalLen;
     }
     else
     {
-        pRequest->len = (ULONG32)Length;
+        SIZE_T Length;
+
+        status = WdfRequestRetrieveInputBuffer(Request, 0, &pRequest->ToWritePtr, &Length);
+        if (!NT_SUCCESS(status))
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "WdfRequestRetrieveInputBuffer failed: 0x%x\n", status);
+            return status;
+        }
+
+        // CurrentMdl/MdlBytesToWrite stay zero (WDF zero-inits the context)
+        pRequest->BufferLen = pRequest->BytesToWrite = (ULONG)Length;
     }
 
-    if (IsLoopbackSocket(pSocket) || VIOSockWriteIsAvailable(pContext, pSocket))
+    // the slicer bias — see VIOSOCK_TX_CONTEXT.RefCounter
+    pRequest->RefCounter = 1;
+    VIOSockTimerEntryInit(&pRequest->TimerEntry);
+
+    if (!VIOSockIsNonBlocking(pSocket) && pSocket->SendTimeout != MAXLONGLONG)
     {
-        status = VIOSockSendWrite(pSocket, Request);
+        pRequest->Counter = 0;
+
+        WdfSpinLockAcquire(pSocket->TxLock);
+        VIOSockTimerStartTimeout(&pSocket->WriteTimer, &pRequest->TimerEntry, pSocket->SendTimeout);
+        WdfSpinLockRelease(pSocket->TxLock);
+    }
+
+    status = WdfRequestForwardToIoQueue(Request, pSocket->WriteQueue);
+    if (NT_SUCCESS(status))
+    {
+        // No ready-notify callback (recursion — see VIOSockReadForward): kick
+        // the pump after every forward, a running pump is only bumped.
+        VIOSockWriteProcessQueue(pSocket);
     }
     else
     {
-        status = STATUS_CANT_WAIT;
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "WdfRequestForwardToIoQueue failed: 0x%x\n", status);
+        if (VIOSockTimerEntryIsSet(&pRequest->TimerEntry))
+        {
+            WdfSpinLockAcquire(pSocket->TxLock);
+            VIOSockTimerDeref(&pSocket->WriteTimer, TRUE);
+            WdfSpinLockRelease(pSocket->TxLock);
+        }
     }
 
+    return status;
+}
+
+static VOID VIOSockWrite(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN size_t Length)
+{
+    NTSTATUS status;
+
+    UNREFERENCED_PARAMETER(Queue);
+    UNREFERENCED_PARAMETER(Length);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
+
+    status = VIOSockWriteForward(GetSocketContextFromRequest(Request), Request, 0);
     if (!NT_SUCCESS(status))
     {
-        TraceEvents(TRACE_LEVEL_ERROR,
-                    DBG_WRITE,
-                    "VIOSockSendWrite failed for socket %d: 0x%x\n",
-                    pSocket->SocketId,
-                    status);
         WdfRequestComplete(Request, status);
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
+}
+
+// IOCTL_SOCKET_SEND handler: the buffered small-send path, the input buffer
+// is the bare payload.
+NTSTATUS
+VIOSockSendBuffered(IN WDFREQUEST Request)
+{
+    NTSTATUS status;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
+
+    status = VIOSockWriteForward(GetSocketContextFromRequest(Request), Request, 0);
+    if (NT_SUCCESS(status))
+    {
+        status = STATUS_PENDING;
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s, status: 0x%08x\n", __FUNCTION__, status);
+    return status;
+}
+
+// IOCTL_SOCKET_SEND_EX handler: the scatter-gather send path — the WSABUF
+// chain was captured and locked in caller context (VIOSockSgPrepare).
+NTSTATUS
+VIOSockSendEx(IN WDFREQUEST Request)
+{
+    PSOCKET_CONTEXT pSocket = GetSocketContextFromRequest(Request);
+    PVIOSOCK_SG_CTX pSgCtx = GetRequestSgContext(Request);
+    PVIRTIO_VSOCK_SEND_RECV_PARAMS pParams;
+    NTSTATUS status;
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
+
+    // No SG context means the IOCTL somehow bypassed EvtIoInCallerContext.
+    if (!pSgCtx)
+    {
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    status = WdfRequestRetrieveInputBuffer(Request, sizeof(*pParams), &pParams, NULL);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "WdfRequestRetrieveInputBuffer failed: 0x%x\n", status);
+        return status;
+    }
+
+    status = VIOSockWriteForward(pSocket, Request, pParams->dwFlags);
+    if (NT_SUCCESS(status))
+    {
+        status = STATUS_PENDING;
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s, status: 0x%08x\n", __FUNCTION__, status);
+    return status;
+}
+
+VOID VIOSockWriteIoCanceledOnQueue(IN WDFQUEUE Queue, IN WDFREQUEST Request)
+{
+    PSOCKET_CONTEXT pSocket = GetSocketContextFromRequest(Request);
+    PVIOSOCK_TX_CONTEXT pRequest = GetRequestTxContext(Request);
+
+    UNREFERENCED_PARAMETER(Queue);
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE, "Write request canceled on queue\n");
+
+    // A parked request always holds its deadline-timer reference — stop it
+    // before the deref (the deref may clobber the union arm on completion).
+    WdfSpinLockAcquire(pSocket->TxLock);
+    if (VIOSockTimerEntryIsSet(&pRequest->TimerEntry))
+    {
+        VIOSockTimerDeref(&pSocket->WriteTimer, TRUE);
+    }
+    WdfSpinLockRelease(pSocket->TxLock);
+
+    // Drop the slicer bias: untouched completes as CANCELLED, partially
+    // sliced as success with the committed bytes (possibly later, when the
+    // in-flight zero-copy chunks drain). No further slicing either way.
+    VIOSockTxRequestComplete(Request, STATUS_CANCELLED);
+}
+
+NTSTATUS
+VIOSockWriteSocketQueueInit(IN PSOCKET_CONTEXT pSocket)
+{
+    WDFDEVICE hDevice = WdfFileObjectGetDevice(pSocket->ThisSocket);
+    WDF_OBJECT_ATTRIBUTES queueAttributes;
+    WDF_IO_QUEUE_CONFIG queueConfig;
+    NTSTATUS status;
+
+    PAGED_CODE();
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
+
+    WDF_IO_QUEUE_CONFIG_INIT(&queueConfig, WdfIoQueueDispatchManual);
+
+    queueConfig.EvtIoCanceledOnQueue = VIOSockWriteIoCanceledOnQueue;
+    queueConfig.AllowZeroLengthRequests = WdfFalse;
+
+    // Power-managed like the per-socket read queue: a send waiting for credit
+    // parks here framework-owned. The pump never holds a request driver-owned
+    // for an indeterminate time, so EvtIoStop can be omitted (the assume
+    // below suppresses the false-positive SDV warning).
+    queueConfig.PowerManaged = WdfTrue;
+
+    WDF_OBJECT_ATTRIBUTES_INIT(&queueAttributes);
+    queueAttributes.ParentObject = pSocket->ThisSocket;
+
+    __analysis_assume(queueConfig.EvtIoStop != 0);
+    status = WdfIoQueueCreate(hDevice, &queueConfig, &queueAttributes, &pSocket->WriteQueue);
+    __analysis_assume(queueConfig.EvtIoStop == 0);
+
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "WdfIoQueueCreate failed (Socket Write Queue): 0x%x\n", status);
+        return status;
+    }
+
+    status = VIOSockTimerCreate(&pSocket->WriteTimer, pSocket->ThisSocket, VIOSockWriteTimerFunc);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "VIOSockTimerCreate failed (Socket Write Queue): 0x%x\n", status);
+        return status;
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
+    return status;
 }
 
 NTSTATUS
@@ -902,6 +1446,32 @@ VIOSockWriteQueueInit(IN WDFDEVICE hDevice)
         return status;
     }
 
+    status = WdfLookasideListCreate(&memAttributes,
+                                    VIRTIO_VSOCK_MAX_PKT_BUF_SIZE,
+                                    NonPagedPoolNx,
+                                    &memAttributes,
+                                    VIOSOCK_DRIVER_MEMORY_TAG,
+                                    &pContext->TxBufferMemoryList);
+
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "WdfLookasideListCreate(skb) failed: 0x%x\n", status);
+        return status;
+    }
+
+    status = WdfLookasideListCreate(&memAttributes,
+                                    VIOSOCK_TX_SMALL_BUFFER_SIZE,
+                                    NonPagedPoolNx,
+                                    &memAttributes,
+                                    VIOSOCK_DRIVER_MEMORY_TAG,
+                                    &pContext->TxSmallBufferMemoryList);
+
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "WdfLookasideListCreate(small skb) failed: 0x%x\n", status);
+        return status;
+    }
+
     InitializeListHead(&pContext->TxList);
 
     WDF_IO_QUEUE_CONFIG_INIT(&queueConfig, WdfIoQueueDispatchParallel);
@@ -938,13 +1508,6 @@ VIOSockWriteQueueInit(IN WDFDEVICE hDevice)
         return status;
     }
 
-    VIOSockTimerCreate(&pContext->TxTimer, pContext->ThisDevice, VIOSockTxTimerFunc);
-    if (!NT_SUCCESS(status))
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "VIOSockTimerCreate failed (Write Queue): 0x%x\n", status);
-        return status;
-    }
-
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
 
     return STATUS_SUCCESS;
@@ -968,8 +1531,6 @@ _Requires_lock_not_held_(pContext->TxLock) NTSTATUS VIOSockSendResetNoSock(IN PD
                                                                            IN PVIRTIO_VSOCK_HDR pHeader)
 {
     PVIOSOCK_TX_ENTRY pTxEntry;
-    NTSTATUS status;
-    WDFMEMORY Memory;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
 
@@ -979,126 +1540,140 @@ _Requires_lock_not_held_(pContext->TxLock) NTSTATUS VIOSockSendResetNoSock(IN PD
         return STATUS_SUCCESS;
     }
 
-    status = WdfMemoryCreateFromLookaside(pContext->TxMemoryList, &Memory);
-    if (!NT_SUCCESS(status))
+    pTxEntry = VIOSockTxAllocateEntry(pContext, NULL, 0);
+    if (!pTxEntry)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "WdfMemoryCreateFromLookaside failed: 0x%x\n", status);
-        return status;
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "VIOSockTxAllocateEntry failed\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    pTxEntry = WdfMemoryGetBuffer(Memory, NULL);
-    pTxEntry->Memory = Memory;
-    pTxEntry->Request = WDF_NO_HANDLE;
-    pTxEntry->len = 0;
+    pTxEntry->PacketHeader.src_port = pHeader->dst_port;
+    pTxEntry->PacketHeader.dst_cid = pHeader->src_cid;
+    pTxEntry->PacketHeader.dst_port = pHeader->src_port;
+    pTxEntry->PacketHeader.type = pHeader->type;
 
-    pTxEntry->src_port = pHeader->dst_port;
-    pTxEntry->dst_cid = pHeader->src_cid;
-    pTxEntry->dst_port = pHeader->src_port;
-    pTxEntry->type = pHeader->type;
+    pTxEntry->PacketHeader.op = VIRTIO_VSOCK_OP_RST;
+    pTxEntry->Reply = FALSE;
+    pTxEntry->PacketHeader.flags = 0;
 
-    pTxEntry->Socket = WDF_NO_HANDLE;
-    pTxEntry->op = VIRTIO_VSOCK_OP_RST;
-    pTxEntry->reply = FALSE;
-    pTxEntry->flags = 0;
-
-    WdfSpinLockAcquire(pContext->TxLock);
-    InsertTailList(&pContext->TxList, &pTxEntry->ListEntry);
-    WdfSpinLockRelease(pContext->TxLock);
-
-    VIOSockTxVqProcess(pContext);
+    if (VIOSockTxInsertEntry(pContext, pTxEntry))
+    {
+        VIOSockTxVqProcess(pContext);
+    }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
-    return status;
+    return STATUS_SUCCESS;
 }
 
 //////////////////////////////////////////////////////////////////////////
-VOID VIOSockTxTimerFunc(WDFTIMER Timer)
+// SO_SNDTIMEO scan over the parked write requests — the write-side twin of
+// VIOSockReadTimerFunc: take ownership of the expired ones, dispose outside
+// the lock. Disposal is a deref, not a completion: only an untouched request
+// gets STATUS_IO_TIMEOUT, partial progress finishes as success.
+VOID VIOSockWriteTimerFunc(WDFTIMER Timer)
 {
-    PDEVICE_CONTEXT pContext = GetDeviceContext(WdfTimerGetParentObject(Timer));
-    PLIST_ENTRY CurrentEntry;
-    LONGLONG Timeout = LONGLONG_MAX;
+    static LONG lCounter;
+    PSOCKET_CONTEXT pSocket = GetSocketContext(WdfTimerGetParentObject(Timer));
+    LONGLONG MinRemainingTicks = MAXLONGLONG;
+    WDFREQUEST PrevTagRequest = WDF_NO_HANDLE, TagRequest = WDF_NO_HANDLE, Request;
+    NTSTATUS status;
     LIST_ENTRY CompletionList;
-    BOOLEAN SetTimer = FALSE, bAlwaysTrue = TRUE;
+    PVIOSOCK_TX_CONTEXT pRequest;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
 
+    InterlockedIncrement(&lCounter);
     InitializeListHead(&CompletionList);
 
-    WdfSpinLockAcquire(pContext->TxLock);
-
-    for (CurrentEntry = pContext->TxList.Flink; CurrentEntry != &pContext->TxList; CurrentEntry = CurrentEntry->Flink)
+    do
     {
-        PVIOSOCK_TX_ENTRY pTxEntry = CONTAINING_RECORD(CurrentEntry, VIOSOCK_TX_ENTRY, ListEntry);
+        status = WdfIoQueueFindRequest(pSocket->WriteQueue, PrevTagRequest, WDF_NO_HANDLE, NULL, &TagRequest);
 
-        if (pTxEntry->Timeout)
+        if (PrevTagRequest != WDF_NO_HANDLE)
         {
-            if (pTxEntry->Timeout <= pContext->TxTimer.Timeout + VIOSOCK_TIMER_TOLERANCE)
-            {
-                CurrentEntry = CurrentEntry->Blink;
-                RemoveEntryList(&pTxEntry->ListEntry);
-                InterlockedDecrement(&pContext->TxEnqueued);
-                // pTxEntry->State = VioSockTxTimeout;
+            WdfObjectDereference(PrevTagRequest);
+        }
 
-                ASSERT(pTxEntry->Request);
-                if (pTxEntry->Request)
+        if (NT_SUCCESS(status))
+        {
+            pRequest = GetRequestTxContext(TagRequest);
+
+            WdfSpinLockAcquire(pSocket->TxLock);
+
+            if (VIOSockTimerEntryIsSet(&pRequest->TimerEntry) && pRequest->Counter < lCounter)
+            {
+                LONGLONG llRemainingTicks = VIOSockTimerEntryRemainingTicks(&pRequest->TimerEntry);
+                if (llRemainingTicks <= VIOSOCK_TIMER_TOLERANCE_TICKS)
                 {
-                    NTSTATUS status = WdfRequestUnmarkCancelable(pTxEntry->Request);
-                    if (NT_SUCCESS(status))
+                    status = WdfIoQueueRetrieveFoundRequest(pSocket->WriteQueue, TagRequest, &Request);
+
+                    WdfObjectDereference(TagRequest);
+
+                    if (status == STATUS_NOT_FOUND)
                     {
-                        InsertTailList(&CompletionList, &pTxEntry->ListEntry);
-                        VIOSockTimerDeref(&pContext->TxTimer, FALSE);
+                        TagRequest = PrevTagRequest = WDF_NO_HANDLE;
+                        status = STATUS_SUCCESS;
+                    }
+                    else if (!NT_SUCCESS(status))
+                    {
+                        TraceEvents(TRACE_LEVEL_ERROR,
+                                    DBG_WRITE,
+                                    "WdfIoQueueRetrieveFoundRequest failed: 0x%08x\n",
+                                    status);
+                        WdfSpinLockRelease(pSocket->TxLock);
+                        break;
                     }
                     else
                     {
-                        ASSERT(status == STATUS_CANCELLED);
-                        TraceEvents(TRACE_LEVEL_WARNING, DBG_WRITE, "Write request canceled\n");
-                        InitializeListHead(&pTxEntry->ListEntry); // cancellation routine removes element from the list
+                        TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "Dispose expired queued Tx request %p\n", Request);
+
+                        VIOSockTimerDeref(&pSocket->WriteTimer, FALSE);
+                        InsertTailList(&CompletionList, &pRequest->ListEntry);
+                        pRequest->ThisRequest = Request;
                     }
                 }
                 else
                 {
-                    ASSERT(pTxEntry->Memory);
-                    WdfObjectDelete(pTxEntry->Memory);
-                    VIOSockTimerDeref(&pContext->TxTimer, FALSE);
+                    if (llRemainingTicks < MinRemainingTicks)
+                    {
+                        MinRemainingTicks = llRemainingTicks;
+                    }
+
+                    pRequest->Counter = lCounter;
+                    PrevTagRequest = TagRequest;
                 }
             }
-            else
-            {
-                SetTimer = TRUE;
 
-                pTxEntry->Timeout -= pContext->TxTimer.Timeout;
-
-                if (pTxEntry->Timeout < Timeout)
-                {
-                    Timeout = pTxEntry->Timeout;
-                }
-            }
+            WdfSpinLockRelease(pSocket->TxLock);
         }
-    }
-
-    if (SetTimer)
-    {
-        VIOSockTimerSet(&pContext->TxTimer, Timeout);
-    }
-
-    WdfSpinLockRelease(pContext->TxLock);
-
-    // Static Driver Verifier(SDV) tracks only one request, and when SDV unwinds the loop,
-    // it treats completion of the second request as another completion of the first request.
-    // The 'assume' below causes SDV to skip loop analysis.
-    __analysis_assume(bAlwaysTrue == FALSE);
-
-    if (bAlwaysTrue)
-    {
-        while (!IsListEmpty(&CompletionList))
+        else if (status == STATUS_NO_MORE_ENTRIES)
         {
-            PVIOSOCK_TX_ENTRY pTxEntry = CONTAINING_RECORD(RemoveHeadList(&CompletionList),
-                                                           VIOSOCK_TX_ENTRY,
-                                                           ListEntry);
-
-            WdfRequestComplete(pTxEntry->Request, STATUS_IO_TIMEOUT);
+            break;
         }
+        else if (status == STATUS_NOT_FOUND)
+        {
+            TagRequest = PrevTagRequest = WDF_NO_HANDLE;
+            status = STATUS_SUCCESS;
+        }
+    } while (NT_SUCCESS(status));
+
+    if (MinRemainingTicks != MAXLONGLONG)
+    {
+        WdfSpinLockAcquire(pSocket->TxLock);
+        VIOSockTimerSetDeadline(&pSocket->WriteTimer, VIOSockTimerTicksToDeadline(MinRemainingTicks));
+        WdfSpinLockRelease(pSocket->TxLock);
     }
 
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
+    while (!IsListEmpty(&CompletionList))
+    {
+        pRequest = CONTAINING_RECORD(RemoveHeadList(&CompletionList), VIOSOCK_TX_CONTEXT, ListEntry);
+        VIOSockTxRequestComplete(pRequest->ThisRequest, STATUS_IO_TIMEOUT);
+    }
+
+    TraceEvents(TRACE_LEVEL_VERBOSE,
+                DBG_WRITE,
+                "<-- %s, status: 0x%08x, counter: %u\n",
+                __FUNCTION__,
+                status,
+                lCounter);
 }
