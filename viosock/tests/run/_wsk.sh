@@ -49,10 +49,16 @@ wsk_wait_done() {
 
 # wsk_results — stdout: "ok failed bytes elapsed_us mbit stalls connections status"
 #   (decimal; status = the first failed thread's NTSTATUS in hex, 0x0 if none).
+#   POSIX awk: no strtonum, and %.0f because %d may be 32-bit.
 wsk_results() {
     _guest_ssh_bounded "$WSK_SSH_TIMEOUT" "reg query $WSK_KEY\\Results" 2>/dev/null | tr -d '\r' | awk '
-        $2 ~ /^REG_(DWORD|QWORD)$/ { v[$1] = strtonum($3) }
-        END { printf "%d %d %d %d %d %d %d 0x%x\n", v["Ok"], v["Failed"], v["Bytes"], v["ElapsedUs"], v["MbitPerSec"], v["Stalls"], v["Connections"], v["Status"] }'
+        function hex(s,   i, n) {
+            s = tolower(s); sub(/^0x/, "", s); n = 0
+            for (i = 1; i <= length(s); i++) n = n * 16 + index("0123456789abcdef", substr(s, i, 1)) - 1
+            return n
+        }
+        $2 ~ /^REG_(DWORD|QWORD)$/ { v[$1] = hex($3); if ($1 == "Status") st = $3 }
+        END { printf "%.0f %.0f %.0f %.0f %.0f %.0f %.0f %s\n", v["Ok"], v["Failed"], v["Bytes"], v["ElapsedUs"], v["MbitPerSec"], v["Stalls"], v["Connections"], (st == "" ? "0x0" : st) }'
 }
 
 # wsk_stop [<max_secs>] — sc stop, then wait for STOPPED (the unload joins
