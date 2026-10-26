@@ -140,9 +140,11 @@ guest_load() {
 }
 
 # _guest_ssh <cmd...>       — shorthand for ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" "$@"
-# For invocations that need `timeout`/other wrappers, expand the arrays
-# directly:  timeout N ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" cmd
+# _guest_ssh_bounded <secs> <cmd...> — the same under `timeout`, for polls and
+#   cleanup that must not hang on an unresponsive guest.
+# For other wrappers, expand the arrays directly.
 _guest_ssh()      { ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" "$@"; }
+_guest_ssh_bounded() { local t="$1"; shift; timeout "$t" ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" "$@"; }
 _guest_scp_to()   { scp "${_guest_scp_opts[@]}" "$1" "$_guest_ssh_host:$2"; }
 _guest_scp_from() { scp "${_guest_scp_opts[@]}" "$_guest_ssh_host:$1" "$2"; }
 
