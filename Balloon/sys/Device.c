@@ -645,8 +645,9 @@ VOID BalloonEvtFileClose(IN WDFFILEOBJECT FileObject)
         RtlFillMemory(devCtx->MemStats, sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR, -1);
     }
 
-    if (devCtx->StatVirtQueue && devCtx->MemStats)
+    if (devCtx->StatVirtQueue && devCtx->MemStats && devCtx->HandleWriteRequest)
     {
+        devCtx->HandleWriteRequest = FALSE;
         BalloonMemStats(Device);
     }
 
