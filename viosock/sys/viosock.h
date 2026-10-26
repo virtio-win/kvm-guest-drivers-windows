@@ -686,21 +686,25 @@ VIOSockTxEnqueueCommand(IN PSOCKET_CONTEXT pSocket, IN VIRTIO_VSOCK_OP Op, IN UL
 _Requires_lock_not_held_(pContext->TxLock) NTSTATUS VIOSockSendResetNoSock(IN PDEVICE_CONTEXT pContext,
                                                                            IN PVIRTIO_VSOCK_HDR pHeader);
 
+// TX window capped at min(peer rx buffer, our own buffer), like Linux tx_buf_size.
+// Lockless: a snapshot unless the caller holds StateLock.
+__inline LONG VIOSockTxHasSpace(IN PSOCKET_CONTEXT pSocket)
+{
+    ULONG32 uTxBuf = (pSocket->peer_buf_alloc < pSocket->buf_alloc) ? pSocket->peer_buf_alloc : pSocket->buf_alloc;
+    // signed: the peer may shrink buf_alloc while bytes are in flight
+    LONG lBytes = (LONG)uTxBuf - (LONG)(pSocket->tx_cnt - pSocket->peer_fwd_cnt);
+    return (lBytes > 0) ? lBytes : 0;
+}
+
 _Requires_lock_not_held_(pSocket->StateLock) __inline ULONG32 VIOSockTxGetCredit(IN PSOCKET_CONTEXT pSocket,
                                                                                  IN ULONG32 uCredit
 
 )
 {
-    ULONG32 uRet, uTxBuf;
-    LONG lAvail;
+    ULONG32 uRet;
 
     WdfSpinLockAcquire(pSocket->StateLock);
-    // Cap the TX window at min(peer rx buffer, our own buffer config) —
-    // mirrors Linux tx_buf_size. Signed arithmetic guards against underflow
-    // when the peer shrinks buf_alloc while bytes are in flight.
-    uTxBuf = (pSocket->peer_buf_alloc < pSocket->buf_alloc) ? pSocket->peer_buf_alloc : pSocket->buf_alloc;
-    lAvail = (LONG)uTxBuf - (LONG)(pSocket->tx_cnt - pSocket->peer_fwd_cnt);
-    uRet = (lAvail > 0) ? (ULONG32)lAvail : 0;
+    uRet = (ULONG32)VIOSockTxHasSpace(pSocket);
     if (uRet > uCredit)
     {
         uRet = uCredit;
@@ -719,18 +723,6 @@ _Requires_lock_not_held_(pSocket->StateLock) __inline VOID VIOSockTxPutCredit(IN
     WdfSpinLockAcquire(pSocket->StateLock);
     pSocket->tx_cnt -= uCredit;
     WdfSpinLockRelease(pSocket->StateLock);
-}
-
-_Requires_lock_held_(pSocket->StateLock) __inline LONG VIOSockTxHasSpace(IN PSOCKET_CONTEXT pSocket)
-{
-    // TX window capped at min(peer rx buffer, our own buffer) — see VIOSockTxGetCredit.
-    ULONG32 uTxBuf = (pSocket->peer_buf_alloc < pSocket->buf_alloc) ? pSocket->peer_buf_alloc : pSocket->buf_alloc;
-    LONG lBytes = (LONG)uTxBuf - (LONG)(pSocket->tx_cnt - pSocket->peer_fwd_cnt);
-    if (lBytes < 0)
-    {
-        lBytes = 0;
-    }
-    return lBytes;
 }
 
 _Requires_lock_not_held_(pSocket->StateLock) __inline LONG VIOSockTxSpaceUpdate(IN PSOCKET_CONTEXT pSocket,

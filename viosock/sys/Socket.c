@@ -1790,7 +1790,12 @@ VIOSockGetEventFromHandle(IN ULONGLONG uEvent, IN BOOLEAN bIs32BitProcess, IN KP
         hEvent = (HANDLE)uEvent;
     }
 
-    status = ObReferenceObjectByHandle(hEvent, 0, *ExEventObjectType, AccessMode, (PVOID)&pEvent, NULL);
+    status = ObReferenceObjectByHandle(hEvent,
+                                       EVENT_MODIFY_STATE,
+                                       *ExEventObjectType,
+                                       AccessMode,
+                                       (PVOID)&pEvent,
+                                       NULL);
 
     if (!NT_SUCCESS(status))
     {
