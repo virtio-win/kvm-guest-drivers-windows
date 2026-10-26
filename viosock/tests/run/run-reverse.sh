@@ -60,9 +60,8 @@ case "$BITS" in
     *) die "--bits must be x64 or x86, got: $BITS" ;;
 esac
 
-case "$PER_TEST_TIMEOUT" in
-    ''|*[!0-9]*|0) die "--timeout must be a positive integer (seconds); got '$PER_TEST_TIMEOUT' (0 would disable the per-test limit)" ;;
-esac
+[[ "$PER_TEST_TIMEOUT" =~ ^[1-9][0-9]*$ ]] ||
+    die "--timeout must be a positive integer (seconds); got '$PER_TEST_TIMEOUT' (0 would disable the per-test limit)"
 
 CFG=$(discover_config "$CFG") || exit $?
 guest_load "$CFG"
