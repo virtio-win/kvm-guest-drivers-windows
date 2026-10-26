@@ -57,6 +57,7 @@ VioGpuDod::VioGpuDod(_In_ DEVICE_OBJECT *pPhysicalDeviceObject)
     RtlZeroMemory(&m_PointerShape, sizeof(m_PointerShape));
     m_PersistentDispMode0Width = 0;
     m_PersistentDispMode0Height = 0;
+    m_MinFrameBufferSizeMB = 0;
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
@@ -2244,6 +2245,9 @@ NTSTATUS VioGpuDod::GetRegisterInfo(void)
     NTSTATUS Status = STATUS_SUCCESS;
     NTSTATUS StatusOptional = STATUS_SUCCESS;
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
+    // Read again at every start: a value removed since the last one, or a key that can't be
+    // opened, leaves the default.
+    SetMinFrameBufferSizeMB(0);
     HANDLE DevInstRegKeyHandle;
     Status = IoOpenDeviceRegistryKey(m_pPhysicalDevice, PLUGPLAY_REGKEY_DRIVER, KEY_READ, &DevInstRegKeyHandle);
     if (!NT_SUCCESS(Status))
@@ -2294,6 +2298,15 @@ NTSTATUS VioGpuDod::GetRegisterInfo(void)
     if (NT_SUCCESS(StatusOptional))
     {
         SetPersistentDispMode0Height((USHORT)value);
+    }
+
+    // The frame buffer is allocated once, at start, for the largest mode then; a larger one set later
+    // is refused until the next boot. This makes room for larger modes from the start.
+    value = 0;
+    StatusOptional = ReadRegistryDWORD(DevInstRegKeyHandle, L"MinFrameBufferSizeMB", &value);
+    if (NT_SUCCESS(StatusOptional))
+    {
+        SetMinFrameBufferSizeMB(value);
     }
 
     ZwClose(DevInstRegKeyHandle);
@@ -2687,7 +2700,13 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
     PHYSICAL_ADDRESS fb_pa = m_PciResources.GetPciBar(0)->GetPA();
     UINT fb_size = (UINT)m_PciResources.GetPciBar(0)->GetSize();
     UINT req_size = pDispInfo->Pitch * pDispInfo->Height;
-    req_size = max(req_size, 0x1000000);
+    UINT min_size = 0x1000000;
+    ULONG min_size_mb = m_pVioGpuDod->GetMinFrameBufferSizeMB();
+    if (min_size_mb > 16)
+    {
+        min_size = min(min_size_mb, 512UL) * 1024 * 1024;
+    }
+    req_size = max(req_size, min_size);
 
     UINT max_res_size = MIN_WIDTH_SIZE * MIN_HEIGHT_SIZE;
     for (UINT idx = 0; idx < m_ModeCount; idx++)

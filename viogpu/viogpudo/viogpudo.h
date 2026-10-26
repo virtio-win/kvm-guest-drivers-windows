@@ -246,6 +246,7 @@ class VioGpuDod
 
     USHORT m_PersistentDispMode0Width;
     USHORT m_PersistentDispMode0Height;
+    ULONG m_MinFrameBufferSizeMB;
 
   public:
     VioGpuDod(_In_ DEVICE_OBJECT *pPhysicalDeviceObject);
@@ -323,6 +324,15 @@ class VioGpuDod
     BOOLEAN IsPersistentDispMode0Set()
     {
         return (m_PersistentDispMode0Width > 0) && (m_PersistentDispMode0Height > 0);
+    }
+    // The least frame buffer memory, in MiB, from the optional MinFrameBufferSizeMB value (16 to 512).
+    void SetMinFrameBufferSizeMB(ULONG size)
+    {
+        m_MinFrameBufferSizeMB = size;
+    }
+    ULONG GetMinFrameBufferSizeMB() const
+    {
+        return m_MinFrameBufferSizeMB;
     }
 #pragma code_seg(pop)
 
