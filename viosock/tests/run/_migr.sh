@@ -64,7 +64,7 @@ migr_wait_guest() {
     local i
     guest_up=0
     for i in $(seq 1 "${1:-60}"); do
-        if _guest_ssh 'echo up' >/dev/null 2>&1; then guest_up=1; return 0; fi
+        if _guest_ssh_bounded 15 'echo up' >/dev/null 2>&1; then guest_up=1; return 0; fi
         sleep 2
     done
     return 1
@@ -74,7 +74,7 @@ migr_wait_guest() {
 #   Bounded: after a restore an ssh session has been seen to stay open on a live
 #   TCP connection after its command had finished, which hung the run.
 migr_driver_state() {
-    srv_state=$(timeout 60 ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" 'sc query VirtioSocket' 2>/dev/null \
+    srv_state=$(_guest_ssh_bounded 60 'sc query VirtioSocket' 2>/dev/null \
         | tr -d '\r' | awk -F: '/STATE/ {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2; exit}')
     [ -n "$srv_state" ] || srv_state='<unknown>'
     driver_ok=0; case "$srv_state" in *RUNNING*|*[[:space:]]4*|4*) driver_ok=1 ;; esac
