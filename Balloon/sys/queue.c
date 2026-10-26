@@ -50,6 +50,7 @@ VOID BalloonIoWrite(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN size_t Length)
                 Length);
 
     devCtx = GetDeviceContext(WdfIoQueueGetDevice(Queue));
+    devCtx->ServiceConnected = TRUE;
 
     if (Length < sizeof(BALLOON_STAT))
     {
