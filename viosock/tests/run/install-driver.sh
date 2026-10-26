@@ -135,19 +135,23 @@ printf '%s\n' "$pnputil_out"
 if printf '%s' "$pnputil_out" | grep -q 'Failed to add driver package'; then
     die "pnputil could not add the driver package (see above)"
 fi
-if [ "$pnputil_rc" -ne 0 ]; then
-    if printf '%s' "$pnputil_out" | grep -q 'reboot is needed'; then
-        # exit 3010, ERROR_SUCCESS_REBOOT_REQUIRED (seen as 194 once ssh has cut it to 8 bits): the
-        # package is in the DriverStore, but the device keeps the old driver until a reboot, the
-        # case when the image already had a viosock (the guest tools ship one).
+case "$pnputil_rc" in
+    0) ;;
+    3010|194)
+        # ERROR_SUCCESS_REBOOT_REQUIRED (194 once ssh has cut it to 8 bits): the package is in
+        # the DriverStore, but the device keeps the old driver until a reboot, the case when the
+        # image already had a viosock (the guest tools ship one).
         info "pnputil: package installed, the guest must reboot for the device to pick it up"
         reboot_guest || die "the guest did not come back from the reboot in 10 minutes"
-    elif printf '%s' "$pnputil_out" | grep -qE 'up-to-date|Already exists in the system'; then
-        info "pnputil: driver already present and up-to-date"
-    else
-        die "pnputil failed (rc=$pnputil_rc)"
-    fi
-fi
+        ;;
+    *)
+        if printf '%s' "$pnputil_out" | grep -qE 'up-to-date|Already exists in the system'; then
+            info "pnputil: driver already present and up-to-date"
+        else
+            die "pnputil failed (rc=$pnputil_rc)"
+        fi
+        ;;
+esac
 
 # 4) The device must now run the driver from this package, not whatever the image had (the
 #    guest tools ship a viosock too): compare the INF's DriverVer with the installed one.
