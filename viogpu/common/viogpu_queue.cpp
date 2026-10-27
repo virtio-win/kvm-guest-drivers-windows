@@ -500,6 +500,52 @@ void CtrlQueue::SetScanout(UINT scan_id, UINT res_id, UINT width, UINT height, U
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
+// Disables the scanout and, when possible, waits until the device has done it. A device may process
+// control commands asynchronously and refuses to destroy the resource a scanout is still showing,
+// so the caller must not detach or unref the framebuffer before this returns.
+// Waiting is only possible below DISPATCH_LEVEL; above it (the bugcheck flow, for instance) the
+// command is only queued, like SetScanout(), and FALSE is returned.
+BOOLEAN CtrlQueue::DisableScanout(UINT scan_id)
+{
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
+
+    if (KeGetCurrentIrql() >= DISPATCH_LEVEL)
+    {
+        SetScanout(scan_id, 0, 0, 0, 0, 0);
+        return FALSE;
+    }
+
+    PGPU_SET_SCANOUT cmd;
+    PGPU_VBUFFER vbuf;
+    cmd = (PGPU_SET_SCANOUT)AllocCmd(&vbuf, sizeof(*cmd));
+    RtlZeroMemory(cmd, sizeof(*cmd));
+
+    cmd->hdr.type = VIRTIO_GPU_CMD_SET_SCANOUT;
+    cmd->hdr.flags = VIRTIO_GPU_FLAG_FENCE;
+    cmd->hdr.fence_id = (ULONGLONG)InterlockedIncrement(&m_FenceIdr);
+    cmd->resource_id = 0;
+    cmd->scanout_id = scan_id;
+
+    // The buffer is released by the DPC, which also logs a failed command.
+    KeClearEvent(&m_SyncEvent);
+    vbuf->complete_cb = NotifyEventCompleteCB;
+    vbuf->complete_ctx = &m_SyncEvent;
+
+    LARGE_INTEGER timeout = {0};
+    timeout.QuadPart = Int32x32To64(1000, -10000);
+
+    QueueBuffer(vbuf);
+    NTSTATUS status = KeWaitForSingleObject(&m_SyncEvent, Executive, KernelMode, FALSE, &timeout);
+    if (status == STATUS_TIMEOUT)
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s the device did not answer in time\n", __FUNCTION__));
+        return FALSE;
+    }
+
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+    return TRUE;
+}
+
 #define SGLIST_SIZE 256
 UINT CtrlQueue::QueueBuffer(PGPU_VBUFFER buf)
 {

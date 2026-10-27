@@ -3674,10 +3674,10 @@ void VioGpuAdapter::DestroyFrameBufferObj(BOOLEAN bKeepBuffer)
     if (m_pFrameBuf != NULL)
     {
         resid = (UINT)m_pFrameBuf->GetId();
-        // Disable the scanout first: a device may refuse to destroy the resource it is scanning out
-        // (Apple's Virtualization framework does), which would leave the old framebuffer allocated
-        // on the host, and its id could not be created again.
-        m_CtrlQueue.SetScanout(0, 0, 0, 0, 0, 0);
+        // Disable the scanout first and wait for it: a device may refuse to destroy the resource it is
+        // scanning out (Apple's Virtualization framework does), which would leave the old framebuffer
+        // allocated on the host, and its id could not be created again.
+        m_CtrlQueue.DisableScanout(0);
         m_CtrlQueue.DetachBacking(resid);
         m_CtrlQueue.DestroyResource(resid);
 
