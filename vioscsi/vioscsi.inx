@@ -77,6 +77,7 @@ ErrorControl   = %SERVICE_ERROR_NORMAL%
 ServiceBinary  = %INX_PLATFORM_DRIVERS_DIR%\vioscsi.sys
 LoadOrderGroup = SCSI miniport
 AddReg         = pnpsafe_pci_addreg
+AddReg         = bus_reset_addreg
 
 [scsi_inst.HW]
 AddReg         = pnpsafe_pci_addreg_msix
@@ -94,6 +95,8 @@ HKR, "Parameters\PnpInterface", "5", %REG_DWORD%, 0x00000001
 HKR, "Parameters", "BusType", %REG_DWORD%, 0x0000000A
 HKR, "Parameters", DmaRemappingCompatible,0x00010001,0
 
+[bus_reset_addreg]
+HKR, "Parameters\Device", "VioscsiActionOnReset", %REG_DWORD%, 0x00000001
 
 [pnpsafe_pci_addreg_msix]
 HKR, "Interrupt Management",, 0x00000010
