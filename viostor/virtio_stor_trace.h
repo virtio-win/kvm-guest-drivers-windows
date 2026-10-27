@@ -90,6 +90,8 @@ extern int nViostorDebugLevel;
         WPP_DEFINE_BIT(TRACE_LEVEL_WARNING)            /* bit  3 = 0x00000008 */ \
         WPP_DEFINE_BIT(TRACE_LEVEL_INFORMATION)        /* bit  4 = 0x00000010 */ \
         WPP_DEFINE_BIT(TRACE_LEVEL_VERBOSE)            /* bit  5 = 0x00000020 */ \
+        WPP_DEFINE_BIT(TRACE_REGISTRY)                 /* bit  6 = 0x00000040 */ \
+        WPP_DEFINE_BIT(TRACE_GUEST_FEATURES)           /* bit  7 = 0x00000080 */ \
         )
 
 #define WPP_Flags_LEVEL_LOGGER(Flags, level)                                  \
