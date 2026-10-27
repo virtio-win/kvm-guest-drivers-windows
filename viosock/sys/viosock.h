@@ -882,7 +882,8 @@ _IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockEvtVqProcess(IN PDEVICE_CONTEXT 
 //////////////////////////////////////////////////////////////////////////
 __inline LONGLONG VIOSockTimerTimeoutToTicks(IN LONGLONG Timeout)
 {
-    return Timeout / VIOSOCK_TIMER_TIME_INCREMENT;
+    // round up, so a timeout shorter than a tick does not expire at once
+    return (Timeout + VIOSOCK_TIMER_TIME_INCREMENT - 1) / VIOSOCK_TIMER_TIME_INCREMENT;
 }
 
 __inline LONGLONG VIOSockTimerTicksToTimeout(IN LONGLONG Ticks)
@@ -908,9 +909,10 @@ __inline LONGLONG VIOSockTimerDeadlineRemainingTicks(IN LONGLONG Deadline)
     return llRemaining > 0 ? llRemaining : 0;
 }
 
+// The tolerance only batches completions in the timer workers; a request is not failed early.
 __inline BOOLEAN VIOSockTimerDeadlineIsExpired(IN LONGLONG Deadline)
 {
-    return VIOSockTimerDeadlineRemainingTicks(Deadline) <= VIOSOCK_TIMER_TOLERANCE_TICKS;
+    return VIOSockTimerDeadlineRemainingTicks(Deadline) == 0;
 }
 
 __inline LONGLONG VIOSockTimerTimeoutToDeadline(IN LONGLONG Timeout)
@@ -946,7 +948,7 @@ __inline LONGLONG VIOSockTimerEntryRemainingTicks(IN PVIOSOCK_TIMER_ENTRY pEntry
 }
 
 // Safe to call without a prior IsSet check: MAXLONGLONG - now is always a large positive
-// value, so RemainingTicks > TOLERANCE_TICKS and the function returns FALSE for unset entries.
+// value, so RemainingTicks > 0 and the function returns FALSE for unset entries.
 __inline BOOLEAN VIOSockTimerEntryIsExpired(IN PVIOSOCK_TIMER_ENTRY pEntry)
 {
     return VIOSockTimerDeadlineIsExpired(pEntry->Deadline);
