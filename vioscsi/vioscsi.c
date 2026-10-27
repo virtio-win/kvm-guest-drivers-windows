@@ -52,6 +52,7 @@
 #define VIOSCSI_SETUP_GUID_INDEX             0
 #define VIOSCSI_MS_ADAPTER_INFORM_GUID_INDEX 1
 #define VIOSCSI_MS_PORT_INFORM_GUID_INDEX    2
+#define VIOSCSI_DIAG_GUID_INDEX              3
 
 BOOLEAN IsCrashDumpMode;
 
@@ -157,6 +158,7 @@ UCHAR
 VioScsiQueryWmiRegInfo(IN PVOID Context, IN PSCSIWMI_REQUEST_CONTEXT RequestContext, OUT PWCHAR *MofResourceName);
 
 VOID VioScsiReadExtendedData(IN PVOID Context, OUT PUCHAR Buffer);
+VOID VioScsiReadDiagData(IN PVOID Context, OUT PUCHAR Buffer);
 
 VOID VioScsiSaveInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb);
 
@@ -165,6 +167,7 @@ VOID VioScsiPatchInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb);
 GUID VioScsiWmiExtendedInfoGuid = VioScsiWmi_ExtendedInfo_Guid;
 GUID VioScsiWmiAdapterInformationQueryGuid = MS_SM_AdapterInformationQueryGuid;
 GUID VioScsiWmiPortInformationMethodsGuid = MS_SM_PortInformationMethodsGuid;
+GUID VioScsiWmiDiagGuid = VioScsiWmi_Diag_Guid;
 
 // clang-format off
 SCSIWMIGUIDREGINFO VioScsiGuidList[] =
@@ -172,6 +175,7 @@ SCSIWMIGUIDREGINFO VioScsiGuidList[] =
    { &VioScsiWmiExtendedInfoGuid,            1, 0 },
    { &VioScsiWmiAdapterInformationQueryGuid, 1, 0 },
    { &VioScsiWmiPortInformationMethodsGuid,  1, 0 },
+   { &VioScsiWmiDiagGuid,                    1, 0 },
 };
 // clang-format on
 
@@ -1516,11 +1520,13 @@ VOID ProcessQueue(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOOLEAN isr)
 
             if (!bFound)
             {
+                InterlockedIncrement(&adaptExt->diagCounters.unmatched_completions);
                 RhelDbgPrint(TRACE_LEVEL_WARNING, " No SRB found for ID 0x%p\n", (void *)srbId);
             }
 
             if (bFound)
             {
+                InterlockedIncrement64(&adaptExt->diagCounters.srbs_completed);
                 HandleResponse(DeviceExtension, &srbExt->cmd);
             }
         }
@@ -1552,6 +1558,7 @@ VOID CompletePendingRequestsOnReset(IN PVOID DeviceExtension)
     if (!adaptExt->reset_in_progress)
     {
         adaptExt->reset_in_progress = TRUE;
+        InterlockedIncrement(&adaptExt->diagCounters.reset_count);
         StorPortPause(DeviceExtension, 10);
         DeviceReset(DeviceExtension);
 
@@ -1576,6 +1583,7 @@ VOID CompletePendingRequestsOnReset(IN PVOID DeviceExtension)
                         SRB_SET_DATA_TRANSFER_LENGTH(currSrb, 0);
                         CompleteRequest(DeviceExtension, (PSRB_TYPE)currSrb);
                         element->srb_cnt--;
+                        InterlockedIncrement64(&adaptExt->diagCounters.srbs_completed_on_reset);
                     }
                 }
             }
@@ -1633,6 +1641,19 @@ VioScsiProcessPnP(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
                          SRB_TARGET_ID(Srb),
                          SRB_LUN(Srb));
             adaptExt->bRemoved = TRUE;
+            break;
+        case StorStopDevice:
+            /*
+             * Let storport disconnect the MSI-X interrupts and call
+             * ScsiStopAdapter. Failing this request makes storport skip
+             * both steps, so the next START connects a new set of
+             * interrupt objects while the old set stays in the IDT.
+             */
+            RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                         " StorStopDevice on %d::%d::%d\n",
+                         SRB_PATH_ID(Srb),
+                         SRB_TARGET_ID(Srb),
+                         SRB_LUN(Srb));
             break;
         default:
             RhelDbgPrint(TRACE_LEVEL_FATAL,
@@ -1774,6 +1795,7 @@ VOID CompleteRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
                              freq.QuadPart);
                 if (time_msec >= adaptExt->resp_time)
                 {
+                    InterlockedIncrement(&adaptExt->diagCounters.slow_responses);
                     PCDB cdb = SRB_CDB(Srb);
                     if (cdb)
                     { // Check for SDV compliance
@@ -1968,10 +1990,10 @@ VOID VioScsiIoControl(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
     EXIT_FN_SRB();
 }
 
-UCHAR
+USHORT
 ParseIdentificationDescr(IN PVOID DeviceExtension,
                          IN PVPD_IDENTIFICATION_DESCRIPTOR IdentificationDescr,
-                         IN UCHAR PageLength)
+                         IN USHORT PageLength)
 {
     PADAPTER_EXTENSION adaptExt;
     UCHAR CodeSet = 0;
@@ -1982,7 +2004,7 @@ ParseIdentificationDescr(IN PVOID DeviceExtension,
     {
         CodeSet = IdentificationDescr->CodeSet;               //(UCHAR)(((PCHAR)IdentificationDescr)[0]);
         IdentifierType = IdentificationDescr->IdentifierType; //(UCHAR)(((PCHAR)IdentificationDescr)[1]);
-        if (PageLength < IdentificationDescr->IdentifierLength)
+        if (PageLength < sizeof(VPD_IDENTIFICATION_DESCRIPTOR) + IdentificationDescr->IdentifierLength)
         {
             RhelDbgPrint(TRACE_LEVEL_INFORMATION,
                          " Skipping VPD identifier's descriptor as its length"
@@ -2064,27 +2086,46 @@ VOID VioScsiSaveInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
     UCHAR SrbStatus = SRB_STATUS_SUCCESS;
     ENTER_FN_SRB();
 
-    if (!Srb)
+    if (!Srb || !DeviceExtension)
     {
         return;
     }
 
     cdb = SRB_CDB(Srb);
-
-    if (!cdb)
+    dataBuffer = SRB_DATA_BUFFER(Srb);
+    dataLen = SRB_DATA_TRANSFER_LENGTH(Srb);
+    // Validate cdb structure. Do not touch invalid data at all.
+    if (!cdb || !dataBuffer || dataLen == 0)
     {
         return;
     }
-
+    // A VPD (EVPD=1) INQUIRY is commonly probed first with a short allocation length (per SPC,
+    // as little as the 4-byte page header, a well-known two-step VPD read pattern used by e.g.
+    // sg_vpd/Linux sd.c) before a follow-up INQUIRY fetches the full page, so dataLen can
+    // legitimately be much smaller than INQUIRYDATABUFFERSIZE in that case. Only require the
+    // full standard INQUIRY size (36 bytes) when EVPD is 0. For EVPD=1, still require at least
+    // the smallest VPD page header this driver inspects - VPD_SERIAL_NUMBER_PAGE and
+    // VPD_IDENTIFICATION_PAGE are both exactly this size - so it is always safe to read a page's
+    // PageLength field here, regardless of which (if any) of the per-page fixes are merged. Each
+    // VPD branch below additionally validates the exact length it needs for its own payload
+    // against dataLen.
+    if (cdb->CDB6INQUIRY3.EnableVitalProductData == 0)
+    {
+        if (dataLen < INQUIRYDATABUFFERSIZE)
+        {
+            return;
+        }
+    }
+    else if (dataLen < sizeof(VPD_SERIAL_NUMBER_PAGE))
+    {
+        return;
+    }
     SRB_GET_SCSI_STATUS(Srb, SrbStatus);
     if (SrbStatus == SRB_STATUS_ERROR)
     {
         return;
     }
-
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    dataBuffer = SRB_DATA_BUFFER(Srb);
-    dataLen = SRB_DATA_TRANSFER_LENGTH(Srb);
 
     if (cdb->CDB6INQUIRY3.EnableVitalProductData == 1)
     {
@@ -2117,31 +2158,35 @@ VOID VioScsiSaveInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
                 {
                     PVPD_IDENTIFICATION_PAGE IdentificationPage;
                     PVPD_IDENTIFICATION_DESCRIPTOR IdentificationDescr;
-                    UCHAR PageLength = 0;
+                    USHORT PageLength = 0;
                     IdentificationPage = (PVPD_IDENTIFICATION_PAGE)dataBuffer;
-                    PageLength = min((UCHAR)(dataLen & 0xFF) - sizeof(VPD_IDENTIFICATION_PAGE),
-                                     IdentificationPage->PageLength);
                     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " SRB's DataTransferLength: 0x%x\n", dataLen);
-                    RhelDbgPrint(TRACE_LEVEL_VERBOSE,
-                                 " Identification page's length: 0x%x\n",
-                                 IdentificationPage->PageLength);
-                    RhelDbgPrint(TRACE_LEVEL_VERBOSE, " Total PageLength: 0x%x\n", PageLength);
-                    if (PageLength >= sizeof(VPD_IDENTIFICATION_DESCRIPTOR))
+                    if (dataLen >= sizeof(VPD_IDENTIFICATION_PAGE))
                     {
-                        UCHAR IdentifierLength = 0;
-                        IdentificationDescr = (PVPD_IDENTIFICATION_DESCRIPTOR)IdentificationPage->Descriptors;
-                        do
+                        size_t available = dataLen - sizeof(VPD_IDENTIFICATION_PAGE);
+                        // IdentificationPage->PageLength is a UCHAR, so the result is always <= 255 and fits USHORT.
+                        PageLength = (USHORT)min(available, IdentificationPage->PageLength);
+                        RhelDbgPrint(TRACE_LEVEL_VERBOSE,
+                                     " Identification page's length: 0x%x\n",
+                                     IdentificationPage->PageLength);
+                        RhelDbgPrint(TRACE_LEVEL_VERBOSE, " Total PageLength: 0x%x\n", PageLength);
+                        if (PageLength >= sizeof(VPD_IDENTIFICATION_DESCRIPTOR))
                         {
-                            UCHAR offset = 0;
-                            IdentifierLength = ParseIdentificationDescr(DeviceExtension,
-                                                                        IdentificationDescr,
-                                                                        PageLength);
-                            offset = sizeof(VPD_IDENTIFICATION_DESCRIPTOR) + IdentifierLength;
-                            PageLength -= min(PageLength, offset);
-                            IdentificationDescr = (PVPD_IDENTIFICATION_DESCRIPTOR)((ULONG_PTR)IdentificationDescr +
-                                                                                   offset);
-                            RhelDbgPrint(TRACE_LEVEL_VERBOSE, " Remaining PageLength: 0x%x\n", PageLength);
-                        } while (PageLength >= sizeof(VPD_IDENTIFICATION_DESCRIPTOR));
+                            USHORT IdentifierLength = 0;
+                            IdentificationDescr = (PVPD_IDENTIFICATION_DESCRIPTOR)IdentificationPage->Descriptors;
+                            do
+                            {
+                                USHORT offset = 0;
+                                IdentifierLength = ParseIdentificationDescr(DeviceExtension,
+                                                                            IdentificationDescr,
+                                                                            PageLength);
+                                offset = (USHORT)sizeof(VPD_IDENTIFICATION_DESCRIPTOR) + IdentifierLength;
+                                PageLength -= min(PageLength, offset);
+                                IdentificationDescr = (PVPD_IDENTIFICATION_DESCRIPTOR)((ULONG_PTR)IdentificationDescr +
+                                                                                       offset);
+                                RhelDbgPrint(TRACE_LEVEL_VERBOSE, " Remaining PageLength: 0x%x\n", PageLength);
+                            } while (PageLength >= sizeof(VPD_IDENTIFICATION_DESCRIPTOR));
+                        }
                     }
                 }
                 break;
@@ -2149,8 +2194,13 @@ VOID VioScsiSaveInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
     }
     else if (cdb->CDB6INQUIRY3.PageCode == VPD_SUPPORTED_PAGES)
     {
+        // Process Standard INQUIRY response (EVPD == 0, PageCode == 0).
+        // Extracts basic device identity strings: Vendor ID (8B), Product ID (16B), and Revision Level (4B).
+        // Memory bounds are validated using FIELD_OFFSET to ensure dataLen reaches at least the end of
+        // ProductRevisionLevel (36 bytes total), preventing out-of-bounds reads on probe responses
         PINQUIRYDATA InquiryData = (PINQUIRYDATA)dataBuffer;
-        if (InquiryData && dataLen)
+        if (InquiryData &&
+            dataLen >= FIELD_OFFSET(INQUIRYDATA, ProductRevisionLevel) + sizeof(InquiryData->ProductRevisionLevel))
         {
             CopyBufferToAnsiString(adaptExt->ven_id, InquiryData->VendorId, ' ', sizeof(InquiryData->VendorId));
             CopyBufferToAnsiString(adaptExt->prod_id, InquiryData->ProductId, ' ', sizeof(InquiryData->ProductId));
@@ -2329,6 +2379,20 @@ VioScsiQueryWmiDataBlock(IN PVOID Context,
                                  size);
                     break;
                 }
+                *InstanceLengthArray = size;
+                status = SRB_STATUS_SUCCESS;
+            }
+            break;
+        case VIOSCSI_DIAG_GUID_INDEX:
+            {
+                size = VioScsiDiag_SIZE;
+                if (OutBufferSize < size)
+                {
+                    status = SRB_STATUS_DATA_OVERRUN;
+                    break;
+                }
+
+                VioScsiReadDiagData(Context, Buffer);
                 *InstanceLengthArray = size;
                 status = SRB_STATUS_SUCCESS;
             }
@@ -2625,5 +2689,29 @@ VOID VioScsiReadExtendedData(IN PVOID Context, OUT PUCHAR Buffer)
     extInfo->CompletionDuringStartIo = CHECKFLAG(adaptExt->perfFlags, STOR_PERF_OPTIMIZE_FOR_COMPLETION_DURING_STARTIO);
     extInfo->PhysicalBreaks = adaptExt->max_physical_breaks;
     extInfo->ResponseTime = adaptExt->resp_time;
+    EXIT_FN();
+}
+
+VOID VioScsiReadDiagData(IN PVOID Context, OUT PUCHAR Buffer)
+{
+    PADAPTER_EXTENSION adaptExt;
+    PVioScsiDiag diagInfo;
+
+    ENTER_FN();
+
+    adaptExt = (PADAPTER_EXTENSION)Context;
+    diagInfo = (PVioScsiDiag)Buffer;
+
+    RtlZeroMemory(Buffer, VioScsiDiag_SIZE);
+
+    diagInfo->SrbsSent = (ULONGLONG)InterlockedCompareExchange64(&adaptExt->diagCounters.srbs_sent, 0, 0);
+    diagInfo->SrbsCompleted = (ULONGLONG)InterlockedCompareExchange64(&adaptExt->diagCounters.srbs_completed, 0, 0);
+    diagInfo->QueueFull = adaptExt->diagCounters.queue_full;
+    diagInfo->ResetCount = adaptExt->diagCounters.reset_count;
+    diagInfo->SrbsCompletedOnReset = (ULONGLONG)InterlockedCompareExchange64(&adaptExt->diagCounters.srbs_completed_on_reset,
+                                                                             0,
+                                                                             0);
+    diagInfo->SlowResponses = adaptExt->diagCounters.slow_responses;
+    diagInfo->UnmatchedCompletions = adaptExt->diagCounters.unmatched_completions;
     EXIT_FN();
 }
