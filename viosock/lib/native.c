@@ -583,42 +583,40 @@ BOOL VIOSockIsSyncSocket(_In_ SOCKET s)
     return FALSE;
 }
 
-//
-// Determine whether a handle really belongs to the vsock device.
-//
-// ws2_32 dispatches a Winsock call to every installed provider when it cannot
-// find the handle in its own socket table — which is exactly what happens for
-// handles a process inherited rather than created (rempy's pump.py is handed
-// raw socket and pipe handles on its command line). Without this check our WSP
-// entry points would blindly issue NtReadFile/NtWriteFile on foreign handles
-// (named pipes, other providers' sockets), which hangs or corrupts the host.
-//
-// The driver names its device object \Device\Viosock (VIOSOCK_DEVICE_NAME), so
-// the object name is a reliable, synchronous marker: an anonymous pipe has no
-// name (STATUS_OBJECT_NAME_INVALID), AFD reports \Device\Afd, and only our
-// sockets report \Device\Viosock.
-//
+// The driver resolves the handle of a zero-timeout select on a control handle, so
+// nothing is issued on s itself: a foreign file object may be busy with sync I/O.
 BOOL VIOSockIsVsockSocket(_In_ SOCKET s)
 {
-    static const WCHAR wszVsockDevice[] = L"\\Device\\Viosock";
-    const USHORT cbName = (USHORT)(sizeof(wszVsockDevice) - sizeof(WCHAR)); // exclude NUL
+    VIRTIO_VSOCK_SELECT Select = {0};
+    HANDLE hFile;
+    DWORD dwBytesReturned;
+    int iErrno;
+    BOOL bRes;
 
-    struct
-    {
-        UNICODE_STRING Name;
-        WCHAR NameBuffer[ARRAYSIZE(wszVsockDevice)];
-    } info;
-    NTSTATUS status;
-    ULONG retLen = 0;
+    Select.Fdss[FDSET_EXCPT].fd_count = 1;
+    Select.Fdss[FDSET_EXCPT].fd_array[0] = (ULONGLONG)(ULONG_PTR)s;
 
-    // ObjectNameInformation == 1 (not exposed as an enum value by winternl.h).
-    status = NtQueryObject((HANDLE)s, (OBJECT_INFORMATION_CLASS)1, &info, sizeof(info), &retLen);
-    if (!NT_SUCCESS(status))
+    hFile = VIOSockCreateFile(NULL, TRUE, &iErrno);
+    if (hFile == INVALID_HANDLE_VALUE)
     {
-        // Foreign handle: no name (anonymous pipe), or a name longer than ours
-        // (cannot match — our device name is exact).
         return FALSE;
     }
 
-    return info.Name.Length == cbName && _wcsnicmp(info.Name.Buffer, wszVsockDevice, cbName / sizeof(WCHAR)) == 0;
+    // a foreign handle fails with STATUS_INVALID_HANDLE before the power and timeout checks
+    bRes = VIOSockDeviceControlEx((SOCKET)hFile,
+                                  TRUE,
+                                  IOCTL_SELECT,
+                                  &Select,
+                                  sizeof(Select),
+                                  &Select,
+                                  sizeof(Select),
+                                  &dwBytesReturned,
+                                  NULL,
+                                  NULL,
+                                  0,
+                                  &iErrno) ||
+           iErrno != WSAENOTSOCK;
+
+    CloseHandle(hFile);
+    return bRes;
 }
