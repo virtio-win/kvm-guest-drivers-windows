@@ -93,6 +93,12 @@ VOID VIOSerialCtrlWorkHandler(IN WDFDEVICE Device)
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> %s\n", __FUNCTION__);
 
+    if (!pContext->isHostMultiport)
+    {
+        /* No control queues and no CInVqLock on a single-port device. */
+        return;
+    }
+
     vq = pContext->c_ivq;
     ASSERT(vq);
 
