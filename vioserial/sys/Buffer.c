@@ -92,12 +92,14 @@ DmaWriteCallback(PVIRTIO_DMA_TRANSACTION_PARAMS params)
     TraceEvents(TRACE_LEVEL_INFORMATION,
                 DBG_WRITE,
                 "%s NumberOfElements = %lu (max %u per chunk)\n",
-                __FUNCTION__, total, QUEUE_DESCRIPTORS);
+                __FUNCTION__,
+                total,
+                QUEUE_DESCRIPTORS);
 
     /* Initialise entry state — only valid on the first (and only) ProgramDma call. */
     Entry->dmaTransaction = params->transaction;
-    Entry->PendingChunks  = 0;
-    Entry->Failed         = FALSE;
+    Entry->PendingChunks = 0;
+    Entry->Failed = FALSE;
     Entry->PendingBatches.Next = NULL;
     Entry->SubmittedBytes = 0;
 
@@ -121,12 +123,12 @@ DmaWriteCallback(PVIRTIO_DMA_TRANSACTION_PARAMS params)
             Entry->Failed = TRUE;
             break;
         }
-        chunk->Parent      = Entry;
+        chunk->Parent = Entry;
         chunk->NumElements = n;
         for (i = 0; i < n; ++i)
         {
             chunk->sg[i].physAddr = params->sgList->Elements[offset + i].Address;
-            chunk->sg[i].length   = params->sgList->Elements[offset + i].Length;
+            chunk->sg[i].length = params->sgList->Elements[offset + i].Length;
         }
 
         /* Track total work before any reclaim can observe it. */
@@ -134,7 +136,7 @@ DmaWriteCallback(PVIRTIO_DMA_TRANSACTION_PARAMS params)
 
         if (firstChunk == NULL)
         {
-            firstChunk = chunk;               /* submit this one to VQ below */
+            firstChunk = chunk; /* submit this one to VQ below */
         }
         else
         {
@@ -179,7 +181,7 @@ DmaWriteCallback(PVIRTIO_DMA_TRANSACTION_PARAMS params)
         TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "Error adding first buffer to queue (ret = %d)\n", ret);
         /* Free first chunk; pending list freed in error path below. */
         ExFreePoolWithTag(firstChunk, VIOSERIAL_DRIVER_MEMORY_TAG);
-        Entry->PendingChunks--;   /* undo the count for firstChunk */
+        Entry->PendingChunks--; /* undo the count for firstChunk */
         Entry->Failed = TRUE;
         firstChunk = NULL;
         goto error;
@@ -392,8 +394,7 @@ BOOLEAN VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
             {
                 Port->OutVqFull = TRUE;
                 entry->Failed = TRUE;
-                TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE,
-                            "Error submitting next batch to queue (ret = %d)\n", nextRet);
+                TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "Error submitting next batch to queue (ret = %d)\n", nextRet);
                 ExFreePoolWithTag(nextChunk, VIOSERIAL_DRIVER_MEMORY_TAG);
                 /* Free remaining pending batches. */
                 while (entry->PendingBatches.Next != NULL)

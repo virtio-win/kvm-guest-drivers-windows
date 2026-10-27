@@ -148,8 +148,8 @@ typedef struct _WriteBufferEntry
 /* VQ cookie + cached SG data for one chunk of at most QUEUE_DESCRIPTORS elements. */
 typedef struct _WriteDmaChunk
 {
-    SINGLE_LIST_ENTRY ListEntry;     /* VQ cookie / reclaim list         */
-    SINGLE_LIST_ENTRY PendingEntry;  /* Entry->PendingBatches queue      */
+    SINGLE_LIST_ENTRY ListEntry;    /* VQ cookie / reclaim list         */
+    SINGLE_LIST_ENTRY PendingEntry; /* Entry->PendingBatches queue      */
     PWRITE_BUFFER_ENTRY Parent;
     ULONG NumElements;
     struct VirtIOBufferDescriptor sg[QUEUE_DESCRIPTORS];
