@@ -33,6 +33,9 @@
     <MinimumVisualStudioVersion>11.0</MinimumVisualStudioVersion>
     <Configuration>Win10 Release</Configuration>
     <Platform Condition="'$(Platform)' == ''">Win32</Platform>
+    <DisableTracing Condition="'$(FORCE_RUN_UNCHECKED)' != ''">true</DisableTracing>
+    <LimitPathsWPP Condition="'$(RUN_WPP_ALL_PATHS)' == ''">WPPColdPathOnly</LimitPathsWPP>
+    <UseDebugTracing Condition="'$(FORCE_RUN_DEBUG)' != ''">true</UseDebugTracing>
     <SignMode>Off</SignMode>
   </PropertyGroup>
   <PropertyGroup Label="Globals">
@@ -127,6 +130,22 @@
       <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Win10 Release'">
+    <ClCompile>
+      <PreprocessorDefinitions Condition="'$(DisableTracing)'=='true'">%(PreprocessorDefinitions);RUN_UNCHECKED=1</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(LimitPathsWPP)'=='WPPColdPathOnly'">%(PreprocessorDefinitions);RUN_COLD_PATH_ONLY=1</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(UseDebugTracing)'!='true'">%(PreprocessorDefinitions);EVENT_TRACING=1</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NTDDI_VERSION=NTDDI_WINTHRESHOLD</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Win11 Release'">
+    <ClCompile>
+      <PreprocessorDefinitions Condition="'$(DisableTracing)'=='true'">%(PreprocessorDefinitions);RUN_UNCHECKED=1</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(LimitPathsWPP)'=='WPPColdPathOnly'">%(PreprocessorDefinitions);RUN_COLD_PATH_ONLY=1</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(UseDebugTracing)'!='true'">%(PreprocessorDefinitions);EVENT_TRACING=1</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions);NTDDI_VERSION=NTDDI_WIN10_CO</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
   <ItemDefinitionGroup>
     <CustomBuildStep>
       <Command>
@@ -165,28 +184,34 @@
       <Outputs>$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\$(TargetName).DVL.XML;$(ProjectDir)Install\$(TargetOS)\$(TargetArch)\$(TargetName).DVL-win10.XML</Outputs>
     </CustomBuildStep>
     <ClCompile>
-      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">true</WppEnabled>
-      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win11 Release|Win32'">true</WppEnabled>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32' And '$(DisableTracing)'!='true' And '$(UseDebugTracing)'!='true'">true</WppEnabled>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win11 Release|Win32' And '$(DisableTracing)'!='true' And '$(UseDebugTracing)'!='true'">true</WppEnabled>
       <WppGenerateUsingTemplateFile Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">{km-StorDefault.tpl}*.tmh</WppGenerateUsingTemplateFile>
       <WppGenerateUsingTemplateFile Condition="'$(Configuration)|$(Platform)'=='Win11 Release|Win32'">{km-StorDefault.tpl}*.tmh</WppGenerateUsingTemplateFile>
-      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">trace.h</WppScanConfigurationData>
-      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win11 Release|Win32'">trace.h</WppScanConfigurationData>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32' And '$(LimitPathsWPP)'=='WPPColdPathOnly'">wpp_cold_path.h</WppScanConfigurationData>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32' And '$(LimitPathsWPP)'!='WPPColdPathOnly'">wpp_all_paths.h</WppScanConfigurationData>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win11 Release|Win32' And '$(LimitPathsWPP)'=='WPPColdPathOnly'">wpp_cold_path.h</WppScanConfigurationData>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win11 Release|Win32' And '$(LimitPathsWPP)'!='WPPColdPathOnly'">wpp_all_paths.h</WppScanConfigurationData>
     </ClCompile>
     <ClCompile>
-      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">true</WppEnabled>
-      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win11 Release|x64'">true</WppEnabled>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64' And '$(DisableTracing)'!='true' And '$(UseDebugTracing)'!='true'">true</WppEnabled>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win11 Release|x64' And '$(DisableTracing)'!='true' And '$(UseDebugTracing)'!='true'">true</WppEnabled>
       <WppGenerateUsingTemplateFile Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">{km-StorDefault.tpl}*.tmh</WppGenerateUsingTemplateFile>
       <WppGenerateUsingTemplateFile Condition="'$(Configuration)|$(Platform)'=='Win11 Release|x64'">{km-StorDefault.tpl}*.tmh</WppGenerateUsingTemplateFile>
-      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">trace.h</WppScanConfigurationData>
-      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win11 Release|x64'">trace.h</WppScanConfigurationData>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64' And '$(LimitPathsWPP)'=='WPPColdPathOnly'">wpp_cold_path.h</WppScanConfigurationData>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64' And '$(LimitPathsWPP)'!='WPPColdPathOnly'">wpp_all_paths.h</WppScanConfigurationData>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win11 Release|x64' And '$(LimitPathsWPP)'=='WPPColdPathOnly'">wpp_cold_path.h</WppScanConfigurationData>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win11 Release|x64' And '$(LimitPathsWPP)'!='WPPColdPathOnly'">wpp_all_paths.h</WppScanConfigurationData>
     </ClCompile>
     <ClCompile>
-      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win10 Release|ARM64'">true</WppEnabled>
-      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win11 Release|ARM64'">true</WppEnabled>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win10 Release|ARM64' And '$(DisableTracing)'!='true' And '$(UseDebugTracing)'!='true'">true</WppEnabled>
+      <WppEnabled Condition="'$(Configuration)|$(Platform)'=='Win11 Release|ARM64' And '$(DisableTracing)'!='true' And '$(UseDebugTracing)'!='true'">true</WppEnabled>
       <WppGenerateUsingTemplateFile Condition="'$(Configuration)|$(Platform)'=='Win10 Release|ARM64'">{km-StorDefault.tpl}*.tmh</WppGenerateUsingTemplateFile>
       <WppGenerateUsingTemplateFile Condition="'$(Configuration)|$(Platform)'=='Win11 Release|ARM64'">{km-StorDefault.tpl}*.tmh</WppGenerateUsingTemplateFile>
-      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win10 Release|ARM64'">trace.h</WppScanConfigurationData>
-      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win11 Release|ARM64'">trace.h</WppScanConfigurationData>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win10 Release|ARM64' And '$(LimitPathsWPP)'=='WPPColdPathOnly'">wpp_cold_path.h</WppScanConfigurationData>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win10 Release|ARM64' And '$(LimitPathsWPP)'!='WPPColdPathOnly'">wpp_all_paths.h</WppScanConfigurationData>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win11 Release|ARM64' And '$(LimitPathsWPP)'=='WPPColdPathOnly'">wpp_cold_path.h</WppScanConfigurationData>
+      <WppScanConfigurationData Condition="'$(Configuration)|$(Platform)'=='Win11 Release|ARM64' And '$(LimitPathsWPP)'!='WPPColdPathOnly'">wpp_all_paths.h</WppScanConfigurationData>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
