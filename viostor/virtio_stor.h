@@ -269,7 +269,7 @@ typedef struct _ADAPTER_EXTENSION
 #endif
 } ADAPTER_EXTENSION, *PADAPTER_EXTENSION;
 
-typedef struct _VRING_DESC_ALIAS
+typedef struct DECLSPEC_ALIGN(16) _VRING_DESC_ALIAS
 {
     union {
         ULONGLONG data[2];
