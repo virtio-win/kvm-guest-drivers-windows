@@ -2347,7 +2347,7 @@ VioGpuAdapter::~VioGpuAdapter(void)
     DbgPrint(TRACE_LEVEL_FATAL, ("---> %s 0x%p\n", __FUNCTION__, this));
     CloseResolutionEvent();
     DestroyCursor();
-    DestroyFrameBufferObj(TRUE, FALSE);
+    DestroyFrameBufferObj(FALSE);
     VioGpuAdapterClose();
     HWClose();
     delete[] m_ModeInfo;
@@ -2368,7 +2368,7 @@ NTSTATUS VioGpuAdapter::SetCurrentMode(ULONG Mode, CURRENT_MODE *pCurrentMode)
         {
             if (pCurrentMode->Flags.FrameBufferIsActive)
             {
-                DestroyFrameBufferObj(FALSE, FALSE);
+                DestroyFrameBufferObj(FALSE);
                 pCurrentMode->Flags.FrameBufferIsActive = FALSE;
             }
             if (CreateFrameBufferObj(&m_ModeInfo[idx], pCurrentMode))
@@ -2491,7 +2491,7 @@ NTSTATUS VioGpuAdapter::SetPowerState(DXGK_DEVICE_INFO *pDeviceInfo,
         case PowerDeviceD2:
         case PowerDeviceD3:
             {
-                DestroyFrameBufferObj(TRUE, FALSE);
+                DestroyFrameBufferObj(FALSE);
                 VioGpuAdapterClose();
                 pCurrentMode->Flags.FrameBufferIsActive = FALSE;
                 pCurrentMode->FrameBuffer = NULL;
@@ -3661,12 +3661,12 @@ PAGED_CODE_SEG_END
 
 BOOLEAN VioGpuAdapter::ResetToVgaMode(void)
 {
-    DestroyFrameBufferObj(TRUE, TRUE);
+    DestroyFrameBufferObj(TRUE);
     VioGpuAdapterClose();
     return TRUE;
 }
 
-void VioGpuAdapter::DestroyFrameBufferObj(BOOLEAN bReset, BOOLEAN bKeepBuffer)
+void VioGpuAdapter::DestroyFrameBufferObj(BOOLEAN bKeepBuffer)
 {
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
     UINT resid = 0;
@@ -3674,12 +3674,12 @@ void VioGpuAdapter::DestroyFrameBufferObj(BOOLEAN bReset, BOOLEAN bKeepBuffer)
     if (m_pFrameBuf != NULL)
     {
         resid = (UINT)m_pFrameBuf->GetId();
+        // Disable the scanout first: a device may refuse to destroy the resource it is scanning out
+        // (Apple's Virtualization framework does), which would leave the old framebuffer allocated
+        // on the host, and its id could not be created again.
+        m_CtrlQueue.SetScanout(0, 0, 0, 0, 0, 0);
         m_CtrlQueue.DetachBacking(resid);
         m_CtrlQueue.DestroyResource(resid);
-        if (bReset == TRUE)
-        {
-            m_CtrlQueue.SetScanout(0, 0, 0, 0, 0, 0);
-        }
 
         if (bKeepBuffer)
         {
