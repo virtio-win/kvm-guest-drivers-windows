@@ -502,17 +502,21 @@ void CtrlQueue::SetScanout(UINT scan_id, UINT res_id, UINT width, UINT height, U
 
 // Disables the scanout and, when possible, waits until the device has done it. A device may process
 // control commands asynchronously and refuses to destroy the resource a scanout is still showing,
-// so the caller must not detach or unref the framebuffer before this returns.
-// Waiting is only possible below DISPATCH_LEVEL; above it (the bugcheck flow, for instance) the
-// command is only queued, like SetScanout(), and FALSE is returned.
-BOOLEAN CtrlQueue::DisableScanout(UINT scan_id)
+// so the caller must not detach or unref the framebuffer unless this says the scanout is off.
+// Returns:
+//   STATUS_SUCCESS       the device completed the command with VIRTIO_GPU_RESP_OK_NODATA;
+//   STATUS_PENDING       the command was only queued: waiting is not possible at DISPATCH_LEVEL or above
+//                        (the bugcheck flow, for instance), so nothing is known about the result;
+//   STATUS_TIMEOUT       the device did not complete the command in time;
+//   STATUS_UNSUCCESSFUL  the device completed it with an error.
+NTSTATUS CtrlQueue::DisableScanout(UINT scan_id)
 {
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
     if (KeGetCurrentIrql() >= DISPATCH_LEVEL)
     {
         SetScanout(scan_id, 0, 0, 0, 0, 0);
-        return FALSE;
+        return STATUS_PENDING;
     }
 
     PGPU_SET_SCANOUT cmd;
@@ -526,10 +530,11 @@ BOOLEAN CtrlQueue::DisableScanout(UINT scan_id)
     cmd->resource_id = 0;
     cmd->scanout_id = scan_id;
 
-    // The buffer is released by the DPC, which also logs a failed command.
+    // The buffer is released here, after the response has been read, not by the DPC.
     KeClearEvent(&m_SyncEvent);
     vbuf->complete_cb = NotifyEventCompleteCB;
     vbuf->complete_ctx = &m_SyncEvent;
+    vbuf->auto_release = false;
 
     LARGE_INTEGER timeout = {0};
     timeout.QuadPart = Int32x32To64(1000, -10000);
@@ -538,12 +543,23 @@ BOOLEAN CtrlQueue::DisableScanout(UINT scan_id)
     NTSTATUS status = KeWaitForSingleObject(&m_SyncEvent, Executive, KernelMode, FALSE, &timeout);
     if (status == STATUS_TIMEOUT)
     {
+        // The device still owns the buffer and may write its response later: it is not released,
+        // so a late answer lands in memory that is still valid (one buffer is lost).
         DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s the device did not answer in time\n", __FUNCTION__));
-        return FALSE;
+        return STATUS_TIMEOUT;
+    }
+
+    PGPU_CTRL_HDR resp = (PGPU_CTRL_HDR)vbuf->resp_buf;
+    ULONG type = resp->type;
+    ReleaseBuffer(vbuf);
+    if (type != VIRTIO_GPU_RESP_OK_NODATA)
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s the device answered %x\n", __FUNCTION__, type));
+        return STATUS_UNSUCCESSFUL;
     }
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
-    return TRUE;
+    return STATUS_SUCCESS;
 }
 
 #define SGLIST_SIZE 256

@@ -240,7 +240,7 @@ class CtrlQueue : public VioGpuQueue
     void CreateResource(UINT res_id, UINT format, UINT width, UINT height);
     void DestroyResource(UINT id);
     void SetScanout(UINT scan_id, UINT res_id, UINT width, UINT height, UINT x, UINT y);
-    BOOLEAN DisableScanout(UINT scan_id);
+    NTSTATUS DisableScanout(UINT scan_id);
     void ResFlush(UINT res_id, UINT width, UINT height, UINT x, UINT y);
     void TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT height, UINT x, UINT y);
     void AttachBacking(UINT res_id, PGPU_MEM_ENTRY ents, UINT nents);

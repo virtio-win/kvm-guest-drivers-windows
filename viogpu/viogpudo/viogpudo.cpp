@@ -3677,7 +3677,19 @@ void VioGpuAdapter::DestroyFrameBufferObj(BOOLEAN bKeepBuffer)
         // Disable the scanout first and wait for it: a device may refuse to destroy the resource it is
         // scanning out (Apple's Virtualization framework does), which would leave the old framebuffer
         // allocated on the host, and its id could not be created again.
-        m_CtrlQueue.DisableScanout(0);
+        NTSTATUS scanoutStatus = m_CtrlQueue.DisableScanout(0);
+        if (scanoutStatus != STATUS_SUCCESS && scanoutStatus != STATUS_PENDING)
+        {
+            // The device did not confirm that the scanout is off (STATUS_PENDING only means that nothing
+            // could be waited for, as in the bugcheck flow). It may still read the framebuffer and
+            // refuse to destroy it, so don't detach, unref or free anything: abandon the framebuffer
+            // object and its resource id, which costs that memory but keeps it valid.
+            DbgPrint(TRACE_LEVEL_ERROR,
+                     ("%s: scanout not disabled (0x%X), keeping resource %u\n", __FUNCTION__, scanoutStatus, resid));
+            m_pFrameBuf = NULL;
+            DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+            return;
+        }
         m_CtrlQueue.DetachBacking(resid);
         m_CtrlQueue.DestroyResource(resid);
 
@@ -3857,11 +3869,13 @@ VOID VioGpuAdapter::DpcRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface)
                               resp->ctx_id,
                               pcmd->type));
                 }
+                // A waiter may release the buffer as soon as its event is signalled.
+                bool autoRelease = pvbuf->auto_release;
                 if (pvbuf->complete_cb != NULL)
                 {
                     pvbuf->complete_cb(pvbuf->complete_ctx);
                 }
-                if (pvbuf->auto_release)
+                if (autoRelease)
                 {
                     m_CtrlQueue.ReleaseBuffer(pvbuf);
                 }
