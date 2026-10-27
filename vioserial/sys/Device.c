@@ -503,7 +503,10 @@ VIOSerialEvtDeviceD0Exit(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE TargetSt
 
     PAGED_CODE();
 
-    VIOSerialDrainQueue(pContext->c_ivq);
+    if (pContext->isHostMultiport)
+    {
+        VIOSerialDrainQueue(pContext->c_ivq);
+    }
 
     VIOSerialShutDownAllQueues(Device);
 
