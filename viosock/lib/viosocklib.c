@@ -536,13 +536,6 @@ BOOL WSPAPI VIOSockGetOverlappedResult(_In_ SOCKET s,
         return FALSE;
     }
 
-    if (!VIOSockIsVsockSocket(s))
-    {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "%s: not a vsock socket\n", __FUNCTION__);
-        *lpErrno = WSAENOTSOCK;
-        return FALSE;
-    }
-
     *lpdwFlags = 0;
 
     if (GetOverlappedResult((HANDLE)s, (LPOVERLAPPED)lpOverlapped, lpcbTransfer, fWait))
@@ -1025,12 +1018,6 @@ int WSPAPI VIOSockRecv(_In_ SOCKET s,
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_SOCKET, "--> %s, socket: %p\n", __FUNCTION__, (PVOID)s);
 
-    if (!VIOSockIsVsockSocket(s))
-    {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "%s: not a vsock socket\n", __FUNCTION__);
-        return WSP_ERROR(WSAENOTSOCK);
-    }
-
     if (lpNumberOfBytesRecvd)
     {
         *lpNumberOfBytesRecvd = 0;
@@ -1342,12 +1329,6 @@ int WSPAPI VIOSockSend(_In_ SOCKET s,
     {
         TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "Invalid lpBuffers\n");
         return WSP_ERROR(WSAEFAULT);
-    }
-
-    if (!VIOSockIsVsockSocket(s))
-    {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "%s: not a vsock socket\n", __FUNCTION__);
-        return WSP_ERROR(WSAENOTSOCK);
     }
 
     // MSG_DONTROUTE is documented as ignorable by the provider (vsock has no
