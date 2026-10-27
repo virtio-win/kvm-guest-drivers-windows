@@ -60,8 +60,9 @@ AddService = FwCfg,%SPSVCINST_ASSOCSERVICE%, FwCfg_Service_Inst
 [FwCfg_Service_Inst]
 DisplayName    = %FwCfg.SVCDESC%
 ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
-StartType      = 3               ; SERVICE_DEMAND_START
+StartType      = 0               ; SERVICE_BOOT_START, so QEMU gets vmcoreinfo before boot-time crashes
 ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+LoadOrderGroup = System Bus Extender
 ServiceBinary  = %INX_PLATFORM_DRIVERS_DIR%\fwcfg.sys
 AddReg         = Dmar.AddReg
 
