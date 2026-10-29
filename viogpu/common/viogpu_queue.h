@@ -228,6 +228,7 @@ class CtrlQueue : public VioGpuQueue
     CtrlQueue() : VioGpuQueue()
     {
         m_FenceIdr = 0;
+        KeInitializeEvent(&m_SyncEvent, NotificationEvent, FALSE);
     };
 
     PVOID AllocCmd(PGPU_VBUFFER *buf, int sz);
@@ -239,6 +240,7 @@ class CtrlQueue : public VioGpuQueue
     void CreateResource(UINT res_id, UINT format, UINT width, UINT height);
     void DestroyResource(UINT id);
     void SetScanout(UINT scan_id, UINT res_id, UINT width, UINT height, UINT x, UINT y);
+    NTSTATUS DisableScanout(UINT scan_id);
     void ResFlush(UINT res_id, UINT width, UINT height, UINT x, UINT y);
     void TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT height, UINT x, UINT y);
     void AttachBacking(UINT res_id, PGPU_MEM_ENTRY ents, UINT nents);
@@ -251,6 +253,7 @@ class CtrlQueue : public VioGpuQueue
 
   private:
     volatile LONG m_FenceIdr;
+    KEVENT m_SyncEvent;
 };
 
 class CrsrQueue : public VioGpuQueue

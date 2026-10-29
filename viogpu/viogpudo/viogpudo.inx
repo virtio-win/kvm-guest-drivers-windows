@@ -35,6 +35,8 @@ viogpudo.sys = 1,,
 
 [VioGpu.NT$ARCH$]
 %VioGpuDod.DeviceDesc% = VioGpuDod_Inst, PCI\VEN_1AF4&DEV_1050&SUBSYS_1100_INX_SUBSYS_VENDOR_ID&REV_01, PCI\VEN_1AF4&DEV_1050
+; Apple's Virtualization.framework (PCI subsystem id 0050:1AF4): fresh framebuffer resource ids, see VioGpuAdapter::CreateFrameBufferObj
+%VioGpuDod.DeviceDesc% = VioGpuDod_Apple_Inst, PCI\VEN_1AF4&DEV_1050&SUBSYS_00501AF4
 
 [VioGpuDod_Files_Driver]
 viogpudo.sys,,,2
@@ -52,6 +54,18 @@ AddService = VioGpuDod,0x00000002,VioGpuDod_Service_Inst, VioGpuDod_EventLog_Ins
 [VioGpuDod_Inst.HW]
 AddReg = VioGpuDod_PCI_MSIX
 
+
+[VioGpuDod_Apple_Inst]
+Include=msdv.inf
+FeatureScore=F9
+CopyFiles=VioGpuDod_Files_Driver
+AddReg=VioGpuDod_DeviceSettings, VioGpuDod_AppleSettings
+
+[VioGpuDod_Apple_Inst.Services]
+AddService = VioGpuDod,0x00000002,VioGpuDod_Service_Inst, VioGpuDod_EventLog_Inst
+
+[VioGpuDod_Apple_Inst.HW]
+AddReg = VioGpuDod_PCI_MSIX
 
 [VioGpuDod_Service_Inst]
 ServiceType = %SERVICE_KERNEL_DRIVER%
@@ -71,6 +85,9 @@ HKR,, HWCursor,                    %REG_DWORD%, 0
 HKR,, FlexResolution,              %REG_DWORD%, 1
 HKR,, UsePhysicalMemory,           %REG_DWORD%, 0
 HKR,, UsePresentProgress,          %REG_DWORD%, 0
+
+[VioGpuDod_AppleSettings]
+HKR,, UseFreshResourceId,         %REG_DWORD%, 1
 
 [VioGpuDod_PCI_MSIX]
 HKR, "Interrupt Management",, 0x00000010
