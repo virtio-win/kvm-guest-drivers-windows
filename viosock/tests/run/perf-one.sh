@@ -30,9 +30,10 @@ VSK_SIZE=${PERF_VSK_SIZE:-}
 RCVLOWAT=${PERF_RCVLOWAT:-}
 PORT=${PERF_PORT:-12347}
 GRACE=${SERVER_GRACE_SECS:-1}
-CFG=""; VARIANT="posix"
+CFG=""
 NO_POLL=${PERF_NO_POLL:-}
 ZEROCOPY=${PERF_ZEROCOPY:-}
+IO=${PERF_IO:-wsa}
 LOCAL_BIN="/opt/vsock-test/vsock_perf"
 
 usage() {
@@ -54,7 +55,6 @@ Perf knobs (defaults show current env or hard-coded fallback):
 
 Other:
   --config <path>           config file (auto-discovered otherwise)
-  --variant posix|wsa|overlapped   Windows-side binary variant         [$VARIANT]
   --no-poll                 reverse only: pass --no-poll to Windows
                             receiver (blocking read() instead of WSAPoll;
                             needed on viosock builds lacking WSAPoll on
@@ -64,6 +64,11 @@ Other:
                             send()) to whichever side is the sender:
                             Windows in forward, Linux in reverse. Also
                             settable via env PERF_ZEROCOPY=1.
+  --io {wsa|file}           Windows-side data path: send()/read() over
+                            Winsock (wsa, default) or WriteFile/ReadFile
+                            on the socket handle (file). Goes to the
+                            Windows sender in forward, the Windows
+                            receiver in reverse. Env: PERF_IO.    [$IO]
   --local-bin <path>        Linux vsock_perf path                      [$LOCAL_BIN]
 EOF
     exit 1
@@ -79,9 +84,9 @@ while [ $# -gt 0 ]; do
         --port)        PORT="$2";      shift 2 ;;
         --grace)       GRACE="$2";     shift 2 ;;
         --config)      CFG="$2";       shift 2 ;;
-        --variant)     VARIANT="$2";   shift 2 ;;
         --no-poll)     NO_POLL=1;      shift ;;
         --zerocopy)    ZEROCOPY=1;     shift ;;
+        --io)          IO="$2";        shift 2 ;;
         --local-bin)   LOCAL_BIN="$2"; shift 2 ;;
         -h|--help)     usage ;;
         *) die "unknown arg: $1" ;;
@@ -89,7 +94,6 @@ while [ $# -gt 0 ]; do
 done
 
 case "$DIRECTION" in forward|reverse) ;; *) usage ;; esac
-case "$VARIANT"   in posix|wsa|overlapped) ;; *) die "--variant must be posix|wsa|overlapped" ;; esac
 
 CFG=$(discover_config "$CFG") || exit $?
 guest_load "$CFG"
@@ -97,13 +101,9 @@ host_cid=$(config_read  "$CFG" host_cid);  [ -n "$host_cid"  ] || die "config ha
 guest_cid=$(config_read "$CFG" guest_cid); [ -n "$guest_cid" ] || die "config has no guest_cid="
 [ -x "$LOCAL_BIN" ] || die "no vsock_perf at $LOCAL_BIN — run prepare-perf.sh first"
 
-# Windows-side command
-guest_flags=''
-case "$VARIANT" in
-    wsa)        guest_flags=' --variant wsa' ;;
-    overlapped) guest_flags=' --variant overlapped' ;;
-esac
-GUEST_CMD="${guest_bin_dir}\\vsock_perf.exe${guest_flags}"
+# Windows-side command. vsock_perf.exe has no --variant flag (single
+# compat.h POSIX-shim flavour) — same as run-perf.sh.
+GUEST_CMD="${guest_bin_dir}\\vsock_perf.exe"
 
 # Shared receiver / sender argument tails
 recv_args=(--port "$PORT" --buf-size "$BUF")
@@ -118,12 +118,20 @@ send_args=(--port "$PORT" --bytes "$BYTES" --buf-size "$BUF")
 # same packets into the guest queue either way - so it wires the
 # same into send_args regardless of direction.
 [ -n "$ZEROCOPY" ] && send_args+=(--zerocopy)
+# --io=file is Windows-only too: it goes to whichever side runs on the
+# guest (sender in forward, receiver in reverse).
+case "$IO" in
+    wsa) ;;
+    file) [ "$DIRECTION" = forward ] && send_args+=(--io file)
+          [ "$DIRECTION" = reverse ] && recv_args+=(--io file) ;;
+    *) die "--io must be wsa or file, got: $IO" ;;
+esac
 
-LOGDIR="/tmp/vsock-perf-one-$$"; mkdir -p "$LOGDIR"
+LOGDIR=$(mktemp -d /tmp/vsock-perf-one-XXXXXX) || die "mktemp failed"
 rx_log="$LOGDIR/rx.log"
 tx_log="$LOGDIR/tx.log"
 
-info "== perf-one: $DIRECTION  bytes=$BYTES  buf=$BUF${VSK_SIZE:+  vsk=$VSK_SIZE}${RCVLOWAT:+  rcvlowat=$RCVLOWAT}${NO_POLL:+  no-poll}${ZEROCOPY:+  zerocopy}  variant=$VARIANT =="
+info "== perf-one: $DIRECTION  bytes=$BYTES  buf=$BUF${VSK_SIZE:+  vsk=$VSK_SIZE}${RCVLOWAT:+  rcvlowat=$RCVLOWAT}${NO_POLL:+  no-poll}${ZEROCOPY:+  zerocopy}  io=$IO =="
 
 if [ "$DIRECTION" = forward ]; then
     "$LOCAL_BIN" "${recv_args[@]}" > "$rx_log" 2>&1 &
@@ -157,3 +165,8 @@ echo
 rx_gbps=$(grep -oE 'rx performance: [0-9.]+' "$rx_log" 2>/dev/null | tail -1 | awk '{print $NF}')
 tx_gbps=$(grep -oE 'tx performance: [0-9.]+' "$tx_log" 2>/dev/null | tail -1 | awk '{print $NF}')
 info "RX=${rx_gbps:-'-'} Gbps  TX=${tx_gbps:-'-'} Gbps  rx-rc=$rx_rc  tx-rc=$tx_rc"
+
+if [ "$rx_rc" -ne 0 ] || [ "$tx_rc" -ne 0 ] || [ -z "$rx_gbps" ] || [ -z "$tx_gbps" ]; then
+    err "perf-one: FAILED (rx-rc=$rx_rc tx-rc=$tx_rc rx=${rx_gbps:-missing} tx=${tx_gbps:-missing})"
+    exit 1
+fi

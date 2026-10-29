@@ -25,6 +25,7 @@
 #include <windows.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 #ifndef _SSIZE_T_DEFINED
@@ -50,6 +51,18 @@ extern const struct sock_ops ops_overlapped;
 extern const struct sock_ops *g_ops;
 
 int sock_ops_select(const char *variant);
+
+/*
+ * Data-path knob (--io) for the posix and overlapped variants: "wsa" =
+ * Winsock send / recv (default), "file" = file I/O on the socket handle
+ * (posix: CRT _write / _read via _open_osfhandle; overlapped: WriteFileEx /
+ * ReadFile with OVERLAPPED).  sock_io_select returns -1 on an unknown
+ * name.  file_error_to_wsa maps the Win32 codes those calls fail with to
+ * the Winsock error the equivalent send / recv would have returned.
+ */
+int sock_io_select(const char *io);
+bool sock_io_is_file(void);
+int file_error_to_wsa(DWORD err);
 
 /*
  * Negative-path smoke checks per variant.  Each variant tests a

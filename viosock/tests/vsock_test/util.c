@@ -82,6 +82,7 @@ unsigned int parse_port(const char *str)
 
 void vsock_wait_remote_close(int fd)
 {
+    ULONGLONG deadline = GetTickCount64() + (ULONGLONG)TIMEOUT * 1000;
     WSAPOLLFD fds;
     int nfds;
 
@@ -92,22 +93,31 @@ void vsock_wait_remote_close(int fd)
      * reported in revents regardless of what we requested. */
     fds.events = POLLIN;
 
-    /* Route through the variant dispatch: posix -> WSAPoll (compat.c),
-     * wsa   -> WSAEventSelect + WSAEnumNetworkEvents (wsa.c).  Both
-     * primitives get runtime coverage from the tests that use this
-     * helper (currently 3 / 21 / 30 / 31). */
-    nfds = g_ops->sock_poll(&fds, 1, TIMEOUT * 1000);
-    if (nfds < 0)
+    for (;;)
     {
-        perror("sock_poll");
-        exit(EXIT_FAILURE);
+        ULONGLONG now = GetTickCount64();
+
+        /* Every variant's sock_poll is WSAPoll today (compat.c / wsa.c); the
+         * WSAEventSelect tract is covered separately by wsa_events.c. */
+        nfds = now < deadline ? g_ops->sock_poll(&fds, 1, (int)(deadline - now)) : 0;
+        if (nfds < 0)
+        {
+            perror("sock_poll");
+            exit(EXIT_FAILURE);
+        }
+        if (nfds == 0)
+        {
+            fprintf(stderr, "sock_poll timed out waiting for remote close\n");
+            exit(EXIT_FAILURE);
+        }
+        /* Unread data wakes POLLIN too; only POLLHUP / POLLERR mean the peer
+         * closed, as EPOLLRDHUP | EPOLLHUP upstream. */
+        if (fds.revents & (POLLHUP | POLLERR))
+        {
+            return;
+        }
+        Sleep(1);
     }
-    if (nfds == 0)
-    {
-        fprintf(stderr, "sock_poll timed out waiting for remote close\n");
-        exit(EXIT_FAILURE);
-    }
-    /* POLLHUP or recv() returning 0 both indicate remote close. */
 }
 
 /*
@@ -140,6 +150,8 @@ void vsock_wait_remote_close_select(int fd)
         fprintf(stderr, "select timed out waiting for remote close\n");
         exit(EXIT_FAILURE);
     }
+    /* Readable may still be the peer's unread data, not its close. */
+    vsock_wait_remote_close(fd);
 }
 
 bool vsock_ioctl_int(int fd, unsigned long op, int expected)

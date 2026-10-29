@@ -60,14 +60,20 @@ case "$BITS" in
     *) die "--bits must be x64 or x86, got: $BITS" ;;
 esac
 
+[[ "$PER_TEST_TIMEOUT" =~ ^[1-9][0-9]*$ ]] ||
+    die "--timeout must be a positive integer (seconds); got '$PER_TEST_TIMEOUT' (0 would disable the per-test limit)"
+
 CFG=$(discover_config "$CFG") || exit $?
 guest_load "$CFG"
 host_cid=$(config_read "$CFG" host_cid);   [ -n "$host_cid" ]    || die "config has no host_cid="
 guest_cid=$(config_read "$CFG" guest_cid); [ -n "$guest_cid" ]   || die "config has no guest_cid="
 # guest_ip is loaded by guest_load; nothing extra to do here.
 
-if [ -z "$LOGDIR" ]; then LOGDIR="/tmp/vsock-run-$$"; fi
-mkdir -p "$LOGDIR"
+if [ -z "$LOGDIR" ]; then
+    LOGDIR=$(mktemp -d /tmp/vsock-run-XXXXXX) || die "mktemp failed"
+else
+    mkdir -p "$LOGDIR"
+fi
 
 if [ "${#PICK_IDS[@]}" -gt 0 ]; then
     ROWS=()
@@ -102,7 +108,7 @@ _cleanup() {
     local kill=""
     while IFS= read -r img; do kill+="taskkill /F /IM $img 2>nul & "; done < <(variant_all_images)
     _guest_ssh "$kill exit 0" >/dev/null 2>&1 || true
-    [ -n "${srv_pid:-}" ] && kill -0 "$srv_pid" 2>/dev/null && kill "$srv_pid" 2>/dev/null || true
+    [ -n "${srv_ssh_pid:-}" ] && kill -0 "$srv_ssh_pid" 2>/dev/null && kill "$srv_ssh_pid" 2>/dev/null || true
 }
 trap _cleanup EXIT
 _cleanup
