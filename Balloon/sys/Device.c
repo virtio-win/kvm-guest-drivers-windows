@@ -545,24 +545,33 @@ VOID BalloonInterruptDpc(IN WDFINTERRUPT WdfInterrupt, IN WDFOBJECT WdfDevice)
 
     if (devCtx->StatVirtQueue)
     {
+#ifdef USE_BALLOON_SERVICE
+        WDFREQUEST request = NULL;
+#endif
         WdfSpinLockAcquire(devCtx->StatQueueLock);
         buffer = virtqueue_get_buf(devCtx->StatVirtQueue, &len);
+#ifdef USE_BALLOON_SERVICE
+        if (buffer)
+        {
+            devCtx->HandleWriteRequest = TRUE;
+            if (devCtx->PendingWriteRequest != NULL &&
+                WdfRequestUnmarkCancelable(devCtx->PendingWriteRequest) != STATUS_CANCELLED)
+            {
+                request = devCtx->PendingWriteRequest;
+                devCtx->PendingWriteRequest = NULL;
+            }
+        }
+#endif
         WdfSpinLockRelease(devCtx->StatQueueLock);
 
         if (buffer)
         {
 #ifdef USE_BALLOON_SERVICE
-            WDFREQUEST request = devCtx->PendingWriteRequest;
-
-            devCtx->HandleWriteRequest = TRUE;
-
-            if ((request != NULL) && (WdfRequestUnmarkCancelable(request) != STATUS_CANCELLED))
+            if (request != NULL)
             {
                 NTSTATUS status;
                 PVOID buffer;
                 size_t length = 0;
-
-                devCtx->PendingWriteRequest = NULL;
 
                 status = WdfRequestRetrieveInputBuffer(request, 0, &buffer, &length);
                 if (!NT_SUCCESS(status))
@@ -634,6 +643,7 @@ VOID BalloonEvtFileClose(IN WDFFILEOBJECT FileObject)
 {
     WDFDEVICE Device = WdfFileObjectGetDevice(FileObject);
     PDEVICE_CONTEXT devCtx = GetDeviceContext(Device);
+    BOOLEAN submitStats = FALSE;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-> %s\n", __FUNCTION__);
 
@@ -645,7 +655,15 @@ VOID BalloonEvtFileClose(IN WDFFILEOBJECT FileObject)
         RtlFillMemory(devCtx->MemStats, sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR, -1);
     }
 
-    if (devCtx->StatVirtQueue && devCtx->MemStats)
+    WdfSpinLockAcquire(devCtx->StatQueueLock);
+    if (devCtx->StatVirtQueue && devCtx->MemStats && devCtx->HandleWriteRequest)
+    {
+        devCtx->HandleWriteRequest = FALSE;
+        submitStats = TRUE;
+    }
+    WdfSpinLockRelease(devCtx->StatQueueLock);
+
+    if (submitStats)
     {
         BalloonMemStats(Device);
     }
