@@ -519,6 +519,13 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
     BOOLEAN bMergeableBuffersConfigured = true;
     BOOLEAN bFastInit = false;
     BOOLEAN bSurprizeRemoved = false;
+    // Set by FailAdapter() to record that the adapter is in a failed state:
+    // processing of all RX/TX/CX queues is canceled, and all new requests are
+    // rejected. The adapter must be reset to restore its functionality.
+    // The flag must be a LONG instead of a BOOLEAN, because an interlocked
+    // operation is necessary to avoid a race condition when setting this flag
+    // to true.
+    volatile LONG bAdapterFailed = FALSE;
     BOOLEAN bUsingMSIX = false;
     BOOLEAN bUseIndirect = false;
     BOOLEAN bAnyLayout = false;
