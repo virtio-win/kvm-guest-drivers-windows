@@ -40,6 +40,14 @@ class CParaNdisRX : public CParaNdisTemplatePath<CVirtQueue>, public CNdisAlloca
         m_Reinsert = false;
     }
 
+    // Sync barrier for the adapter-failure path: after this returns, no
+    // in-flight PopulateQueue()/AllocateMore() can still see a stale
+    // bAdapterFailed.
+    void FailureSyncBarrier()
+    {
+        TPassiveSpinLocker barrier(m_Lock);
+    }
+
     void KickRXRing();
 
     PARANDIS_RECEIVE_QUEUE &UnclassifiedPacketsQueue()

@@ -529,6 +529,16 @@ BOOLEAN CParaNdisRX::AllocateMore()
 
     TPassiveSpinLocker autoLock(m_Lock);
 
+    // Re-checked under m_Lock: the check above is only a fast path.
+    if (m_Context->bAdapterFailed)
+    {
+        if (pBuffersDescriptor)
+        {
+            ParaNdis_FreeRxBufferDescriptor(m_Context, pBuffersDescriptor);
+        }
+        return result;
+    }
+
     if (pBuffersDescriptor)
     {
         pBuffersDescriptor->Queue = this;
@@ -974,6 +984,12 @@ void CParaNdisRX::PopulateQueue()
 {
     LIST_ENTRY TempList;
     TPassiveSpinLocker autoLock(m_Lock);
+
+    // Leave m_NetReceiveBuffers untouched instead of posting to the ring.
+    if (m_Context->bAdapterFailed)
+    {
+        return;
+    }
 
     InitializeListHead(&TempList);
 
