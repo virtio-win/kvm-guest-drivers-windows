@@ -40,6 +40,13 @@ class CParaNdisRX : public CParaNdisTemplatePath<CVirtQueue>, public CNdisAlloca
         m_Reinsert = false;
     }
 
+    // Sync barrier for FailAdapter(): after this returns, no in-flight
+    // PopulateQueue()/AllocateMore() can still see a stale bAdapterFailed.
+    void FailureSyncBarrier()
+    {
+        TPassiveSpinLocker barrier(m_Lock);
+    }
+
     void KickRXRing();
 
     PARANDIS_RECEIVE_QUEUE &UnclassifiedPacketsQueue()
@@ -81,7 +88,7 @@ class CParaNdisRX : public CParaNdisTemplatePath<CVirtQueue>, public CNdisAlloca
     } m_MergeContext;
 
     void ReuseReceiveBufferNoLock(pRxNetDescriptor pBuffersDescriptor);
-    pRxNetDescriptor ProcessMergedBuffers(pRxNetDescriptor pFirstBuffer, UINT nFullLength);
+    pRxNetDescriptor ProcessMergedBuffers(pRxNetDescriptor pFirstBuffer, UINT nFullLength, ULONG *pInvalidNumBuffers);
     BOOLEAN CollectRemainingMergeBuffers();
     pRxNetDescriptor AssembleMergedPacket();
     void ReuseCollectedBuffers();
