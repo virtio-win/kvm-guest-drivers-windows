@@ -681,6 +681,14 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
 
     VOID RaiseUnrecoverableError(PCSTR Message);
 
+    // Puts the adapter into a permanent failed state: sets bAdapterFailed,
+    // logs DiagnosticValue to the System Event Log, drains in-flight TX/CX
+    // work, and asks NDIS to remove the miniport (Code 43) - no device
+    // reset, unlike real surprise removal.
+    // CallerLine should be __LINE__ from the call site, so the log shows
+    // where the failure was detected.
+    VOID FailAdapter(PCSTR Message, ULONG DiagnosticValue, ULONG CallerLine);
+
     _PARANDIS_ADAPTER(const _PARANDIS_ADAPTER &) = delete;
     _PARANDIS_ADAPTER &operator=(const _PARANDIS_ADAPTER &) = delete;
 };
