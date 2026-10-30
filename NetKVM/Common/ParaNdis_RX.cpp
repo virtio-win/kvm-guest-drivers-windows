@@ -506,6 +506,13 @@ BOOLEAN CParaNdisRX::AllocateMore()
 {
     BOOLEAN result = false;
 
+    // Permanent failure, not "try again later": return false so the lazy
+    // allocation thread converges to n==0 and stops polling.
+    if (m_Context->bAdapterFailed)
+    {
+        return result;
+    }
+
     // if the queue is not ready, try again later
     if (!m_pVirtQueue->IsValid() || !m_Reinsert)
     {
@@ -605,7 +612,8 @@ void CParaNdisRX::ReuseReceiveBufferNoLock(pRxNetDescriptor pBuffersDescriptor)
         DisassembleMergedPacket(pBuffersDescriptor);
     }
 
-    if (!m_Reinsert)
+    // Once failed, park the buffer instead of posting it to the untrustworthy ring.
+    if (!m_Reinsert || m_Context->bAdapterFailed)
     {
         InsertTailList(&m_NetReceiveBuffers, &pBuffersDescriptor->listEntry);
         m_NetNofReceiveBuffers++;
