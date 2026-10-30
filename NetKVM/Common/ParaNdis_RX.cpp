@@ -996,6 +996,14 @@ void CParaNdisRX::PopulateQueue()
 
 BOOLEAN CParaNdisRX::RestartQueue()
 {
+    // Once failed, report "no more work" instead of touching the ring -
+    // otherwise unconsumed buffers would make the DPC requeue forever
+    // (DPC watchdog bugcheck 0x133).
+    if (m_Context->bAdapterFailed)
+    {
+        return FALSE;
+    }
+
     return ParaNdis_SynchronizeWithInterrupt(m_Context, m_messageIndex, RestartQueueSynchronously, this);
 }
 
