@@ -1518,6 +1518,9 @@ static void VirtIONetRelease(PARANDIS_ADAPTER *pContext)
     ULONG i;
     DEBUG_ENTRY(0);
 
+    // Must finish before RX resources are freed below.
+    pContext->systemThread.Stop();
+
     /* list NetReceiveBuffersWaiting must be free */
 
 #ifdef PARANDIS_SUPPORT_RSS
