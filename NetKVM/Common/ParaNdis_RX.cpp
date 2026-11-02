@@ -962,10 +962,11 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
         // Mergeable buffers: delegate to ProcessMergedBuffers (handles both single/multi-buffer)
         if (m_Context->bUseMergedBuffers)
         {
-            pProcessBuffer = ProcessMergedBuffers(pBufferDescriptor, nFullLength);
+            ULONG invalidNumBuffers = MAXULONG;
+            pProcessBuffer = ProcessMergedBuffers(pBufferDescriptor, nFullLength, &invalidNumBuffers);
             if (!pProcessBuffer)
             {
-                continue; // Assembly failed, buffer already reused
+                continue; // Assembly failed or fatal, buffer already freed/reused
             }
         }
         else
@@ -1060,8 +1061,14 @@ VOID ParaNdis_ResetRxClassification(PARANDIS_ADAPTER *pContext)
 // Handle mergeable buffer packets: fast path for single buffer, assembly for multi-buffer
 // Returns: original descriptor (single buffer), assembled descriptor (multi-buffer), or NULL (error)
 // Note: Caller must call ProcessReceivedPacket on returned descriptor
-pRxNetDescriptor CParaNdisRX::ProcessMergedBuffers(pRxNetDescriptor pFirstBuffer, UINT nFullLength)
+pRxNetDescriptor CParaNdisRX::ProcessMergedBuffers(pRxNetDescriptor pFirstBuffer,
+                                                   UINT nFullLength,
+                                                   ULONG *pInvalidNumBuffers)
 {
+    // MAXULONG is safe as "no error": numBuffers is a UINT16, so it can never
+    // reach it, but 0 is a real value this function can report as invalid.
+    *pInvalidNumBuffers = MAXULONG;
+
     // Access mergeable header to get num_buffers
     virtio_net_hdr_mrg_rxbuf *pMrgHeader = (virtio_net_hdr_mrg_rxbuf *)pFirstBuffer->PhysicalPages[pFirstBuffer->HeaderPage].Virtual;
     UINT16 numBuffers = pMrgHeader->num_buffers;
@@ -1075,8 +1082,9 @@ pRxNetDescriptor CParaNdisRX::ProcessMergedBuffers(pRxNetDescriptor pFirstBuffer
         return pFirstBuffer;
     }
 
-    // num_buffers comes from the device - supplied header — not trustworthy.
-    // Merge context arrays are fixed at VIRTIO_NET_MAX_MRG_BUFS (17) entries.
+    // num_buffers is device-supplied and untrustworthy; outside [1,
+    // VIRTIO_NET_MAX_MRG_BUFS] is a protocol violation that leaves the ring
+    // state undefined, so the buffer must not be reposted to it.
     if (numBuffers == 0 || numBuffers > VIRTIO_NET_MAX_MRG_BUFS)
     {
         DPrintf(0,
@@ -1085,7 +1093,11 @@ pRxNetDescriptor CParaNdisRX::ProcessMergedBuffers(pRxNetDescriptor pFirstBuffer
                 VIRTIO_NET_MAX_MRG_BUFS);
         m_Context->Statistics.ifInErrors++;
         m_Context->Statistics.ifInDiscards++;
-        ReuseReceiveBufferNoLock(pFirstBuffer);
+        // Don't repost to the untrustworthy ring; decrement capacity like
+        // ReuseReceiveBufferNoLock's free path does.
+        ParaNdis_FreeRxBufferDescriptor(m_Context, pFirstBuffer);
+        m_NetMaxReceiveBuffers--;
+        *pInvalidNumBuffers = numBuffers;
         return NULL;
     }
     // Multi-buffer packet: collect and assemble
