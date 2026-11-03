@@ -1496,7 +1496,8 @@ VirtIoBuildIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
     PSRB_EXTENSION srbExt;
     PSTOR_SCATTER_GATHER_LIST sgList;
     ULONGLONG lba;
-    ULONG blocks;
+    ULONGLONG blocks;
+    ULONGLONG sectors;
 
     cdb = SRB_CDB(Srb);
     srbExt = SRB_EXTENSION(Srb);
@@ -1565,24 +1566,17 @@ VirtIoBuildIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
             }
     }
 
+    // RhelGetLba and lastLBA (the exclusive capacity) are in 512-byte sectors.
     lba = RhelGetLba(DeviceExtension, cdb);
-    blocks = (SRB_DATA_TRANSFER_LENGTH(Srb) + adaptExt->info.blk_size - 1) / adaptExt->info.blk_size;
-    if (lba > adaptExt->lastLBA - 1)
+    blocks = ((ULONGLONG)SRB_DATA_TRANSFER_LENGTH(Srb) + adaptExt->info.blk_size - 1) / adaptExt->info.blk_size;
+    sectors = blocks * (adaptExt->info.blk_size / SECTOR_SIZE);
+    if (lba >= adaptExt->lastLBA || sectors > adaptExt->lastLBA - lba)
     {
         RhelDbgPrint(TRACE_LEVEL_ERROR,
-                     " SRB_STATUS_BAD_SRB_BLOCK_LENGTH lba = %llu lastLBA= %llu\n",
-                     lba,
-                     adaptExt->lastLBA);
-        CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_BAD_SRB_BLOCK_LENGTH);
-        return FALSE;
-    }
-    if ((lba + blocks) > adaptExt->lastLBA)
-    {
-        RhelDbgPrint(TRACE_LEVEL_ERROR,
-                     " SRB_STATUS_BAD_SRB_BLOCK_LENGTH lba = %llu lastLBA= %llu blocks = %lu\n",
+                     " SRB_STATUS_BAD_SRB_BLOCK_LENGTH lba = %llu capacity = %llu sectors = %llu\n",
                      lba,
                      adaptExt->lastLBA,
-                     blocks);
+                     sectors);
         CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_BAD_SRB_BLOCK_LENGTH);
         return FALSE;
     }
