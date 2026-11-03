@@ -192,26 +192,25 @@ void CTXVirtQueue::UpdateTXStats(const CNB &NB, CTXDescriptor &Descriptor)
     auto &HeadersArea = Descriptor.HeadersAreaAccessor();
     PVOID EthHeader = HeadersArea.EthHeader();
 
-    // TODO: Statistics must be atomic
     auto BytesSent = NB.GetDataLength();
     auto NBL = NB.GetParentNBL();
 
-    m_Context->Statistics.ifHCOutOctets += BytesSent;
+    ParaNdis_StatAdd(m_Context->Statistics.ifHCOutOctets, BytesSent);
 
     if (ETH_IS_BROADCAST(EthHeader))
     {
-        m_Context->Statistics.ifHCOutBroadcastOctets += BytesSent;
-        m_Context->Statistics.ifHCOutBroadcastPkts++;
+        ParaNdis_StatAdd(m_Context->Statistics.ifHCOutBroadcastOctets, BytesSent);
+        ParaNdis_StatAdd(m_Context->Statistics.ifHCOutBroadcastPkts, 1);
     }
     else if (ETH_IS_MULTICAST(EthHeader))
     {
-        m_Context->Statistics.ifHCOutMulticastOctets += BytesSent;
-        m_Context->Statistics.ifHCOutMulticastPkts++;
+        ParaNdis_StatAdd(m_Context->Statistics.ifHCOutMulticastOctets, BytesSent);
+        ParaNdis_StatAdd(m_Context->Statistics.ifHCOutMulticastPkts, 1);
     }
     else
     {
-        m_Context->Statistics.ifHCOutUcastOctets += BytesSent;
-        m_Context->Statistics.ifHCOutUcastPkts++;
+        ParaNdis_StatAdd(m_Context->Statistics.ifHCOutUcastOctets, BytesSent);
+        ParaNdis_StatAdd(m_Context->Statistics.ifHCOutUcastPkts, 1);
     }
 
     if (NBL->IsLSO())
