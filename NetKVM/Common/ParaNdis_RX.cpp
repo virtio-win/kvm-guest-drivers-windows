@@ -874,8 +874,8 @@ void CParaNdisRX::ProcessReceivedPacket(pRxNetDescriptor pBufferDescriptor, CCHA
     if (!packetAnalysisRC)
     {
         ReuseReceiveBufferNoLock(pBufferDescriptor);
-        m_Context->Statistics.ifInErrors++;
-        m_Context->Statistics.ifInDiscards++;
+        ParaNdis_StatAdd(m_Context->Statistics.ifInErrors, 1);
+        ParaNdis_StatAdd(m_Context->Statistics.ifInDiscards, 1);
         return;
     }
 
@@ -883,7 +883,7 @@ void CParaNdisRX::ProcessReceivedPacket(pRxNetDescriptor pBufferDescriptor, CCHA
     if (!ShallPassPacket(m_Context, &pBufferDescriptor->PacketInfo))
     {
         pBufferDescriptor->Queue->ReuseReceiveBufferNoLock(pBufferDescriptor);
-        m_Context->Statistics.ifInDiscards++;
+        ParaNdis_StatAdd(m_Context->Statistics.ifInDiscards, 1);
         m_Context->extraStatistics.framesFilteredOut++;
         return;
     }

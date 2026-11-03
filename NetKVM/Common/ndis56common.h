@@ -87,6 +87,46 @@ extern "C"
 #include "DebugData.h"
 }
 
+// Statistics are shared by independent RX/TX queues and the VF callback.
+// Keep all counter access interlocked, including reads on 32-bit systems.
+static FORCEINLINE void ParaNdis_StatAdd(ULONG64 &Counter, ULONG64 Value)
+{
+    InterlockedExchangeAdd64(reinterpret_cast<volatile LONG64 *>(&Counter), static_cast<LONG64>(Value));
+}
+
+static FORCEINLINE ULONG64 ParaNdis_StatRead(ULONG64 &Counter)
+{
+    return static_cast<ULONG64>(InterlockedCompareExchange64(reinterpret_cast<volatile LONG64 *>(&Counter), 0, 0));
+}
+
+// Each field is read atomically, but updates may occur between reads, so the
+// snapshot is not guaranteed to be consistent across counters.
+static FORCEINLINE NDIS_STATISTICS_INFO ParaNdis_StatisticsSnapshot(NDIS_STATISTICS_INFO &Statistics)
+{
+    NDIS_STATISTICS_INFO Snapshot = {};
+    Snapshot.Header = Statistics.Header;
+    Snapshot.SupportedStatistics = Statistics.SupportedStatistics;
+    Snapshot.ifInDiscards = ParaNdis_StatRead(Statistics.ifInDiscards);
+    Snapshot.ifInErrors = ParaNdis_StatRead(Statistics.ifInErrors);
+    Snapshot.ifHCInOctets = ParaNdis_StatRead(Statistics.ifHCInOctets);
+    Snapshot.ifHCInUcastPkts = ParaNdis_StatRead(Statistics.ifHCInUcastPkts);
+    Snapshot.ifHCInMulticastPkts = ParaNdis_StatRead(Statistics.ifHCInMulticastPkts);
+    Snapshot.ifHCInBroadcastPkts = ParaNdis_StatRead(Statistics.ifHCInBroadcastPkts);
+    Snapshot.ifHCOutOctets = ParaNdis_StatRead(Statistics.ifHCOutOctets);
+    Snapshot.ifHCOutUcastPkts = ParaNdis_StatRead(Statistics.ifHCOutUcastPkts);
+    Snapshot.ifHCOutMulticastPkts = ParaNdis_StatRead(Statistics.ifHCOutMulticastPkts);
+    Snapshot.ifHCOutBroadcastPkts = ParaNdis_StatRead(Statistics.ifHCOutBroadcastPkts);
+    Snapshot.ifOutErrors = ParaNdis_StatRead(Statistics.ifOutErrors);
+    Snapshot.ifOutDiscards = ParaNdis_StatRead(Statistics.ifOutDiscards);
+    Snapshot.ifHCInUcastOctets = ParaNdis_StatRead(Statistics.ifHCInUcastOctets);
+    Snapshot.ifHCInMulticastOctets = ParaNdis_StatRead(Statistics.ifHCInMulticastOctets);
+    Snapshot.ifHCInBroadcastOctets = ParaNdis_StatRead(Statistics.ifHCInBroadcastOctets);
+    Snapshot.ifHCOutUcastOctets = ParaNdis_StatRead(Statistics.ifHCOutUcastOctets);
+    Snapshot.ifHCOutMulticastOctets = ParaNdis_StatRead(Statistics.ifHCOutMulticastOctets);
+    Snapshot.ifHCOutBroadcastOctets = ParaNdis_StatRead(Statistics.ifHCOutBroadcastOctets);
+    return Snapshot;
+}
+
 #if !defined(_Function_class_)
 #define _Function_class_(x)
 #endif
@@ -564,7 +604,7 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
     CGuestAnnouncePackets guestAnnouncePackets;
 
     /* send part */
-    NDIS_STATISTICS_INFO Statistics = {};
+    alignas(8) NDIS_STATISTICS_INFO Statistics = {};
     NDIS_STATISTICS_INFO VfStatistics = {};
     struct
     {
