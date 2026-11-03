@@ -1093,12 +1093,39 @@ VOID DumpSystemMemoryRanges(LONGLONG Start, LONGLONG End)
 inline BOOLEAN FindFreeMemoryRangeInBitmap(RTL_BITMAP *Bitmap,
                                            LONGLONG BaseAddress,
                                            ULONGLONG BlockSize,
+                                           ULONGLONG UsableRegionSize,
                                            ULONG LessOrEqualExpectedSizeInBlocks,
                                            PPHYSICAL_MEMORY_RANGE RangeFound)
 {
-
+    RTL_BITMAP usableBitmap;
+    ULONG usableBlocks;
     ULONG indexOfContiguous = 0;
-    ULONG numberOfBits = RtlFindLongestRunClear(Bitmap, &indexOfContiguous);
+    ULONG numberOfBits;
+
+    if (BlockSize == 0)
+    {
+        return FALSE;
+    }
+
+    //
+    // Limit the search to the portion of the bitmap covered by the usable
+    // device-managed memory region. The bitmap itself represents region_size
+    // and remains unchanged when usable_region_size grows.
+    //
+    usableBlocks = (ULONG)min(UsableRegionSize / BlockSize, Bitmap->SizeOfBitMap);
+
+    if (usableBlocks == 0)
+    {
+        return FALSE;
+    }
+
+    //
+    // Create a view of the existing bitmap buffer that excludes blocks
+    // outside usable_region_size.
+    //
+    RtlInitializeBitMap(&usableBitmap, Bitmap->Buffer, usableBlocks);
+
+    numberOfBits = RtlFindLongestRunClear(&usableBitmap, &indexOfContiguous);
 
     if (numberOfBits)
     {
@@ -1161,6 +1188,7 @@ BOOLEAN VirtioMemAddPhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Confi
     result = FindFreeMemoryRangeInBitmap(&devCtx->memoryBitmapHandle,
                                          address.QuadPart,
                                          Configuration->block_size,
+                                         Configuration->usable_region_size,
                                          (ULONG)(sizeDifference / Configuration->block_size),
                                          &range);
 
