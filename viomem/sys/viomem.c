@@ -1273,6 +1273,7 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
     PHYSICAL_ADDRESS address = {0};
     ULONG rangeCount = 0;
     PHYSICAL_MEMORY_RANGE *memoryRanges = NULL;
+    BOOLEAN success = TRUE;
 
     address.QuadPart = (LONGLONG)Configuration->addr;
 
@@ -1390,55 +1391,58 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
                 //
 
                 TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "%s - allocation memory for ranges failed \n", __FUNCTION__);
-                return FALSE;
+                success = FALSE;
             }
         }
         else
         {
-            return FALSE;
+            success = FALSE;
         }
 
-        GetMemoryRangesFromMdl(removedMemoryMdl, memoryRanges);
-
-        rangeCount = SortAndMergeMemoryRanges(memoryRanges, rangeCount);
-
-        for (ULONG i = 0; i < rangeCount; i++)
+        if (success)
         {
-            numberOfBlocks = (__virtio16)(memoryRanges[i].NumberOfBytes.QuadPart / Configuration->block_size);
+            GetMemoryRangesFromMdl(removedMemoryMdl, memoryRanges);
 
-            if (SendUnPlugRequest(Device, memoryRanges[i].BaseAddress.QuadPart, numberOfBlocks))
+            rangeCount = SortAndMergeMemoryRanges(memoryRanges, rangeCount);
+
+            for (ULONG i = 0; i < rangeCount; i++)
             {
-                TraceEvents(TRACE_LEVEL_INFORMATION,
-                            DBG_PNP,
-                            "HotRemove address [0x%I64x] len[0x%x]\n",
-                            memoryRanges[i].BaseAddress.QuadPart,
-                            memoryRanges[i].NumberOfBytes.QuadPart);
+                numberOfBlocks = (__virtio16)(memoryRanges[i].NumberOfBytes.QuadPart / Configuration->block_size);
 
-                DeallocateMemoryRangeInMemoryBitmap(address.QuadPart,
-                                                    &memoryRanges[i],
-                                                    &devCtx->memoryBitmapHandle,
-                                                    (ULONG)Configuration->block_size);
-            }
-            else
-            {
-                //
-                // If it was not possible to inform the device about range removal then
-                // revert the operation.
-                //
+                if (SendUnPlugRequest(Device, memoryRanges[i].BaseAddress.QuadPart, numberOfBlocks))
+                {
+                    TraceEvents(TRACE_LEVEL_INFORMATION,
+                                DBG_PNP,
+                                "HotRemove address [0x%I64x] len[0x%x]\n",
+                                memoryRanges[i].BaseAddress.QuadPart,
+                                memoryRanges[i].NumberOfBytes.QuadPart);
 
-                status = MmAddPhysicalMemory(&memoryRanges[i].BaseAddress, &memoryRanges[i].NumberOfBytes);
-
-                if (!NT_SUCCESS(status))
+                    DeallocateMemoryRangeInMemoryBitmap(address.QuadPart,
+                                                        &memoryRanges[i],
+                                                        &devCtx->memoryBitmapHandle,
+                                                        (ULONG)Configuration->block_size);
+                }
+                else
                 {
                     //
-                    // It's not clear what to do if this operation fails?
+                    // If it was not possible to inform the device about range removal then
+                    // revert the operation.
                     //
 
-                    TraceEvents(TRACE_LEVEL_ERROR,
-                                DBG_PNP,
-                                "%s MmAddPhysicalMemory failed 0x%x\n",
-                                __FUNCTION__,
-                                status);
+                    status = MmAddPhysicalMemory(&memoryRanges[i].BaseAddress, &memoryRanges[i].NumberOfBytes);
+
+                    if (!NT_SUCCESS(status))
+                    {
+                        //
+                        // It's not clear what to do if this operation fails?
+                        //
+
+                        TraceEvents(TRACE_LEVEL_ERROR,
+                                    DBG_PNP,
+                                    "%s MmAddPhysicalMemory failed 0x%x\n",
+                                    __FUNCTION__,
+                                    status);
+                    }
                 }
             }
         }
@@ -1447,6 +1451,20 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
     if (memoryRanges)
     {
         ExFreePoolWithTag(memoryRanges, VIRTIO_MEM_POOL_TAG);
+    }
+
+    if (removedMemoryMdl)
+    {
+        //
+        // The MDL is no longer needed after its memory ranges have been processed.
+        //
+
+        ExFreePool(removedMemoryMdl);
+    }
+
+    if (!success)
+    {
+        return FALSE;
     }
 
     //
