@@ -729,6 +729,47 @@ ULONG GetMemoryRangesFromMdl(PMDL Mdl, PHYSICAL_MEMORY_RANGE MemoryRanges[])
 }
 
 //
+// Restore pages described by an MDL without allocating any additional storage.
+// This is used if the MDL cannot be converted into the preallocated range array.
+//
+
+static VOID RestoreMemoryFromMdl(PMDL Mdl)
+{
+    PPFN_NUMBER pfnNumbers = MmGetMdlPfnArray(Mdl);
+    LONGLONG pagesToScan = Mdl->ByteCount >> PAGE_SHIFT;
+    LONGLONG blockStartPosition = 0;
+
+    while (pagesToScan > 0)
+    {
+        LONGLONG consecutivePagesCount =
+            FindConsecutivePagesCountMDL(&pfnNumbers[blockStartPosition], pagesToScan);
+        PHYSICAL_ADDRESS baseAddress = {0};
+        LARGE_INTEGER numberOfBytes = {0};
+        NTSTATUS status;
+
+        baseAddress.QuadPart =
+            ((LONGLONG)pfnNumbers[blockStartPosition]) << PAGE_SHIFT;
+        numberOfBytes.QuadPart = consecutivePagesCount << PAGE_SHIFT;
+
+        status = MmAddPhysicalMemory(&baseAddress, &numberOfBytes);
+
+        if (!NT_SUCCESS(status))
+        {
+            TraceEvents(TRACE_LEVEL_ERROR,
+                        DBG_PNP,
+                        "%s MmAddPhysicalMemory failed while restoring MDL range 0x%I64x (size 0x%I64x): 0x%x\n",
+                        __FUNCTION__,
+                        baseAddress.QuadPart,
+                        numberOfBytes.QuadPart,
+                        status);
+        }
+
+        blockStartPosition += consecutivePagesCount;
+        pagesToScan -= consecutivePagesCount;
+    }
+}
+
+//
 // Function returns number of megabytes allocated in bitmap representing
 // region_size
 //
@@ -1267,36 +1308,116 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
     NTSTATUS status = STATUS_SUCCESS;
     PHYSICAL_ADDRESS highAddress = {0};
     LONGLONG sizeDifference = 0;
+    LONGLONG bytesToRemove = 0;
+    LONGLONG maxBytesToRemove = ((LONGLONG)4 * 1024 * 1024 * 1024) - PAGE_SIZE;
+    SIZE_T bytesToRemoveCount = 0;
+    ULONGLONG maxRangeCount = 0;
+    ULONG rangeCapacity = 0;
     __virtio16 numberOfBlocks = 0;
     PDEVICE_CONTEXT devCtx = GetDeviceContext(Device);
     PHYSICAL_ADDRESS skip = {0};
     PHYSICAL_ADDRESS address = {0};
     ULONG rangeCount = 0;
+    SIZE_T memoryRangesSize = 0;
     PHYSICAL_MEMORY_RANGE *memoryRanges = NULL;
     BOOLEAN success = TRUE;
 
     address.QuadPart = (LONGLONG)Configuration->addr;
 
 #if 0
-	DumpSystemMemoryRanges(Configuration->addr,
-		Configuration->addr + Configuration->plugged_size - 1);
+    DumpSystemMemoryRanges(Configuration->addr,
+                           Configuration->addr + Configuration->plugged_size - 1);
 #endif
+
+    if (Configuration->plugged_size <= Configuration->requested_size)
+    {
+        return TRUE;
+    }
 
     sizeDifference = (LONGLONG)(Configuration->plugged_size - Configuration->requested_size);
 
     //
-    // Let's *try* to remove a memory range.
-    //
-    // Note: Removing the memory range may not be possible because the system can already use the
-    // whole range.
-    //
-
-    //
-    // The "skip" value is set to block_size, which means that the range address is aligned
-    // to this value.
+    // MM_ALLOCATE_REQUIRE_CONTIGUOUS_CHUNKS requires SkipBytes to be a
+    // power of two, at least PAGE_SIZE, and TotalBytes to be a multiple
+    // of SkipBytes.
     //
 
-    skip.QuadPart = Configuration->block_size;
+    if (Configuration->block_size < PAGE_SIZE ||
+        Configuration->block_size > (ULONGLONG)maxBytesToRemove ||
+        (Configuration->block_size & (Configuration->block_size - 1)) != 0)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR,
+                    DBG_PNP,
+                    "%s - invalid block_size for hot-remove: 0x%I64x\n",
+                    __FUNCTION__,
+                    Configuration->block_size);
+        return FALSE;
+    }
+
+    //
+    // The MDL allocation is limited to 4 GiB - PAGE_SIZE per call.
+    // Align the limit and the requested amount to block_size.
+    //
+
+    maxBytesToRemove -= maxBytesToRemove % (LONGLONG)Configuration->block_size;
+    bytesToRemove = min(sizeDifference, maxBytesToRemove);
+    bytesToRemove -= bytesToRemove % (LONGLONG)Configuration->block_size;
+
+    if (bytesToRemove <= 0)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR,
+                    DBG_PNP,
+                    "%s - no complete block fits in the hot-remove request\n",
+                    __FUNCTION__);
+        return FALSE;
+    }
+
+    bytesToRemoveCount = (SIZE_T)bytesToRemove;
+
+    //
+    // Each contiguous chunk in the returned MDL is block_size bytes long.
+    // Therefore, the number of PFN runs cannot exceed the number of blocks
+    // requested. Allocate storage for that worst case before hot-remove,
+    // so an allocation failure cannot strand pages already removed from
+    // the Windows-managed physical memory pool.
+    //
+
+    maxRangeCount = (ULONGLONG)(bytesToRemove / (LONGLONG)Configuration->block_size);
+
+    if (maxRangeCount == 0 ||
+        maxRangeCount > MAXULONG ||
+        maxRangeCount > ((ULONGLONG)((SIZE_T)-1) / sizeof(PHYSICAL_MEMORY_RANGE)))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR,
+                    DBG_PNP,
+                    "%s - invalid hot-remove range capacity: %I64u\n",
+                    __FUNCTION__,
+                    maxRangeCount);
+        return FALSE;
+    }
+
+    rangeCapacity = (ULONG)maxRangeCount;
+    memoryRangesSize = (SIZE_T)rangeCapacity * sizeof(PHYSICAL_MEMORY_RANGE);
+
+    memoryRanges = (PHYSICAL_MEMORY_RANGE *)ExAllocatePoolZero(NonPagedPool,
+                                                               memoryRangesSize,
+                                                               VIRTIO_MEM_POOL_TAG);
+
+    if (!memoryRanges)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR,
+                    DBG_PNP,
+                    "%s - allocation memory for ranges failed before hot-remove\n",
+                    __FUNCTION__);
+        return FALSE;
+    }
+
+    //
+    // The "skip" value is set to block_size, which means that the range address
+    // is aligned to this value.
+    //
+
+    skip.QuadPart = (LONGLONG)Configuration->block_size;
 
     //
     // The function MmAllocateNodePagesForMdlEx with the MM_ALLOCATE_AND_HOT_REMOVE flag must be
@@ -1325,22 +1446,16 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
                 highAddress.QuadPart - 1,
                 sizeDifference);
 
+    TraceEvents(TRACE_LEVEL_INFORMATION,
+                DBG_PNP,
+                "Hot-remove MDL request size[0x%.8I64x], range capacity[%lu]\n",
+                bytesToRemove,
+                rangeCapacity);
+
     //
-    // Call the removal function - the mentioned MmAllocateNodePagesForMdlEx
+    // TotalBytes has the SIZE_T type in the DDI. The capped value fits
+    // in SIZE_T on both 32-bit and 64-bit builds.
     //
-
-#if defined(_WIN64)
-
-    LONGLONG bytesToRemoveCount = sizeDifference;
-
-#else
-    //
-    // Just a compilation fix for 32 bit platforms.
-    //
-
-    SIZE_T bytesToRemoveCount = (SIZE_T)sizeDifference;
-
-#endif
 
     PMDL removedMemoryMdl = MmAllocateNodePagesForMdlEx(address,
                                                         highAddress,
@@ -1351,51 +1466,34 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
                                                         flagsContigRemove);
 
     //
-    // If the memory has been removed, convert MDLs returned by the
-    // MmAllocateNodePagesForMdlEx call to memory ranges, inform the device
-    // about removal, and then update the bitmap representation of memory
-    // blocks to reflect the change.
+    // If the memory has been removed, convert the MDL to physical memory
+    // ranges, inform the device about removal, and update the bitmap.
     //
 
     if (removedMemoryMdl)
     {
-
 #if 0
-		DumpSystemMemoryRanges(Configuration->addr,
-			Configuration->addr + Configuration->plugged_size - 1);
+        DumpSystemMemoryRanges(Configuration->addr,
+                               Configuration->addr + Configuration->plugged_size - 1);
 #endif
-
-        //
-        // Calculate the number of memory ranges from MDL and allocate memory
-        // for an array to store memory ranges.
-        //
 
         rangeCount = GetMemoryRangesCountFromMdl(removedMemoryMdl);
 
         //
-        // A number of ranges should be always greater then zero so this
-        // just a sanity check.
+        // The count must fit in the buffer allocated before hot-remove.
+        // A zero count is unexpected for a successful MDL allocation.
         //
 
-        if (rangeCount > 0)
+        if (rangeCount == 0 || rangeCount > rangeCapacity)
         {
-            memoryRanges = (PHYSICAL_MEMORY_RANGE *)ExAllocatePoolZero(NonPagedPool,
-                                                                       rangeCount * sizeof(PHYSICAL_MEMORY_RANGE),
-                                                                       VIRTIO_MEM_POOL_TAG);
+            TraceEvents(TRACE_LEVEL_ERROR,
+                        DBG_PNP,
+                        "%s - unexpected MDL range count: %lu (capacity %lu); restoring MDL pages\n",
+                        __FUNCTION__,
+                        rangeCount,
+                        rangeCapacity);
 
-            if (!memoryRanges)
-            {
-                //
-                // If memory allocation failed log error and return status
-                // indicating error.
-                //
-
-                TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "%s - allocation memory for ranges failed \n", __FUNCTION__);
-                success = FALSE;
-            }
-        }
-        else
-        {
+            RestoreMemoryFromMdl(removedMemoryMdl);
             success = FALSE;
         }
 
@@ -1405,6 +1503,20 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
 
             rangeCount = SortAndMergeMemoryRanges(memoryRanges, rangeCount);
 
+            if (rangeCount == 0)
+            {
+                TraceEvents(TRACE_LEVEL_ERROR,
+                            DBG_PNP,
+                            "%s - no ranges remained after MDL conversion; restoring MDL pages\n",
+                            __FUNCTION__);
+
+                RestoreMemoryFromMdl(removedMemoryMdl);
+                success = FALSE;
+            }
+        }
+
+        if (success)
+        {
             for (ULONG i = 0; i < rangeCount; i++)
             {
                 numberOfBlocks = (__virtio16)(memoryRanges[i].NumberOfBytes.QuadPart / Configuration->block_size);
@@ -1448,17 +1560,14 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
         }
     }
 
-    if (memoryRanges)
-    {
-        ExFreePoolWithTag(memoryRanges, VIRTIO_MEM_POOL_TAG);
-    }
+    //
+    // Release the preallocated range array and MDL on every path.
+    //
+
+    ExFreePoolWithTag(memoryRanges, VIRTIO_MEM_POOL_TAG);
 
     if (removedMemoryMdl)
     {
-        //
-        // The MDL is no longer needed after its memory ranges have been processed.
-        //
-
         ExFreePool(removedMemoryMdl);
     }
 
@@ -1470,14 +1579,13 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
     //
     // Return status OK.
     // Removal may fail because the system may already use the memory, but
-    // this situation(for obvious reasons) is not considered an error.
+    // this situation (for obvious reasons) is not considered an error.
     //
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s Return TRUE\n", __FUNCTION__);
 
     return TRUE;
 }
-
 #if 0
 //
 // Function returns TRUE if a given memory range is on the list of system
