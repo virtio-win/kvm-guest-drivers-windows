@@ -1284,6 +1284,13 @@ static VOID VirtIoConfigUpdated(PADAPTER_EXTENSION adaptExt)
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Device Config Interrupt\n");
 
     RhelGetDiskGeometry(adaptExt);
+    /*
+     * No lock here: this runs inside HwStorInterrupt/HwMSIInterruptRoutine,
+     * where StorPort already holds InterruptLock for us and we are not
+     * allowed to acquire any further spin lock (StorPortAcquireSpinLock
+     * DDI docs) - we're already exclusive against the completion code that
+     * reads these same fields under InterruptLock.
+     */
     adaptExt->sense_info.senseKey = SCSI_SENSE_UNIT_ATTENTION;
     adaptExt->sense_info.additionalSenseCode = SCSI_ADSENSE_PARAMETERS_CHANGED;
     adaptExt->sense_info.additionalSenseCodeQualifier = SCSI_SENSEQ_CAPACITY_DATA_CHANGED;
@@ -1473,10 +1480,30 @@ VirtIoHwReinitialize(IN PVOID DeviceExtension)
 
     if (CHECKBIT((old_features ^ adaptExt->features), VIRTIO_BLK_F_RO))
     {
+        STOR_LOCK_HANDLE lockHandle = {0};
+
+        /*
+         * check_condition/sense_info are also written from
+         * VirtIoConfigUpdated() on another queue's interrupt and consumed
+         * from completion code on other CPUs; this routine runs under
+         * HwStorStartIo/HwStorAdapterControl, neither of which holds
+         * InterruptLock for us, so take it explicitly.
+         *
+         * This still covers the dedicated config-vector message even
+         * though the adapter uses InterruptSynchronizationMode =
+         * InterruptSynchronizePerMessage (a separate lock per MSI-X
+         * message): per StorPortAcquireMSISpinLock's Remarks, a plain
+         * StorPortAcquireSpinLock(..., InterruptLock, ...) call acquires
+         * every message's lock in turn, not just one - confirmed
+         * deliberately, not an oversight.
+         */
+        StorPortAcquireSpinLock(DeviceExtension, InterruptLock, NULL, &lockHandle);
         adaptExt->sense_info.senseKey = SCSI_SENSE_DATA_PROTECT;
         adaptExt->sense_info.additionalSenseCode = SCSI_ADSENSE_WRITE_PROTECT;
         adaptExt->sense_info.additionalSenseCodeQualifier = SCSI_SENSEQ_SPACE_ALLOC_FAILED_WRITE_PROTECT; // SCSI_ADSENSE_NO_SENSE;
         adaptExt->check_condition = TRUE;
+        StorPortReleaseSpinLock(DeviceExtension, &lockHandle);
+
         DeviceChangeNotification(DeviceExtension, TRUE);
     }
     return TRUE;
