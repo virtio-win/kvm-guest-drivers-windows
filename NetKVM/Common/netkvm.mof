@@ -33,7 +33,7 @@ class NetKvm_DeviceRss : MSNdis
     [key, read] string InstanceName;
     [read] boolean Active;
     [read,write,WmiDataId(1),
-     Description("Write 0 to disable, 1 to enable; other values ignored")] boolean value;
+     Description("Current device RSS state; write 0 to disable, 1 to enable")] boolean value;
 };
 
 [Dynamic : ToInstance, Provider("WMIProv"), WMI,
