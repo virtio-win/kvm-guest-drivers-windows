@@ -741,14 +741,12 @@ static VOID RestoreMemoryFromMdl(PMDL Mdl)
 
     while (pagesToScan > 0)
     {
-        LONGLONG consecutivePagesCount =
-            FindConsecutivePagesCountMDL(&pfnNumbers[blockStartPosition], pagesToScan);
+        LONGLONG consecutivePagesCount = FindConsecutivePagesCountMDL(&pfnNumbers[blockStartPosition], pagesToScan);
         PHYSICAL_ADDRESS baseAddress = {0};
         LARGE_INTEGER numberOfBytes = {0};
         NTSTATUS status;
 
-        baseAddress.QuadPart =
-            ((LONGLONG)pfnNumbers[blockStartPosition]) << PAGE_SHIFT;
+        baseAddress.QuadPart = ((LONGLONG)pfnNumbers[blockStartPosition]) << PAGE_SHIFT;
         numberOfBytes.QuadPart = consecutivePagesCount << PAGE_SHIFT;
 
         status = MmAddPhysicalMemory(&baseAddress, &numberOfBytes);
@@ -778,10 +776,7 @@ static VOID RestoreMemoryFromMdl(PMDL Mdl)
 // Helper function used by HeapSortMemoryRanges to restore the max-heap property.
 //
 
-static VOID HeapSiftDownMemoryRanges(
-    PHYSICAL_MEMORY_RANGE MemoryRanges[],
-    ULONG Root,
-    ULONG Last)
+static VOID HeapSiftDownMemoryRanges(PHYSICAL_MEMORY_RANGE MemoryRanges[], ULONG Root, ULONG Last)
 {
     ULONG child;
     PHYSICAL_MEMORY_RANGE temp;
@@ -799,15 +794,12 @@ static VOID HeapSiftDownMemoryRanges(
         // Select the child with the larger base address.
         //
 
-        if (child < Last &&
-            MemoryRanges[child].BaseAddress.QuadPart <
-                MemoryRanges[child + 1].BaseAddress.QuadPart)
+        if (child < Last && MemoryRanges[child].BaseAddress.QuadPart < MemoryRanges[child + 1].BaseAddress.QuadPart)
         {
             ++child;
         }
 
-        if (MemoryRanges[Root].BaseAddress.QuadPart >=
-            MemoryRanges[child].BaseAddress.QuadPart)
+        if (MemoryRanges[Root].BaseAddress.QuadPart >= MemoryRanges[child].BaseAddress.QuadPart)
         {
             return;
         }
@@ -825,9 +817,7 @@ static VOID HeapSiftDownMemoryRanges(
 // The sort is in-place and does not require an auxiliary array.
 //
 
-static VOID HeapSortMemoryRanges(
-    PHYSICAL_MEMORY_RANGE MemoryRanges[],
-    ULONG RangeCount)
+static VOID HeapSortMemoryRanges(PHYSICAL_MEMORY_RANGE MemoryRanges[], ULONG RangeCount)
 {
     ULONG start;
     ULONG end;
@@ -869,9 +859,7 @@ static VOID HeapSortMemoryRanges(
 // It logs each final merged range when that range is complete.
 //
 
-ULONG SortAndMergeMemoryRanges(
-    PHYSICAL_MEMORY_RANGE MemoryRanges[],
-    ULONG RangeCount)
+ULONG SortAndMergeMemoryRanges(PHYSICAL_MEMORY_RANGE MemoryRanges[], ULONG RangeCount)
 {
     ULONG i;
     ULONG mergedCount = 0;
@@ -880,17 +868,11 @@ ULONG SortAndMergeMemoryRanges(
     LONGLONG nextStart;
     LONGLONG nextEnd;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION,
-                DBG_PNP,
-                "%s Entry\n",
-                __FUNCTION__);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s Entry\n", __FUNCTION__);
 
     if (MemoryRanges == NULL || RangeCount == 0)
     {
-        TraceEvents(TRACE_LEVEL_INFORMATION,
-                    DBG_PNP,
-                    "%s Return [0]\n",
-                    __FUNCTION__);
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s Return [0]\n", __FUNCTION__);
 
         return 0;
     }
@@ -916,8 +898,7 @@ ULONG SortAndMergeMemoryRanges(
 
         current = &MemoryRanges[mergedCount - 1];
 
-        currentEnd = current->BaseAddress.QuadPart +
-                     current->NumberOfBytes.QuadPart;
+        currentEnd = current->BaseAddress.QuadPart + current->NumberOfBytes.QuadPart;
         nextStart = MemoryRanges[i].BaseAddress.QuadPart;
         nextEnd = nextStart + MemoryRanges[i].NumberOfBytes.QuadPart;
 
@@ -930,8 +911,7 @@ ULONG SortAndMergeMemoryRanges(
 
             if (nextEnd > currentEnd)
             {
-                current->NumberOfBytes.QuadPart =
-                    nextEnd - current->BaseAddress.QuadPart;
+                current->NumberOfBytes.QuadPart = nextEnd - current->BaseAddress.QuadPart;
             }
         }
         else
@@ -962,11 +942,7 @@ ULONG SortAndMergeMemoryRanges(
                 current->BaseAddress.QuadPart,
                 current->NumberOfBytes.QuadPart);
 
-    TraceEvents(TRACE_LEVEL_INFORMATION,
-                DBG_PNP,
-                "%s Return [%lu]\n",
-                __FUNCTION__,
-                mergedCount);
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s Return [%lu]\n", __FUNCTION__, mergedCount);
 
     return mergedCount;
 }
@@ -1342,8 +1318,7 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
     // of SkipBytes.
     //
 
-    if (Configuration->block_size < PAGE_SIZE ||
-        Configuration->block_size > (ULONGLONG)maxBytesToRemove ||
+    if (Configuration->block_size < PAGE_SIZE || Configuration->block_size > (ULONGLONG)maxBytesToRemove ||
         (Configuration->block_size & (Configuration->block_size - 1)) != 0)
     {
         TraceEvents(TRACE_LEVEL_ERROR,
@@ -1384,8 +1359,7 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
 
     maxRangeCount = (ULONGLONG)(bytesToRemove / (LONGLONG)Configuration->block_size);
 
-    if (maxRangeCount == 0 ||
-        maxRangeCount > MAXULONG ||
+    if (maxRangeCount == 0 || maxRangeCount > MAXULONG ||
         maxRangeCount > ((ULONGLONG)((SIZE_T)-1) / sizeof(PHYSICAL_MEMORY_RANGE)))
     {
         TraceEvents(TRACE_LEVEL_ERROR,
@@ -1399,9 +1373,7 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
     rangeCapacity = (ULONG)maxRangeCount;
     memoryRangesSize = (SIZE_T)rangeCapacity * sizeof(PHYSICAL_MEMORY_RANGE);
 
-    memoryRanges = (PHYSICAL_MEMORY_RANGE *)ExAllocatePoolZero(NonPagedPool,
-                                                               memoryRangesSize,
-                                                               VIRTIO_MEM_POOL_TAG);
+    memoryRanges = (PHYSICAL_MEMORY_RANGE *)ExAllocatePoolZero(NonPagedPool, memoryRangesSize, VIRTIO_MEM_POOL_TAG);
 
     if (!memoryRanges)
     {
