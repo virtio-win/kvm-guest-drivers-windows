@@ -885,6 +885,7 @@ VOID HandleResponse(IN PVOID DeviceExtension, IN PVirtIOSCSICmd cmd)
     PVOID senseInfoBuffer = NULL;
     UCHAR srbStatus = SRB_STATUS_SUCCESS;
     ULONG srbDataTransferLen = SRB_DATA_TRANSFER_LENGTH(Srb);
+    BOOLEAN preserveLength = FALSE;
 
     ENTER_FN();
 
@@ -895,6 +896,7 @@ VOID HandleResponse(IN PVOID DeviceExtension, IN PVirtIOSCSICmd cmd)
         case VIRTIO_SCSI_S_OK:
             SRB_SET_SCSI_STATUS(Srb, resp->status);
             srbStatus = (resp->status == SCSISTAT_GOOD) ? SRB_STATUS_SUCCESS : SRB_STATUS_ERROR;
+            preserveLength = (resp->status == SCSISTAT_BUSY) || (resp->status == SCSISTAT_QUEUE_FULL);
             break;
         case VIRTIO_SCSI_S_UNDERRUN:
             RhelDbgPrint(TRACE_LEVEL_INFORMATION, " VIRTIO_SCSI_S_UNDERRUN\n");
@@ -915,6 +917,7 @@ VOID HandleResponse(IN PVOID DeviceExtension, IN PVirtIOSCSICmd cmd)
         case VIRTIO_SCSI_S_BUSY:
             RhelDbgPrint(TRACE_LEVEL_INFORMATION, " VIRTIO_SCSI_S_BUSY\n");
             srbStatus = SRB_STATUS_BUSY;
+            preserveLength = TRUE;
             break;
         case VIRTIO_SCSI_S_TRANSPORT_FAILURE:
             RhelDbgPrint(TRACE_LEVEL_INFORMATION, " VIRTIO_SCSI_S_TRANSPORT_FAILURE\n");
@@ -953,7 +956,13 @@ VOID HandleResponse(IN PVOID DeviceExtension, IN PVirtIOSCSICmd cmd)
                 srbStatus |= SRB_STATUS_AUTOSENSE_VALID;
             }
         }
-        SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
+        /* Storport can reissue BUSY and QUEUE FULL requests without restoring
+           DataTransferLength. Preserve it so retries retain their payload mappings.
+         */
+        if (!preserveLength)
+        {
+            SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
+        }
     }
     else if (srbExt && srbExt->Xfer && srbDataTransferLen > srbExt->Xfer)
     {
@@ -1746,6 +1755,12 @@ VOID PostProcessRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
         case SCSIOP_READ_CAPACITY16:
             break;
         case SCSIOP_INQUIRY:
+            /* On busy/error completions, the length does not describe valid inquiry data. */
+            if (SRB_STATUS(Srb->SrbStatus) != SRB_STATUS_SUCCESS &&
+                SRB_STATUS(Srb->SrbStatus) != SRB_STATUS_DATA_OVERRUN)
+            {
+                break;
+            }
             VioScsiSaveInquiryData(DeviceExtension, Srb);
             VioScsiPatchInquiryData(DeviceExtension, Srb);
             if (!StorPortSetDeviceQueueDepth(DeviceExtension,
