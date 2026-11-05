@@ -956,10 +956,16 @@ VOID HandleResponse(IN PVOID DeviceExtension, IN PVirtIOSCSICmd cmd)
                 srbStatus |= SRB_STATUS_AUTOSENSE_VALID;
             }
         }
+        if (srbStatus == SRB_STATUS_DATA_OVERRUN)
+        {
+            /* The residual is relative to the payload buffers supplied to the backend.*/
+            ULONG transferLength = srbExt ? min(srbDataTransferLen, srbExt->Xfer) : srbDataTransferLen;
+            SRB_SET_DATA_TRANSFER_LENGTH(Srb, transferLength > resp->resid ? transferLength - resp->resid : 0);
+        }
         /* Storport can reissue BUSY and QUEUE FULL requests without restoring
            DataTransferLength. Preserve it so retries retain their payload mappings.
          */
-        if (!preserveLength)
+        else if (!preserveLength)
         {
             SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
         }
@@ -2153,9 +2159,18 @@ VOID VioScsiSaveInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
                     RhelDbgPrint(TRACE_LEVEL_INFORMATION,
                                  " VPD_SERIAL_NUMBER PageLength = %d\n",
                                  SerialPage->PageLength);
-                    if (SerialPage->PageLength > 0 && adaptExt->ser_num == NULL)
+                    if (SerialPage->PageLength > 0 && adaptExt->ser_num == NULL &&
+                        dataLen > (ULONG)FIELD_OFFSET(VPD_SERIAL_NUMBER_PAGE, SerialNumber))
                     {
-                        int ln = min(64, SerialPage->PageLength);
+                        /* Only copy serial bytes present in the completed transfer. */
+                        ULONG available = dataLen - (ULONG)FIELD_OFFSET(VPD_SERIAL_NUMBER_PAGE, SerialNumber);
+                        ULONG ln = min(64UL, (ULONG)SerialPage->PageLength);
+
+                        if (available < ln)
+                        {
+                            break; /* Not enough transferred data for the cached serial. */
+                        }
+
                         ULONG Status = StorPortAllocatePool(DeviceExtension,
                                                             ln + 1,
                                                             VIOSCSI_POOL_TAG,
