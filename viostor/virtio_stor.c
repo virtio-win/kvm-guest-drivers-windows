@@ -2189,7 +2189,7 @@ VOID CompleteSRB(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     StorPortNotification(RequestComplete, DeviceExtension, Srb);
 }
 
-VOID CompleteRequestWithStatus(IN PVOID DeviceExtension, IN PSRB_TYPE Srb, IN UCHAR status)
+static VOID CompleteRequestWithStatusEx(IN PVOID DeviceExtension, IN PSRB_TYPE Srb, IN UCHAR status, IN BOOLEAN bIsr)
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
 
@@ -2203,10 +2203,45 @@ VOID CompleteRequestWithStatus(IN PVOID DeviceExtension, IN PSRB_TYPE Srb, IN UC
             UCHAR OpCode = cdb->CDB6GENERIC.OperationCode;
             if ((OpCode != SCSIOP_INQUIRY) && (OpCode != SCSIOP_REPORT_LUNS))
             {
-                if (SetSenseInfo(DeviceExtension, Srb))
+                /*
+                 * If bIsr, we're running inside HwStorInterrupt/
+                 * HwMSIInterruptRoutine, which already hold InterruptLock
+                 * for us and must not acquire any further spin lock - so
+                 * skip consuming check_condition here and let a later,
+                 * non-ISR completion carry the notification instead (safe,
+                 * since that dump-mode/!dpc_ok fallback has no real
+                 * multi-queue race anyway). If !bIsr, nothing holds
+                 * InterruptLock for us here, so take it explicitly before
+                 * touching the fields shared with VirtIoConfigUpdated()
+                 * and other queues' completions.
+                 */
+                if (!bIsr)
                 {
-                    status = SRB_STATUS_ERROR | SRB_STATUS_AUTOSENSE_VALID;
-                    adaptExt->check_condition = FALSE;
+                    STOR_LOCK_HANDLE lockHandle = {0};
+
+                    /*
+                     * check_condition changes are rare (disk resize/RO
+                     * toggle), so paying for this lock only on this cold
+                     * path is fine; if config-change interrupts became
+                     * frequent, this would need a different design (e.g.
+                     * deferring VirtIoConfigUpdated() to its own DPC)
+                     * instead of locking from every completion that
+                     * observes it TRUE.
+                     *
+                     * This also covers the dedicated config-vector
+                     * message under InterruptSynchronizePerMessage - see
+                     * the InterruptLock comment in VirtIoHwReinitialize().
+                     */
+                    StorPortAcquireSpinLock(DeviceExtension, InterruptLock, NULL, &lockHandle);
+                    if (adaptExt->check_condition)
+                    {
+                        if (SetSenseInfo(DeviceExtension, Srb))
+                        {
+                            status = SRB_STATUS_ERROR | SRB_STATUS_AUTOSENSE_VALID;
+                            adaptExt->check_condition = FALSE;
+                        }
+                    }
+                    StorPortReleaseSpinLock(DeviceExtension, &lockHandle);
                 }
             }
         }
@@ -2219,6 +2254,11 @@ VOID CompleteRequestWithStatus(IN PVOID DeviceExtension, IN PSRB_TYPE Srb, IN UC
 
     SRB_SET_SRB_STATUS(Srb, status);
     CompleteSRB(DeviceExtension, Srb);
+}
+
+VOID CompleteRequestWithStatus(IN PVOID DeviceExtension, IN PSRB_TYPE Srb, IN UCHAR status)
+{
+    CompleteRequestWithStatusEx(DeviceExtension, Srb, status, FALSE);
 }
 
 VOID FORCEINLINE DeviceChangeNotification(IN PVOID DeviceExtension, IN BOOLEAN bLun)
@@ -2345,6 +2385,9 @@ VOID VioStorCompleteRequest(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOO
     PSRB_EXTENSION srbExt = NULL;
     UCHAR srbStatus = SRB_STATUS_SUCCESS;
     PREQUEST_LIST element = NULL;
+    LIST_ENTRY completedList; // SRBs found below, completed only after queueLock is released
+
+    InitializeListHead(&completedList);
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " ---> MessageID 0x%x\n", MessageID);
 
@@ -2438,13 +2481,17 @@ VOID VioStorCompleteRequest(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOO
                         RhelDbgPrint(TRACE_LEVEL_INFORMATION, "PageLength = %d (%d)\n", SerialPage->PageLength, len);
 
                         SRB_SET_DATA_TRANSFER_LENGTH(Srb, (sizeof(VPD_SERIAL_NUMBER_PAGE) + SerialPage->PageLength));
-                        CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_SUCCESS);
+                        srbExt->deferredStatus = SRB_STATUS_SUCCESS;
+                        // must complete outside queueLock - see the loop after VioStorVQUnlock()
+                        InsertTailList(&completedList, &srbExt->vbr.list_entry);
                     }
                     else if ((cdb->CDB6INQUIRY3.PageCode == VPD_DEVICE_IDENTIFIERS) &&
                              (cdb->CDB6INQUIRY3.EnableVitalProductData == 1))
                     {
                         ReportDeviceIdentifier(DeviceExtension, Srb);
-                        CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_SUCCESS);
+                        srbExt->deferredStatus = SRB_STATUS_SUCCESS;
+                        // must complete outside queueLock - see the loop after VioStorVQUnlock()
+                        InsertTailList(&completedList, &srbExt->vbr.list_entry);
                     }
                 }
                 continue;
@@ -2462,19 +2509,40 @@ VOID VioStorCompleteRequest(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOO
                     SRB_SET_SRB_STATUS(Srb, SRB_STATUS_PENDING);
                     if (!RhelDoFlush(DeviceExtension, Srb, TRUE, bIsr))
                     {
-                        CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_ERROR);
+                        srbExt->deferredStatus = SRB_STATUS_ERROR;
+                        // must complete outside queueLock - see the loop after VioStorVQUnlock()
+                        InsertTailList(&completedList, &srbExt->vbr.list_entry);
                     }
                     srbExt->fua = FALSE;
                 }
                 else
                 {
-                    CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, srbStatus);
+                    srbExt->deferredStatus = srbStatus;
+                    // must complete outside queueLock - see the loop after VioStorVQUnlock()
+                    InsertTailList(&completedList, &srbExt->vbr.list_entry);
                 }
             }
         }
     } while (!virtqueue_enable_cb(vq));
 
     VioStorVQUnlock(DeviceExtension, MessageID, &queueLock, bIsr);
+
+    /*
+     * check_condition/sense_info consumption inside
+     * CompleteRequestWithStatusEx() takes InterruptLock, which would
+     * recurse on the lock VioStorVQLock just released for some adapter
+     * configurations (single-queue MSI-X, legacy) - complete every SRB
+     * found above only now, after releasing queueLock.
+     */
+    while (!IsListEmpty(&completedList))
+    {
+        PLIST_ENTRY le = RemoveHeadList(&completedList);
+        pblk_req req = CONTAINING_RECORD(le, blk_req, list_entry);
+        PSRB_TYPE completedSrb = (PSRB_TYPE)req->req;
+        PSRB_EXTENSION completedSrbExt = SRB_EXTENSION(completedSrb);
+
+        CompleteRequestWithStatusEx(DeviceExtension, completedSrb, completedSrbExt->deferredStatus, bIsr);
+    }
 
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " <--- MessageID 0x%x\n", MessageID);
 }
