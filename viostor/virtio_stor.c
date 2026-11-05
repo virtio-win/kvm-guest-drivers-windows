@@ -1283,6 +1283,20 @@ static VOID VirtIoConfigUpdated(PADAPTER_EXTENSION adaptExt)
 {
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " Device Config Interrupt\n");
 
+    if (adaptExt->dump_mode)
+    {
+        /*
+         * No storage stack to notify, and this driver instance doesn't
+         * survive past the dump. blk_size isn't spec-documented as
+         * runtime-changeable (only capacity is), so skipping the
+         * geometry re-read is safe; and if capacity shrank, the dump
+         * fails either way - whether caught here or by an out-of-range
+         * write failing at the backend (QEMU) - so there's nothing to
+         * gain by reacting to it in this path.
+         */
+        return;
+    }
+
     RhelGetDiskGeometry(adaptExt);
     /*
      * No lock here: this runs inside HwStorInterrupt/HwMSIInterruptRoutine,
