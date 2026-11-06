@@ -2018,6 +2018,10 @@ void ParaNdis_CXDPCWorkBody(PARANDIS_ADAPTER *pContext)
                                                 NULL,
                                                 0,
                                                 0);
+            // Record this migration so it can later be surfaced via WMI.
+            // bGuestAnnounced is one-shot (cleared below), so this fires exactly once per event
+            pContext->extraStatistics.guestAnnounceCount++;
+            NdisGetCurrentSystemTime(&pContext->extraStatistics.lastGuestAnnounceTime);
             pContext->bGuestAnnounced = FALSE;
         }
         if (pContext->bCXPathCreated)
