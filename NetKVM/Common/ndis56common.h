@@ -592,6 +592,8 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
         ULONG ctrlCommands;
         ULONG ctrlFailed;
         ULONG ctrlTimedOut;
+        ULONG guestAnnounceCount;            // number of virtio-net announce events observed (~1 per live migration)
+        LARGE_INTEGER lastGuestAnnounceTime; // NdisGetCurrentSystemTime of the last one (FILETIME units, for WMI)
     } extraStatistics = {};
 
     /* initial number of free Tx descriptor(from cfg) - max number of available Tx descriptors */
