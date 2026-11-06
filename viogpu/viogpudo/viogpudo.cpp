@@ -4100,6 +4100,10 @@ BOOLEAN VioGpuAdapter::UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPoin
     DstBltInfo.Width = POINTER_SIZE;
     DstBltInfo.Height = POINTER_SIZE;
 
+    // The cursor resource is reused for every shape and the host shows all of it: clear it so that nothing
+    // from a previous, larger shape is left outside the new one, and upload it whole below.
+    RtlZeroMemory(DstBltInfo.pBits, (size_t)DstBltInfo.Pitch * POINTER_SIZE);
+
     if (pSetPointerShape->Flags.Color)
     {
         BLT_INFO SrcBltInfo;
@@ -4115,13 +4119,10 @@ BOOLEAN VioGpuAdapter::UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPoin
     }
     else if (pSetPointerShape->Flags.Monochrome)
     {
-        // The converters ignore the rotation and only fill Width x Height: clear the rest.
-        RtlZeroMemory(DstBltInfo.pBits, (size_t)DstBltInfo.Pitch * POINTER_SIZE);
         ConvertMonochromeToBgra(pSetPointerShape, (BYTE *)DstBltInfo.pBits, DstBltInfo.Pitch);
     }
     else if (pSetPointerShape->Flags.MaskedColor)
     {
-        RtlZeroMemory(DstBltInfo.pBits, (size_t)DstBltInfo.Pitch * POINTER_SIZE);
         ConvertMaskedColorToBgra(pSetPointerShape, (BYTE *)DstBltInfo.pBits, DstBltInfo.Pitch);
     }
     else
@@ -4133,13 +4134,7 @@ BOOLEAN VioGpuAdapter::UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPoin
 
     // The device has to see the new image before SetPointerShape sends UPDATE_CURSOR on the cursor queue.
     // The two virtqueues are not ordered against each other, so wait for the transfer to complete.
-    m_CtrlQueue.TransferToHost2D(m_pCursorBuf->GetId(),
-                                 0,
-                                 pSetPointerShape->Width,
-                                 pSetPointerShape->Height,
-                                 0,
-                                 0,
-                                 TRUE);
+    m_CtrlQueue.TransferToHost2D(m_pCursorBuf->GetId(), 0, POINTER_SIZE, POINTER_SIZE, 0, 0, TRUE);
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
     return TRUE;
