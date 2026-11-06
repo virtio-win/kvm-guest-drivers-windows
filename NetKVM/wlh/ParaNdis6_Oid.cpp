@@ -542,6 +542,9 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
             u.WmiDiag.ctrl.Commands = pContext->extraStatistics.ctrlCommands;
             u.WmiDiag.ctrl.CommandsFailed = pContext->extraStatistics.ctrlFailed;
             u.WmiDiag.ctrl.CommandsTimedOut = (ULONG)pContext->extraStatistics.ctrlTimedOut;
+            //----------------- Migration ------------------------------------
+            u.WmiDiag.mig.AnnounceCount = pContext->extraStatistics.guestAnnounceCount;
+            u.WmiDiag.mig.LastAnnounceTime = (ULONGLONG)pContext->extraStatistics.lastGuestAnnounceTime.QuadPart;
             break;
         case OID_VENDOR_4:
             pInfo = &u.WmiReset;
