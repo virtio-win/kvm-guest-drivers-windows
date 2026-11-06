@@ -3842,11 +3842,14 @@ VOID VioGpuAdapter::DpcRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface)
                               resp->ctx_id,
                               pcmd->type));
                 }
+                // A waiter woken by complete_cb may release the buffer right away, so it must not be
+                // touched once the callback has run: read auto_release first.
+                bool release = pvbuf->auto_release;
                 if (pvbuf->complete_cb != NULL)
                 {
                     pvbuf->complete_cb(pvbuf->complete_ctx);
                 }
-                if (pvbuf->auto_release)
+                if (release)
                 {
                     m_CtrlQueue.ReleaseBuffer(pvbuf);
                 }
