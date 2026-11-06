@@ -139,6 +139,17 @@ class NetKvm_Ctrl
      Description("Control commands that failed")] uint32 CommandsFailed;
 };
 
+[WMI,
+guid("{345A3F64-638F-42D2-9F85-6D53B5E6FB0B}"),
+Description("Live migration statistics")]
+class NetKvm_Migration
+{
+    [read,WmiDataId(1),
+     Description("Number of VIRTIO_NET_S_ANNOUNCE events seen (one per live migration)")] uint32 AnnounceCount;
+    [read,WmiDataId(2),
+     Description("FILETIME of the last VIRTIO_NET_S_ANNOUNCE event, 0 if none seen")] uint64 LastAnnounceTime;
+};
+
 [Dynamic : ToInstance, Provider("WMIProv"), WMI,
 guid("{85888FE2-CBCE-4857-A512-4694CF5B2797}"),
 Description("Adapter diagnostic statistics")]
@@ -154,4 +165,6 @@ class NetKvm_Diag : MSNdis
      Description("RSS statistics")] NetKvm_Rss rss;
     [read,WmiDataId(4),
      Description("Control virtqueue statistics")] NetKvm_Ctrl ctrl;
+    [read,WmiDataId(5),
+     Description("Live migration statistics")] NetKvm_Migration mig;
 };
