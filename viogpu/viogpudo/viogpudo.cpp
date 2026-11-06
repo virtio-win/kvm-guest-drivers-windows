@@ -4029,7 +4029,15 @@ BOOLEAN VioGpuAdapter::UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPoin
 
     BltBits(&DstBltInfo, &SrcBltInfo, &Rect);
 
-    m_CtrlQueue.TransferToHost2D(m_pCursorBuf->GetId(), 0, pSetPointerShape->Width, pSetPointerShape->Height, 0, 0);
+    // The device has to see the new image before SetPointerShape sends UPDATE_CURSOR on the cursor queue.
+    // The two virtqueues are not ordered against each other, so wait for the transfer to complete.
+    m_CtrlQueue.TransferToHost2D(m_pCursorBuf->GetId(),
+                                 0,
+                                 pSetPointerShape->Width,
+                                 pSetPointerShape->Height,
+                                 0,
+                                 0,
+                                 TRUE);
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
     return TRUE;

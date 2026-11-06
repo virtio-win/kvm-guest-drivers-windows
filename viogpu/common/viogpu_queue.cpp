@@ -363,7 +363,7 @@ void CtrlQueue::ResFlush(UINT res_id, UINT width, UINT height, UINT x, UINT y)
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
-void CtrlQueue::TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT height, UINT x, UINT y)
+void CtrlQueue::TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT height, UINT x, UINT y, BOOLEAN wait)
 {
     PAGED_CODE();
 
@@ -381,7 +381,39 @@ void CtrlQueue::TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT hei
     cmd->r.x = x;
     cmd->r.y = y;
 
+    if (!wait)
+    {
+        QueueBuffer(vbuf);
+        DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+        return;
+    }
+
+    // Wait until the device has completed the transfer. The event lives in pool memory, not on the stack:
+    // if the wait times out the completion can still arrive later, and it must not signal a dead stack
+    // frame. On timeout the event and the buffer stay owned by that pending completion and are leaked.
+    PKEVENT event = reinterpret_cast<PKEVENT>(new (NonPagedPoolNx) BYTE[sizeof(KEVENT)]);
+    if (event == NULL)
+    {
+        QueueBuffer(vbuf);
+        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s cannot allocate the wait event\n", __FUNCTION__));
+        return;
+    }
+    KeInitializeEvent(event, NotificationEvent, FALSE);
+    vbuf->complete_cb = NotifyEventCompleteCB;
+    vbuf->complete_ctx = event;
+    vbuf->auto_release = false;
+
+    LARGE_INTEGER timeout = {0};
+    timeout.QuadPart = Int32x32To64(100, -10000);
+
     QueueBuffer(vbuf);
+    if (KeWaitForSingleObject(event, Executive, KernelMode, FALSE, &timeout) == STATUS_TIMEOUT)
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s transfer wait timed out\n", __FUNCTION__));
+        return;
+    }
+    delete[] reinterpret_cast<PBYTE>(event);
+    ReleaseBuffer(vbuf);
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
