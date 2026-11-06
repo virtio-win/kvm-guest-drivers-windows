@@ -9,6 +9,7 @@ if /i "%1"=="rss" goto rss_set
 if /i "%1"=="tx" goto tx
 if /i "%1"=="rx" goto rx
 if /i "%1"=="cx" goto cx
+if /i "%1"=="mig" goto mig
 
 goto help
 :debug
@@ -28,6 +29,8 @@ echo ---- RSS statistics --
 call :diag rss
 echo ---- CX statistics --
 call :diag ctrl
+echo ---- Migration statistics --
+call :diag mig
 goto :eof
 
 :tx
@@ -40,6 +43,10 @@ goto :eof
 
 :cx
 call :diag ctrl
+goto :eof
+
+:mig
+call :diag mig
 goto :eof
 
 :reset
@@ -92,6 +99,7 @@ echo tx                     Retrieves internal statistics for transmit
 echo rx                     Retrieves internal statistics for receive
 echo rss                    Retrieves internal statistics for RSS
 echo cx                     Retrieves internal statistics for controls
+echo mig                    Retrieves live-migration (guest-announce) info
 echo rss 0/1                Disable/enable RSS device support
 echo reset [tx^|rs^|rss]      Resets internal statistics(default=all)
 goto :eof
