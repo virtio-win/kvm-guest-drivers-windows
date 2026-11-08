@@ -551,7 +551,7 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
         case OID_VENDOR_5:
             pInfo = &u.WmiDevRss;
             ulSize = sizeof(u.WmiDevRss);
-            u.WmiDevRss.value = 2;
+            u.WmiDevRss.value = pContext->bRSSSupportedByDevice;
             break;
         case OID_GEN_INTERRUPT_MODERATION:
             u.InterruptModeration.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
