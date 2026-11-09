@@ -46,6 +46,44 @@
 #include "VirtIOPCIModern.tmh"
 #endif
 
+/* Upper bound on how long we busy-wait for the device to acknowledge a
+ * reset (device_status reading back as 0). The virtio spec gives the
+ * device no deadline to finish quiescing, so without a cap a wedged or
+ * saturated backend leaves the caller (HwStorResetBus / SRB_FUNCTION_RESET_BUS,
+ * always at DISPATCH_LEVEL) spinning forever.
+ */
+#define VIRTIO_DEVICE_RESET_TIMEOUT_MS 5000
+
+/* Once we've burned most of the DPC watchdog's budget, stop spinning even
+ * if VIRTIO_DEVICE_RESET_TIMEOUT_MS hasn't elapsed yet. At DISPATCH_LEVEL,
+ * letting this loop run long enough to trip DPC_WATCHDOG_VIOLATION (bugcheck
+ * 0x133) on top of a stuck reset would just replace one failure with a
+ * different, unrelated one. stornvme's own hardware-reset wait loop does the
+ * same check for the same reason.
+ *
+ * This function is only meaningful at DISPATCH_LEVEL or above (where the DPC
+ * watchdog is actively counting). At PASSIVE_LEVEL (e.g. WDF drivers calling
+ * VirtIOWdfDestroyQueues during EvtDeviceD0Exit, or virtio_device_initialize
+ * at startup) the watchdog is not relevant and we skip the query entirely.
+ */
+#define VIRTIO_DPC_WATCHDOG_PERCENT_THRESHOLD 80
+
+static BOOLEAN vio_modern_reset_dpc_watchdog_almost_expired(void)
+{
+    KDPC_WATCHDOG_INFORMATION watchdogInfo;
+
+    if (KeGetCurrentIrql() < DISPATCH_LEVEL) {
+        return FALSE;
+    }
+
+    if (!NT_SUCCESS(KeQueryDpcWatchdogInformation(&watchdogInfo)) || watchdogInfo.DpcWatchdogLimit == 0) {
+        return FALSE;
+    }
+
+    return (watchdogInfo.DpcWatchdogCount * 100) >=
+           (watchdogInfo.DpcWatchdogLimit * VIRTIO_DPC_WATCHDOG_PERCENT_THRESHOLD);
+}
+
 static void *vio_modern_map_capability(VirtIODevice *vdev, int cap_offset, size_t minlen,
                                        u32 alignment, u32 start, u32 size, size_t *len)
 {
@@ -173,8 +211,10 @@ static void vio_modern_set_status(VirtIODevice *vdev, u8 status)
     iowrite8(vdev, status, &vdev->common->device_status);
 }
 
-static void vio_modern_reset(VirtIODevice *vdev)
+static NTSTATUS vio_modern_reset(VirtIODevice *vdev)
 {
+    unsigned int elapsed_ms = 0;
+
     /* 0 status means a reset. */
     iowrite8(vdev, 0, &vdev->common->device_status);
     /* After writing 0 to device_status, the driver MUST wait for a read of
@@ -185,11 +225,23 @@ static void vio_modern_reset(VirtIODevice *vdev)
     while (ioread8(vdev, &vdev->common->device_status)) {
         u16 val;
         if (pci_read_config_word(vdev, 0, &val) || val == 0xffff) {
-            DPrintf(0, ("PCI config space is not readable, probably the device is removed\n"));
-            break;
+            DPrintf(0, "PCI config space is not readable, probably the device is removed\n");
+            return STATUS_DEVICE_NOT_CONNECTED;
+        }
+        if (elapsed_ms >= VIRTIO_DEVICE_RESET_TIMEOUT_MS) {
+            DPrintf(0, "device did not acknowledge reset within %u ms, giving up\n",
+                    VIRTIO_DEVICE_RESET_TIMEOUT_MS);
+            return STATUS_IO_TIMEOUT;
+        }
+        if (vio_modern_reset_dpc_watchdog_almost_expired()) {
+            DPrintf(0, "DPC watchdog budget nearly exhausted after %u ms, giving up on reset wait\n",
+                    elapsed_ms);
+            return STATUS_IO_TIMEOUT;
         }
         vdev_sleep(vdev, 1);
+        elapsed_ms++;
     }
+    return STATUS_SUCCESS;
 }
 
 static u64 vio_modern_get_features(VirtIODevice *vdev)

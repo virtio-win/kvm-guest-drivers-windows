@@ -103,10 +103,11 @@ static void vio_legacy_set_status(VirtIODevice *vdev, u8 status)
     iowrite8(vdev, status, vdev->addr + VIRTIO_PCI_STATUS);
 }
 
-static void vio_legacy_reset(VirtIODevice *vdev)
+static NTSTATUS vio_legacy_reset(VirtIODevice *vdev)
 {
     /* 0 status means a reset. */
     iowrite8(vdev, 0, vdev->addr + VIRTIO_PCI_STATUS);
+    return STATUS_SUCCESS;
 }
 
 static u64 vio_legacy_get_features(VirtIODevice *vdev)
