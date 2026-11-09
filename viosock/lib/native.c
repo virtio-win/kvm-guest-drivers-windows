@@ -599,6 +599,8 @@ BOOL VIOSockIsVsockSocket(_In_ SOCKET s)
     hFile = VIOSockCreateFile(NULL, TRUE, &iErrno);
     if (hFile == INVALID_HANDLE_VALUE)
     {
+        // Without the device (surprise removal) our own sockets read as foreign too and
+        // closesocket leaks them; preferred over closing a handle that may not be ours.
         return FALSE;
     }
 
