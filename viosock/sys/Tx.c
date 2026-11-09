@@ -1220,7 +1220,13 @@ _Requires_lock_not_held_(pSocket->TxLock) static NTSTATUS VIOSockWriteForward(IN
         SIZE_T Length;
 
         status = WdfRequestRetrieveInputBuffer(Request, 0, &pRequest->ToWritePtr, &Length);
-        if (!NT_SUCCESS(status))
+        if (status == STATUS_BUFFER_TOO_SMALL)
+        {
+            // a zero-length buffer: nothing to retrieve, the request carries no data
+            Length = 0;
+            status = STATUS_SUCCESS;
+        }
+        else if (!NT_SUCCESS(status))
         {
             TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "WdfRequestRetrieveInputBuffer failed: 0x%x\n", status);
             return status;
