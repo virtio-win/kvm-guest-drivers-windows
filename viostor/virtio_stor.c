@@ -935,17 +935,20 @@ static VOID CompletePendingRequestsOnReset(IN PVOID DeviceExtension)
  * 4. Complete all pending SRBs (in guest, CompletePendingRequestsOnReset)
  * 5. Perform VirtIO device initialization (virtio_device_initialize, virtio_find_queues, etc)
  *
- * Note: We don't pause StorPort because the port driver pauses all device IO queues for the
- * adapter and then calls the HwStorResetBus routine
- * https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/storport/nc-storport-hw_reset_bus
+ * This function is only called from HwResetBus (VirtIoResetBus), where
+ * Storport has already paused all queues and holds the StartIo lock
+ * adapter-wide. SRB-based resets (SRB_FUNCTION_RESET_*) are failed in
+ * HwStartIo to let Storport escalate to this properly synchronized path.
  *
  * Note: We cannot just complete all pending SRBs and continue, because this
  * memory will be still in use by the device and free in Windows. As a result,
  * we got use-after-free when the device completes the request and sends it back to Windows.
  * This may cause a memory corruption, as Windows may already have reused the memory.
  */
+
 BOOLEAN VioStorResetBus(IN PVOID DeviceExtension)
 {
+    NTSTATUS resetStatus;
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     if (adaptExt->reset_in_progress_count)
     {
@@ -953,7 +956,6 @@ BOOLEAN VioStorResetBus(IN PVOID DeviceExtension)
         return FALSE;
     }
 
-    // MSFT reports reset as a warning event in event logs, so keep the same level there
     RhelDbgPrint(TRACE_LEVEL_WARNING, " VioStorResetBus initiated\n");
 
     /*
@@ -970,18 +972,28 @@ BOOLEAN VioStorResetBus(IN PVOID DeviceExtension)
         VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
     }
 
-    RhelShutDown(DeviceExtension);
+    resetStatus = RhelShutDown(DeviceExtension);
     CompletePendingRequestsOnReset(DeviceExtension);
+
+    if (!NT_SUCCESS(resetStatus))
+    {
+        RhelDbgPrint(TRACE_LEVEL_FATAL, " VioStorResetBus device reset failed with 0x%x\n", resetStatus);
+        LogError(DeviceExtension, SP_INTERNAL_ADAPTER_ERROR, __LINE__);
+        StorPortMarkDeviceFailed(DeviceExtension,
+                                 (PSTOR_ADDRESS)&adaptExt->device_address,
+                                 STORPORT_MARK_DEVICE_FAILED_FLAG_REMOVE_DEVICE,
+                                 L"VirtIO device reset failed");
+        return FALSE;
+    }
 
     if (!VirtIoHwReinitialize(DeviceExtension))
     {
         RhelDbgPrint(TRACE_LEVEL_FATAL, " VioStorResetBus cannot reinitialize HW\n");
-        /*
-         * The device is terminally broken in this case. There is no known things to do,
-         * so keep everything as is:
-         *   reset_in_progress_count > 0
-         *   VirtIoStartIo will reject all requests with SRB_STATUS_BUS_RESET.
-         */
+        LogError(DeviceExtension, SP_INTERNAL_ADAPTER_ERROR, __LINE__);
+        StorPortMarkDeviceFailed(DeviceExtension,
+                                 (PSTOR_ADDRESS)&adaptExt->device_address,
+                                 STORPORT_MARK_DEVICE_FAILED_FLAG_REMOVE_DEVICE,
+                                 L"VirtIO device reinitialize failed");
         return FALSE;
     }
 
@@ -1095,29 +1107,14 @@ VirtIoStartIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
         case SRB_FUNCTION_RESET_BUS:
         case SRB_FUNCTION_RESET_DEVICE:
         case SRB_FUNCTION_RESET_LOGICAL_UNIT:
-            {
-                BOOLEAN status = VioStorResetBus(DeviceExtension);
-                CompleteRequestWithStatus(DeviceExtension,
-                                          (PSRB_TYPE)Srb,
-                                          status ? SRB_STATUS_SUCCESS : SRB_STATUS_ERROR);
-#ifdef DBG
-                RhelDbgPrint(TRACE_LEVEL_INFORMATION,
-                             " RESET (%p) : Function : %x | Cnt %d | InQueue %d | Status: %s\n",
-                             Srb,
-                             SRB_FUNCTION(Srb),
-                             adaptExt->srb_cnt,
-                             adaptExt->inqueue_cnt,
-                             status ? "SRB_STATUS_SUCCESS" : "SRB_STATUS_ERROR");
-                for (ULONG vq_idx = 0; vq_idx < adaptExt->num_queues; vq_idx++)
-                {
-                    if (adaptExt->vq[vq_idx])
-                    {
-                        RhelDbgPrint(TRACE_LEVEL_ERROR, "%d indx %d\n", vq_idx, adaptExt->vq[vq_idx]->index);
-                    }
-                }
-#endif
-                return TRUE;
-            }
+            /*
+             * VirtIO block has one LUN per adapter and no partial-reset
+             * mechanism — every reset is a full device reset. Delegate to
+             * HwResetBus (VirtIoResetBus), which Storport calls with all
+             * channels quiesced and the StartIo lock held adapter-wide.
+             */
+            CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_ERROR);
+            return TRUE;
         case SRB_FUNCTION_FLUSH:
         case SRB_FUNCTION_SHUTDOWN:
             {
@@ -1430,12 +1427,29 @@ VirtIoAdapterControl(IN PVOID DeviceExtension, IN SCSI_ADAPTER_CONTROL_TYPE Cont
             }
         case ScsiRestartAdapter:
             {
+                NTSTATUS resetStatus;
                 RhelDbgPrint(TRACE_LEVEL_VERBOSE, " ScsiRestartAdapter\n");
-                RhelShutDown(DeviceExtension);
-                if (!VirtIoHwReinitialize(DeviceExtension))
+                resetStatus = RhelShutDown(DeviceExtension);
+                if (!NT_SUCCESS(resetStatus) || !VirtIoHwReinitialize(DeviceExtension))
                 {
                     RhelDbgPrint(TRACE_LEVEL_FATAL, " ScsiRestartAdapter Cannot reinitialize HW\n");
+                    LogError(DeviceExtension, SP_INTERNAL_ADAPTER_ERROR, __LINE__);
                     break;
+                }
+                /*
+                 * A previous VioStorResetBus() may have failed and left
+                 * reset_in_progress_count permanently non-zero (see the comment
+                 * there), which makes VirtIoStartIo reject every SRB forever even
+                 * though the hardware has just been proven to work again. Clear it
+                 * here so a successful adapter restart actually un-wedges I/O.
+                 */
+                for (ULONG QueueNumber = 0; QueueNumber < adaptExt->num_queues; QueueNumber++)
+                {
+                    ULONG MessageId = QueueToMessageId(DeviceExtension, QueueNumber);
+                    STOR_LOCK_HANDLE LockHandle = {0};
+                    VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
+                    adaptExt->reset_in_progress_count = 0;
+                    VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
                 }
                 adaptExt->removed = FALSE;
                 status = ScsiAdapterControlSuccess;

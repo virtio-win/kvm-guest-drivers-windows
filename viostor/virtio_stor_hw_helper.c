@@ -524,18 +524,24 @@ RhelGetSerialNumber(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     return result;
 }
 
-VOID RhelShutDown(IN PVOID DeviceExtension)
+NTSTATUS RhelShutDown(IN PVOID DeviceExtension)
 {
     ULONG index;
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    NTSTATUS resetStatus;
 
-    virtio_device_reset(&adaptExt->vdev);
+    resetStatus = virtio_device_reset(&adaptExt->vdev);
+    if (!NT_SUCCESS(resetStatus))
+    {
+        return resetStatus;
+    }
     virtio_delete_queues(&adaptExt->vdev);
     for (index = 0; index < adaptExt->num_queues; ++index)
     {
         adaptExt->vq[index] = NULL;
     }
     virtio_device_shutdown(&adaptExt->vdev);
+    return STATUS_SUCCESS;
 }
 
 ULONGLONG
