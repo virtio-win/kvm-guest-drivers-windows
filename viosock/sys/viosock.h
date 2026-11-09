@@ -328,6 +328,7 @@ typedef struct _SOCKET_CONTEXT
     LONG SocketId; // for debug
 
     LIST_ENTRY ResetLink;
+    BOOLEAN InConnectedList; // guarded by the device ConnectedLock
 
     // Device ResetGeneration this connection rode: captured at connect() for an
     // outbound socket, or inherited from the incoming OP_REQUEST (the accept
@@ -690,12 +691,12 @@ _Requires_lock_not_held_(pContext->TxLock) NTSTATUS VIOSockSendResetNoSock(IN PD
 
 // TX window capped at min(peer rx buffer, our own buffer), like Linux tx_buf_size.
 // Lockless: a snapshot unless the caller holds StateLock.
-__inline LONG VIOSockTxHasSpace(IN PSOCKET_CONTEXT pSocket)
+__inline ULONG32 VIOSockTxHasSpace(IN PSOCKET_CONTEXT pSocket)
 {
     ULONG32 uTxBuf = (pSocket->peer_buf_alloc < pSocket->buf_alloc) ? pSocket->peer_buf_alloc : pSocket->buf_alloc;
-    // signed: the peer may shrink buf_alloc while bytes are in flight
-    LONG lBytes = (LONG)uTxBuf - (LONG)(pSocket->tx_cnt - pSocket->peer_fwd_cnt);
-    return (lBytes > 0) ? lBytes : 0;
+    // signed 64-bit: the peer may shrink buf_alloc in flight, and both sizes may exceed MAXLONG
+    LONGLONG llBytes = (LONGLONG)uTxBuf - (ULONG32)(pSocket->tx_cnt - pSocket->peer_fwd_cnt);
+    return (llBytes > 0) ? (ULONG32)llBytes : 0;
 }
 
 _Requires_lock_not_held_(pSocket->StateLock) __inline ULONG32 VIOSockTxGetCredit(IN PSOCKET_CONTEXT pSocket,
@@ -706,7 +707,7 @@ _Requires_lock_not_held_(pSocket->StateLock) __inline ULONG32 VIOSockTxGetCredit
     ULONG32 uRet;
 
     WdfSpinLockAcquire(pSocket->StateLock);
-    uRet = (ULONG32)VIOSockTxHasSpace(pSocket);
+    uRet = VIOSockTxHasSpace(pSocket);
     if (uRet > uCredit)
     {
         uRet = uCredit;
@@ -727,10 +728,10 @@ _Requires_lock_not_held_(pSocket->StateLock) __inline VOID VIOSockTxPutCredit(IN
     WdfSpinLockRelease(pSocket->StateLock);
 }
 
-_Requires_lock_not_held_(pSocket->StateLock) __inline LONG VIOSockTxSpaceUpdate(IN PSOCKET_CONTEXT pSocket,
-                                                                                IN PVIRTIO_VSOCK_HDR pPkt)
+_Requires_lock_not_held_(pSocket->StateLock) __inline ULONG32 VIOSockTxSpaceUpdate(IN PSOCKET_CONTEXT pSocket,
+                                                                                   IN PVIRTIO_VSOCK_HDR pPkt)
 {
-    LONG uSpace;
+    ULONG32 uSpace;
 
     WdfSpinLockAcquire(pSocket->StateLock);
     pSocket->peer_buf_alloc = pPkt->buf_alloc;

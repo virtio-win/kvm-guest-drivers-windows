@@ -1159,7 +1159,13 @@ _Requires_lock_not_held_(pSocket->RxLock) static NTSTATUS VIOSockReadForward(IN 
     else
     {
         status = WdfRequestRetrieveOutputBuffer(Request, 0, &pRequest->FreePtr, &Length);
-        if (!NT_SUCCESS(status))
+        if (status == STATUS_BUFFER_TOO_SMALL)
+        {
+            // a zero-length buffer: completes with 0 bytes once data is ready, as in AFD
+            Length = 0;
+            status = STATUS_SUCCESS;
+        }
+        else if (!NT_SUCCESS(status))
         {
             TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "WdfRequestRetrieveOutputBuffer failed: 0x%x\n", status);
             return status;
@@ -1347,6 +1353,13 @@ VIOSockReadQueueInit(IN WDFDEVICE hDevice)
 
 // only loopback buffers carry a peer TX entry
 #define VIOSockIsLoopbackCb(cb) ((cb)->TxEntry != NULL)
+
+// A timed-out request completes as success if it holds copied bytes: they are already
+// gone from the socket, and an error status would drop them, as on the Tx side.
+static __inline NTSTATUS VIOSockReadTimeoutStatus(IN PVIOSOCK_RX_CONTEXT pRequest)
+{
+    return (pRequest->BufferLen != pRequest->FreeBytes) ? STATUS_SUCCESS : STATUS_IO_TIMEOUT;
+}
 
 // Requeue the read request to wait for more data, preserving its receive timer.
 // If the deadline has already expired, do not requeue - report STATUS_IO_TIMEOUT
@@ -1567,6 +1580,10 @@ _Requires_lock_not_held_(pSocket->RxLock) static NTSTATUS VIOSockReadDequeueCb(I
             ReadRequest = WDF_NO_HANDLE;
             status = STATUS_SUCCESS;
         }
+        else if (status == STATUS_IO_TIMEOUT)
+        {
+            status = VIOSockReadTimeoutStatus(pRequest);
+        }
     }
 
     if (bStop)
@@ -1658,6 +1675,10 @@ _Requires_lock_not_held_(pSocket->RxLock) static NTSTATUS VIOSockReadDequeueCb(I
             ReadRequest = WDF_NO_HANDLE;
             status = STATUS_SUCCESS;
             bRestart = FALSE;
+        }
+        else if (status == STATUS_IO_TIMEOUT)
+        {
+            status = VIOSockReadTimeoutStatus(pRequest);
         }
     }
 
@@ -2061,7 +2082,7 @@ VOID VIOSockReadTimerFunc(WDFTIMER Timer)
     {
         pRequest = CONTAINING_RECORD(RemoveHeadList(&CompletionList), VIOSOCK_RX_CONTEXT, ListEntry);
         WdfRequestCompleteWithInformation(pRequest->ThisRequest,
-                                          STATUS_IO_TIMEOUT,
+                                          VIOSockReadTimeoutStatus(pRequest),
                                           pRequest->BufferLen - pRequest->FreeBytes);
     }
 

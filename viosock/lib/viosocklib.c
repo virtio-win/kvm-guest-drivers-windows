@@ -1081,6 +1081,13 @@ int WSPAPI VIOSockRecv(_In_ SOCKET s,
                                  lpErrno);
     }
 
+    // NtDeviceIoControlFile turns a NULL buffer into a zero-length one, which the
+    // driver takes as a legitimate 0-byte recv
+    if (!lpBuffers[0].buf && lpBuffers[0].len)
+    {
+        return WSP_ERROR(WSAEFAULT);
+    }
+
     ReadParams.Flags = dwFlags;
 
     if (!VIOSockDeviceControlEx(s,
@@ -1366,6 +1373,13 @@ int WSPAPI VIOSockSend(_In_ SOCKET s,
                                  lpOverlapped,
                                  lpCompletionRoutine,
                                  lpErrno);
+    }
+
+    // NtDeviceIoControlFile turns a NULL buffer into a zero-length one, which the
+    // driver takes as a legitimate 0-byte send
+    if (!lpBuffers[0].buf && lpBuffers[0].len)
+    {
+        return WSP_ERROR(WSAEFAULT);
     }
 
     // The payload is the whole input buffer — no parameter block, the

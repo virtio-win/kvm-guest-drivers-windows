@@ -398,6 +398,7 @@ __inline NTSTATUS VIOSockConnectedAdd(IN PSOCKET_CONTEXT pSocket)
     else
     {
         status = WdfCollectionAdd(pContext->ConnectedList, pSocket->ThisSocket);
+        pSocket->InConnectedList = NT_SUCCESS(status);
     }
     WdfSpinLockRelease(pContext->ConnectedLock);
     return status;
@@ -408,7 +409,12 @@ __inline VOID VIOSockConnectedRemove(IN PSOCKET_CONTEXT pSocket)
     PDEVICE_CONTEXT pContext = GetDeviceContext(WdfFileObjectGetDevice(pSocket->ThisSocket));
 
     WdfSpinLockAcquire(pContext->ConnectedLock);
-    WdfCollectionRemove(pContext->ConnectedList, pSocket->ThisSocket);
+    // a transport reset may have removed it already; a second remove trips the WDF verifier
+    if (pSocket->InConnectedList)
+    {
+        WdfCollectionRemove(pContext->ConnectedList, pSocket->ThisSocket);
+        pSocket->InConnectedList = FALSE;
+    }
     WdfSpinLockRelease(pContext->ConnectedLock);
 }
 
@@ -3149,6 +3155,7 @@ VOID VIOSockHandleTransportReset(IN PDEVICE_CONTEXT pContext)
         // i, the removed entry's successor slides into slot i.
         VIOSockReferenceSocketObject(pCurrentSocket);
         WdfCollectionRemove(pContext->ConnectedList, Socket);
+        pCurrentSocket->InConnectedList = FALSE;
         InsertTailList(&resetList, &pCurrentSocket->ResetLink);
     }
     WdfSpinLockRelease(pContext->ConnectedLock);
