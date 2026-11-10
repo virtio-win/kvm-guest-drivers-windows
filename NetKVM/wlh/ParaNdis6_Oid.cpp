@@ -516,6 +516,10 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
         case OID_VENDOR_3:
             pInfo = &u.WmiDiag;
             ulSize = sizeof(u.WmiDiag);
+            // NetKvm_Migration's uint32+uint64 layout leaves padding that the
+            // field assignments below never touch; zero it so it isn't leaked
+            // to the WMI caller along with the rest of this struct.
+            NdisZeroMemory(&u.WmiDiag, sizeof(u.WmiDiag));
             //----------------- RSS ----------------------------------------
             u.WmiDiag.rss.DeviceRssSupport = pContext->bRSSSupportedByDevicePersistent;
             u.WmiDiag.rss.DeviceHashSupport = pContext->bHashReportedByDevice;
