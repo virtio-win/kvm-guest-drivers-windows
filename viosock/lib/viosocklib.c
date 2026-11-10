@@ -764,12 +764,6 @@ int WSPAPI VIOSockIoctl(_In_ SOCKET s,
         return WSP_ERROR(WSAEFAULT);
     }
 
-    if (!VIOSockIsVsockSocket(s))
-    {
-        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_SOCKET, "%s: not a vsock socket\n", __FUNCTION__);
-        return WSP_ERROR(WSAENOTSOCK);
-    }
-
     if (dwIoControlCode == SIO_BSP_HANDLE || dwIoControlCode == SIO_BSP_HANDLE_POLL ||
         dwIoControlCode == SIO_BSP_HANDLE_SELECT)
     {
