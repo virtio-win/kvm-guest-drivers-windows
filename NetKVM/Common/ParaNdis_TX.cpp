@@ -1380,6 +1380,9 @@ NBMappingStatus CNB::BindToDescriptor(CTXDescriptor &Descriptor)
     }
 
     BuildPriorityHeader(HeadersArea.EthHeader(), HeadersArea.VlanHeader());
+    // PrepareOffloads fills a virtio_net_hdr; clear the whole negotiated
+    // header (12 bytes with VIRTIO_F_VERSION_1) so num_buffers is 0 too.
+    RtlZeroMemory(HeadersArea.VirtioHeader(), HeadersArea.VirtioHeaderLength());
     PrepareOffloads(HeadersArea.VirtioHeader(),
                     HeadersArea.IPHeaders(),
                     GetDataLength() - m_Context->Offload.ipHeaderOffset,
