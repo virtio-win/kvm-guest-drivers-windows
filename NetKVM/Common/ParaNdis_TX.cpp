@@ -534,6 +534,7 @@ bool CParaNdisTX::AllocateExtraPages()
         else
         {
             DPrintf(0, "failed to allocate pages, [%d] pages have been allocated", j);
+            CNdisSharedMemory::Destroy(Page, m_Context->MiniportHandle);
             return false;
         }
     }
