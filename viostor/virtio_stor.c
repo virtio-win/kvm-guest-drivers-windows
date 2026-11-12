@@ -462,8 +462,15 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
         ULONG seg_max = adaptExt->info.seg_max;
         if ((size_max > 0) && (seg_max > 0))
         {
-            seg_max = (ULONG)((ULONGLONG)seg_max * size_max) / (ROUND_TO_PAGES(size_max));
-            ConfigInfo->NumberOfPhysicalBreaks = seg_max - 1;
+            /* Both values come from the device. Do the math in 64 bits, so
+             * neither the product nor the page rounding can wrap, and keep
+             * the default when the result is less than one page. */
+            ULONGLONG seg_bytes = ((ULONGLONG)size_max + PAGE_SIZE - 1) & ~((ULONGLONG)PAGE_SIZE - 1);
+            seg_max = (ULONG)(((ULONGLONG)seg_max * size_max) / seg_bytes);
+            if (seg_max > 0)
+            {
+                ConfigInfo->NumberOfPhysicalBreaks = seg_max - 1;
+            }
         }
     }
 
