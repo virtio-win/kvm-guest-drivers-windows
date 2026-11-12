@@ -196,6 +196,8 @@ __inline VOID DisableInterrupt(IN PDEVICE_CONTEXT devCtx)
 
 VOID BalloonSetSize(IN WDFOBJECT WdfDevice, IN size_t num);
 
+VOID BalloonDrainPages(IN WDFOBJECT WdfDevice);
+
 LONGLONG
 BalloonGetSize(IN WDFOBJECT WdfDevice);
 
