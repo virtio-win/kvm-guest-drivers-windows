@@ -104,6 +104,14 @@ void virtio_device_ready(VirtIODevice *vdev)
 {
     unsigned status = vdev->device->get_status(vdev);
 
+    /* A driver that ignored a failed virtio_set_features() must not start
+     * the device: it would run with features the device never accepted.
+     * Leave DRIVER_OK clear so the device stays stopped. */
+    if (status & VIRTIO_CONFIG_S_FAILED) {
+        DPrintf(0, "virtio: not setting DRIVER_OK on a FAILED device\n");
+        return;
+    }
+
     ASSERT(!(status & VIRTIO_CONFIG_S_DRIVER_OK));
     vdev->device->set_status(vdev, (u8)(status | VIRTIO_CONFIG_S_DRIVER_OK));
 }
@@ -134,6 +142,7 @@ NTSTATUS virtio_set_features(VirtIODevice *vdev, u64 features)
     dev_status = vdev->device->get_status(vdev);
     if (!(dev_status & VIRTIO_CONFIG_S_FEATURES_OK)) {
         DPrintf(0, "virtio: device refuses features: %x\n", dev_status);
+        virtio_add_status(vdev, VIRTIO_CONFIG_S_FAILED);
         status = STATUS_INVALID_PARAMETER;
     }
     return status;
