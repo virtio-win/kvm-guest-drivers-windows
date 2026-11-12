@@ -455,6 +455,10 @@ struct _tagRxNetDescriptor
     tCompletePhysicalAddress IndirectArea;
     tPacketHolderType Holder;
 
+    // Bytes the descriptor offers the device: the sum of BufferSGArray
+    // lengths. A used length above it is clamped to it.
+    ULONG BufferCapacity;
+
     NET_PACKET_INFO PacketInfo;
 
     CParaNdisRX *Queue;

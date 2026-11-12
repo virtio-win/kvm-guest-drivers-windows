@@ -150,6 +150,34 @@ static bool IsRegionInside(const tCompletePhysicalAddress &a1, const tCompletePh
     return p1 >= p2 && p1 <= p2 + a2.size;
 }
 
+// Record the capacity offered to the device. Called once per descriptor
+// after its SG list is built.
+static void ParaNdis_RxSetCapacity(pRxNetDescriptor p)
+{
+    ULONG total = 0;
+
+    for (ULONG i = 0; i < p->BufferSGLength; i++)
+    {
+        total += p->BufferSGArray[i].length;
+    }
+    p->BufferCapacity = total;
+}
+
+// The used length comes from the device. Clamp it to what the descriptor
+// offered, and up to MinLength, which the caller picks so a short header is
+// never read as stale data.
+static void ParaNdis_RxClampLength(pRxNetDescriptor p, UINT &Length, UINT MinLength)
+{
+    if (Length > p->BufferCapacity)
+    {
+        Length = p->BufferCapacity;
+    }
+    if (Length < MinLength)
+    {
+        Length = min(MinLength, p->BufferCapacity);
+    }
+}
+
 static void ParaNdis_FreeRxBufferDescriptor(PARANDIS_ADAPTER *pContext, pRxNetDescriptor p)
 {
     ULONG i;
@@ -361,6 +389,8 @@ pRxNetDescriptor CParaNdisRX::CreateMergeableRxDescriptorOnInit()
         goto error_exit;
     }
 
+    ParaNdis_RxSetCapacity(p);
+
     return p;
 
 error_exit:
@@ -493,6 +523,8 @@ pRxNetDescriptor CParaNdisRX::CreateRxDescriptorOnInit()
     }
 
     p->NumOwnedPages = p->NumPages;
+
+    ParaNdis_RxSetCapacity(p);
 
     return p;
 
@@ -970,6 +1002,9 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
             RemoveEntryList(&pBufferDescriptor->listEntry);
             m_NetNofReceiveBuffers--;
 
+            // The first buffer of a packet always carries the virtio header.
+            ParaNdis_RxClampLength(pBufferDescriptor, nFullLength, m_Context->nVirtioHeaderSize);
+
             pRxNetDescriptor pProcessBuffer = pBufferDescriptor;
 
             // Mergeable buffers: delegate to ProcessMergedBuffers (handles both single/multi-buffer)
@@ -1182,6 +1217,8 @@ BOOLEAN CParaNdisRX::CollectRemainingMergeBuffers()
 
         RemoveEntryList(&pBufferDescriptor->listEntry);
         m_NetNofReceiveBuffers--;
+
+        ParaNdis_RxClampLength(pBufferDescriptor, nFullLength, 0);
 
         DPrintf(5,
                 "Collected buffer %u/%u: length=%u bytes",
