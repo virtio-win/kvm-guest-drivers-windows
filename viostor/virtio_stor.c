@@ -211,6 +211,19 @@ DriverEntry(IN PVOID DriverObject, IN PVOID RegistryPath)
     return initResult;
 }
 
+/* The device writes the serial number into adaptExt->sn and need not
+ * NUL-terminate it, so never look past the field. */
+static UCHAR VioStorSerialLength(PADAPTER_EXTENSION adaptExt)
+{
+    UCHAR len = 0;
+
+    while (len < BLOCK_SERIAL_STRLEN && adaptExt->sn[len] != '\0')
+    {
+        len++;
+    }
+    return len;
+}
+
 static ULONG InitVirtIODevice(PVOID DeviceExtension)
 {
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
@@ -1736,7 +1749,7 @@ RhelScsiGetInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
 
         if (dataLen >= 0x18)
         {
-            UCHAR len = strlen(adaptExt->sn);
+            UCHAR len = VioStorSerialLength(adaptExt);
             SerialPage->PageLength = min(BLOCK_SERIAL_STRLEN, len);
             RhelDbgPrint(TRACE_LEVEL_INFORMATION, "PageLength = %d (%d)\n", SerialPage->PageLength, len);
             StorPortCopyMemory(&SerialPage->SerialNumber, &adaptExt->sn, SerialPage->PageLength);
@@ -2260,7 +2273,7 @@ VOID ReportDeviceIdentifier(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     PVPD_IDENTIFICATION_PAGE IdentificationPage = NULL;
     PVPD_IDENTIFICATION_DESCRIPTOR IdentificationDescr = NULL;
     PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
-    UCHAR len = strlen(adaptExt->sn);
+    UCHAR len = VioStorSerialLength(adaptExt);
 
     IdentificationPage = (PVPD_IDENTIFICATION_PAGE)SRB_DATA_BUFFER(Srb);
     IdentificationDescr = (PVPD_IDENTIFICATION_DESCRIPTOR)IdentificationPage->Descriptors;
@@ -2397,7 +2410,7 @@ VOID VioStorCompleteRequest(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOO
                     {
                         PVPD_SERIAL_NUMBER_PAGE SerialPage;
                         ULONG dataLen = SRB_DATA_TRANSFER_LENGTH(Srb);
-                        UCHAR len = strlen(adaptExt->sn);
+                        UCHAR len = VioStorSerialLength(adaptExt);
 
                         SerialPage = (PVPD_SERIAL_NUMBER_PAGE)SRB_DATA_BUFFER(Srb);
                         RhelDbgPrint(TRACE_LEVEL_INFORMATION, "dataLen = %d\n", dataLen);
