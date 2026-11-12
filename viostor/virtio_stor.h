@@ -263,6 +263,8 @@ typedef struct _ADAPTER_EXTENSION
     ULONG reset_in_progress_count;
     volatile LONG rr_queue_index;
     ULONGLONG fw_ver;
+    /* Set once a broken virtqueue has been logged, cleared by HwInitialize. */
+    volatile LONG vq_broken_logged;
 #ifdef DBG
     LONG srb_cnt;
     LONG inqueue_cnt;

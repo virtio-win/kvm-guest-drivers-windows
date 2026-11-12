@@ -730,6 +730,7 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
     adaptExt->pageOffset = 0;
     adaptExt->poolOffset = 0;
     adaptExt->stopped = FALSE;
+    adaptExt->vq_broken_logged = 0;
 
     while (StorPortGetMSIInfo(DeviceExtension, adaptExt->msix_vectors, &msi_info) == STOR_STATUS_SUCCESS)
     {
@@ -2459,6 +2460,16 @@ VOID VioStorCompleteRequest(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOO
             }
         }
     } while (!virtqueue_enable_cb(vq));
+
+    /* The device wrote an invalid used-ring entry. The queue no longer hands
+     * out buffers, so the loop above has ended; the requests still on it
+     * time out and StorPort resets the bus, which sets the queues up again.
+     * Log the condition once. */
+    if (virtqueue_is_broken(vq) && InterlockedExchange(&adaptExt->vq_broken_logged, 1) == 0)
+    {
+        RhelDbgPrint(TRACE_LEVEL_FATAL, " virtqueue %lu is broken, waiting for a bus reset\n", QueueNumber);
+        LogError(DeviceExtension, SP_INTERNAL_ADAPTER_ERROR, __LINE__);
+    }
 
     VioStorVQUnlock(DeviceExtension, MessageID, &queueLock, bIsr);
 
