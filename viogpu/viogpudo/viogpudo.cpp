@@ -2358,12 +2358,30 @@ NTSTATUS VioGpuAdapter::SetCurrentMode(ULONG Mode, CURRENT_MODE *pCurrentMode)
     {
         if (Mode == m_ModeInfo[idx].ModeIndex /*m_ModeNumbers[idx]*/)
         {
+            // Replace the frame buffer without unref'ing a resource that is still on the
+            // scanout, and without reusing its id before it is gone: a device may refuse
+            // both. The old resource keeps its id until the scanout has moved to the new one.
+            VioGpuObj *pOldFrameBuf = NULL;
+            UINT oldResId = 0;
             if (pCurrentMode->Flags.FrameBufferIsActive)
             {
-                DestroyFrameBufferObj(FALSE, FALSE);
+                pOldFrameBuf = m_pFrameBuf;
+                if (pOldFrameBuf != NULL)
+                {
+                    oldResId = (UINT)pOldFrameBuf->GetId();
+                    m_CtrlQueue.DetachBacking(oldResId);
+                    m_pFrameBuf = NULL;
+                }
                 pCurrentMode->Flags.FrameBufferIsActive = FALSE;
             }
-            if (CreateFrameBufferObj(&m_ModeInfo[idx], pCurrentMode))
+            BOOLEAN created = CreateFrameBufferObj(&m_ModeInfo[idx], pCurrentMode);
+            if (pOldFrameBuf != NULL)
+            {
+                m_CtrlQueue.DestroyResource(oldResId);
+                delete pOldFrameBuf;
+                m_Idr.PutId(oldResId);
+            }
+            if (created)
             {
                 DbgPrint(TRACE_LEVEL_ERROR,
                          ("%s device %d: setting current mode %d (%d x %d)\n",
