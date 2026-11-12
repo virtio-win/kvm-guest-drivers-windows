@@ -43,6 +43,9 @@ EVT_WDF_INTERRUPT_DISABLE VIOSerialInterruptDisable;
 #define VIRTIO_CONSOLE_F_MULTIPORT     1
 #define VIRTIO_CONSOLE_BAD_ID          (~(u32)0)
 
+/* Max SG elements per DMA ProgramDma callback; must match virtqueue descriptor budget. */
+#define QUEUE_DESCRIPTORS              128
+
 #define VIRTIO_CONSOLE_DEVICE_READY    0
 #define VIRTIO_CONSOLE_PORT_ADD        1
 #define VIRTIO_CONSOLE_PORT_REMOVE     2
@@ -127,13 +130,30 @@ typedef struct _tagPortBuffer
 
 typedef struct _WriteBufferEntry
 {
-    SINGLE_LIST_ENTRY ListEntry;
     WDFMEMORY EntryHandle;
     WDFREQUEST Request;
     PVOID OriginalWriteBuffer;
     SIZE_T OriginalWriteBufferSize;
     WDFDMATRANSACTION dmaTransaction;
+    /* Batches in VQ not yet reclaimed. IRP completes when this reaches 0. */
+    volatile LONG PendingChunks;
+    /* TRUE if a batch could not be queued; IRP completes with error on last reclaim. */
+    BOOLEAN Failed;
+    /* Pre-allocated batches not yet in VQ; submitted one-at-a-time via completion path. */
+    SINGLE_LIST_ENTRY PendingBatches;
+    /* Bytes successfully handed to the virtqueue; reported as information on partial failure. */
+    ULONG SubmittedBytes;
 } WRITE_BUFFER_ENTRY, *PWRITE_BUFFER_ENTRY;
+
+/* VQ cookie + cached SG data for one chunk of at most QUEUE_DESCRIPTORS elements. */
+typedef struct _WriteDmaChunk
+{
+    SINGLE_LIST_ENTRY ListEntry;    /* VQ cookie / reclaim list         */
+    SINGLE_LIST_ENTRY PendingEntry; /* Entry->PendingBatches queue      */
+    PWRITE_BUFFER_ENTRY Parent;
+    ULONG NumElements;
+    struct VirtIOBufferDescriptor sg[QUEUE_DESCRIPTORS];
+} WRITE_DMA_CHUNK, *PWRITE_DMA_CHUNK;
 
 typedef struct _tagVioSerialPort
 {
