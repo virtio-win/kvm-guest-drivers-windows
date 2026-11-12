@@ -304,7 +304,7 @@ static NTSTATUS vio_modern_setup_vq(struct virtqueue **queue, VirtIODevice *vdev
     /* try to allocate contiguous pages, scale down on failure */
     while (!(info->queue =
                  mem_alloc_contiguous_pages(vdev, vring_pci_size(info->num, vdev->packed_ring)))) {
-        if (info->num > 0) {
+        if (info->num > 1) {
             info->num /= 2;
         } else {
             return STATUS_INSUFFICIENT_RESOURCES;
