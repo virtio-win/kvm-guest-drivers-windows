@@ -18,7 +18,9 @@
  *   - MSG_ZEROCOPY family (18/19/20/27/28): blocked by the missing
  *     Winsock MSG_ERRQUEUE / sock_extended_err notification path — not
  *     by an absence of zero-copy in the driver tract (WSP already hands
- *     the kernel MDL-based user pages).
+ *     the kernel MDL-based user pages).  Slots 20 and 27 keep upstream's
+ *     control protocol but run Windows bodies instead (full TX window;
+ *     select() under WSAEventSelect + half-close).
  *
  *   - SOCK_SEQPACKET cases (6/7/8/9/11/13/15/19/25/35): SEQPACKET is
  *     not implemented in the viosock driver. Bodies split three ways:
@@ -33,8 +35,11 @@
  *         the driver.
  *       * 19 additionally hits the MSG_ZEROCOPY gate above.
  *
- *   - SIGPIPE, kmemleak, transport-uaf, transport-change: Linux-side
- *     kernel-debug or POSIX-signal regressions with no Windows analogue.
+ *   - kmemleak, transport-uaf, transport-change: Linux-side kernel-debug
+ *     regressions with no Windows analogue.  The SHUT_WR/SHUT_RD cases
+ *     keep the EPIPE half of their SIGPIPE check (WSAESHUTDOWN maps to
+ *     EPIPE, after our own SHUT_WR and after the peer's SHUT_RD alike);
+ *     the signal half has no Windows analogue and is dropped.
  *
  * run_tests() treats a NULL run pointer as a no-op (prints "ok") so a
  * per-side unimplemented direction (e.g. only .run_client set) still
@@ -890,6 +895,369 @@ static void test_stream_msg_zcopy_server(const struct test_opts *opts)
     }
 }
 
+/* Upstream slot 20 (MSG_ZEROCOPY empty MSG_ERRQUEUE) has no Winsock analogue;
+ * its peer body (accept -> expect "DONE" -> close) is a connected peer that
+ * never reads, so the slot checks the full TX window instead: non-blocking
+ * send() must stall with EAGAIN, and the peer close must still be seen. */
+#define FULL_TX_WINDOW_CAP (64 * 1024 * 1024)
+
+static void test_stream_full_tx_window_client(const struct test_opts *opts)
+{
+    char buf[4096];
+    size_t total = 0;
+    int fd;
+
+    memset(buf, 'A', sizeof(buf));
+
+    fd = vsock_stream_connect(opts->peer_cid, opts->peer_port);
+    if (fd < 0)
+    {
+        perror("connect");
+        exit(EXIT_FAILURE);
+    }
+
+    if (fcntl(fd, F_SETFL, O_NONBLOCK) < 0)
+    {
+        perror("fcntl(F_SETFL)");
+        exit(EXIT_FAILURE);
+    }
+
+    for (;;)
+    {
+        ssize_t sent = send(fd, buf, sizeof(buf), 0);
+
+        if (sent == 0)
+        {
+            fprintf(stderr, "unexpected EOF while filling the TX window\n");
+            exit(EXIT_FAILURE);
+        }
+        if (sent < 0)
+        {
+            if (errno == EINTR)
+            {
+                continue;
+            }
+            if (errno == EAGAIN)
+            {
+                break;
+            }
+            fprintf(stderr, "send on a full TX window: errno %d, expected EAGAIN\n", errno);
+            exit(EXIT_FAILURE);
+        }
+
+        total += sent;
+        if (total > FULL_TX_WINDOW_CAP)
+        {
+            fprintf(stderr, "sent %zu bytes without blocking, is the peer reading?\n", total);
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    /* The peer closes without ever reading; its close must surface
+     * even though our TX window is still full. */
+    control_writeln("DONE");
+    vsock_wait_remote_close(fd);
+    close(fd);
+}
+
+static void test_stream_full_tx_window_server(const struct test_opts *opts)
+{
+    int fd;
+
+    fd = vsock_stream_accept(VMADDR_CID_ANY, opts->peer_port, NULL);
+    if (fd < 0)
+    {
+        perror("accept");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Never read: the connector fills its TX window against us. */
+    control_expectln("DONE");
+    close(fd);
+}
+
+/* Upstream slot 27 (MSG_ZEROCOPY leak MSG_ERRQUEUE) has no Winsock analogue;
+ * its peer bodies - client sends a byte, server reads it, each waits for the
+ * other's close - carry two checks of our own.  Client: half-close with
+ * SD_SEND and expect the peer's close to surface as EOF.  Server: the byte
+ * the peer sent stays visible to select() after WSAEventSelect() has been
+ * armed and its events drained - MSDN: select() is not affected by
+ * WSAEventSelect registrations (poc_select_wsaevent). */
+static void test_stream_select_under_wsaevent_client(const struct test_opts *opts)
+{
+    int fd;
+
+    fd = vsock_stream_connect(opts->peer_cid, opts->peer_port);
+    if (fd < 0)
+    {
+        perror("connect");
+        exit(EXIT_FAILURE);
+    }
+
+    send_byte(fd, 1, 0);
+
+    if (shutdown(fd, SHUT_WR))
+    {
+        perror("shutdown");
+        exit(EXIT_FAILURE);
+    }
+
+    /* The peer reads the byte, sees our FIN and closes: EOF must follow. */
+    vsock_wait_remote_close(fd);
+    recv_byte(fd, 0, 0);
+    close(fd);
+}
+
+static void select_readable_check(int fd, const char *what)
+{
+    fd_set rfds;
+    struct timeval tv = {TIMEOUT, 0};
+    int rc;
+
+    FD_ZERO(&rfds);
+    FD_SET((SOCKET)fd, &rfds);
+    rc = select(0, &rfds, NULL, NULL, &tv);
+    if (rc < 1 || !FD_ISSET((SOCKET)fd, &rfds))
+    {
+        fprintf(stderr, "%s: select() did not report the buffered byte (rc=%d WSA %d)\n", what, rc, WSAGetLastError());
+        exit(EXIT_FAILURE);
+    }
+}
+
+static void test_stream_select_under_wsaevent_server(const struct test_opts *opts)
+{
+    WSAEVENT ev;
+    WSANETWORKEVENTS ne;
+    u_long nb = 0;
+    int fd;
+
+    fd = vsock_stream_accept(VMADDR_CID_ANY, opts->peer_port, NULL);
+    if (fd < 0)
+    {
+        perror("accept");
+        exit(EXIT_FAILURE);
+    }
+
+    select_readable_check(fd, "before WSAEventSelect");
+
+    /* Arm the socket the way an event loop does and drain the recorded
+     * events, as a dispatch would before it polls. */
+    ev = WSACreateEvent();
+    if (ev == WSA_INVALID_EVENT || WSAEventSelect((SOCKET)fd, ev, FD_READ | FD_CLOSE) == SOCKET_ERROR)
+    {
+        fprintf(stderr, "WSAEventSelect failed WSA %d\n", WSAGetLastError());
+        exit(EXIT_FAILURE);
+    }
+    if (WSAEnumNetworkEvents((SOCKET)fd, ev, &ne) == SOCKET_ERROR)
+    {
+        fprintf(stderr, "WSAEnumNetworkEvents failed WSA %d\n", WSAGetLastError());
+        exit(EXIT_FAILURE);
+    }
+
+    /* The byte is still buffered: select() must still say so. */
+    select_readable_check(fd, "after WSAEventSelect");
+
+    WSAEventSelect((SOCKET)fd, NULL, 0);
+    ioctlsocket((SOCKET)fd, FIONBIO, &nb);
+    WSACloseEvent(ev);
+
+    recv_byte(fd, 1, 0);
+    vsock_wait_remote_close(fd);
+    close(fd);
+}
+
+/* Upstream slot 36 sets SO_ZEROCOPY on the accept()ed socket; Winsock has no
+ * such option, so the server sets the vsock buffer size on the accepted
+ * socket and reads it back - the option plumbing of a socket created by
+ * accept() rather than socket().  The client, whose peer closes right after
+ * accepting, checks that a silent close surfaces as EOF (poc_fdclose). */
+static void test_stream_accepted_setsockopt_client(const struct test_opts *opts)
+{
+    int fd;
+
+    fd = vsock_stream_connect(opts->peer_cid, opts->peer_port);
+    if (fd < 0)
+    {
+        perror("connect");
+        exit(EXIT_FAILURE);
+    }
+
+    /* The peer closes right after accept() without sending anything. */
+    vsock_wait_remote_close(fd);
+    recv_byte(fd, 0, 0);
+    close(fd);
+}
+
+static void test_stream_accepted_setsockopt_server(const struct test_opts *opts)
+{
+    int fd;
+
+    fd = vsock_stream_accept(VMADDR_CID_ANY, opts->peer_port, NULL);
+    if (fd < 0)
+    {
+        perror("accept");
+        exit(EXIT_FAILURE);
+    }
+
+    setsockopt_ull_check(fd,
+                         g_vsock_af,
+                         SO_VM_SOCKETS_BUFFER_SIZE,
+                         SOCK_BUF_SIZE_SMALL,
+                         "setsockopt(SO_VM_SOCKETS_BUFFER_SIZE) on accept()ed socket");
+    close(fd);
+}
+
+/* Upstream's client storms this listener with connect()s cut short by
+ * SIGUSR1 (Linux-only); the server side ports as is: a non-blocking
+ * listener that drains its accept queue on every CONTINUE. */
+static void test_stream_transport_change_server(const struct test_opts *opts)
+{
+    int s = vsock_stream_listen(VMADDR_CID_ANY, opts->peer_port);
+
+    /* Interrupted connects can still land in the accept queue, so drain it
+     * without blocking. */
+    if (fcntl(s, F_SETFL, fcntl(s, F_GETFL, 0) | O_NONBLOCK) < 0)
+    {
+        perror("fcntl");
+        exit(EXIT_FAILURE);
+    }
+    control_writeln("LISTENING");
+
+    while (control_readulong() == CONTROL_CONTINUE)
+    {
+        /* Clear every queued connection, there can be more than one. */
+        while (true)
+        {
+            int client = accept(s, NULL, NULL);
+
+            if (client < 0)
+            {
+                if (errno == EAGAIN)
+                {
+                    break;
+                }
+                perror("accept");
+                exit(EXIT_FAILURE);
+            }
+
+            close(client);
+        }
+    }
+
+    close(s);
+}
+
+#define GOOD_COPY_LEN 128 /* net/vmw_vsock/virtio_transport_common.c */
+
+/* A plain send followed by a zero-copy one (MSG_ZEROCOPY rides the SEND_EX /
+ * MDL tract here); the peer waits for both and checks the second is intact.
+ * Same Windows adjustments as slot 18: no MSG_ERRQUEUE poll, 64-bit hash. */
+static void test_stream_msgzcopy_mangle_client(const struct test_opts *opts)
+{
+    char sbuf1[PAGE_SIZE + 1], sbuf2[GOOD_COPY_LEN];
+    uint64_t hash;
+    size_t i;
+    int fd;
+
+    fd = vsock_stream_connect(opts->peer_cid, opts->peer_port);
+    if (fd < 0)
+    {
+        perror("connect");
+        exit(EXIT_FAILURE);
+    }
+
+    /* No-op on Windows; kept so the flow matches upstream. */
+    enable_so_zerocopy_check(fd);
+
+    memset(sbuf1, 'x', sizeof(sbuf1));
+    send_buf(fd, sbuf1, sizeof(sbuf1), 0, sizeof(sbuf1));
+
+    for (i = 0; i < sizeof(sbuf2); i++)
+    {
+        sbuf2[i] = rand() & 0xff;
+    }
+
+    send_buf(fd, sbuf2, sizeof(sbuf2), MSG_ZEROCOPY, sizeof(sbuf2));
+
+    hash = test_msg_zcopy_hash_u64(sbuf2, sizeof(sbuf2));
+    test_msg_zcopy_writeulong64(hash);
+
+    /* Upstream polls MSG_ERRQUEUE for the zero-copy completion; a Windows
+     * send with MSG_ZEROCOPY has completed by the time it returns. */
+    close(fd);
+}
+
+static void test_stream_msgzcopy_mangle_server(const struct test_opts *opts)
+{
+    uint64_t local_hash, remote_hash;
+    char rbuf[PAGE_SIZE + 1];
+    int fd;
+
+    fd = vsock_stream_accept(VMADDR_CID_ANY, opts->peer_port, NULL);
+    if (fd < 0)
+    {
+        perror("accept");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Wait, don't race the (buggy) skbs coalescence. */
+    vsock_ioctl_int(fd, SIOCINQ, PAGE_SIZE + 1 + GOOD_COPY_LEN);
+
+    /* Discard the first packet. */
+    recv_buf(fd, rbuf, PAGE_SIZE + 1, 0, PAGE_SIZE + 1);
+
+    recv_buf(fd, rbuf, GOOD_COPY_LEN, 0, GOOD_COPY_LEN);
+    remote_hash = test_msg_zcopy_readulong64();
+    local_hash = test_msg_zcopy_hash_u64(rbuf, GOOD_COPY_LEN);
+
+    if (local_hash != remote_hash)
+    {
+        fprintf(stderr, "Data received corrupted\n");
+        exit(EXIT_FAILURE);
+    }
+
+    close(fd);
+}
+
+#define ACCEPTQ_LEAK_RACE_TIMEOUT 2 /* seconds */
+
+/* Upstream races connect() against a listener that closes right after
+ * announcing itself (a kernel accept-queue leak).  On Windows the same loop
+ * exercises the two sides we own: the connector must get a prompt refusal
+ * or reset, never a stall, and the listener must tear down whatever the
+ * peer already queued when it closes unaccepted. */
+static void test_stream_leak_acceptq_client(const struct test_opts *opts)
+{
+    long long tout;
+    int fd;
+
+    tout = current_nsec() + ACCEPTQ_LEAK_RACE_TIMEOUT * NSEC_PER_SEC;
+    do
+    {
+        control_writeulong(CONTROL_CONTINUE);
+
+        fd = vsock_stream_connect(opts->peer_cid, opts->peer_port);
+        if (fd >= 0)
+        {
+            close(fd);
+        }
+    } while (current_nsec() < tout);
+
+    control_writeulong(CONTROL_DONE);
+}
+
+static void test_stream_leak_acceptq_server(const struct test_opts *opts)
+{
+    int fd;
+
+    while (control_readulong() == CONTROL_CONTINUE)
+    {
+        fd = vsock_stream_listen(VMADDR_CID_ANY, opts->peer_port);
+        control_writeln("LISTENING");
+        close(fd);
+    }
+}
+
 static void test_stream_virtio_skb_merge_client(const struct test_opts *opts)
 {
     int fd;
@@ -981,6 +1349,137 @@ static void test_double_bind_connect_server(const struct test_opts *opts)
     }
 
     close(listen_fd);
+}
+
+#define SEND_SLEEP_USEC (10 * 1000)
+
+/* errno half of upstream's test_stream_check_sigpipe(): Winsock has no
+ * signals, but send() on a half-closed connection must still fail with
+ * EPIPE - WSAESHUTDOWN through the shim, after our own SHUT_WR and after
+ * the peer's SHUT_RD alike.  Upstream's retry loop stays - after a peer
+ * SHUT_RD the shutdown packet may still be in flight. */
+static void test_stream_check_send_fails(int fd, int expected_errno)
+{
+    ssize_t res;
+
+    timeout_begin(TIMEOUT);
+    while (1)
+    {
+        res = send(fd, "A", 1, 0);
+        if (res == -1 && errno != EINTR)
+        {
+            break;
+        }
+        timeout_usleep(SEND_SLEEP_USEC);
+        timeout_check("send");
+    }
+    timeout_end();
+
+    if (errno != expected_errno)
+    {
+        fprintf(stderr, "unexpected send(2) errno %d (expected %d)\n", errno, expected_errno);
+        exit(EXIT_FAILURE);
+    }
+}
+
+static void test_stream_shutwr_client(const struct test_opts *opts)
+{
+    int fd;
+
+    fd = vsock_stream_connect(opts->peer_cid, opts->peer_port);
+    if (fd < 0)
+    {
+        perror("connect");
+        exit(EXIT_FAILURE);
+    }
+
+    if (shutdown(fd, SHUT_WR))
+    {
+        perror("shutdown");
+        exit(EXIT_FAILURE);
+    }
+
+    test_stream_check_send_fails(fd, EPIPE);
+
+    control_writeln("CLIENTDONE");
+    close(fd);
+}
+
+/* Upstream's server only waits for CLIENTDONE.  The peer's SHUT_WR is a
+ * FIN that lands before our first send(), so also cover the acceptor
+ * side (poc_send_after_fin): recv() reports EOF and a send() must not
+ * stall behind the FIN - it lands while the peer's receive side is open,
+ * or fails with EPIPE/ECONNRESET if the peer has closed meanwhile. */
+static void test_stream_shutwr_server(const struct test_opts *opts)
+{
+    struct timeval snd_timeout = {TIMEOUT, 0};
+    ssize_t res;
+    int fd;
+
+    fd = vsock_stream_accept(VMADDR_CID_ANY, opts->peer_port, NULL);
+    if (fd < 0)
+    {
+        perror("accept");
+        exit(EXIT_FAILURE);
+    }
+
+    recv_byte(fd, 0, 0);
+
+    setsockopt_timeval_check(fd, SOL_SOCKET, SO_SNDTIMEO, snd_timeout, "setsockopt(SO_SNDTIMEO)");
+    res = send(fd, "A", 1, 0);
+    if (res != 1 && !(res == -1 && (errno == EPIPE || errno == ECONNRESET)))
+    {
+        fprintf(stderr, "send after peer SHUT_WR: ret %zd errno %d\n", res, errno);
+        exit(EXIT_FAILURE);
+    }
+
+    control_expectln("CLIENTDONE");
+    close(fd);
+}
+
+static void test_stream_shutrd_client(const struct test_opts *opts)
+{
+    int fd;
+
+    fd = vsock_stream_connect(opts->peer_cid, opts->peer_port);
+    if (fd < 0)
+    {
+        perror("connect");
+        exit(EXIT_FAILURE);
+    }
+
+    control_expectln("SHUTRDDONE");
+
+    test_stream_check_send_fails(fd, EPIPE);
+
+    control_writeln("CLIENTDONE");
+    close(fd);
+}
+
+static void test_stream_shutrd_server(const struct test_opts *opts)
+{
+    int fd;
+
+    fd = vsock_stream_accept(VMADDR_CID_ANY, opts->peer_port, NULL);
+    if (fd < 0)
+    {
+        perror("accept");
+        exit(EXIT_FAILURE);
+    }
+
+    if (shutdown(fd, SHUT_RD))
+    {
+        perror("shutdown");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Local half: recv() after our own SD_RECEIVE fails with WSAESHUTDOWN
+     * (EPIPE through the shim). */
+    recv_byte(fd, -EPIPE, 0);
+
+    control_writeln("SHUTRDDONE");
+    control_expectln("CLIENTDONE");
+    close(fd);
 }
 
 static void test_double_bind_connect_client(const struct test_opts *opts)
@@ -1125,10 +1624,10 @@ static void test_stream_rcvlowat_def_cred_upd_client(const struct test_opts *opt
     }
 
     buf_size = RCVLOWAT_CREDIT_UPD_BUF_SIZE + 1;
-    buf = malloc(buf_size);
+    buf = calloc(1, buf_size);
     if (!buf)
     {
-        perror("malloc");
+        perror("calloc");
         exit(EXIT_FAILURE);
     }
 
@@ -1474,230 +1973,230 @@ static void test_stream_tx_credit_bounds_server(const struct test_opts *opts)
     close(fd);
 }
 
-static struct
-                                                                                                    test_case test_cases[] = {
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_STREAM connection reset",
-                                                                                                                                                                                                                                                                                                            .run_client = test_stream_connection_reset,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_STREAM bind only",
-                                                                                                                                                                                                                                                                                                            .run_client = test_stream_bind_only_client,
-                                                                                                                                                                                                                                                                                                            .run_server = test_stream_bind_only_server,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_STREAM client close",
-                                                                                                                                                                                                                                                                                                            .run_client = test_stream_client_close_client,
-                                                                                                                                                                                                                                                                                                            .run_server = test_stream_client_close_server,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_STREAM server close",
-                                                                                                                                                                                                                                                                                                            .run_client = test_stream_server_close_client,
-                                                                                                                                                                                                                                                                                                            .run_server = test_stream_server_close_server,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            .name =
-                                                                                                                                                                                                                                                                                                                                                                                                                "SOCK_STREAM multiple connections",
-                                                                                                                                                                                                                                                                                                            .run_client = test_stream_multiconn_client,
-                                                                                                                                                                                                                                                                                                            .run_server = test_stream_multiconn_server,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_STREAM MSG_PEEK",
-                                                                                                                                                                                                                                                                                                            .run_client = test_stream_msg_peek_client,
-                                                                                                                                                                                                                                                                                                            .run_server = test_stream_msg_peek_server,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            /* TODO: port when SEQPACKET + recvmsg(MSG_EOR) land on Windows */
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_SEQPACKET msg bounds",
-                                                                                                                                                                                                                                                                                                            .run_client = NULL,
-                                                                                                                                                                                                                                                                                                            .run_server = NULL,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            /* TODO: port when SEQPACKET + recvmsg land on Windows */
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_SEQPACKET MSG_TRUNC flag",
-                                                                                                                                                                                                                                                                                                            .run_client = NULL,
-                                                                                                                                                                                                                                                                                                            .run_server = NULL,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            /* SEQPACKET not implemented in viosock driver */
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_SEQPACKET timeout",
-                                                                                                                                                                                                                                                                                                            .run_client = NULL,
-                                                                                                                                                                                                                                                                                                            .run_server = NULL,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            /* SEQPACKET not implemented in viosock driver */
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_SEQPACKET invalid receive buffer",
-                                                                                                                                                                                                                                                                                                            .run_client = NULL,
-                                                                                                                                                                                                                                                                                                            .run_server = NULL,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_STREAM poll() + SO_RCVLOWAT",
-                                                                                                                                                                                                                                                                                                            .run_client = test_stream_poll_rcvlowat_client,
-                                                                                                                                                                                                                                                                                                            .run_server = test_stream_poll_rcvlowat_server,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            /* SEQPACKET not implemented in viosock driver */
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_SEQPACKET big message",
-                                                                                                                                                                                                                                                                                                            .run_client = NULL,
-                                                                                                                                                                                                                                                                                                            .run_server = NULL,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_STREAM test invalid buffer",
-                                                                                                                                                                                                                                                                                                            .run_client = test_stream_inv_buf_client,
-                                                                                                                                                                                                                                                                                                            .run_server = test_stream_inv_buf_server,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            /* SEQPACKET not implemented in viosock driver */
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_SEQPACKET test invalid buffer",
-                                                                                                                                                                                                                                                                                                            .run_client = NULL,
-                                                                                                                                                                                                                                                                                                            .run_server = NULL,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_STREAM virtio skb merge",
-                                                                                                                                                                                                                                                                                                            .run_client = test_stream_virtio_skb_merge_client,
-                                                                                                                                                                                                                                                                                                            .run_server = test_stream_virtio_skb_merge_server,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            /* SEQPACKET not implemented in viosock driver */
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_SEQPACKET MSG_PEEK",
-                                                                                                                                                                                                                                                                                                            .run_client = NULL,
-                                                                                                                                                                                                                                                                                                            .run_server = NULL,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            /* Linux-only: test body is a SIGPIPE regression; Windows has no SIGPIPE */
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_STREAM SHUT_WR",
-                                                                                                                                                                                                                                                                                                            .run_client = NULL,
-                                                                                                                                                                                                                                                                                                            .run_server = NULL,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            /* Linux-only: same SIGPIPE dependency */
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_STREAM SHUT_RD",
-                                                                                                                                                                                                                                                                                                            .run_client = NULL,
-                                                                                                                                                                                                                                                                                                            .run_server = NULL,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            .name =
-                                                                                                                                                                                                                                                                                                                                                                                                                "SOCK_STREAM MSG_ZEROCOPY",
-                                                                                                                                                                                                                                                                                                            .run_client = test_stream_msg_zcopy_client,
-                                                                                                                                                                                                                                                                                                            .run_server = test_stream_msg_zcopy_server,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            /* SEQPACKET not implemented (also no Winsock MSG_ERRQUEUE) */
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_SEQPACKET MSG_ZEROCOPY",
-                                                                                                                                                                                                                                                                                                            .run_client = NULL,
-                                                                                                                                                                                                                                                                                                            .run_server = NULL,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            /* Same: no MSG_ERRQUEUE — cannot even query the empty state. */
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_STREAM MSG_ZEROCOPY empty MSG_ERRQUEUE",
-                                                                                                                                                                                                                                                                                                            .run_client = NULL,
-                                                                                                                                                                                                                                                                                                            .run_server = NULL,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_STREAM double bind connect",
-                                                                                                                                                                                                                                                                                                            .run_client = test_double_bind_connect_client,
-                                                                                                                                                                                                                                                                                                            .run_server = test_double_bind_connect_server,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_STREAM virtio credit update + SO_RCVLOWAT",
-                                                                                                                                                                                                                                                                                                            .run_client = test_stream_rcvlowat_def_cred_upd_client,
-                                                                                                                                                                                                                                                                                                            .run_server = test_stream_cred_upd_on_set_rcvlowat,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_STREAM virtio credit update + low rx_bytes",
-                                                                                                                                                                                                                                                                                                            .run_client = test_stream_rcvlowat_def_cred_upd_client,
-                                                                                                                                                                                                                                                                                                            .run_server = test_stream_cred_upd_on_low_rx_bytes,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_STREAM ioctl(SIOCOUTQ) 0 unsent bytes",
-                                                                                                                                                                                                                                                                                                            .run_client =
-                                                                                                                                                                                                                                                                                                                                                                                                                test_stream_unsent_bytes_client,
-                                                                                                                                                                                                                                                                                                            .run_server = test_stream_unsent_bytes_server,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            /* SEQPACKET not implemented in viosock driver */
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_SEQPACKET ioctl(SIOCOUTQ) 0 unsent bytes",
-                                                                                                                                                                                                                                                                                                            .run_client = NULL,
-                                                                                                                                                                                                                                                                                                            .run_server = NULL,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            /* Linux-only: kernel-side accept-queue kmemleak regression */
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_STREAM leak accept queue",
-                                                                                                                                                                                                                                                                                                            .run_client = NULL,
-                                                                                                                                                                                                                                                                                                            .run_server = NULL,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            /* Same MSG_ERRQUEUE gap, plus this is a Linux-kmemleak regression
-                                                                                                                                                                                                                                                                                                             * test — no equivalent debug facility on Windows. */
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_STREAM MSG_ZEROCOPY leak MSG_ERRQUEUE",
-                                                                                                                                                                                                                                                                                                            .run_client = NULL,
-                                                                                                                                                                                                                                                                                                            .run_server = NULL,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            /* Same — depends on Linux-kmemleak against zerocopy skbs. */
-                                                                                                                                                                                                                                                                                                            .name =
-                                                                                                                                                                                                                                                                                                                                                                                                                "SOCK_STREAM MSG_ZEROCOPY leak completion skb",
-                                                                                                                                                                                                                                                                                                            .run_client = NULL,
-                                                                                                                                                                                                                                                                                                            .run_server = NULL,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            /* Linux-only: /proc/kallsyms + SOCK_NONBLOCK + multi-transport lifetime */
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_STREAM transport release use-after-free",
-                                                                                                                                                                                                                                                                                                            .run_client = NULL,
-                                                                                                                                                                                                                                                                                                            .run_server = NULL,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_STREAM retry failed connect()",
-                                                                                                                                                                                                                                                                                                            .run_client = test_stream_connect_retry_client,
-                                                                                                                                                                                                                                                                                                            .run_server = test_stream_connect_retry_server,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_STREAM SO_LINGER null-ptr-deref",
-                                                                                                                                                                                                                                                                                                            .run_client = test_stream_linger_client,
-                                                                                                                                                                                                                                                                                                            .run_server = test_stream_linger_server,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_STREAM SO_LINGER close() on unread",
-                                                                                                                                                                                                                                                                                                            .run_client = test_stream_nolinger_client,
-                                                                                                                                                                                                                                                                                                            .run_server = test_stream_nolinger_server,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            /* Linux-only: needs pthread + kill(SIGUSR1) to race transport change */
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_STREAM transport change null-ptr-deref, lockdep warn",
-                                                                                                                                                                                                                                                                                                            .run_client = NULL,
-                                                                                                                                                                                                                                                                                                            .run_server = NULL,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_STREAM ioctl(SIOCINQ) functionality",
-                                                                                                                                                                                                                                                                                                            .run_client = test_stream_unread_bytes_client,
-                                                                                                                                                                                                                                                                                                            .run_server = test_stream_unread_bytes_server,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            /* SEQPACKET not implemented in viosock driver */
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_SEQPACKET ioctl(SIOCINQ) functionality",
-                                                                                                                                                                                                                                                                                                            .run_client = NULL,
-                                                                                                                                                                                                                                                                                                            .run_server = NULL,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            /* Regression test against a Linux kernel setsockopt(SO_ZEROCOPY)
-                                                                                                                                                                                                                                                                                                             * bug on accept()ed fds; Winsock has no SO_ZEROCOPY at all. */
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_STREAM accept()ed socket custom setsockopt()",
-                                                                                                                                                                                                                                                                                                            .run_client = NULL,
-                                                                                                                                                                                                                                                                                                            .run_server = NULL,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            /* Same MSG_ERRQUEUE gap — coalescence check reads notifications. */
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption",
-                                                                                                                                                                                                                                                                                                            .run_client = NULL,
-                                                                                                                                                                                                                                                                                                            .run_server = NULL,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {
-                                                                                                                                                                                                                                                                                                            .name = "SOCK_STREAM TX credit bounds",
-                                                                                                                                                                                                                                                                                                            .run_client = test_stream_tx_credit_bounds_client,
-                                                                                                                                                                                                                                                                                                            .run_server = test_stream_tx_credit_bounds_server,
-                                                                                                                                                                                                        },
-                                                                                                                                                                                                        {0},
+// clang-format off
+static struct test_case test_cases[] = {
+    {
+        .name = "SOCK_STREAM connection reset",
+        .run_client = test_stream_connection_reset,
+    },
+    {
+        .name = "SOCK_STREAM bind only",
+        .run_client = test_stream_bind_only_client,
+        .run_server = test_stream_bind_only_server,
+    },
+    {
+        .name = "SOCK_STREAM client close",
+        .run_client = test_stream_client_close_client,
+        .run_server = test_stream_client_close_server,
+    },
+    {
+        .name = "SOCK_STREAM server close",
+        .run_client = test_stream_server_close_client,
+        .run_server = test_stream_server_close_server,
+    },
+    {
+        .name = "SOCK_STREAM multiple connections",
+        .run_client = test_stream_multiconn_client,
+        .run_server = test_stream_multiconn_server,
+    },
+    {
+        .name = "SOCK_STREAM MSG_PEEK",
+        .run_client = test_stream_msg_peek_client,
+        .run_server = test_stream_msg_peek_server,
+    },
+    {
+        /* TODO: port when SEQPACKET + recvmsg(MSG_EOR) land on Windows */
+        .name = "SOCK_SEQPACKET msg bounds",
+        .run_client = NULL,
+        .run_server = NULL,
+    },
+    {
+        /* TODO: port when SEQPACKET + recvmsg land on Windows */
+        .name = "SOCK_SEQPACKET MSG_TRUNC flag",
+        .run_client = NULL,
+        .run_server = NULL,
+    },
+    {
+        /* SEQPACKET not implemented in viosock driver */
+        .name = "SOCK_SEQPACKET timeout",
+        .run_client = NULL,
+        .run_server = NULL,
+    },
+    {
+        /* SEQPACKET not implemented in viosock driver */
+        .name = "SOCK_SEQPACKET invalid receive buffer",
+        .run_client = NULL,
+        .run_server = NULL,
+    },
+    {
+        .name = "SOCK_STREAM poll() + SO_RCVLOWAT",
+        .run_client = test_stream_poll_rcvlowat_client,
+        .run_server = test_stream_poll_rcvlowat_server,
+    },
+    {
+        /* SEQPACKET not implemented in viosock driver */
+        .name = "SOCK_SEQPACKET big message",
+        .run_client = NULL,
+        .run_server = NULL,
+    },
+    {
+        .name = "SOCK_STREAM test invalid buffer",
+        .run_client = test_stream_inv_buf_client,
+        .run_server = test_stream_inv_buf_server,
+    },
+    {
+        /* SEQPACKET not implemented in viosock driver */
+        .name = "SOCK_SEQPACKET test invalid buffer",
+        .run_client = NULL,
+        .run_server = NULL,
+    },
+    {
+        .name = "SOCK_STREAM virtio skb merge",
+        .run_client = test_stream_virtio_skb_merge_client,
+        .run_server = test_stream_virtio_skb_merge_server,
+    },
+    {
+        /* SEQPACKET not implemented in viosock driver */
+        .name = "SOCK_SEQPACKET MSG_PEEK",
+        .run_client = NULL,
+        .run_server = NULL,
+    },
+    {
+        /* SIGPIPE half dropped (no signals on Windows); EPIPE half kept. */
+        .name = "SOCK_STREAM SHUT_WR",
+        .run_client = test_stream_shutwr_client,
+        .run_server = test_stream_shutwr_server,
+    },
+    {
+        /* SIGPIPE half dropped (no signals on Windows); EPIPE half kept. */
+        .name = "SOCK_STREAM SHUT_RD",
+        .run_client = test_stream_shutrd_client,
+        .run_server = test_stream_shutrd_server,
+    },
+    {
+        .name = "SOCK_STREAM MSG_ZEROCOPY",
+        .run_client = test_stream_msg_zcopy_client,
+        .run_server = test_stream_msg_zcopy_server,
+    },
+    {
+        /* SEQPACKET not implemented (also no Winsock MSG_ERRQUEUE) */
+        .name = "SOCK_SEQPACKET MSG_ZEROCOPY",
+        .run_client = NULL,
+        .run_server = NULL,
+    },
+    {
+        /* No Winsock MSG_ERRQUEUE; same control protocol, Windows body checks the full TX window. */
+        .name = "SOCK_STREAM full TX window (Linux: MSG_ZEROCOPY empty MSG_ERRQUEUE)",
+        .run_client = test_stream_full_tx_window_client,
+        .run_server = test_stream_full_tx_window_server,
+    },
+    {
+        .name = "SOCK_STREAM double bind connect",
+        .run_client = test_double_bind_connect_client,
+        .run_server = test_double_bind_connect_server,
+    },
+    {
+        .name = "SOCK_STREAM virtio credit update + SO_RCVLOWAT",
+        .run_client = test_stream_rcvlowat_def_cred_upd_client,
+        .run_server = test_stream_cred_upd_on_set_rcvlowat,
+    },
+    {
+        .name = "SOCK_STREAM virtio credit update + low rx_bytes",
+        .run_client = test_stream_rcvlowat_def_cred_upd_client,
+        .run_server = test_stream_cred_upd_on_low_rx_bytes,
+    },
+    {
+        .name = "SOCK_STREAM ioctl(SIOCOUTQ) 0 unsent bytes",
+        .run_client = test_stream_unsent_bytes_client,
+        .run_server = test_stream_unsent_bytes_server,
+    },
+    {
+        /* SEQPACKET not implemented in viosock driver */
+        .name = "SOCK_SEQPACKET ioctl(SIOCOUTQ) 0 unsent bytes",
+        .run_client = NULL,
+        .run_server = NULL,
+    },
+    {
+        /* Upstream chases a kernel accept-queue leak; the same race covers our
+         * connector (prompt refusal, no stall) and listener close with queued peers. */
+        .name = "SOCK_STREAM leak accept queue",
+        .run_client = test_stream_leak_acceptq_client,
+        .run_server = test_stream_leak_acceptq_server,
+    },
+    {
+        /* No MSG_ERRQUEUE / kmemleak on Windows; the peer bodies stay upstream's,
+         * ours check select() under WSAEventSelect and the half-close path. */
+        .name = "SOCK_STREAM select() under WSAEventSelect, half-close (Linux: MSG_ZEROCOPY leak MSG_ERRQUEUE)",
+        .run_client = test_stream_select_under_wsaevent_client,
+        .run_server = test_stream_select_under_wsaevent_server,
+    },
+    {
+        /* Same — depends on Linux-kmemleak against zerocopy skbs. */
+        .name = "SOCK_STREAM MSG_ZEROCOPY leak completion skb",
+        .run_client = NULL,
+        .run_server = NULL,
+    },
+    {
+        /* Linux-only: /proc/kallsyms + SOCK_NONBLOCK + multi-transport lifetime */
+        .name = "SOCK_STREAM transport release use-after-free",
+        .run_client = NULL,
+        .run_server = NULL,
+    },
+    {
+        .name = "SOCK_STREAM retry failed connect()",
+        .run_client = test_stream_connect_retry_client,
+        .run_server = test_stream_connect_retry_server,
+    },
+    {
+        .name = "SOCK_STREAM SO_LINGER null-ptr-deref",
+        .run_client = test_stream_linger_client,
+        .run_server = test_stream_linger_server,
+    },
+    {
+        .name = "SOCK_STREAM SO_LINGER close() on unread",
+        .run_client = test_stream_nolinger_client,
+        .run_server = test_stream_nolinger_server,
+    },
+    {
+        /* Client is Linux-only (SIGUSR1 storm + CID 0 transport change); the
+         * server body runs in reverse. */
+        .name = "SOCK_STREAM transport change null-ptr-deref, lockdep warn",
+        .run_client = NULL,
+        .run_server = test_stream_transport_change_server,
+    },
+    {
+        .name = "SOCK_STREAM ioctl(SIOCINQ) functionality",
+        .run_client = test_stream_unread_bytes_client,
+        .run_server = test_stream_unread_bytes_server,
+    },
+    {
+        /* SEQPACKET not implemented in viosock driver */
+        .name = "SOCK_SEQPACKET ioctl(SIOCINQ) functionality",
+        .run_client = NULL,
+        .run_server = NULL,
+    },
+    {
+        /* No SO_ZEROCOPY on Winsock: the accept()ed socket gets the vsock buffer
+         * size instead; the client checks the peer's silent close. */
+        .name = "SOCK_STREAM accept()ed socket custom setsockopt()",
+        .run_client = test_stream_accepted_setsockopt_client,
+        .run_server = test_stream_accepted_setsockopt_server,
+    },
+    {
+        /* Second send rides the zero-copy tract (MSG_ZEROCOPY flag); the
+         * MSG_ERRQUEUE completion poll is skipped as in slot 18. */
+        .name = "SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption",
+        .run_client = test_stream_msgzcopy_mangle_client,
+        .run_server = test_stream_msgzcopy_mangle_server,
+    },
+    {
+        .name = "SOCK_STREAM TX credit bounds",
+        .run_client = test_stream_tx_credit_bounds_client,
+        .run_server = test_stream_tx_credit_bounds_server,
+    },
+        {0},
 };
+// clang-format on
 
 /* ------------------------------------------------------------------ */
 /* getopt / getopt_long (MSVC CRT has no <getopt.h>)                    */
@@ -1909,6 +2408,10 @@ static const struct option longopts[] = {
                                                                                                      required_argument,
                                                                                                      NULL,
                                                                                                      'V'},
+                                                                                                    {"io",
+                                                                                                     required_argument,
+                                                                                                     NULL,
+                                                                                                     'I'},
                                                                                                     {"help",
                                                                                                      no_argument,
                                                                                                      NULL,
@@ -1936,7 +2439,10 @@ static void usage(void)
             "  --list                 List all tests\n"
             "  --pick <id>            Run only this test (repeatable)\n"
             "  --skip <id>            Skip this test (repeatable)\n"
-            "  --variant <name>       Socket surface: posix (default) or wsa\n",
+            "  --variant <name>       Socket surface: posix (default), wsa or overlapped\n"
+            "  --io <wsa|file>        posix / overlapped: data calls via Winsock (default)\n"
+            "                         or file I/O on the socket handle (CRT _read/_write,\n"
+            "                         ReadFile/WriteFile)\n",
             DEFAULT_PEER_PORT);
     exit(EXIT_FAILURE);
 }
@@ -1946,6 +2452,7 @@ int __cdecl main(int argc, char **argv)
     WSADATA wsa_data;
     const char *control_host = NULL;
     const char *control_port = NULL;
+    const char *io_str = NULL;
     struct test_opts opts = {
                                                                                                         .mode = TEST_MODE_UNSET,
                                                                                                         .peer_cid = (unsigned int)VMADDR_CID_ANY,
@@ -2022,9 +2529,12 @@ int __cdecl main(int argc, char **argv)
             case 'V':
                 if (sock_ops_select(optarg) != 0)
                 {
-                    fprintf(stderr, "--variant must be \"posix\" or \"wsa\"\n");
+                    fprintf(stderr, "--variant must be \"posix\", \"wsa\" or \"overlapped\"\n");
                     goto fail;
                 }
+                break;
+            case 'I':
+                io_str = optarg;
                 break;
             case '?':
             default:
@@ -2064,6 +2574,24 @@ int __cdecl main(int argc, char **argv)
         variant_str = "overlapped";
     }
     fprintf(stderr, "variant = %s\n", variant_str);
+
+    if (io_str)
+    {
+        if (g_ops == &ops_wsa)
+        {
+            fprintf(stderr, "--io applies to --variant posix or overlapped\n");
+            goto fail;
+        }
+        if (sock_io_select(io_str) != 0)
+        {
+            fprintf(stderr, "--io must be \"wsa\" or \"file\"\n");
+            goto fail;
+        }
+    }
+    if (g_ops != &ops_wsa)
+    {
+        fprintf(stderr, "io = %s\n", sock_io_is_file() ? "file" : "wsa");
+    }
 
     if (g_ops == &ops_wsa || g_ops == &ops_overlapped)
     {

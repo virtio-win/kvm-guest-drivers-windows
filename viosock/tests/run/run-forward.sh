@@ -67,6 +67,9 @@ case "$BITS" in
     *) die "--bits must be x64 or x86, got: $BITS" ;;
 esac
 
+[[ "$PER_TEST_TIMEOUT" =~ ^[1-9][0-9]*$ ]] ||
+    die "--timeout must be a positive integer (seconds); got '$PER_TEST_TIMEOUT' (0 would disable the per-test limit)"
+
 CFG=$(discover_config "$CFG") || exit $?
 guest_load "$CFG"
 host_cid=$(config_read "$CFG" host_cid);   [ -n "$host_cid" ]    || die "config has no host_cid="
@@ -84,8 +87,11 @@ host_ip=$(config_read "$CFG" host_ip)
 [ -z "$host_ip" ] && host_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
 [ -n "$host_ip" ] || die "cannot determine host_ip; set it in $CFG"
 
-if [ -z "$LOGDIR" ]; then LOGDIR="/tmp/vsock-run-$$"; fi
-mkdir -p "$LOGDIR"
+if [ -z "$LOGDIR" ]; then
+    LOGDIR=$(mktemp -d /tmp/vsock-run-XXXXXX) || die "mktemp failed"
+else
+    mkdir -p "$LOGDIR"
+fi
 
 if [ "${#PICK_IDS[@]}" -gt 0 ]; then
     # --pick(s) bypass the list entirely — useful for debug iteration

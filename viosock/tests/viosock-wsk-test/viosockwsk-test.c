@@ -57,9 +57,8 @@
 #include "viosockwsk-test.tmh"
 #endif
 
-#define LISTEN_PORT_MIN               1337
-#define LISTEN_PORT_MAX               1340
-#define SERVER_THREAD_COUNT           ((LISTEN_PORT_MAX) - (LISTEN_PORT_MIN) + 1)
+#define DEFAULT_LISTEN_PORT_MIN       1337
+#define SERVER_THREAD_COUNT           4
 #define CLIENT_THREAD_COUNT           16
 #define TEST_COUNT                    16
 
@@ -73,6 +72,15 @@
 #define VIOWSK_TEST_FLAG_MASK                                                                                          \
     (VIOWSK_TEST_FLAG_CONNECTEX | VIOWSK_TEST_FLAG_SOCKCONN | VIOWSK_TEST_FLAG_SENDEX | VIOWSK_TEST_FLAG_RECVEX |      \
      VIOWSK_TEST_FLAG_DISCONNECTEX)
+
+/* Optional REG_DWORD values under the service's Parameters subkey:
+ * PeerCid - CID the client threads connect to; VMADDR_CID_ANY (the
+ *           default) is resolved by the WSK library to the guest's own
+ *           CID, i.e. loopback.
+ * Port    - first listen/connect port, SERVER_THREAD_COUNT consecutive
+ *           ports are used. */
+static ULONG _peerCid = (ULONG)VMADDR_CID_ANY;
+static ULONG _basePort = DEFAULT_LISTEN_PORT_MIN;
 
 static volatile LONG _readyThreads;
 static volatile LONG _terminate;
@@ -508,7 +516,7 @@ static void _ServerThreadRoutine(_In_opt_ PVOID Context)
         goto CloseSocket;
     }
 
-    iosb.Status = RtlUnicodeStringPrintf(&listenPort, L"%Iu", LISTEN_PORT_MIN + (SIZE_T)Context);
+    iosb.Status = RtlUnicodeStringPrintf(&listenPort, L"%Iu", (SIZE_T)_basePort + (SIZE_T)Context);
     if (!NT_SUCCESS(iosb.Status))
     {
         DEBUG_ERROR("Unable to prepare server address port: 0x%x", iosb.Status);
@@ -755,8 +763,8 @@ static void _ClientThreadRoutine(_In_opt_ PVOID Context)
             localAddr.svm_port = (UINT)VMADDR_PORT_ANY;
             memset(&remoteAddr, 0, sizeof(remoteAddr));
             remoteAddr.svm_family = AF_VSOCK;
-            remoteAddr.svm_cid = (UINT)VMADDR_CID_ANY;
-            remoteAddr.svm_port = LISTEN_PORT_MIN + (RtlRandomEx(&timeSeed.LowPart) % (SERVER_THREAD_COUNT));
+            remoteAddr.svm_cid = _peerCid;
+            remoteAddr.svm_port = _basePort + (RtlRandomEx(&timeSeed.LowPart) % (SERVER_THREAD_COUNT));
             if ((testFlags & VIOWSK_TEST_FLAG_SOCKCONN) != 0)
             {
                 do
@@ -1127,6 +1135,44 @@ Exit:
     return Status;
 }
 
+static void _LoadRegistryParameters(_In_ PUNICODE_STRING RegistryPath)
+{
+    NTSTATUS Status = STATUS_UNSUCCESSFUL;
+    PWCHAR ParamsPath = NULL;
+    SIZE_T ParamsPathSize = 0;
+    RTL_QUERY_REGISTRY_TABLE Table[3];
+    DEBUG_ENTER_FUNCTION("RegistryPath=\"%wZ\"", RegistryPath);
+
+    ParamsPathSize = RegistryPath->Length + sizeof(L"\\Parameters");
+    ParamsPath = ExAllocatePoolUninitialized(PagedPool, ParamsPathSize, VIOWSK_TEST_TAG);
+    if (!ParamsPath)
+    {
+        goto Exit;
+    }
+
+    RtlCopyMemory(ParamsPath, RegistryPath->Buffer, RegistryPath->Length);
+    RtlCopyMemory((PUCHAR)ParamsPath + RegistryPath->Length, L"\\Parameters", sizeof(L"\\Parameters"));
+    memset(Table, 0, sizeof(Table));
+    Table[0].Flags = RTL_QUERY_REGISTRY_DIRECT | RTL_QUERY_REGISTRY_TYPECHECK;
+    Table[0].Name = L"PeerCid";
+    Table[0].EntryContext = &_peerCid;
+    Table[0].DefaultType = (REG_DWORD << RTL_QUERY_REGISTRY_TYPECHECK_SHIFT) | REG_NONE;
+    Table[1].Flags = RTL_QUERY_REGISTRY_DIRECT | RTL_QUERY_REGISTRY_TYPECHECK;
+    Table[1].Name = L"Port";
+    Table[1].EntryContext = &_basePort;
+    Table[1].DefaultType = (REG_DWORD << RTL_QUERY_REGISTRY_TYPECHECK_SHIFT) | REG_NONE;
+    Status = RtlQueryRegistryValues(RTL_REGISTRY_ABSOLUTE | RTL_REGISTRY_OPTIONAL, ParamsPath, Table, NULL, NULL);
+    if (!NT_SUCCESS(Status))
+    {
+        DEBUG_ERROR("RtlQueryRegistryValues: 0x%x, using defaults", Status);
+    }
+
+    ExFreePoolWithTag(ParamsPath, VIOWSK_TEST_TAG);
+Exit:
+    DEBUG_EXIT_FUNCTION("void, _peerCid=%u, _basePort=%u", _peerCid, _basePort);
+    return;
+}
+
 static void DriverUnload(_In_ PDRIVER_OBJECT DriverObject)
 {
     DEBUG_ENTER_FUNCTION("DriverObject=0x%p", DriverObject);
@@ -1154,6 +1200,7 @@ DriverEntry(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING RegistryPath)
     WPP_INIT_TRACING(DriverObject, RegistryPath);
     DEBUG_ENTER_FUNCTION("DriverObject=0x%p; RegistryPath=\"%wZ\"", DriverObject, RegistryPath);
 
+    _LoadRegistryParameters(RegistryPath);
     Status = VioWskMessageModuleInit();
     if (!NT_SUCCESS(Status))
     {

@@ -36,7 +36,12 @@ Two flows are supported from the same set of scripts:
 | `run-perf.sh`      | Automated `vsock_perf` sweep: forward + reverse × default and large buffer. Prints an RX/TX-Gbps summary. |
 | `perf-one.sh`      | One-shot manual `vsock_perf` run for interactive tuning — pick direction + any perf knobs on the CLI. |
 | `run-stress.sh`    | Bidirectional multi-connection stress on `vsock_perf`. |
+| `_migr.sh`         | Sourced helpers shared by the migration runners: restore-CID plan, `virsh save`/`restore`, guest-up wait, driver state. |
 | `run-migration.sh` | Driver stability across `virsh save`/`virsh restore` under `run-stress.sh` load — verifies the transport-reset path. |
+| `_wsk.sh`          | Sourced helpers driving the kernel-mode WSK perf driver (service `wskperf`) through its registry keys. |
+| `install-wsk.sh`   | scp `viosockwsk-perf.sys` into `guest_wsk_dir` (default `C:\wsk-test`) and create the `wskperf` kernel service if missing. Manual only. |
+| `run-wsk-stress.sh` | Multi-connection stress through the kernel WSK path (forward, then reverse). Manual only. |
+| `run-wsk-migration.sh` | Driver stability across `virsh save`/`restore` under kernel WSK load. Manual only. |
 
 
 ## Config file
@@ -150,8 +155,11 @@ which **Windows-side** invocation to run:
 | variant       | Guest command                                          | Notes                                                                 |
 |---------------|--------------------------------------------------------|-----------------------------------------------------------------------|
 | `posix`       | `<guest_bin_dir>\vsock_test.exe`                       | The current Linux-source port through `compat.h` (Winsock2 shim).     |
+| `posix-validate` | `<guest_bin_dir>\vsock_test.exe --variant posix`    | posix plus `posix_validate_all()` before the test; one row per list.  |
+| `posix-fs`    | `<guest_bin_dir>\vsock_test.exe --io=file`             | posix, data calls via CRT `_read`/`_write` on `_open_osfhandle`.      |
 | `wsa`         | `<guest_bin_dir>\vsock_test.exe --variant wsa`         | A native Winsock port with no `compat.h`.                   |
 | `overlapped`  | `<guest_bin_dir>\vsock_test.exe --variant overlapped`  | Same exe, overlapped IO mode.                              |
+| `overlapped-fs` | `<guest_bin_dir>\vsock_test.exe --variant overlapped --io=file` | overlapped, data calls via `WriteFileEx`/`ReadFile` + OVERLAPPED. |
 
 Central mapping: `variant_to_cmd()` in `_lib.sh` — a new variant is one
 `case`-branch. `variant_to_image()` returns the exe basename so
@@ -169,6 +177,24 @@ Restrict a run to one variant with `--variant`:
 ```
 
 Omit `--variant` to run every declared variant in every list.
+
+### File-I/O variants (`posix-fs`, `overlapped-fs`)
+
+`--io=file` switches the unflagged send / recv of the `posix` and
+`overlapped` variants to file I/O on the socket handle — CRT `_read` /
+`_write` through `_open_osfhandle` resp. `ReadFile` / `WriteFileEx` with
+an OVERLAPPED — which reaches the driver's `EvtIoRead` / `EvtIoWrite`
+instead of the IOCTL send / recv. Flagged calls (`MSG_PEEK`,
+`MSG_DONTWAIT`, `MSG_ZEROCOPY`) stay on the Winsock path because the file
+calls carry no flags.
+
+The lists enable the two `-fs` variants only for the ids that exercise a
+distinct driver path (reset, EOF, multi-packet reads, shutdown, full TX
+window, credit flow, send integrity) rather than for every row: the goal
+is coverage of the read / write entries, not a third copy of the sweep.
+
+`run-perf.sh` has the same knob as the `PERF_IO=file` environment
+variable, `perf-one.sh` as `--io file`.
 
 ## Bit-width (`--bits` / `--x86`)
 
@@ -276,8 +302,10 @@ Every sweep writes `cli_<N>_<V>.log` / `srv_<N>_<V>.log` under
 `--logdir` (default: `/tmp/vsock-run-<pid>`). Passing tests remove their
 own logs. Failing/hung tests leave logs behind and the sweep summary
 prints their absolute paths, so you can go straight from a red summary
-to the actual output. `run-all.sh --logdir` shares one directory across
-all three sweeps.
+to the actual output. `run-all.sh --logdir <dir>` gives every sweep its own
+subdirectory, `<dir>/{forward,reverse,loopback}`: the file names repeat across
+sweeps, and in a shared directory a passing test of a later sweep would delete
+the failure logs of an earlier one.
 
 ## Running
 
@@ -330,8 +358,8 @@ If the driver and `vsock_test.exe` are already on the guest, skip
 `prepare-ci.sh` entirely and drive the sweeps against your dev config:
 
 ```sh
-./run-all.sh --config viosock/dev.config
-./run-all.sh --config viosock/dev.config --only forward,reverse
+./run-all.sh --config ../../dev.config
+./run-all.sh --config ../../dev.config --only forward,reverse
 ./run-forward.sh --pick 21
 ```
 
@@ -418,13 +446,14 @@ host-side script so the pinned kernel tarball is fetched/extracted.
 Typical dev-bench sequence:
 
 ```sh
-./prepare-host.sh                                        # once, ever
-./prepare-perf-host.sh                                   # once, then
-                                                         # only after
-                                                         # kernel bump
-./install-perf.sh \                                      # after every
-    --config /tmp/vsock-ci/x.config \                    # Windows
-    --from   viosock/tests/vsock_perf/x64/Win11Release/vsock_perf   # rebuild
+# once, ever:
+./prepare-host.sh
+# once, then only after a kernel bump:
+./prepare-perf-host.sh
+# after every Windows-side rebuild:
+./install-perf.sh \
+    --config ./x.config \
+    --from   ../vsock_perf/x64/Win11Release/vsock_perf
 ```
 
 Or all in one call for the initial setup:
@@ -504,25 +533,34 @@ different binary or extra flags (mirrors the same knob in
 
 ## Stress harness
 
-`run-stress.sh` fans out many concurrent `vsock_perf` pairs in both
-directions at once — each on its own vsock port — to exercise the
-per-socket state machine and the acceptor pending queue in parallel.
-Requires `prepare-perf.sh`. Guest-side receivers and senders each
-fan out inside one PowerShell script, so a run opens two SSH sessions
-regardless of the connection count.
+`run-stress.sh` fans out many concurrent `vsock_perf` pairs in three
+directions at once — forward (guest -> host), reverse (host -> guest)
+and loopback (guest -> guest via `VMADDR_CID_LOCAL`), each connection on
+its own vsock port — to exercise the per-socket state machine and the
+acceptor pending queue in parallel, with the wire and loopback paths
+loaded together. Requires `prepare-perf.sh`. Each guest role
+(receivers, senders) of a direction fans out inside one PowerShell
+script, so a run opens at most four SSH sessions regardless of the
+connection count.
 
 Pass = every child returns exit 0 and the guest driver is still
 Running. Aggregate RX/TX Gbps is printed for reference; per-connection
 best-case belongs in `run-perf.sh`.
 
-`--loopback` (or `STRESS_LOOPBACK=1`) points both ends at
-`VMADDR_CID_LOCAL` on the guest — the host does not participate and
-the driver's loopback path takes the whole load.
+`--loopback` (or `STRESS_LOOPBACK=1`) is short for `--only loopback`:
+the host does not participate and the driver's loopback path takes the
+whole load.
+
+Loopback has two receive-side modes (`--lb-mode` / `STRESS_LB_MODE`):
+`server` (default) runs one guest `vsock_perf --accept N` on
+`LB_PORT_BASE` that drains every connection in its own thread, and the
+N senders all connect to that one port; `procs` runs one receiver
+process per connection on `LB_PORT_BASE+i`, as forward/reverse do.
 
 ```sh
-./run-stress.sh --config <cfg>                    # host <-> guest, 2*64 conns
+./run-stress.sh --config <cfg>                    # all three directions, 3*64 conns
 ./run-stress.sh --config <cfg> --connections 32
-./run-stress.sh --config <cfg> --only forward     # guest is sender only
+./run-stress.sh --config <cfg> --only forward,reverse   # wire only, 2*64 conns
 ./run-stress.sh --config <cfg> --loopback         # guest <-> guest via CID_LOCAL
 ```
 
@@ -530,12 +568,14 @@ Env-tunables (defaults in brackets):
 
 | Var                 | Default     | Meaning                                                |
 |---------------------|-------------|--------------------------------------------------------|
-| `STRESS_N`          | `64`        | Connections per direction (2*N total).                 |
+| `STRESS_N`          | `64`        | Connections per direction (3*N total).                 |
 | `STRESS_BYTES`      | `1G`        | Bytes per connection.                                  |
 | `STRESS_BUF`        | `64K`       | Buffer size (both sides).                              |
 | `STRESS_LOOPBACK`   | `0`         | `1` = same as `--loopback`.                            |
+| `STRESS_LB_MODE`    | `server`    | Loopback receive side: `server` or `procs`.            |
 | `FWD_PORT_BASE`     | `20000`     | Base port for Linux receivers (forward).               |
 | `REV_PORT_BASE`     | `30000`     | Base port for Windows receivers (reverse).             |
+| `LB_PORT_BASE`      | `50000`     | Loopback port (server mode) / base port (procs mode).  |
 | `SERVER_GRACE_SECS` | `3`         | Sleep between receiver launches and sender fan-out.    |
 | `GUEST_STRESS_DIR`  | `C:\stress` | Guest-side scratch dir for per-connection logs.        |
 
@@ -548,8 +588,9 @@ destination side of a live migration — so this exercises the driver's
 transport-reset path with parked recv/poll and per-socket teardown.
 
 By default the restore also assigns the guest a **different CID**
-(`guest_cid+1`, skipping the reserved 0..3): the harness dumps the
-domain XML, sed-swaps `<cid address='N'/>`, and passes the edited XML
+(the first one above the reserved 0..3 that no other running domain on
+the host holds; a restore into a taken CID fails and the guest is gone):
+the harness dumps the domain XML, sed-swaps `<cid address='N'/>`, and passes the edited XML
 to `virsh restore --xml`. That mirrors the cross-host live-migration
 shape where a colliding CID is remapped on the destination. Set
 `MIGR_CHANGE_CID=0` to keep the current CID, or `MIGR_NEW_CID=<n>` to
@@ -567,9 +608,12 @@ Pass criterion (stability only):
 * a fresh post-restore guest→host `vsock_perf` transfer completes,
 * a fresh post-restore host→guest transfer to the new CID completes
   (this is the check that proves the guest driver actually adopted the
-  CID we asked for on restore).
+  CID we asked for on restore),
+* every loopback transfer of the load completes within
+  `MIGR_LOAD_TIMEOUT` — loopback (`VMADDR_CID_LOCAL`) never touches the
+  transport, so the reset must leave it alone.
 
-The load's own transfers are expected to be reset by the save/restore
+The load's wire transfers are expected to be reset by the save/restore
 and are **not** part of the pass criterion — they are only there to
 put real in-flight traffic through the reset path.
 
@@ -585,8 +629,94 @@ Env-tunables (defaults in brackets):
 
 | Var               | Default | Meaning                                                    |
 |-------------------|---------|------------------------------------------------------------|
-| `MIGR_N`          | `8`     | Connections per direction for the load.                    |
+| `MIGR_N`          | `8`     | Connections per direction for the load (3 directions).     |
+| `MIGR_LOAD_TIMEOUT` | `600` | Cap on the load's transfers; loopback ones must finish.    |
 | `MIGR_BYTES`      | `4G`    | Bytes per connection (large enough to still be in flight). |
 | `MIGR_RAMP_SECS`  | `12`    | Seconds of transfer before the save is injected.           |
 | `MIGR_CHANGE_CID` | `1`     | `0` = restore with the same CID.                           |
-| `MIGR_NEW_CID`    | unset   | Explicit new CID; empty = `guest_cid+1` (skipping 0..3).   |
+| `MIGR_NEW_CID`    | unset   | Explicit new CID; empty = first free CID above 3.         |
+
+## Kernel-mode (WSK) harness
+
+The same stress and migration shapes driven through the in-kernel WSK
+path instead of Winsock: the guest side is the test driver
+`viosock/tests/viosock-wsk-perf` (`viosockwsk-perf.sys`, kernel service
+`wskperf`), the host side the Linux `vsock_perf`. **Manual only** — these
+runners are not part of `ci-run.sh`; run them by hand against a guest
+that has the perf driver installed.
+
+The perf driver takes its load description from the service's
+`Parameters` registry key (`Mode`, `PeerCid`, `Port`, `BytesMB`,
+`BufSize`, `Connections`), starts one thread per connection in
+`DriverEntry` (connection *i* uses `Port+i`) and, when the last thread
+finishes, writes the aggregate into the `Results` key (`Ok`, `Failed`,
+`Status` = first failing NTSTATUS, `Bytes`, `ElapsedUs`, `MbitPerSec`,
+`Stalls`, and `Done=1` last). `_wsk.sh` wraps that: `reg add` →
+`sc start` → poll `Done` → `reg query` → `sc stop`. One service instance
+plays one role at a time, so the directions run back to back.
+
+### Setup
+
+```sh
+# build viosock/tests/viosock-wsk-perf (buildAll.bat, test-signed), then:
+./install-wsk.sh --config <cfg> --from <dir with viosockwsk-perf.sys>
+```
+
+`install-wsk.sh` stops the service if it is running, copies the driver
+into `guest_wsk_dir` (config key, default `C:\wsk-test`) and creates the
+demand-start kernel service `wskperf` unless it already exists. The
+guest needs test signing on, as for the viosock driver itself. The
+Linux `vsock_perf` comes from `prepare-perf-host.sh`.
+
+### Stress
+
+```sh
+./run-wsk-stress.sh --config <cfg>                   # 32 conns, 1 GB each, forward then reverse
+./run-wsk-stress.sh --config <cfg> --connections 64 --bytes-mb 256
+./run-wsk-stress.sh --config <cfg> --only reverse
+```
+
+Forward = N kernel sender threads → N Linux receivers on
+`FWD_PORT_BASE+i`; reverse = N Linux senders → N kernel receiver threads
+on `REV_PORT_BASE+i`. Pass per direction = the driver reports `Ok=N`,
+`Failed=0`, every Linux `vsock_perf` exited 0, the service stops cleanly
+(its unload joins the threads — a thread that never returns is a
+finding) and VirtioSocket is still Running. The first failing NTSTATUS
+is printed next to the counts.
+
+| Var                | Default | Meaning                                   |
+|--------------------|---------|-------------------------------------------|
+| `WSK_N`            | `32`    | Connections per direction.                |
+| `WSK_BYTES_MB`     | `1024`  | MB per connection.                        |
+| `WSK_BUF`          | `65536` | Buffer size, both sides.                  |
+| `WSK_TIMEOUT_SECS` | `900`   | Cap per direction (driver Done + Linux).  |
+| `WSK_SERVICE`      | `wskperf` | Kernel service name on the guest.       |
+| `FWD_PORT_BASE` / `REV_PORT_BASE` | `20000` / `30000` | Base ports.     |
+
+### Migration
+
+```sh
+./run-wsk-migration.sh --config <cfg>                 # 8 kernel senders, 16 GB each
+./run-wsk-migration.sh --config <cfg> --connections 32
+MIGR_CHANGE_CID=0 ./run-wsk-migration.sh --config <cfg>
+```
+
+Load = N kernel sender threads → N Linux receivers; the `virsh save`
+hits them mid-transfer and the restore (with a new CID by default, see
+`_migr.sh`) replays the transport reset. Pass = every load connection
+was established at save time, save/restore succeeded, the guest is
+reachable, VirtioSocket is Running, **the load service stops within
+`MIGR_STOP_TIMEOUT`** (the senders' pending `WskSend` must fail and the
+threads return — a thread stuck in the reset is what this run is
+after), and a fresh 8 MB kernel transfer completes in each direction,
+the host→kernel one on the new CID. The load's own transfers are
+expected to fail with `STATUS_CONNECTION_RESET` and are reported, not
+asserted.
+
+| Var                 | Default | Meaning                                             |
+|---------------------|---------|-----------------------------------------------------|
+| `MIGR_N`            | `8`     | Kernel sender connections for the load.             |
+| `MIGR_BYTES_MB`     | `16384` | MB per connection (large enough to be in flight).   |
+| `MIGR_RAMP_SECS`    | `3`     | Seconds of transfer before the save.                |
+| `MIGR_STOP_TIMEOUT` | `120`   | Cap on stopping the load service after the restore. |
+| `MIGR_CHANGE_CID` / `MIGR_NEW_CID` | `1` / unset | As for `run-migration.sh`.         |

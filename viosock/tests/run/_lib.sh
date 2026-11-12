@@ -140,9 +140,11 @@ guest_load() {
 }
 
 # _guest_ssh <cmd...>       — shorthand for ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" "$@"
-# For invocations that need `timeout`/other wrappers, expand the arrays
-# directly:  timeout N ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" cmd
+# _guest_ssh_bounded <secs> <cmd...> — the same under `timeout`, for polls and
+#   cleanup that must not hang on an unresponsive guest.
+# For other wrappers, expand the arrays directly.
 _guest_ssh()      { ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" "$@"; }
+_guest_ssh_bounded() { local t="$1"; shift; timeout "$t" ssh "${_guest_ssh_opts[@]}" "$_guest_ssh_host" "$@"; }
 _guest_scp_to()   { scp "${_guest_scp_opts[@]}" "$1" "$_guest_ssh_host:$2"; }
 _guest_scp_from() { scp "${_guest_scp_opts[@]}" "$_guest_ssh_host:$1" "$2"; }
 
@@ -194,6 +196,14 @@ wait_local_port() {
 #   choice as a sweep-wide flag (`--bits`/`--x86`) so a single list row
 #   can be re-run against both bit-widths without touching the list.
 #
+#   posix-validate is posix plus posix_validate_all() (bind races, socket
+#   option checks), which only an explicit --variant posix runs: one row
+#   per list instead of the cost on every posix row.
+#
+#   posix-fs / overlapped-fs are the file-I/O flavours of posix /
+#   overlapped (`--io=file`: CRT _read/_write resp. ReadFile/WriteFile on
+#   the socket handle, i.e. the driver's EvtIoRead/EvtIoWrite).
+#
 #   Add a new variant here — that's the only central mapping.
 variant_to_cmd() {
     local variant="$1" bits="${2:-x64}" bin_dir="${3:-C:}"
@@ -204,10 +214,13 @@ variant_to_cmd() {
         *)   err "unknown bits: $bits"; return 1 ;;
     esac
     case "$variant" in
-        posix)      flags='' ;;
-        wsa)        flags=' --variant wsa' ;;
-        overlapped) flags=' --variant overlapped' ;;
-        *)          err "unknown variant: $variant"; return 1 ;;
+        posix)         flags='' ;;
+        posix-validate) flags=' --variant posix' ;;
+        posix-fs)      flags=' --io=file' ;;
+        wsa)           flags=' --variant wsa' ;;
+        overlapped)    flags=' --variant overlapped' ;;
+        overlapped-fs) flags=' --variant overlapped --io=file' ;;
+        *)             err "unknown variant: $variant"; return 1 ;;
     esac
     printf '%s\\%s%s\n' "$bin_dir" "$exe" "$flags"
 }

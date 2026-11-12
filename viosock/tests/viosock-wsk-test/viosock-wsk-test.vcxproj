@@ -1,10 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
-    <ProjectConfiguration Include="Win10 Release|Win32">
-      <Configuration>Win10 Release</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
     <ProjectConfiguration Include="Win10 Release|x64">
       <Configuration>Win10 Release</Configuration>
       <Platform>x64</Platform>
@@ -17,10 +13,6 @@
       <Configuration>Win11 Release</Configuration>
       <Platform>ARM64</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="Win11 Release|Win32">
-      <Configuration>Win11 Release</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
     <ProjectConfiguration Include="Win11 Release|x64">
       <Configuration>Win11 Release</Configuration>
       <Platform>x64</Platform>
@@ -32,28 +24,12 @@
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <MinimumVisualStudioVersion>12.0</MinimumVisualStudioVersion>
     <Configuration>Debug</Configuration>
-    <Platform Condition="'$(Platform)' == ''">Win32</Platform>
+    <Platform Condition="'$(Platform)' == ''">x64</Platform>
     <RootNamespace>viosock_wsk_test</RootNamespace>
     <ProjectName>viosockwsk-test</ProjectName>
     <WindowsTargetPlatformVersion>$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'" Label="Configuration">
-    <TargetVersion>Windows10</TargetVersion>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
-    <ConfigurationType>Driver</ConfigurationType>
-    <DriverType>WDM</DriverType>
-    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win11 Release|Win32'" Label="Configuration">
-    <TargetVersion>Windows10</TargetVersion>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
-    <ConfigurationType>Driver</ConfigurationType>
-    <DriverType>WDM</DriverType>
-    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'" Label="Configuration">
     <TargetVersion>Windows10</TargetVersion>
     <UseDebugLibraries>false</UseDebugLibraries>
@@ -94,18 +70,6 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
-    <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
-    <EnableInf2cat>false</EnableInf2cat>
-    <OutDir>objfre_win10_x86\i386\</OutDir>
-    <IntDir>objfre_win10_x86\i386\</IntDir>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win11 Release|Win32'">
-    <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
-    <EnableInf2cat>false</EnableInf2cat>
-    <OutDir>objfre_win11_x86\i386\</OutDir>
-    <IntDir>objfre_win11_x86\i386\</IntDir>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
     <EnableInf2cat>false</EnableInf2cat>
@@ -128,32 +92,6 @@
     <OutDir>objfre_win11_arm64\arm64\</OutDir>
     <IntDir>objfre_win11_arm64\arm64\</IntDir>
   </PropertyGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|Win32'">
-    <Link>
-      <AdditionalDependencies>Ntstrsafe.lib;cng.lib;%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)ntoskrnl.lib;$(DDK_LIB_PATH)hal.lib;$(DDK_LIB_PATH)wmilib.lib</AdditionalDependencies>
-    </Link>
-    <ClCompile>
-      <WppEnabled>true</WppEnabled>
-      <WppScanConfigurationData>wpp-trace.h</WppScanConfigurationData>
-      <PreprocessorDefinitions>TRACE_PROJECT_NAME=VioWskTest;_X86_=1;i386=1;STD_CALL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-    </ClCompile>
-    <DriverSign>
-      <FileDigestAlgorithm>SHA256</FileDigestAlgorithm>
-    </DriverSign>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win11 Release|Win32'">
-    <Link>
-      <AdditionalDependencies>Ntstrsafe.lib;cng.lib;%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)ntoskrnl.lib;$(DDK_LIB_PATH)hal.lib;$(DDK_LIB_PATH)wmilib.lib</AdditionalDependencies>
-    </Link>
-    <ClCompile>
-      <WppEnabled>true</WppEnabled>
-      <WppScanConfigurationData>wpp-trace.h</WppScanConfigurationData>
-      <PreprocessorDefinitions>TRACE_PROJECT_NAME=VioWskTest;_X86_=1;i386=1;STD_CALL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-    </ClCompile>
-    <DriverSign>
-      <FileDigestAlgorithm>SHA256</FileDigestAlgorithm>
-    </DriverSign>
-  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Win10 Release|x64'">
     <Link>
       <AdditionalDependencies>Ntstrsafe.lib;cng.lib;%(AdditionalDependencies);$(KernelBufferOverflowLib);$(DDK_LIB_PATH)ntoskrnl.lib;$(DDK_LIB_PATH)hal.lib;$(DDK_LIB_PATH)wmilib.lib</AdditionalDependencies>

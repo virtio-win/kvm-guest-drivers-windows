@@ -48,7 +48,8 @@ Runs the sweep pipeline in order:
 --x86              Shorthand for --bits x86.
 --junit-dir <dir>  Emit JUnit XML per sweep at
                      <dir>/{forward,reverse,loopback}.xml.
---logdir <dir>     Shared log dir for all sweeps
+--logdir <dir>     Log dir; every sweep writes into its own
+                     subdirectory <dir>/{forward,reverse,loopback}
                      (default: /tmp/vsock-run-<pid>).  Only failed-test
                      logs are kept.
 --max-id <n>       Cap the test ids sent to each sweep at <n>. Forwarded
@@ -87,8 +88,11 @@ if [ -n "$ONLY" ]; then
     done
 fi
 
-if [ -z "$LOGDIR" ]; then LOGDIR="/tmp/vsock-run-$$"; fi
-mkdir -p "$LOGDIR"
+if [ -z "$LOGDIR" ]; then
+    LOGDIR=$(mktemp -d /tmp/vsock-run-XXXXXX) || die "mktemp failed"
+else
+    mkdir -p "$LOGDIR"
+fi
 [ -n "$JUNIT_DIR" ] && mkdir -p "$JUNIT_DIR"
 
 rc=0
@@ -97,8 +101,11 @@ if [ "$SKIP_SETUP" -eq 0 ]; then
     "$_here/setup-env.sh" --config "$CFG" || die "setup-env failed"
 fi
 
-# Assemble common flags forwarded to every sweep script.
-common=(--config "$CFG" --bits "$BITS" --logdir "$LOGDIR")
+# Assemble common flags forwarded to every sweep script. Each sweep logs into its own
+# subdirectory: the file names (cli_<N>_<V>.log) repeat across sweeps, and a passing test
+# removes its files, so a shared directory lets a later sweep delete the failure logs of an
+# earlier one.
+common=(--config "$CFG" --bits "$BITS")
 [ -n "$VARIANT" ]     && common+=(--variant "$VARIANT")
 # --max-id goes only to forward/reverse below (loopback is guest-only).
 fwd_rev_extra=()
@@ -112,19 +119,19 @@ _junit_arg() {
 if [ "$run_forward" -eq 1 ]; then
     echo; info "==== FORWARD ===="
     mapfile -t junit_args < <(_junit_arg forward)
-    "$_here/run-forward.sh" "${common[@]}" "${fwd_rev_extra[@]}" "${junit_args[@]}" || rc=1
+    "$_here/run-forward.sh" "${common[@]}" --logdir "$LOGDIR/forward" "${fwd_rev_extra[@]}" "${junit_args[@]}" || rc=1
 fi
 
 if [ "$run_reverse" -eq 1 ]; then
     echo; info "==== REVERSE ===="
     mapfile -t junit_args < <(_junit_arg reverse)
-    "$_here/run-reverse.sh" "${common[@]}" "${fwd_rev_extra[@]}" "${junit_args[@]}" || rc=1
+    "$_here/run-reverse.sh" "${common[@]}" --logdir "$LOGDIR/reverse" "${fwd_rev_extra[@]}" "${junit_args[@]}" || rc=1
 fi
 
 if [ "$run_loopback" -eq 1 ]; then
     echo; info "==== LOOPBACK ===="
     mapfile -t junit_args < <(_junit_arg loopback)
-    "$_here/run-loopback.sh" "${common[@]}" "${junit_args[@]}" || rc=1
+    "$_here/run-loopback.sh" "${common[@]}" --logdir "$LOGDIR/loopback" "${junit_args[@]}" || rc=1
 fi
 
 echo

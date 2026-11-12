@@ -8,6 +8,13 @@
 #               in _lib.sh for the current mapping.
 #                 posix — the compat.h-driven POSIX-source port
 #                 wsa   — the native Winsock2 port (WSASocket/WSA*, select())
+#                 overlapped — WSA* with overlapped completion
+#                 posix-validate — posix plus the posix_validate_all()
+#                   checks, run on one row only
+#                 posix-fs / overlapped-fs — the same two with --io=file:
+#                   data calls via CRT _read/_write resp. ReadFile/WriteFile
+#                   (driver EvtIoRead/EvtIoWrite); only for ids that reach
+#                   a distinct read/write path, not a third full sweep
 #     description  Free text, mirrors the .name field in test_cases[].
 #
 # To disable a row without deleting: leading `#` and MUST include a
@@ -22,15 +29,22 @@
 0    posix  SOCK_STREAM connection reset
 0    wsa    SOCK_STREAM connection reset
 0    overlapped SOCK_STREAM connection reset
+0    posix-fs SOCK_STREAM connection reset
+0    overlapped-fs SOCK_STREAM connection reset
 1    posix  SOCK_STREAM bind only
+1    posix-validate SOCK_STREAM bind only
 1    wsa    SOCK_STREAM bind only
 1    overlapped SOCK_STREAM bind only
 2    posix  SOCK_STREAM client close
 2    wsa    SOCK_STREAM client close
 2    overlapped SOCK_STREAM client close
+2    posix-fs SOCK_STREAM client close
+2    overlapped-fs SOCK_STREAM client close
 3    posix  SOCK_STREAM server close
 3    wsa    SOCK_STREAM server close
 3    overlapped SOCK_STREAM server close
+3    posix-fs SOCK_STREAM server close
+3    overlapped-fs SOCK_STREAM server close
 4    posix  SOCK_STREAM multiple connections
 4    wsa    SOCK_STREAM multiple connections
 4    overlapped SOCK_STREAM multiple connections
@@ -52,20 +66,36 @@
 14   posix  SOCK_STREAM virtio skb merge
 14   wsa    SOCK_STREAM virtio skb merge
 14   overlapped SOCK_STREAM virtio skb merge
+14   posix-fs SOCK_STREAM virtio skb merge
+14   overlapped-fs SOCK_STREAM virtio skb merge
 # 15 posix  SOCK_SEQPACKET MSG_PEEK                         — disabled: shared body ready via test_msg_peek_*(bool seqpacket); needs seqpacket wrapper + wiring + driver SEQPACKET
-# 16 posix  SOCK_STREAM SHUT_WR  — disabled: run_client/run_server = NULL (Linux-only SIGPIPE);
-# 17 posix  SOCK_STREAM SHUT_RD  — disabled: run_client/run_server = NULL (Linux-only SIGPIPE);
+16   posix  SOCK_STREAM SHUT_WR
+16   wsa    SOCK_STREAM SHUT_WR
+16   overlapped SOCK_STREAM SHUT_WR
+16   posix-fs SOCK_STREAM SHUT_WR
+16   overlapped-fs SOCK_STREAM SHUT_WR
+17   posix  SOCK_STREAM SHUT_RD
+17   wsa    SOCK_STREAM SHUT_RD
+17   overlapped SOCK_STREAM SHUT_RD
+17   posix-fs SOCK_STREAM SHUT_RD
+17   overlapped-fs SOCK_STREAM SHUT_RD
 18   posix  SOCK_STREAM MSG_ZEROCOPY
 18   wsa    SOCK_STREAM MSG_ZEROCOPY
 18   overlapped SOCK_STREAM MSG_ZEROCOPY
 # 19 posix  SOCK_SEQPACKET MSG_ZEROCOPY                     — disabled: SEQPACKET body missing AND blocked by no Winsock MSG_ERRQUEUE
-# 20 posix  SOCK_STREAM MSG_ZEROCOPY empty MSG_ERRQUEUE     — disabled: run_client/run_server = NULL (no MSG_ERRQUEUE)
+20   posix  SOCK_STREAM full TX window (Linux: MSG_ZEROCOPY empty MSG_ERRQUEUE)
+20   wsa    SOCK_STREAM full TX window (Linux: MSG_ZEROCOPY empty MSG_ERRQUEUE)
+20   overlapped SOCK_STREAM full TX window (Linux: MSG_ZEROCOPY empty MSG_ERRQUEUE)
+20   posix-fs SOCK_STREAM full TX window (Linux: MSG_ZEROCOPY empty MSG_ERRQUEUE)
+20   overlapped-fs SOCK_STREAM full TX window (Linux: MSG_ZEROCOPY empty MSG_ERRQUEUE)
 21   posix  SOCK_STREAM double bind connect
 21   wsa    SOCK_STREAM double bind connect
 21   overlapped SOCK_STREAM double bind connect
 22   posix  SOCK_STREAM virtio credit update + SO_RCVLOWAT
 22   wsa    SOCK_STREAM virtio credit update + SO_RCVLOWAT
 22   overlapped SOCK_STREAM virtio credit update + SO_RCVLOWAT
+22   posix-fs SOCK_STREAM virtio credit update + SO_RCVLOWAT
+22   overlapped-fs SOCK_STREAM virtio credit update + SO_RCVLOWAT
 23   posix  SOCK_STREAM virtio credit update + low rx_bytes
 23   wsa    SOCK_STREAM virtio credit update + low rx_bytes
 23   overlapped SOCK_STREAM virtio credit update + low rx_bytes
@@ -73,8 +103,12 @@
 24   wsa    SOCK_STREAM ioctl(SIOCOUTQ) 0 unsent bytes
 24   overlapped SOCK_STREAM ioctl(SIOCOUTQ) 0 unsent bytes
 # 25 posix  SOCK_SEQPACKET ioctl(SIOCOUTQ) 0 unsent bytes   — disabled: shared body ready via test_unsent_bytes_*(int type); needs seqpacket wrapper + wiring + driver SEQPACKET
-# 26 posix  SOCK_STREAM leak accept queue  — disabled: run_client/run_server = NULL (Linux-only)
-# 27 posix  SOCK_STREAM MSG_ZEROCOPY leak MSG_ERRQUEUE      — disabled: run_client/run_server = NULL (no MSG_ERRQUEUE + kmemleak)
+26   posix  SOCK_STREAM leak accept queue
+26   wsa    SOCK_STREAM leak accept queue
+26   overlapped SOCK_STREAM leak accept queue
+27   posix  SOCK_STREAM select() under WSAEventSelect, half-close (Linux: MSG_ZEROCOPY leak MSG_ERRQUEUE)
+27   wsa    SOCK_STREAM select() under WSAEventSelect, half-close (Linux: MSG_ZEROCOPY leak MSG_ERRQUEUE)
+27   overlapped SOCK_STREAM select() under WSAEventSelect, half-close (Linux: MSG_ZEROCOPY leak MSG_ERRQUEUE)
 # 28 posix  SOCK_STREAM MSG_ZEROCOPY leak completion skb    — disabled: run_client/run_server = NULL (no MSG_ERRQUEUE + kmemleak)
 # 29 posix  SOCK_STREAM transport release use-after-free  — disabled: run_client/run_server = NULL (Linux-only)
 30   posix  SOCK_STREAM retry failed connect()
@@ -86,13 +120,19 @@
 32   posix  SOCK_STREAM SO_LINGER close() on unread
 32   wsa    SOCK_STREAM SO_LINGER close() on unread
 32   overlapped SOCK_STREAM SO_LINGER close() on unread
-# 33 posix  SOCK_STREAM transport change null-ptr-deref, lockdep warn — disabled: run_client/run_server = NULL (Linux-only: pthread + kill(SIGUSR1))
+# 33 posix  SOCK_STREAM transport change null-ptr-deref, lockdep warn — disabled: run_client = NULL (Linux-only: pthread + kill(SIGUSR1)); the server body is ported but the reverse row is disabled too (host kernel panic, see reverse.list)
 34   posix  SOCK_STREAM ioctl(SIOCINQ) functionality
 34   wsa    SOCK_STREAM ioctl(SIOCINQ) functionality
 34   overlapped SOCK_STREAM ioctl(SIOCINQ) functionality
 # 35 posix  SOCK_SEQPACKET ioctl(SIOCINQ) functionality     — disabled: shared body ready via test_unread_bytes_*(int type); needs seqpacket wrapper + wiring + driver SEQPACKET
-# 36 posix  SOCK_STREAM accept()ed socket custom setsockopt() — disabled: run_client/run_server = NULL (no Winsock SO_ZEROCOPY)
-# 37 posix  SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption — disabled: run_client/run_server = NULL (no MSG_ERRQUEUE)
+# 36 posix  SOCK_STREAM accept()ed socket custom setsockopt() — disabled: environmental, not a guest bug. In forward the server is the HOST Linux kernel (6.12 without the fix), whose setsockopt(SO_ZEROCOPY) on the accept()ed socket fails EOPNOTSUPP — the very kernel bug this upstream test was written for; the Windows client side passes ("36 ... ok"). Our bodies run in reverse + loopback. Re-enable on hosts with the fixed kernel.
+37   posix  SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption
+37   wsa    SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption
+37   overlapped SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption
+37   posix-fs SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption
+37   overlapped-fs SOCK_STREAM virtio MSG_ZEROCOPY coalescence corruption
 38   posix  SOCK_STREAM TX credit bounds
 38   wsa    SOCK_STREAM TX credit bounds
 38   overlapped SOCK_STREAM TX credit bounds
+38   posix-fs SOCK_STREAM TX credit bounds
+38   overlapped-fs SOCK_STREAM TX credit bounds

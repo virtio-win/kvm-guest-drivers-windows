@@ -40,12 +40,18 @@ case "$BITS" in
     *) die "--bits must be x64 or x86, got: $BITS" ;;
 esac
 
+[[ "$PER_TEST_TIMEOUT" =~ ^[1-9][0-9]*$ ]] ||
+    die "--timeout must be a positive integer (seconds); got '$PER_TEST_TIMEOUT' (0 would disable the per-test limit)"
+
 CFG=$(discover_config "$CFG") || exit $?
 guest_load "$CFG"
 guest_cid=$(config_read "$CFG" guest_cid); [ -n "$guest_cid" ]   || die "config has no guest_cid="
 
-if [ -z "$LOGDIR" ]; then LOGDIR="/tmp/vsock-run-$$"; fi
-mkdir -p "$LOGDIR"
+if [ -z "$LOGDIR" ]; then
+    LOGDIR=$(mktemp -d /tmp/vsock-run-XXXXXX) || die "mktemp failed"
+else
+    mkdir -p "$LOGDIR"
+fi
 
 if [ "${#PICK_IDS[@]}" -gt 0 ]; then
     ROWS=()
