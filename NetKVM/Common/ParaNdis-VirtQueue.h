@@ -298,6 +298,12 @@ class CVirtQueue
         virtqueue_disable_cb(m_VirtQueue);
     }
 
+    // The device wrote an invalid used-ring entry; see struct virtqueue.broken.
+    bool IsBroken() const
+    {
+        return m_VirtQueue != nullptr && virtqueue_is_broken(m_VirtQueue);
+    }
+
     bool IsValid() const
     {
         return m_VirtQueue != nullptr;

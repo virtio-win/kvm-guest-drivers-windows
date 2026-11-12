@@ -39,6 +39,7 @@
 static VOID ParaNdis_UpdateMAC(PARANDIS_ADAPTER *pContext);
 
 static __inline pRxNetDescriptor ReceiveQueueGetBuffer(PPARANDIS_RECEIVE_QUEUE pQueue);
+static void FailAdapterOnBrokenQueue(PARANDIS_ADAPTER *pContext);
 
 #define MAX_VLAN_ID 4094
 
@@ -1970,6 +1971,8 @@ void RxPoll(PARANDIS_ADAPTER *pContext, UINT BundleIndex, NDIS_POLL_RECEIVE_DATA
     {
         RxData.NumberOfRemainingNbls = NDIS_ANY_NUMBER_OF_NBLS;
     }
+
+    FailAdapterOnBrokenQueue(pContext);
 }
 
 void ParaNdis_ReuseRxNBLs(PNET_BUFFER_LIST pNBL)
@@ -1983,6 +1986,38 @@ void ParaNdis_ReuseRxNBLs(PNET_BUFFER_LIST pNBL)
         NET_BUFFER_LIST_NEXT_NBL(pTemp) = NULL;
         NdisFreeNetBufferList(pTemp);
         pBuffersDescriptor->Queue->ReuseReceiveBuffer(pBuffersDescriptor);
+    }
+}
+
+/**********************************************************
+Fails the adapter once any of its virtqueues is broken (the device wrote
+an invalid used-ring entry). A broken queue no longer completes anything,
+so the adapter cannot recover without a restart. Must be called without
+any path lock held: FailAdapter() takes the RX and TX locks.
+***********************************************************/
+static void FailAdapterOnBrokenQueue(PARANDIS_ADAPTER *pContext)
+{
+    if (pContext->bAdapterFailed)
+    {
+        return;
+    }
+    for (UINT i = 0; i < pContext->nPathBundles; i++)
+    {
+        CPUPathBundle &bundle = pContext->pPathBundles[i];
+        if (bundle.rxPath.IsQueueBroken())
+        {
+            pContext->FailAdapter("RX virtqueue broken", bundle.rxPath.getQueueIndex(), __LINE__);
+            return;
+        }
+        if (bundle.txPath.IsQueueBroken())
+        {
+            pContext->FailAdapter("TX virtqueue broken", bundle.txPath.getQueueIndex(), __LINE__);
+            return;
+        }
+    }
+    if (pContext->bCXPathCreated && pContext->CXPath.IsQueueBroken())
+    {
+        pContext->FailAdapter("control virtqueue broken", pContext->CXPath.getQueueIndex(), __LINE__);
     }
 }
 
@@ -2032,6 +2067,7 @@ void ParaNdis_CXDPCWorkBody(PARANDIS_ADAPTER *pContext)
             // the CVQ or CX dpc if needed
             pContext->CXPath.Maintain();
         }
+        FailAdapterOnBrokenQueue(pContext);
     }
     InterlockedDecrement(&pContext->counterDPCInside);
 }
@@ -2073,6 +2109,8 @@ bool ParaNdis_RXTXDPCWorkBody(PARANDIS_ADAPTER *pContext, ULONG ulMaxPacketsToIn
         {
             stillRequiresProcessing = true;
         }
+
+        FailAdapterOnBrokenQueue(pContext);
     }
     InterlockedDecrement(&pContext->counterDPCInside);
 

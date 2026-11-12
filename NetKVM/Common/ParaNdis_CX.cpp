@@ -101,7 +101,7 @@ bool CParaNdisCX::GetResponse(UCHAR &Code, int MicrosecondsToWait, int LogLevel)
     void *p = NULL;
     int i = 0;
 
-    while (ReadyForControls() && i++ <= MicrosecondsToWait)
+    while (ReadyForControls() && !m_VirtQueue.IsBroken() && i++ <= MicrosecondsToWait)
     {
         UINT interval = 1;
         p = m_VirtQueue.GetBuf(&len);
