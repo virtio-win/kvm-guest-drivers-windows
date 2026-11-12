@@ -65,9 +65,11 @@ struct vring_packed_desc {
             KeBugCheck(0xE0E1E2E3); \
         }                           \
     }
+/* The device wrote an invalid value into the ring: stop using the queue
+ * rather than bugchecking, see struct virtqueue.broken. */
 #define BAD_RING(vq, fmt, ...)                                                 \
     DPrintf(0, "%s: queue %d: " fmt, __FUNCTION__, vq->vq.index, __VA_ARGS__); \
-    BUG_ON(true)
+    virtqueue_mark_broken(&vq->vq, "invalid used descriptor", 0)
 
 /* This marks a buffer as continuing via the next field. */
 #define VRING_DESC_F_NEXT               1
@@ -599,6 +601,7 @@ vring_new_virtqueue_packed(unsigned int index,       /* virtqueue index */
     vq->vq.vdev = vdev;
     vq->vq.notification_cb = notify;
     vq->vq.index = index;
+    vq->vq.broken = false;
 
     vq->vq.avail_va = (u8 *)pages + num * sizeof(struct vring_packed_desc);
     vq->vq.used_va = (u8 *)vq->vq.avail_va + sizeof(struct vring_packed_desc_event);

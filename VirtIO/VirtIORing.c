@@ -38,6 +38,11 @@
 
 #define DESC_INDEX(num, i)         ((i) & ((num)-1))
 
+/* Reads a field the device can write exactly once, so a value that was
+ * validated is the value that is used. */
+#define READ_ONCE16(x)             (*(volatile const u16 *)&(x))
+#define READ_ONCE32(x)             (*(volatile const u32 *)&(x))
+
 /* This marks a buffer as continuing via the next field. */
 #define VIRTQ_DESC_F_NEXT          1
 /* This marks a buffer as write-only (otherwise read-only). */
@@ -306,29 +311,57 @@ virtqueue_add_buf_split(struct virtqueue *_vq,   /* the queue */
     return VQ_ADD_BUFFER_SUCCESS;
 }
 
+void virtqueue_mark_broken(struct virtqueue *vq, const char *reason, unsigned int value)
+{
+    if (!vq->broken) {
+        DPrintf(0, "virtqueue %u is broken: %s (0x%x)\n", vq->index, reason, value);
+    }
+    vq->broken = true;
+}
+
 /* Gets the opaque pointer associated with a returned buffer, or NULL if no buffer is available */
 static void *virtqueue_get_buf_split(struct virtqueue *_vq, /* the queue */
                                      unsigned int *len) /* number of bytes returned by the device */
 {
     struct virtqueue_split *vq = splitvq(_vq);
+    struct vring_used_elem *elem;
     void *opaque;
-    u16 idx;
+    u16 used_idx;
+    u32 id;
+    u32 used_len;
 
-    if (vq->last_used == (int)vq->vring.used->idx) {
+    /* used->idx and the used element are written by the device. Read each
+     * field once and validate it before it indexes anything. Any invalid
+     * value marks the queue broken instead of being skipped, so that the
+     * caller's completion loop cannot spin on it. */
+    used_idx = READ_ONCE16(vq->vring.used->idx);
+    if (vq->last_used == used_idx) {
         /* No descriptor index in the used ring */
+        return NULL;
+    }
+    if ((u16)(used_idx - vq->last_used) > vq->vring.num) {
+        virtqueue_mark_broken(_vq, "used index ahead of the ring", used_idx);
         return NULL;
     }
     KeMemoryBarrier();
 
-    idx = DESC_INDEX(vq->vring.num, vq->last_used);
-    *len = vq->vring.used->ring[idx].len;
+    elem = &vq->vring.used->ring[DESC_INDEX(vq->vring.num, vq->last_used)];
+    id = READ_ONCE32(elem->id);
+    used_len = READ_ONCE32(elem->len);
 
-    /* Get the first used descriptor */
-    idx = (u16)vq->vring.used->ring[idx].id;
-    opaque = vq->opaque[idx];
+    if (id >= vq->vring.num) {
+        virtqueue_mark_broken(_vq, "used id out of range", id);
+        return NULL;
+    }
+    opaque = vq->opaque[id];
+    if (opaque == NULL) {
+        virtqueue_mark_broken(_vq, "used id is not an outstanding head", id);
+        return NULL;
+    }
 
     /* Put all descriptors back to the free list */
-    put_unused_desc_chain(vq, idx);
+    put_unused_desc_chain(vq, (u16)id);
+    *len = used_len;
 
     vq->last_used++;
     if (_vq->vdev->event_suppression_enabled && virtqueue_is_interrupt_enabled(_vq)) {
@@ -336,7 +369,6 @@ static void *virtqueue_get_buf_split(struct virtqueue *_vq, /* the queue */
         KeMemoryBarrier();
     }
 
-    ASSERT(opaque != NULL);
     return opaque;
 }
 
@@ -344,7 +376,7 @@ static void *virtqueue_get_buf_split(struct virtqueue *_vq, /* the queue */
 static BOOLEAN virtqueue_has_buf_split(struct virtqueue *_vq)
 {
     struct virtqueue_split *vq = splitvq(_vq);
-    return (vq->last_used != vq->vring.used->idx);
+    return (vq->last_used != READ_ONCE16(vq->vring.used->idx));
 }
 
 /* Returns true if the device should be notified, false otherwise */
@@ -391,7 +423,7 @@ static bool virtqueue_enable_cb_split(struct virtqueue *_vq)
 
     vring_used_event(&vq->vring) = vq->last_used;
     KeMemoryBarrier();
-    return (vq->last_used == vq->vring.used->idx);
+    return (vq->last_used == READ_ONCE16(vq->vring.used->idx));
 }
 
 /* Enables interrupts on a virtqueue after ~3/4 of the currently pushed buffers have been
@@ -412,7 +444,7 @@ static bool virtqueue_enable_cb_delayed_split(struct virtqueue *_vq)
     bufs = (u16)(vq->master_vring_avail.idx - vq->last_used) * 3 / 4;
     vring_used_event(&vq->vring) = vq->last_used + bufs;
     KeMemoryBarrier();
-    return ((vq->vring.used->idx - vq->last_used) <= bufs);
+    return ((u16)(READ_ONCE16(vq->vring.used->idx) - vq->last_used) <= bufs);
 }
 
 /* Disables interrupts on a virtqueue */
