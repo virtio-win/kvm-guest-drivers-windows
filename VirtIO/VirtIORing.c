@@ -174,6 +174,14 @@ static inline int vring_need_event(__u16 event_idx, __u16 new_idx, __u16 old)
     return (__u16)(new_idx - event_idx - 1) < (__u16)(new_idx - old);
 }
 
+/* Driver-private bookkeeping for one descriptor. The descriptor table is
+ * shared with the device, which can rewrite it at any time, so the free list
+ * and the chain layout live here and the driver never reads desc[] back. */
+struct vring_chain_info {
+    u16 next; /* next descriptor of the chain or of the free list */
+    u16 num;  /* chain length, valid for the head of an outstanding chain */
+};
+
 struct virtqueue_split {
     struct virtqueue vq;
     struct vring vring;
@@ -185,6 +193,7 @@ struct virtqueue_split {
     unsigned int num_added_since_kick;
     u16 first_unused;
     u16 last_used;
+    struct vring_chain_info *chain_info; /* num entries, after opaque[] */
     void *opaque[];
 };
 
@@ -198,27 +207,30 @@ static inline u16 get_unused_desc(struct virtqueue_split *vq)
     u16 idx = vq->first_unused;
     ASSERT(vq->num_unused > 0);
 
-    vq->first_unused = vq->vring.desc[idx].next;
+    vq->first_unused = vq->chain_info[idx].next;
     vq->num_unused--;
     return idx;
 }
 
-/* Marks the descriptor chain starting at index idx as unused */
-static inline void put_unused_desc_chain(struct virtqueue_split *vq, u16 idx)
+/* Marks the descriptor chain starting at head as unused. The chain is walked
+ * through chain_info[] for exactly the length recorded when it was added. */
+static inline void put_unused_desc_chain(struct virtqueue_split *vq, u16 head)
 {
-    u16 start = idx;
+    u16 num = vq->chain_info[head].num;
+    u16 tail = head;
+    u16 i;
 
-    vq->opaque[idx] = NULL;
-    while (vq->vring.desc[idx].flags & VIRTQ_DESC_F_NEXT) {
-        idx = vq->vring.desc[idx].next;
-        vq->num_unused++;
+    ASSERT(num > 0 && num <= vq->vring.num);
+    vq->opaque[head] = NULL;
+    vq->chain_info[head].num = 0;
+
+    for (i = 1; i < num; i++) {
+        tail = vq->chain_info[tail].next;
     }
 
-    vq->vring.desc[idx].flags = VIRTQ_DESC_F_NEXT;
-    vq->vring.desc[idx].next = vq->first_unused;
-    vq->num_unused++;
-
-    vq->first_unused = start;
+    vq->chain_info[tail].next = vq->first_unused;
+    vq->num_unused += num;
+    vq->first_unused = head;
 }
 
 /* Adds a buffer to a virtqueue, returns 0 on success, negative number on error */
@@ -254,40 +266,35 @@ virtqueue_add_buf_split(struct virtqueue *_vq,   /* the queue */
         vq->vring.desc[idx].addr = phys_indirect;
         vq->vring.desc[idx].len = i * sizeof(struct vring_desc);
 
+        vq->chain_info[idx].num = 1;
         vq->opaque[idx] = opaque;
     } else {
-        u16 last_idx;
+        u16 desc_idx;
 
         /* Use out + in regular descriptors */
-        if (out + in > vq->num_unused) {
+        if (out + in == 0 || out + in > vq->num_unused) {
             return -ENOSPC;
         }
 
-        /* First descriptor */
-        idx = last_idx = get_unused_desc(vq);
-        vq->opaque[idx] = opaque;
+        /* Each descriptor is written once, from driver state only. The chain
+         * follows the free list order, so chain_info[].next already links it
+         * for put_unused_desc_chain(). */
+        idx = vq->first_unused;
+        for (i = 0; i < out + in; i++) {
+            u16 flags = (i >= out) ? VIRTQ_DESC_F_WRITE : 0;
 
-        vring->desc[idx].addr = sg[0].physAddr.QuadPart;
-        vring->desc[idx].len = sg[0].length;
-        vring->desc[idx].flags = VIRTQ_DESC_F_NEXT;
-        if (out == 0) {
-            vring->desc[idx].flags |= VIRTQ_DESC_F_WRITE;
-        }
-        vring->desc[idx].next = vq->first_unused;
-
-        /* The rest of descriptors */
-        for (i = 1; i < out + in; i++) {
-            last_idx = get_unused_desc(vq);
-
-            vring->desc[last_idx].addr = sg[i].physAddr.QuadPart;
-            vring->desc[last_idx].len = sg[i].length;
-            vring->desc[last_idx].flags = VIRTQ_DESC_F_NEXT;
-            if (i >= out) {
-                vring->desc[last_idx].flags |= VIRTQ_DESC_F_WRITE;
+            desc_idx = get_unused_desc(vq);
+            if (i + 1 < out + in) {
+                flags |= VIRTQ_DESC_F_NEXT;
             }
-            vring->desc[last_idx].next = vq->first_unused;
+            vring->desc[desc_idx].addr = sg[i].physAddr.QuadPart;
+            vring->desc[desc_idx].len = sg[i].length;
+            vring->desc[desc_idx].flags = flags;
+            vring->desc[desc_idx].next = vq->first_unused;
         }
-        vring->desc[last_idx].flags &= ~VIRTQ_DESC_F_NEXT;
+
+        vq->chain_info[idx].num = (u16)(out + in);
+        vq->opaque[idx] = opaque;
     }
 
     /* Write the first descriptor into the available ring */
@@ -469,6 +476,7 @@ unsigned int vring_control_block_size(u16 qsize, bool packed)
     }
     res = sizeof(struct virtqueue_split);
     res += sizeof(void *) * qsize;
+    res += sizeof(struct vring_chain_info) * qsize;
     return res;
 }
 
@@ -490,19 +498,19 @@ vring_new_virtqueue_split(unsigned int index,       /* virtqueue index */
         return NULL;
     }
 
-    RtlZeroMemory(vq, sizeof(*vq) + num * sizeof(void *));
+    RtlZeroMemory(vq, sizeof(*vq) + num * (sizeof(void *) + sizeof(struct vring_chain_info)));
 
     vring_init(&vq->vring, num, pages, vring_align);
     vq->vq.vdev = vdev;
     vq->vq.notification_cb = notify;
     vq->vq.index = index;
+    vq->chain_info = (struct vring_chain_info *)&vq->opaque[num];
 
     /* Build a linked list of unused descriptors */
     vq->num_unused = num;
     vq->first_unused = 0;
     for (i = 0; i < num - 1; i++) {
-        vq->vring.desc[i].flags = VIRTQ_DESC_F_NEXT;
-        vq->vring.desc[i].next = i + 1;
+        vq->chain_info[i].next = i + 1;
     }
     vq->vq.avail_va = vq->vring.avail;
     vq->vq.used_va = vq->vring.used;
