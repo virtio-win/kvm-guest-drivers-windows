@@ -1188,6 +1188,33 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
     highAddress.QuadPart = range.BaseAddress.QuadPart + range.NumberOfBytes.QuadPart;
 
     //
+    // Admission check before the hot-remove call: if the device is being powered
+    // down / the driver is being stopped, do not start the hot-remove. Otherwise
+    // commit to it by setting hotRemoveInProgress. This is done under stateLock so
+    // it is atomic with respect to ViomemCloseWorkerThread setting
+    // finishProcessing. Calling
+    // MmAllocateNodePagesForMdlEx(MM_ALLOCATE_AND_HOT_REMOVE) after shutdown has
+    // started would hang, because the memory-manager hot-remove path can no
+    // longer make progress while the power path is tearing the device down
+    // (observed as a deadlock with Windows Hybrid Shutdown enabled). A hot-remove
+    // committed before shutdown is left to finish; ViomemCloseWorkerThread waits
+    // for the worker thread and therefore for this call to complete.
+    //
+
+    WdfSpinLockAcquire(devCtx->stateLock);
+    if (devCtx->finishProcessing)
+    {
+        WdfSpinLockRelease(devCtx->stateLock);
+        TraceEvents(TRACE_LEVEL_INFORMATION,
+                    DBG_PNP,
+                    "%s aborting hot-remove, device is powering down\n",
+                    __FUNCTION__);
+        return FALSE;
+    }
+    devCtx->hotRemoveInProgress = TRUE;
+    WdfSpinLockRelease(devCtx->stateLock);
+
+    //
     // Call the removal function - the mentioned MmAllocateNodePagesForMdlEx
     //
 
@@ -1211,6 +1238,15 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
                                                         MmCached,
                                                         0,
                                                         flagsContigRemove);
+
+    //
+    // The hot-remove call has returned, so clear the in-progress marker. The
+    // remaining bookkeeping below is safe to run concurrently with a shutdown.
+    //
+
+    WdfSpinLockAcquire(devCtx->stateLock);
+    devCtx->hotRemoveInProgress = FALSE;
+    WdfSpinLockRelease(devCtx->stateLock);
 
     //
     // If the memory has been removed, convert MDLs returned by the
@@ -1894,6 +1930,19 @@ VOID ViomemWorkerThread(IN PVOID pContext)
                     //
 
                     devCtx->state = VIOMEM_PROCESS_STATE_RUNNING;
+                }
+
+                //
+                // Fast path: if a shutdown has been requested, stop the loop
+                // before starting another plug/unplug operation. The hot-remove
+                // path additionally re-checks finishProcessing under stateLock,
+                // atomically with the shutdown request, to avoid deadlocking a
+                // concurrent power-down (see VirtioMemRemovePhysicalMemory).
+                //
+
+                if (devCtx->finishProcessing)
+                {
+                    break;
                 }
 
                 //
