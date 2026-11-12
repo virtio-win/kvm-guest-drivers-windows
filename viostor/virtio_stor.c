@@ -1180,10 +1180,18 @@ VirtIoStartIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
                 if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_RO))
                 {
                     UCHAR SrbStatus = SRB_STATUS_ERROR;
-                    adaptExt->sense_info.senseKey = SCSI_SENSE_DATA_PROTECT;
-                    adaptExt->sense_info.additionalSenseCode = SCSI_ADSENSE_WRITE_PROTECT;
-                    adaptExt->sense_info.additionalSenseCodeQualifier = SCSI_SENSEQ_SPACE_ALLOC_FAILED_WRITE_PROTECT; // SCSI_ADSENSE_NO_SENSE;
-                    if (SetSenseInfo((PSRB_TYPE)Srb, &adaptExt->sense_info))
+                    SENSE_INFO senseInfo = {0};
+
+                    /*
+                     * Local to this SRB, not adaptExt->sense_info - two SRBs
+                     * hitting this branch (or the SCSIOP_VERIFY one) on
+                     * different queues at the same time must not share
+                     * mutable state.
+                     */
+                    senseInfo.senseKey = SCSI_SENSE_DATA_PROTECT;
+                    senseInfo.additionalSenseCode = SCSI_ADSENSE_WRITE_PROTECT;
+                    senseInfo.additionalSenseCodeQualifier = SCSI_SENSEQ_SPACE_ALLOC_FAILED_WRITE_PROTECT; // SCSI_ADSENSE_NO_SENSE;
+                    if (SetSenseInfo((PSRB_TYPE)Srb, &senseInfo))
                     {
                         SrbStatus |= SRB_STATUS_AUTOSENSE_VALID;
                     }
