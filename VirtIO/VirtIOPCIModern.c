@@ -313,6 +313,7 @@ static NTSTATUS vio_modern_setup_vq(struct virtqueue **queue, VirtIODevice *vdev
 
     vq_addr = mem_alloc_nonpaged_block(vdev, heap_size);
     if (vq_addr == NULL) {
+        mem_free_contiguous_pages(vdev, info->queue);
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
