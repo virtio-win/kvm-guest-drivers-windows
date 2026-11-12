@@ -39,29 +39,89 @@
     }
 #endif
 
-_Must_inspect_result_ HANDLE VIOSockCreateFile(_In_opt_ PVIRTIO_VSOCK_PARAMS pSocketParams, _Out_ LPINT lpErrno);
+// Single-buffer recv up to this size takes the buffered IOCTL_SOCKET_RECV (the
+// io-manager copy is cheaper than page pinning, and the system-buffer allocation
+// stays small); anything larger or scattered takes IOCTL_SOCKET_RECV_EX (locked
+// MDL chain). Setting it to 0 routes every recv through RECV_EX, which is how
+// that path gets full test-suite coverage.
+//
+// The value is measured: a vsock_perf sweep of both paths over the receive size
+// has the buffered path ahead by 4-17% from 512 bytes to 8K, indistinguishable
+// at 16-32K, and behind by 15% at 64K. 8K is the largest size with a clean win,
+// and it also keeps the per-request non-paged system buffer small.
+#define VIOSOCK_SMALL_RECV_THRESHOLD 8192
 
-_Must_inspect_result_ BOOL VIOSockDeviceControl(_In_ SOCKET s,
-                                                _In_ DWORD dwIoControlCode,
-                                                _In_reads_bytes_opt_(nInBufferSize) LPVOID lpInBuffer,
-                                                _In_ DWORD nInBufferSize,
-                                                _Out_writes_bytes_to_opt_(nOutBufferSize,
-                                                                          *lpBytesReturned) LPVOID lpOutBuffer,
-                                                _In_ DWORD nOutBufferSize,
-                                                _Out_opt_ LPDWORD lpBytesReturned,
-                                                _Out_ LPINT lpErrno);
+// Send-side mirror of the recv threshold: a single buffer up to this size takes
+// the buffered IOCTL_SOCKET_SEND (the payload itself is the input buffer — one
+// io-manager copy, no page pinning), anything larger or gathered takes
+// IOCTL_SOCKET_SEND_EX (locked MDL chain). Starts at the recv-measured value;
+// re-tune with vsock_perf once the driver side lands. Setting it to 0 routes
+// every send through SEND_EX.
+#define VIOSOCK_SMALL_SEND_THRESHOLD 8192
+
+_Must_inspect_result_ HANDLE VIOSockCreateFile(_In_opt_ PVIRTIO_VSOCK_PARAMS pSocketParams,
+                                               _In_ BOOL bSyncIo,
+                                               _Out_ LPINT lpErrno);
+
+_Must_inspect_result_ BOOL VIOSockDeviceControlEx(_In_ SOCKET s,
+                                                  _In_ BOOL bSyncIo,
+                                                  _In_ DWORD dwIoControlCode,
+                                                  _In_reads_bytes_opt_(nInBufferSize) LPVOID lpInBuffer,
+                                                  _In_ DWORD nInBufferSize,
+                                                  _Out_writes_bytes_to_opt_(nOutBufferSize,
+                                                                            *lpBytesReturned) LPVOID lpOutBuffer,
+                                                  _In_ DWORD nOutBufferSize,
+                                                  _Out_opt_ LPDWORD lpBytesReturned,
+                                                  _Inout_opt_ LPWSAOVERLAPPED lpOverlapped,
+                                                  _In_opt_ LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine,
+                                                  _In_ DWORD dwFlags,
+                                                  _Out_ LPINT lpErrno);
+
+__inline _Must_inspect_result_ BOOL VIOSockDeviceControl(_In_ SOCKET s,
+                                                         _In_ DWORD dwIoControlCode,
+                                                         _In_reads_bytes_opt_(nInBufferSize) LPVOID lpInBuffer,
+                                                         _In_ DWORD nInBufferSize,
+                                                         _Out_writes_bytes_to_opt_(nOutBufferSize,
+                                                                                   *lpBytesReturned) LPVOID lpOutBuffer,
+                                                         _In_ DWORD nOutBufferSize,
+                                                         _Out_opt_ LPDWORD lpBytesReturned,
+                                                         _Out_ LPINT lpErrno)
+{
+    return VIOSockDeviceControlEx(s,
+                                  FALSE,
+                                  dwIoControlCode,
+                                  lpInBuffer,
+                                  nInBufferSize,
+                                  lpOutBuffer,
+                                  nOutBufferSize,
+                                  lpBytesReturned,
+                                  NULL,
+                                  NULL,
+                                  0,
+                                  lpErrno);
+}
 
 _Must_inspect_result_ BOOL VIOSockWriteFile(_In_ SOCKET s,
                                             _In_reads_bytes_(nNumberOfBytesToWrite) LPVOID lpBuffer,
                                             _In_ DWORD nNumberOfBytesToWrite,
                                             _Out_opt_ LPDWORD lpNumberOfBytesWritten,
+                                            _Inout_opt_ LPWSAOVERLAPPED lpOverlapped,
+                                            _In_opt_ LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine,
+                                            _In_ DWORD dwFlags,
                                             _Out_ LPINT lpErrno);
 
 _Must_inspect_result_ BOOL VIOSockReadFile(_In_ SOCKET s,
                                            _Out_writes_bytes_(nNumberOfBytesToRead) LPVOID lpBuffer,
                                            _In_ DWORD nNumberOfBytesToRead,
                                            _Out_opt_ LPDWORD lpNumberOfBytesRead,
+                                           _Inout_opt_ LPWSAOVERLAPPED lpOverlapped,
+                                           _In_opt_ LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine,
+                                           _In_ DWORD dwFlags,
                                            _Out_ LPINT lpErrno);
+
+BOOL VIOSockIsSyncSocket(_In_ SOCKET s);
+
+BOOL VIOSockIsVsockSocket(_In_ SOCKET s);
 
 INT NtStatusToWsaError(_In_ NTSTATUS Status);
 

@@ -149,24 +149,47 @@ _Success_(return) __inline BOOL ViosockGetConfig(_Out_ PVIRTIO_VSOCK_CONFIG pCon
 
 #define SO_VM_SOCKETS_CONNECT_TIMEOUT 0x6006
 
+/* Per-call zero-copy send flag for WSASend (Linux value). The payload pages
+ * are pinned and handed to the transport as is; the operation completes when
+ * the host has consumed them (no MSG_ERRQUEUE analog is needed). Refused with
+ * WSAEWOULDBLOCK on non-blocking sockets — deliberately stricter than Linux,
+ * where the flag is a best-effort hint. Silently ignored for loopback
+ * connections, where delivery is a synchronous copy anyway.
+ */
+#ifndef MSG_ZEROCOPY
+#define MSG_ZEROCOPY 0x4000000
+#endif
+
+/* vsock-specific WSAIoctl: query the number of bytes accepted from the
+ * application but not yet consumed by the transport - the vsock analog of
+ * Linux SIOCOUTQ (unsent_bytes), which has no Winsock equivalent. Output is a
+ * u_long; encoded _WSAIOR so it carries IOC_OUT and flows through the normal
+ * WSPIoctl output-buffer path.
+ */
+#define SIO_VSOCK_OUTQ        _WSAIOR(IOC_VENDOR, 1)
+
 /* Any address  for  binding, equivalent of INADDR_ANY.  This works for the svm_cid field of
  * sockaddr_vm and indicates the context ID of the current endpoint.
  */
-#define VMADDR_CID_ANY                (-1)
+#define VMADDR_CID_ANY        (-1)
 
 /* Bind to any available port.  Works for the svm_port field of sockaddr_vm. */
-#define VMADDR_PORT_ANY               (-1)
+#define VMADDR_PORT_ANY       (-1)
 
 /* Use this as the destination CID in an address when referring to the hypervisor.*/
-#define VMADDR_CID_HYPERVISOR         0
+#define VMADDR_CID_HYPERVISOR 0
 
-/* Reserved, must not be used. */
-#define VMADDR_CID_RESERVED           1
+/* Use this as the destination CID in an address when referring to the
+ * local communication (loopback).
+ * (This was VMADDR_CID_RESERVED, but even VMCI doesn't use it anymore,
+ * it was a legacy value from an older release).
+ */
+#define VMADDR_CID_LOCAL      1
 
 /* Use this as the destination CID in an address when referring to the host
  * (any process other than the hypervisor).
  */
-#define VMADDR_CID_HOST               2
+#define VMADDR_CID_HOST       2
 
 /* Address structure for virtio vsockets. The address family should be set to
  * AF_VSOCK.  The structure members should all align on their natural
