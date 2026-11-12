@@ -1232,11 +1232,14 @@ VirtIoStartIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
                 UCHAR SrbStatus = RhelScsiVerify(DeviceExtension, (PSRB_TYPE)Srb);
                 if (SrbStatus == SRB_STATUS_INVALID_REQUEST)
                 {
+                    SENSE_INFO senseInfo = {0};
+
                     SrbStatus = SRB_STATUS_ERROR;
-                    adaptExt->sense_info.senseKey = SCSI_SENSE_ILLEGAL_REQUEST;
-                    adaptExt->sense_info.additionalSenseCode = SCSI_ADSENSE_INVALID_CDB;
-                    adaptExt->sense_info.additionalSenseCodeQualifier = 0;
-                    if (SetSenseInfo((PSRB_TYPE)Srb, &adaptExt->sense_info))
+                    /* Local to this SRB - see the SCSIOP_WRITE branch above. */
+                    senseInfo.senseKey = SCSI_SENSE_ILLEGAL_REQUEST;
+                    senseInfo.additionalSenseCode = SCSI_ADSENSE_INVALID_CDB;
+                    senseInfo.additionalSenseCodeQualifier = 0;
+                    if (SetSenseInfo((PSRB_TYPE)Srb, &senseInfo))
                     {
                         SrbStatus |= SRB_STATUS_AUTOSENSE_VALID;
                     }
