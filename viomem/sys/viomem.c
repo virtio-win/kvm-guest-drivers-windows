@@ -729,9 +729,223 @@ ULONG GetMemoryRangesFromMdl(PMDL Mdl, PHYSICAL_MEMORY_RANGE MemoryRanges[])
 }
 
 //
+// Restore pages described by an MDL without allocating any additional storage.
+// This is used if the MDL cannot be converted into the preallocated range array.
+//
+
+static VOID RestoreMemoryFromMdl(PMDL Mdl)
+{
+    PPFN_NUMBER pfnNumbers = MmGetMdlPfnArray(Mdl);
+    LONGLONG pagesToScan = Mdl->ByteCount >> PAGE_SHIFT;
+    LONGLONG blockStartPosition = 0;
+
+    while (pagesToScan > 0)
+    {
+        LONGLONG consecutivePagesCount = FindConsecutivePagesCountMDL(&pfnNumbers[blockStartPosition], pagesToScan);
+        PHYSICAL_ADDRESS baseAddress = {0};
+        LARGE_INTEGER numberOfBytes = {0};
+        NTSTATUS status;
+
+        baseAddress.QuadPart = ((LONGLONG)pfnNumbers[blockStartPosition]) << PAGE_SHIFT;
+        numberOfBytes.QuadPart = consecutivePagesCount << PAGE_SHIFT;
+
+        status = MmAddPhysicalMemory(&baseAddress, &numberOfBytes);
+
+        if (!NT_SUCCESS(status))
+        {
+            TraceEvents(TRACE_LEVEL_ERROR,
+                        DBG_PNP,
+                        "%s MmAddPhysicalMemory failed while restoring MDL range 0x%I64x (size 0x%I64x): 0x%x\n",
+                        __FUNCTION__,
+                        baseAddress.QuadPart,
+                        numberOfBytes.QuadPart,
+                        status);
+        }
+
+        blockStartPosition += consecutivePagesCount;
+        pagesToScan -= consecutivePagesCount;
+    }
+}
+
+//
 // Function returns number of megabytes allocated in bitmap representing
 // region_size
 //
+
+//
+// Helper function used by HeapSortMemoryRanges to restore the max-heap property.
+//
+
+static VOID HeapSiftDownMemoryRanges(PHYSICAL_MEMORY_RANGE MemoryRanges[], ULONG Root, ULONG Last)
+{
+    ULONG child;
+    PHYSICAL_MEMORY_RANGE temp;
+
+    for (;;)
+    {
+        child = Root * 2 + 1;
+
+        if (child > Last)
+        {
+            return;
+        }
+
+        //
+        // Select the child with the larger base address.
+        //
+
+        if (child < Last && MemoryRanges[child].BaseAddress.QuadPart < MemoryRanges[child + 1].BaseAddress.QuadPart)
+        {
+            ++child;
+        }
+
+        if (MemoryRanges[Root].BaseAddress.QuadPart >= MemoryRanges[child].BaseAddress.QuadPart)
+        {
+            return;
+        }
+
+        temp = MemoryRanges[Root];
+        MemoryRanges[Root] = MemoryRanges[child];
+        MemoryRanges[child] = temp;
+
+        Root = child;
+    }
+}
+
+//
+// Sort physical memory ranges by ascending base address in O(n log n) time.
+// The sort is in-place and does not require an auxiliary array.
+//
+
+static VOID HeapSortMemoryRanges(PHYSICAL_MEMORY_RANGE MemoryRanges[], ULONG RangeCount)
+{
+    ULONG start;
+    ULONG end;
+    PHYSICAL_MEMORY_RANGE temp;
+
+    if (RangeCount < 2)
+    {
+        return;
+    }
+
+    //
+    // Build a max-heap.
+    //
+
+    start = RangeCount / 2;
+
+    while (start > 0)
+    {
+        --start;
+        HeapSiftDownMemoryRanges(MemoryRanges, start, RangeCount - 1);
+    }
+
+    //
+    // Move the largest element to the end, then restore the heap.
+    //
+
+    for (end = RangeCount - 1; end > 0; --end)
+    {
+        temp = MemoryRanges[0];
+        MemoryRanges[0] = MemoryRanges[end];
+        MemoryRanges[end] = temp;
+
+        HeapSiftDownMemoryRanges(MemoryRanges, 0, end - 1);
+    }
+}
+
+//
+// Function sorts memory ranges and merges overlapping or adjacent ranges.
+// It logs each final merged range when that range is complete.
+//
+
+ULONG SortAndMergeMemoryRanges(PHYSICAL_MEMORY_RANGE MemoryRanges[], ULONG RangeCount)
+{
+    ULONG i;
+    ULONG mergedCount = 0;
+    PHYSICAL_MEMORY_RANGE *current;
+    LONGLONG currentEnd;
+    LONGLONG nextStart;
+    LONGLONG nextEnd;
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s Entry\n", __FUNCTION__);
+
+    if (MemoryRanges == NULL || RangeCount == 0)
+    {
+        TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s Return [0]\n", __FUNCTION__);
+
+        return 0;
+    }
+
+    //
+    // The PFN order is not assumed; sort the extracted ranges first.
+    //
+
+    HeapSortMemoryRanges(MemoryRanges, RangeCount);
+
+    //
+    // Merge the sorted ranges in place. Log a range only when a gap proves
+    // that it is complete; this avoids a second pass for tracing.
+    //
+
+    for (i = 0; i < RangeCount; i++)
+    {
+        if (mergedCount == 0)
+        {
+            MemoryRanges[mergedCount++] = MemoryRanges[i];
+            continue;
+        }
+
+        current = &MemoryRanges[mergedCount - 1];
+
+        currentEnd = current->BaseAddress.QuadPart + current->NumberOfBytes.QuadPart;
+        nextStart = MemoryRanges[i].BaseAddress.QuadPart;
+        nextEnd = nextStart + MemoryRanges[i].NumberOfBytes.QuadPart;
+
+        if (nextStart <= currentEnd)
+        {
+            //
+            // The ranges overlap or are adjacent. Extend the current range
+            // only when the next range reaches farther.
+            //
+
+            if (nextEnd > currentEnd)
+            {
+                current->NumberOfBytes.QuadPart = nextEnd - current->BaseAddress.QuadPart;
+            }
+        }
+        else
+        {
+            //
+            // The gap finalizes the current merged range.
+            //
+
+            TraceEvents(TRACE_LEVEL_INFORMATION,
+                        DBG_PNP,
+                        "Found merged block at address 0x%.8I64x of size 0x%.8I64x\n",
+                        current->BaseAddress.QuadPart,
+                        current->NumberOfBytes.QuadPart);
+
+            MemoryRanges[mergedCount++] = MemoryRanges[i];
+        }
+    }
+
+    //
+    // The last merged range is finalized when the scan ends.
+    //
+
+    current = &MemoryRanges[mergedCount - 1];
+
+    TraceEvents(TRACE_LEVEL_INFORMATION,
+                DBG_PNP,
+                "Found merged block at address 0x%.8I64x of size 0x%.8I64x\n",
+                current->BaseAddress.QuadPart,
+                current->NumberOfBytes.QuadPart);
+
+    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s Return [%lu]\n", __FUNCTION__, mergedCount);
+
+    return mergedCount;
+}
 
 ULONG GetNumberOfMBytesAllocatedInBitmap(RTL_BITMAP *Bitmap, ULONG BlockSize)
 {
@@ -887,71 +1101,6 @@ VOID DumpSystemMemoryRanges(LONGLONG Start, LONGLONG End)
 }
 
 //
-// Function with the same name was removed from WDK by Microsoft so this is functional
-// (but slow) equivalent.
-//
-
-ULONG RtlFindLongestRunSet(IN PRTL_BITMAP BitMapHeader, OUT PULONG StartingIndex)
-{
-    ULONG currentRunLength = 0;
-    ULONG longestRunFound = 0;
-    ULONG i = 0;
-    *StartingIndex = 0;
-
-    for (i = 0; i < BitMapHeader->SizeOfBitMap; i++)
-    {
-        if (RtlCheckBit(BitMapHeader, i) == TRUE)
-        {
-            currentRunLength++;
-        }
-        else
-        {
-            if (currentRunLength > longestRunFound)
-            {
-                longestRunFound = currentRunLength;
-                *StartingIndex = i - currentRunLength;
-            }
-        }
-    }
-
-    if (currentRunLength > longestRunFound)
-    {
-        longestRunFound = currentRunLength;
-        *StartingIndex = i - currentRunLength;
-    }
-
-    return longestRunFound;
-}
-
-//
-// This function searches for a busy (used) memory range that starts at the given address and
-// is less or equal to LessOrEqualExpectedSizeInBlocks in size. If the function finds the range,
-// it fills in the physical address of the range and the range's size and returns a boolean value
-// of TRUE. Otherwise, it returns a boolean value of FALSE.
-//
-
-inline BOOLEAN FindAllocatedMemoryRangeInBitmap(RTL_BITMAP *Bitmap,
-                                                LONGLONG BaseAddress,
-                                                ULONGLONG BlockSize,
-                                                ULONG LessOrEqualExpectedSizeInBlocks,
-                                                PPHYSICAL_MEMORY_RANGE RangeFound)
-{
-
-    ULONG indexOfContiguous = 0;
-    ULONG numberOfBits = RtlFindLongestRunSet(Bitmap, &indexOfContiguous);
-
-    if (numberOfBits)
-    {
-        numberOfBits = min(numberOfBits, LessOrEqualExpectedSizeInBlocks);
-        RangeFound->BaseAddress.QuadPart = BaseAddress + (indexOfContiguous * BlockSize);
-        RangeFound->NumberOfBytes.QuadPart = numberOfBits * BlockSize;
-        return TRUE;
-    }
-
-    return FALSE;
-}
-
-//
 // This function searches for a free memory range that starts at the given address and is less
 // or equal to LessOrEqualExpectedSizeInBlocks in size. If the function finds the range,
 // it fills in the physical address of the range and the range's size and returns a boolean value
@@ -961,12 +1110,39 @@ inline BOOLEAN FindAllocatedMemoryRangeInBitmap(RTL_BITMAP *Bitmap,
 inline BOOLEAN FindFreeMemoryRangeInBitmap(RTL_BITMAP *Bitmap,
                                            LONGLONG BaseAddress,
                                            ULONGLONG BlockSize,
+                                           ULONGLONG UsableRegionSize,
                                            ULONG LessOrEqualExpectedSizeInBlocks,
                                            PPHYSICAL_MEMORY_RANGE RangeFound)
 {
-
+    RTL_BITMAP usableBitmap;
+    ULONG usableBlocks;
     ULONG indexOfContiguous = 0;
-    ULONG numberOfBits = RtlFindLongestRunClear(Bitmap, &indexOfContiguous);
+    ULONG numberOfBits;
+
+    if (BlockSize == 0)
+    {
+        return FALSE;
+    }
+
+    //
+    // Limit the search to the portion of the bitmap covered by the usable
+    // device-managed memory region. The bitmap itself represents region_size
+    // and remains unchanged when usable_region_size grows.
+    //
+    usableBlocks = (ULONG)min(UsableRegionSize / BlockSize, Bitmap->SizeOfBitMap);
+
+    if (usableBlocks == 0)
+    {
+        return FALSE;
+    }
+
+    //
+    // Create a view of the existing bitmap buffer that excludes blocks
+    // outside usable_region_size.
+    //
+    RtlInitializeBitMap(&usableBitmap, Bitmap->Buffer, usableBlocks);
+
+    numberOfBits = RtlFindLongestRunClear(&usableBitmap, &indexOfContiguous);
 
     if (numberOfBits)
     {
@@ -1029,6 +1205,7 @@ BOOLEAN VirtioMemAddPhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Confi
     result = FindFreeMemoryRangeInBitmap(&devCtx->memoryBitmapHandle,
                                          address.QuadPart,
                                          Configuration->block_size,
+                                         Configuration->usable_region_size,
                                          (ULONG)(sizeDifference / Configuration->block_size),
                                          &range);
 
@@ -1105,59 +1282,114 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s Entry\n", __FUNCTION__);
 
     NTSTATUS status = STATUS_SUCCESS;
-    BOOLEAN result = FALSE;
-    PHYSICAL_MEMORY_RANGE range = {0};
     PHYSICAL_ADDRESS highAddress = {0};
     LONGLONG sizeDifference = 0;
+    LONGLONG bytesToRemove = 0;
+    LONGLONG maxBytesToRemove = ((LONGLONG)4 * 1024 * 1024 * 1024) - PAGE_SIZE;
+    SIZE_T bytesToRemoveCount = 0;
+    ULONGLONG maxRangeCount = 0;
+    ULONG rangeCapacity = 0;
     __virtio16 numberOfBlocks = 0;
     PDEVICE_CONTEXT devCtx = GetDeviceContext(Device);
     PHYSICAL_ADDRESS skip = {0};
     PHYSICAL_ADDRESS address = {0};
     ULONG rangeCount = 0;
+    SIZE_T memoryRangesSize = 0;
     PHYSICAL_MEMORY_RANGE *memoryRanges = NULL;
+    BOOLEAN success = TRUE;
 
     address.QuadPart = (LONGLONG)Configuration->addr;
 
 #if 0
-	DumpSystemMemoryRanges(Configuration->addr,
-		Configuration->addr + Configuration->plugged_size - 1);
+    DumpSystemMemoryRanges(Configuration->addr,
+                           Configuration->addr + Configuration->plugged_size - 1);
 #endif
+
+    if (Configuration->plugged_size <= Configuration->requested_size)
+    {
+        return TRUE;
+    }
 
     sizeDifference = (LONGLONG)(Configuration->plugged_size - Configuration->requested_size);
 
     //
-    // Find the allocated block of memory that is less or equal to the size difference.
+    // MM_ALLOCATE_REQUIRE_CONTIGUOUS_CHUNKS requires SkipBytes to be a
+    // power of two, at least PAGE_SIZE, and TotalBytes to be a multiple
+    // of SkipBytes.
     //
 
-    result = FindAllocatedMemoryRangeInBitmap(&devCtx->memoryBitmapHandle,
-                                              address.QuadPart,
-                                              Configuration->block_size,
-                                              (ULONG)(sizeDifference / Configuration->block_size),
-                                              &range);
-
-    if (!result)
+    if (Configuration->block_size < PAGE_SIZE || Configuration->block_size > (ULONGLONG)maxBytesToRemove ||
+        (Configuration->block_size & (Configuration->block_size - 1)) != 0)
     {
-        TraceEvents(TRACE_LEVEL_INFORMATION,
+        TraceEvents(TRACE_LEVEL_ERROR,
                     DBG_PNP,
-                    "%s FindAllocatedMemoryRangeInBitmap failed FALSE\n",
-                    __FUNCTION__);
-
+                    "%s - invalid block_size for hot-remove: 0x%I64x\n",
+                    __FUNCTION__,
+                    Configuration->block_size);
         return FALSE;
     }
 
     //
-    // Let's *try* to remove a memory range.
-    //
-    // Note: Removing the memory range may not be possible because the system can already use the
-    // whole range.
+    // The MDL allocation is limited to 4 GiB - PAGE_SIZE per call.
+    // Align the limit and the requested amount to block_size.
     //
 
+    maxBytesToRemove -= maxBytesToRemove % (LONGLONG)Configuration->block_size;
+    bytesToRemove = min(sizeDifference, maxBytesToRemove);
+    bytesToRemove -= bytesToRemove % (LONGLONG)Configuration->block_size;
+
+    if (bytesToRemove <= 0)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR,
+                    DBG_PNP,
+                    "%s - no complete block fits in the hot-remove request\n",
+                    __FUNCTION__);
+        return FALSE;
+    }
+
+    bytesToRemoveCount = (SIZE_T)bytesToRemove;
+
     //
-    // The "skip" value is set to block_size, which means that the range address is aligned
-    // to this value.
+    // Each contiguous chunk in the returned MDL is block_size bytes long.
+    // Therefore, the number of PFN runs cannot exceed the number of blocks
+    // requested. Allocate storage for that worst case before hot-remove,
+    // so an allocation failure cannot strand pages already removed from
+    // the Windows-managed physical memory pool.
     //
 
-    skip.QuadPart = Configuration->block_size;
+    maxRangeCount = (ULONGLONG)(bytesToRemove / (LONGLONG)Configuration->block_size);
+
+    if (maxRangeCount == 0 || maxRangeCount > MAXULONG ||
+        maxRangeCount > ((ULONGLONG)((SIZE_T)-1) / sizeof(PHYSICAL_MEMORY_RANGE)))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR,
+                    DBG_PNP,
+                    "%s - invalid hot-remove range capacity: %I64u\n",
+                    __FUNCTION__,
+                    maxRangeCount);
+        return FALSE;
+    }
+
+    rangeCapacity = (ULONG)maxRangeCount;
+    memoryRangesSize = (SIZE_T)rangeCapacity * sizeof(PHYSICAL_MEMORY_RANGE);
+
+    memoryRanges = (PHYSICAL_MEMORY_RANGE *)ExAllocatePoolZero(NonPagedPool, memoryRangesSize, VIRTIO_MEM_POOL_TAG);
+
+    if (!memoryRanges)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR,
+                    DBG_PNP,
+                    "%s - allocation memory for ranges failed before hot-remove\n",
+                    __FUNCTION__);
+        return FALSE;
+    }
+
+    //
+    // The "skip" value is set to block_size, which means that the range address
+    // is aligned to this value.
+    //
+
+    skip.QuadPart = (LONGLONG)Configuration->block_size;
 
     //
     // The function MmAllocateNodePagesForMdlEx with the MM_ALLOCATE_AND_HOT_REMOVE flag must be
@@ -1172,39 +1404,32 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
     ULONG flagsContigRemove = MM_ALLOCATE_REQUIRE_CONTIGUOUS_CHUNKS | MM_ALLOCATE_AND_HOT_REMOVE;
 
     //
-    // Trace information about the block to be removed.
+    // Search the entire usable device-managed region for pages to hot-remove.
+    // The byte count limits how much memory is removed; the address range
+    // must cover the usable region because plugged blocks need not be adjacent.
     //
 
-    LONGLONG startAddress = range.BaseAddress.QuadPart;
-    LONGLONG endAddress = startAddress + (range.NumberOfBytes.QuadPart - 1);
+    highAddress.QuadPart = address.QuadPart + (LONGLONG)Configuration->usable_region_size;
 
     TraceEvents(TRACE_LEVEL_INFORMATION,
                 DBG_PNP,
-                "Range to be removed: start[0x%.8I64x] end[0x%.8I64x] size[0x%.8I64x]\n",
-                startAddress,
-                endAddress,
-                range.NumberOfBytes.QuadPart);
+                "Hot-remove search range: start[0x%.8I64x] end[0x%.8I64x] requested size[0x%.8I64x]\n",
+                address.QuadPart,
+                highAddress.QuadPart - 1,
+                sizeDifference);
 
-    highAddress.QuadPart = range.BaseAddress.QuadPart + range.NumberOfBytes.QuadPart;
+    TraceEvents(TRACE_LEVEL_INFORMATION,
+                DBG_PNP,
+                "Hot-remove MDL request size[0x%.8I64x], range capacity[%lu]\n",
+                bytesToRemove,
+                rangeCapacity);
 
     //
-    // Call the removal function - the mentioned MmAllocateNodePagesForMdlEx
+    // TotalBytes has the SIZE_T type in the DDI. The capped value fits
+    // in SIZE_T on both 32-bit and 64-bit builds.
     //
 
-#if defined(_WIN64)
-
-    LONGLONG bytesToRemoveCount = range.NumberOfBytes.QuadPart;
-
-#else
-    //
-    // Just a compilation fix for 32 bit platforms.
-    //
-
-    SIZE_T bytesToRemoveCount = (SIZE_T)range.NumberOfBytes.QuadPart;
-
-#endif
-
-    PMDL removedMemoryMdl = MmAllocateNodePagesForMdlEx(range.BaseAddress,
+    PMDL removedMemoryMdl = MmAllocateNodePagesForMdlEx(address,
                                                         highAddress,
                                                         skip,
                                                         bytesToRemoveCount,
@@ -1213,114 +1438,126 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
                                                         flagsContigRemove);
 
     //
-    // If the memory has been removed, convert MDLs returned by the
-    // MmAllocateNodePagesForMdlEx call to memory ranges, inform the device
-    // about removal, and then update the bitmap representation of memory
-    // blocks to reflect the change.
+    // If the memory has been removed, convert the MDL to physical memory
+    // ranges, inform the device about removal, and update the bitmap.
     //
 
     if (removedMemoryMdl)
     {
-
 #if 0
-		DumpSystemMemoryRanges(Configuration->addr,
-			Configuration->addr + Configuration->plugged_size - 1);
+        DumpSystemMemoryRanges(Configuration->addr,
+                               Configuration->addr + Configuration->plugged_size - 1);
 #endif
-
-        //
-        // Calculate the number of memory ranges from MDL and allocate memory
-        // for an array to store memory ranges.
-        //
 
         rangeCount = GetMemoryRangesCountFromMdl(removedMemoryMdl);
 
         //
-        // A number of ranges should be always greater then zero so this
-        // just a sanity check.
+        // The count must fit in the buffer allocated before hot-remove.
+        // A zero count is unexpected for a successful MDL allocation.
         //
 
-        if (rangeCount > 0)
+        if (rangeCount == 0 || rangeCount > rangeCapacity)
         {
-            memoryRanges = (PHYSICAL_MEMORY_RANGE *)ExAllocatePoolZero(NonPagedPool,
-                                                                       rangeCount * sizeof(PHYSICAL_MEMORY_RANGE),
-                                                                       VIRTIO_MEM_POOL_TAG);
+            TraceEvents(TRACE_LEVEL_ERROR,
+                        DBG_PNP,
+                        "%s - unexpected MDL range count: %lu (capacity %lu); restoring MDL pages\n",
+                        __FUNCTION__,
+                        rangeCount,
+                        rangeCapacity);
 
-            if (!memoryRanges)
-            {
-                //
-                // If memory allocation failed log error and return status
-                // indicating error.
-                //
-
-                TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "%s - allocation memory for ranges failed \n", __FUNCTION__);
-                return FALSE;
-            }
-        }
-        else
-        {
-            return FALSE;
+            RestoreMemoryFromMdl(removedMemoryMdl);
+            success = FALSE;
         }
 
-        GetMemoryRangesFromMdl(removedMemoryMdl, memoryRanges);
-
-        for (ULONG i = 0; i < rangeCount; i++)
+        if (success)
         {
-            numberOfBlocks = (__virtio16)(memoryRanges[i].NumberOfBytes.QuadPart / Configuration->block_size);
+            GetMemoryRangesFromMdl(removedMemoryMdl, memoryRanges);
 
-            if (SendUnPlugRequest(Device, memoryRanges[i].BaseAddress.QuadPart, numberOfBlocks))
+            rangeCount = SortAndMergeMemoryRanges(memoryRanges, rangeCount);
+
+            if (rangeCount == 0)
             {
-                TraceEvents(TRACE_LEVEL_INFORMATION,
+                TraceEvents(TRACE_LEVEL_ERROR,
                             DBG_PNP,
-                            "HotRemove address [0x%I64x] len[0x%x]\n",
-                            memoryRanges[i].BaseAddress.QuadPart,
-                            memoryRanges[i].NumberOfBytes.QuadPart);
+                            "%s - no ranges remained after MDL conversion; restoring MDL pages\n",
+                            __FUNCTION__);
 
-                DeallocateMemoryRangeInMemoryBitmap(address.QuadPart,
-                                                    &memoryRanges[i],
-                                                    &devCtx->memoryBitmapHandle,
-                                                    (ULONG)Configuration->block_size);
+                RestoreMemoryFromMdl(removedMemoryMdl);
+                success = FALSE;
             }
-            else
+        }
+
+        if (success)
+        {
+            for (ULONG i = 0; i < rangeCount; i++)
             {
-                //
-                // If it was not possible to inform the device about range removal then
-                // revert the operation.
-                //
+                numberOfBlocks = (__virtio16)(memoryRanges[i].NumberOfBytes.QuadPart / Configuration->block_size);
 
-                status = MmAddPhysicalMemory(&memoryRanges[i].BaseAddress, &memoryRanges[i].NumberOfBytes);
+                if (SendUnPlugRequest(Device, memoryRanges[i].BaseAddress.QuadPart, numberOfBlocks))
+                {
+                    TraceEvents(TRACE_LEVEL_INFORMATION,
+                                DBG_PNP,
+                                "HotRemove address [0x%I64x] len[0x%x]\n",
+                                memoryRanges[i].BaseAddress.QuadPart,
+                                memoryRanges[i].NumberOfBytes.QuadPart);
 
-                if (!NT_SUCCESS(status))
+                    DeallocateMemoryRangeInMemoryBitmap(address.QuadPart,
+                                                        &memoryRanges[i],
+                                                        &devCtx->memoryBitmapHandle,
+                                                        (ULONG)Configuration->block_size);
+                }
+                else
                 {
                     //
-                    // It's not clear what to do if this operation fails?
+                    // If it was not possible to inform the device about range removal then
+                    // revert the operation.
                     //
 
-                    TraceEvents(TRACE_LEVEL_ERROR,
-                                DBG_PNP,
-                                "%s MmAddPhysicalMemory failed 0x%x\n",
-                                __FUNCTION__,
-                                status);
+                    status = MmAddPhysicalMemory(&memoryRanges[i].BaseAddress, &memoryRanges[i].NumberOfBytes);
+
+                    if (!NT_SUCCESS(status))
+                    {
+                        //
+                        // It's not clear what to do if this operation fails?
+                        //
+
+                        TraceEvents(TRACE_LEVEL_ERROR,
+                                    DBG_PNP,
+                                    "%s MmAddPhysicalMemory failed 0x%x\n",
+                                    __FUNCTION__,
+                                    status);
+                    }
                 }
             }
         }
     }
 
-    if (memoryRanges)
+    //
+    // Release the preallocated range array and MDL on every path.
+    //
+
+    ExFreePoolWithTag(memoryRanges, VIRTIO_MEM_POOL_TAG);
+
+    if (removedMemoryMdl)
     {
-        ExFreePoolWithTag(memoryRanges, VIRTIO_MEM_POOL_TAG);
+        ExFreePool(removedMemoryMdl);
+    }
+
+    if (!success)
+    {
+        return FALSE;
     }
 
     //
     // Return status OK.
     // Removal may fail because the system may already use the memory, but
-    // this situation(for obvious reasons) is not considered an error.
+    // this situation (for obvious reasons) is not considered an error.
     //
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "%s Return TRUE\n", __FUNCTION__);
 
     return TRUE;
 }
-
 #if 0
 //
 // Function returns TRUE if a given memory range is on the list of system
