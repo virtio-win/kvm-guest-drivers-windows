@@ -2358,13 +2358,35 @@ NTSTATUS VioGpuAdapter::SetCurrentMode(ULONG Mode, CURRENT_MODE *pCurrentMode)
     {
         if (Mode == m_ModeInfo[idx].ModeIndex /*m_ModeNumbers[idx]*/)
         {
+            // Create the new framebuffer and move the scanout to it before releasing the old one, as the
+            // Linux driver does. Some hosts (Apple's Virtualization framework) refuse RESOURCE_UNREF for the
+            // resource on the scanout; releasing it first then left it alive on the host while its ID went
+            // back to the allocator, so the new resource's CREATE_2D failed and the scanout kept the old one.
+            VioGpuObj *pOldFrameBuf = NULL;
             if (pCurrentMode->Flags.FrameBufferIsActive)
             {
-                DestroyFrameBufferObj(FALSE, FALSE);
+                pOldFrameBuf = m_pFrameBuf;
+                m_pFrameBuf = NULL;
                 pCurrentMode->Flags.FrameBufferIsActive = FALSE;
             }
-            if (CreateFrameBufferObj(&m_ModeInfo[idx], pCurrentMode))
+            if (!CreateFrameBufferObj(&m_ModeInfo[idx], pCurrentMode))
             {
+                if (pOldFrameBuf != NULL)
+                {
+                    m_pFrameBuf = pOldFrameBuf;
+                    pCurrentMode->Flags.FrameBufferIsActive = TRUE;
+                }
+            }
+            else
+            {
+                if (pOldFrameBuf != NULL)
+                {
+                    UINT oldId = (UINT)pOldFrameBuf->GetId();
+                    m_CtrlQueue.DetachBacking(oldId);
+                    m_CtrlQueue.DestroyResource(oldId);
+                    delete pOldFrameBuf;
+                    m_Idr.PutId(oldId);
+                }
                 DbgPrint(TRACE_LEVEL_ERROR,
                          ("%s device %d: setting current mode %d (%d x %d)\n",
                           __FUNCTION__,
