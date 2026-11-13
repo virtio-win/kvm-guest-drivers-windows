@@ -1,3 +1,15 @@
+Date    13 Nov 2026
+repo    https://github.com/virtio-win/kvm-guest-drivers-windows.git
+tag     mm326
+
+Fixed issues:
+* [viosock] Fix use after free between VIOSockSelectWorkitem and VIOSockSelectCancel
+* RHEL-301437: netkvm: add Description() qualifiers to WMI MOF classes
+* viosock: Return the peer address of a socket whose peer has closed
+* RHEL-243268: NetKVM: validate num_buffers range in merged buffer processing
+* RHEL-251780: NetKVM: collect live-migration (announce) info and expose via WMI
+* RHEL-304141 Fix missing version in Win11 DVL files
+
 Date    26 Oct 2026
 repo    https://github.com/virtio-win/kvm-guest-drivers-windows.git
 tag     mm325
