@@ -459,6 +459,7 @@ Handles NDIS6 specific OID, all the rest handled by common handler
 static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 {
     union _tagtemp {
+        NDIS_STATISTICS_INFO Statistics;
         NDIS_LINK_SPEED LinkSpeed;
         NDIS_INTERRUPT_MODERATION_PARAMETERS InterruptModeration;
         NDIS_LINK_PARAMETERS LinkParameters;
@@ -485,8 +486,9 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
     switch (pOid->Oid)
     {
         case OID_GEN_STATISTICS:
-            pInfo = &pContext->Statistics;
-            ulSize = sizeof(pContext->Statistics);
+            u.Statistics = ParaNdis_StatisticsSnapshot(pContext->Statistics);
+            pInfo = &u.Statistics;
+            ulSize = sizeof(u.Statistics);
             break;
         case OID_GEN_SUPPORTED_GUIDS:
 #if NDIS_SUPPORT_NDIS61

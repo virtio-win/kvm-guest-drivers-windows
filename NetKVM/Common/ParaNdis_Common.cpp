@@ -557,10 +557,9 @@ Prints out statistics
 ***********************************************************/
 static void PrintStatistics(PARANDIS_ADAPTER *pContext)
 {
-    ULONG64 totalTxFrames = pContext->Statistics.ifHCOutBroadcastPkts + pContext->Statistics.ifHCOutMulticastPkts +
-                            pContext->Statistics.ifHCOutUcastPkts;
-    ULONG64 totalRxFrames = pContext->Statistics.ifHCInBroadcastPkts + pContext->Statistics.ifHCInMulticastPkts +
-                            pContext->Statistics.ifHCInUcastPkts;
+    auto Stats = ParaNdis_StatisticsSnapshot(pContext->Statistics);
+    ULONG64 totalTxFrames = Stats.ifHCOutBroadcastPkts + Stats.ifHCOutMulticastPkts + Stats.ifHCOutUcastPkts;
+    ULONG64 totalRxFrames = Stats.ifHCInBroadcastPkts + Stats.ifHCInMulticastPkts + Stats.ifHCInUcastPkts;
 
 #if 0 /* TODO - setup accessor functions*/
     DPrintf(0, "[Diag!%X] RX buffers at VIRTIO %d of %d",
@@ -568,10 +567,7 @@ static void PrintStatistics(PARANDIS_ADAPTER *pContext)
         pContext->RXPath.m_NetNofReceiveBuffers,
         pContext->NetMaxReceiveBuffers);
 #endif
-    DPrintf(0,
-            "[Diag!] Bytes transmitted %I64u, received %I64u",
-            pContext->Statistics.ifHCOutOctets,
-            pContext->Statistics.ifHCInOctets);
+    DPrintf(0, "[Diag!] Bytes transmitted %I64u, received %I64u", Stats.ifHCOutOctets, Stats.ifHCInOctets);
     DPrintf(0,
             "[Diag!] Tx frames %I64u, CSO %d, LSO %d, Min TX buffers %d, dropped Tx %d",
             totalTxFrames,
@@ -1692,22 +1688,22 @@ static VOID UpdateReceiveSuccessStatistics(PPARANDIS_ADAPTER pContext,
                                            PNET_PACKET_INFO pPacketInfo,
                                            UINT nCoalescedSegmentsCount)
 {
-    pContext->Statistics.ifHCInOctets += pPacketInfo->dataLength;
+    ParaNdis_StatAdd(pContext->Statistics.ifHCInOctets, pPacketInfo->dataLength);
 
     if (pPacketInfo->isUnicast)
     {
-        pContext->Statistics.ifHCInUcastPkts += nCoalescedSegmentsCount;
-        pContext->Statistics.ifHCInUcastOctets += pPacketInfo->dataLength;
+        ParaNdis_StatAdd(pContext->Statistics.ifHCInUcastPkts, nCoalescedSegmentsCount);
+        ParaNdis_StatAdd(pContext->Statistics.ifHCInUcastOctets, pPacketInfo->dataLength);
     }
     else if (pPacketInfo->isBroadcast)
     {
-        pContext->Statistics.ifHCInBroadcastPkts += nCoalescedSegmentsCount;
-        pContext->Statistics.ifHCInBroadcastOctets += pPacketInfo->dataLength;
+        ParaNdis_StatAdd(pContext->Statistics.ifHCInBroadcastPkts, nCoalescedSegmentsCount);
+        ParaNdis_StatAdd(pContext->Statistics.ifHCInBroadcastOctets, pPacketInfo->dataLength);
     }
     else if (pPacketInfo->isMulticast)
     {
-        pContext->Statistics.ifHCInMulticastPkts += nCoalescedSegmentsCount;
-        pContext->Statistics.ifHCInMulticastOctets += pPacketInfo->dataLength;
+        ParaNdis_StatAdd(pContext->Statistics.ifHCInMulticastPkts, nCoalescedSegmentsCount);
+        ParaNdis_StatAdd(pContext->Statistics.ifHCInMulticastOctets, pPacketInfo->dataLength);
     }
     else
     {
@@ -1717,8 +1713,8 @@ static VOID UpdateReceiveSuccessStatistics(PPARANDIS_ADAPTER pContext,
 
 static __inline VOID UpdateReceiveFailStatistics(PPARANDIS_ADAPTER pContext, UINT nCoalescedSegmentsCount)
 {
-    pContext->Statistics.ifInErrors++;
-    pContext->Statistics.ifInDiscards += nCoalescedSegmentsCount;
+    ParaNdis_StatAdd(pContext->Statistics.ifInErrors, 1);
+    ParaNdis_StatAdd(pContext->Statistics.ifInDiscards, nCoalescedSegmentsCount);
 }
 
 static BOOLEAN ProcessReceiveQueue(PARANDIS_ADAPTER *pContext,

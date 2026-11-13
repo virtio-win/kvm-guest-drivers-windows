@@ -511,7 +511,7 @@ void CParaNdisTX::NBLMappingDone(CNBL *NBLHolder)
     {
         DPrintf(0, "ERROR: one or more NBs failed to be mapped!");
         NBLHolder->SetStatus(NDIS_STATUS_FAILURE);
-        m_Context->Statistics.ifOutErrors += NBLHolder->NumberOfBuffers();
+        ParaNdis_StatAdd(m_Context->Statistics.ifOutErrors, NBLHolder->NumberOfBuffers());
         NBLHolder->UnsetInChain();
         NBLHolder->Release();
     }

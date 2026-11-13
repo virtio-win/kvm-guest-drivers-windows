@@ -350,52 +350,60 @@ NDIS_STATUS ParaNdis_OidQueryCommon(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
             pInfo = &status;
             break;
         case OID_GEN_DIRECTED_BYTES_XMIT:
-            SETINFO(ul64, pContext->Statistics.ifHCOutUcastOctets);
+            SETINFO(ul64, ParaNdis_StatRead(pContext->Statistics.ifHCOutUcastOctets));
             break;
         case OID_GEN_DIRECTED_FRAMES_XMIT:
-            SETINFO(ul64, pContext->Statistics.ifHCOutUcastPkts);
+            SETINFO(ul64, ParaNdis_StatRead(pContext->Statistics.ifHCOutUcastPkts));
             break;
         case OID_GEN_MULTICAST_BYTES_XMIT:
-            SETINFO(ul64, pContext->Statistics.ifHCOutMulticastOctets);
+            SETINFO(ul64, ParaNdis_StatRead(pContext->Statistics.ifHCOutMulticastOctets));
             break;
         case OID_GEN_MULTICAST_FRAMES_XMIT:
-            SETINFO(ul64, pContext->Statistics.ifHCOutMulticastPkts);
+            SETINFO(ul64, ParaNdis_StatRead(pContext->Statistics.ifHCOutMulticastPkts));
             break;
         case OID_GEN_BROADCAST_BYTES_XMIT:
-            SETINFO(ul64, pContext->Statistics.ifHCOutBroadcastOctets);
+            SETINFO(ul64, ParaNdis_StatRead(pContext->Statistics.ifHCOutBroadcastOctets));
             break;
         case OID_GEN_BROADCAST_FRAMES_XMIT:
-            SETINFO(ul64, pContext->Statistics.ifHCOutBroadcastPkts);
+            SETINFO(ul64, ParaNdis_StatRead(pContext->Statistics.ifHCOutBroadcastPkts));
             break;
         case OID_GEN_DIRECTED_BYTES_RCV:
-            SETINFO(ul64, pContext->Statistics.ifHCInUcastOctets);
+            SETINFO(ul64, ParaNdis_StatRead(pContext->Statistics.ifHCInUcastOctets));
             break;
         case OID_GEN_DIRECTED_FRAMES_RCV:
-            SETINFO(ul64, pContext->Statistics.ifHCInUcastPkts);
+            SETINFO(ul64, ParaNdis_StatRead(pContext->Statistics.ifHCInUcastPkts));
             break;
         case OID_GEN_MULTICAST_BYTES_RCV:
-            SETINFO(ul64, pContext->Statistics.ifHCInMulticastOctets);
+            SETINFO(ul64, ParaNdis_StatRead(pContext->Statistics.ifHCInMulticastOctets));
             break;
         case OID_GEN_MULTICAST_FRAMES_RCV:
-            SETINFO(ul64, pContext->Statistics.ifHCInMulticastPkts);
+            SETINFO(ul64, ParaNdis_StatRead(pContext->Statistics.ifHCInMulticastPkts));
             break;
         case OID_GEN_BROADCAST_BYTES_RCV:
-            SETINFO(ul64, pContext->Statistics.ifHCInBroadcastOctets);
+            SETINFO(ul64, ParaNdis_StatRead(pContext->Statistics.ifHCInBroadcastOctets));
             break;
         case OID_GEN_BROADCAST_FRAMES_RCV:
-            SETINFO(ul64, pContext->Statistics.ifHCInBroadcastPkts);
+            SETINFO(ul64, ParaNdis_StatRead(pContext->Statistics.ifHCInBroadcastPkts));
             break;
         case OID_GEN_XMIT_OK:
-            SETINFO(ul64,
-                    pContext->Statistics.ifHCOutUcastPkts + pContext->Statistics.ifHCOutMulticastPkts + pContext->Statistics.ifHCOutBroadcastPkts);
-            break;
+            {
+                ULONG64 totalFrames = ParaNdis_StatRead(pContext->Statistics.ifHCOutUcastPkts);
+                totalFrames += ParaNdis_StatRead(pContext->Statistics.ifHCOutMulticastPkts);
+                totalFrames += ParaNdis_StatRead(pContext->Statistics.ifHCOutBroadcastPkts);
+                SETINFO(ul64, totalFrames);
+                break;
+            }
         case OID_GEN_RCV_OK:
-            SETINFO(ul64,
-                    pContext->Statistics.ifHCInUcastPkts + pContext->Statistics.ifHCInMulticastPkts + pContext->Statistics.ifHCInBroadcastPkts);
-            DPrintf(4, "Total frames %I64u", u.ul64);
-            break;
+            {
+                ULONG64 totalFrames = ParaNdis_StatRead(pContext->Statistics.ifHCInUcastPkts);
+                totalFrames += ParaNdis_StatRead(pContext->Statistics.ifHCInMulticastPkts);
+                totalFrames += ParaNdis_StatRead(pContext->Statistics.ifHCInBroadcastPkts);
+                SETINFO(ul64, totalFrames);
+                DPrintf(4, "Total frames %I64u", u.ul64);
+                break;
+            }
         case OID_GEN_XMIT_ERROR:
-            SETINFO(ul64, pContext->Statistics.ifOutErrors);
+            SETINFO(ul64, ParaNdis_StatRead(pContext->Statistics.ifOutErrors));
             break;
         case OID_GEN_RCV_ERROR:
             __fallthrough;
