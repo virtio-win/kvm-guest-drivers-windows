@@ -34,11 +34,36 @@
 #include "VirtIOWdf.h"
 #include "private.h"
 
+static BOOLEAN GetPowerOfTwoAlignmentRequirement(size_t size, PULONG alignmentRequirement)
+{
+    ULONG alignment = 1;
+
+    while ((size_t)alignment < size) {
+        if (alignment > (MAXULONG >> 1)) {
+            return FALSE;
+        }
+        alignment <<= 1;
+    }
+
+    *alignmentRequirement = alignment - 1;
+    return TRUE;
+}
+
 static void *mem_alloc_contiguous_pages(void *context, size_t size)
 {
     PVIRTIO_WDF_DRIVER pWdfDriver = context;
+    ULONG alignmentRequirement;
+    WDF_COMMON_BUFFER_CONFIG config;
 
-    return VirtIOWdfDeviceAllocDmaMemory(&pWdfDriver->VIODevice, size, 0);
+    if (!pWdfDriver->AlignQueueAllocationToPowerOfTwo) {
+        return VirtIOWdfDeviceAllocDmaMemory(&pWdfDriver->VIODevice, size, 0);
+    }
+    if (!GetPowerOfTwoAlignmentRequirement(size, &alignmentRequirement)) {
+        return NULL;
+    }
+
+    WDF_COMMON_BUFFER_CONFIG_INIT(&config, alignmentRequirement);
+    return VirtIOWdfDeviceAllocDmaMemoryWithConfig(&pWdfDriver->VIODevice, size, &config, 0);
 }
 
 static void mem_free_contiguous_pages(void *context, void *virt)

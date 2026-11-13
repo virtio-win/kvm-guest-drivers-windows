@@ -38,7 +38,8 @@
 static EVT_WDF_OBJECT_CONTEXT_DESTROY OnDmaTransactionDestroy;
 static EVT_WDF_PROGRAM_DMA OnDmaTransactionProgramDma;
 
-static void *AllocateCommonBuffer(PVIRTIO_WDF_DRIVER pWdfDriver, size_t size, ULONG groupTag)
+static void *AllocateCommonBuffer(PVIRTIO_WDF_DRIVER pWdfDriver, size_t size,
+                                  PWDF_COMMON_BUFFER_CONFIG config, ULONG groupTag)
 {
     NTSTATUS status;
     WDFCOMMONBUFFER commonBuffer;
@@ -50,7 +51,12 @@ static void *AllocateCommonBuffer(PVIRTIO_WDF_DRIVER pWdfDriver, size_t size, UL
         DPrintf(0, "%s FAILED(irql)\n", __FUNCTION__);
         return NULL;
     }
-    status = WdfCommonBufferCreate(pWdfDriver->DmaEnabler, size, &attr, &commonBuffer);
+    if (config != NULL) {
+        status = WdfCommonBufferCreateWithConfig(pWdfDriver->DmaEnabler, size, config, &attr,
+                                                 &commonBuffer);
+    } else {
+        status = WdfCommonBufferCreate(pWdfDriver->DmaEnabler, size, &attr, &commonBuffer);
+    }
     if (!NT_SUCCESS(status)) {
         return NULL;
     }
@@ -79,7 +85,13 @@ static void *AllocateCommonBuffer(PVIRTIO_WDF_DRIVER pWdfDriver, size_t size, UL
 
 void *VirtIOWdfDeviceAllocDmaMemory(VirtIODevice *vdev, size_t size, ULONG groupTag)
 {
-    return AllocateCommonBuffer(vdev->DeviceContext, size, groupTag);
+    return AllocateCommonBuffer(vdev->DeviceContext, size, NULL, groupTag);
+}
+
+void *VirtIOWdfDeviceAllocDmaMemoryWithConfig(VirtIODevice *vdev, size_t size,
+                                              PWDF_COMMON_BUFFER_CONFIG config, ULONG groupTag)
+{
+    return AllocateCommonBuffer(vdev->DeviceContext, size, config, groupTag);
 }
 
 static BOOLEAN FindCommonBuffer(PVIRTIO_WDF_DRIVER pWdfDriver, void *p, PHYSICAL_ADDRESS *ppa,
@@ -255,7 +267,7 @@ PVIRTIO_DMA_MEMORY_SLICED VirtIOWdfDeviceAllocDmaMemorySliced(VirtIODevice *vdev
     }
     __analysis_assume(allocSize > sizeof(*p));
     RtlZeroMemory(p, sizeof(*p));
-    p->va = AllocateCommonBuffer(pWdfDriver, blockSize, 0);
+    p->va = AllocateCommonBuffer(pWdfDriver, blockSize, NULL, 0);
     p->pa = GetPhysicalAddress(pWdfDriver, p->va);
     if (!p->va || !p->pa.QuadPart) {
         ExFreePoolWithTag(p, pWdfDriver->MemoryTag);
