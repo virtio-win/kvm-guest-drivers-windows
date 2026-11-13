@@ -2281,6 +2281,14 @@ NTSTATUS VioGpuDod::GetRegisterInfo(void)
         SetUsePresentProgress(!!value);
     }
 
+    // Optional, off unless set: see CreateFrameBufferObj()
+    value = 0;
+    StatusOptional = ReadRegistryDWORD(DevInstRegKeyHandle, L"UseFreshResourceId", &value);
+    if (NT_SUCCESS(StatusOptional))
+    {
+        SetUseFreshResourceId(!!value);
+    }
+
     // The following keys are optional and no need to report error if them are missing
     value = 0;
     StatusOptional = ReadRegistryDWORD(DevInstRegKeyHandle, L"PersistentDispMode0Width", &value);
@@ -2339,7 +2347,7 @@ VioGpuAdapter::~VioGpuAdapter(void)
     DbgPrint(TRACE_LEVEL_FATAL, ("---> %s 0x%p\n", __FUNCTION__, this));
     CloseResolutionEvent();
     DestroyCursor();
-    DestroyFrameBufferObj(TRUE, FALSE);
+    DestroyFrameBufferObj(FALSE);
     VioGpuAdapterClose();
     HWClose();
     delete[] m_ModeInfo;
@@ -2360,7 +2368,7 @@ NTSTATUS VioGpuAdapter::SetCurrentMode(ULONG Mode, CURRENT_MODE *pCurrentMode)
         {
             if (pCurrentMode->Flags.FrameBufferIsActive)
             {
-                DestroyFrameBufferObj(FALSE, FALSE);
+                DestroyFrameBufferObj(FALSE);
                 pCurrentMode->Flags.FrameBufferIsActive = FALSE;
             }
             if (CreateFrameBufferObj(&m_ModeInfo[idx], pCurrentMode))
@@ -2483,7 +2491,7 @@ NTSTATUS VioGpuAdapter::SetPowerState(DXGK_DEVICE_INFO *pDeviceInfo,
         case PowerDeviceD2:
         case PowerDeviceD3:
             {
-                DestroyFrameBufferObj(TRUE, FALSE);
+                DestroyFrameBufferObj(FALSE);
                 VioGpuAdapterClose();
                 pCurrentMode->Flags.FrameBufferIsActive = FALSE;
                 pCurrentMode->FrameBuffer = NULL;
@@ -3653,12 +3661,12 @@ PAGED_CODE_SEG_END
 
 BOOLEAN VioGpuAdapter::ResetToVgaMode(void)
 {
-    DestroyFrameBufferObj(TRUE, TRUE);
+    DestroyFrameBufferObj(TRUE);
     VioGpuAdapterClose();
     return TRUE;
 }
 
-void VioGpuAdapter::DestroyFrameBufferObj(BOOLEAN bReset, BOOLEAN bKeepBuffer)
+void VioGpuAdapter::DestroyFrameBufferObj(BOOLEAN bKeepBuffer)
 {
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
     UINT resid = 0;
@@ -3666,12 +3674,24 @@ void VioGpuAdapter::DestroyFrameBufferObj(BOOLEAN bReset, BOOLEAN bKeepBuffer)
     if (m_pFrameBuf != NULL)
     {
         resid = (UINT)m_pFrameBuf->GetId();
+        // Disable the scanout first and wait for it: a device may refuse to destroy the resource it is
+        // scanning out (Apple's Virtualization framework does), which would leave the old framebuffer
+        // allocated on the host, and its id could not be created again.
+        NTSTATUS scanoutStatus = m_CtrlQueue.DisableScanout(0);
+        if (scanoutStatus != STATUS_SUCCESS && scanoutStatus != STATUS_PENDING)
+        {
+            // The device did not confirm that the scanout is off (STATUS_PENDING only means that nothing
+            // could be waited for, as in the bugcheck flow). It may still read the framebuffer and
+            // refuse to destroy it, so don't detach, unref or free anything: abandon the framebuffer
+            // object and its resource id, which costs that memory but keeps it valid.
+            DbgPrint(TRACE_LEVEL_ERROR,
+                     ("%s: scanout not disabled (0x%X), keeping resource %u\n", __FUNCTION__, scanoutStatus, resid));
+            m_pFrameBuf = NULL;
+            DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+            return;
+        }
         m_CtrlQueue.DetachBacking(resid);
         m_CtrlQueue.DestroyResource(resid);
-        if (bReset == TRUE)
-        {
-            m_CtrlQueue.SetScanout(0, 0, 0, 0, 0, 0);
-        }
 
         if (bKeepBuffer)
         {
@@ -3683,7 +3703,10 @@ void VioGpuAdapter::DestroyFrameBufferObj(BOOLEAN bReset, BOOLEAN bKeepBuffer)
             delete m_pFrameBuf;
         }
         m_pFrameBuf = NULL;
-        m_Idr.PutId(resid);
+        if (!m_pVioGpuDod->IsUseFreshResourceId())
+        {
+            m_Idr.PutId(resid);
+        }
     }
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
@@ -3846,11 +3869,13 @@ VOID VioGpuAdapter::DpcRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface)
                               resp->ctx_id,
                               pcmd->type));
                 }
+                // A waiter may release the buffer as soon as its event is signalled.
+                bool autoRelease = pvbuf->auto_release;
                 if (pvbuf->complete_cb != NULL)
                 {
                     pvbuf->complete_cb(pvbuf->complete_ctx);
                 }
-                if (pvbuf->auto_release)
+                if (autoRelease)
                 {
                     m_CtrlQueue.ReleaseBuffer(pvbuf);
                 }
@@ -3910,14 +3935,21 @@ BOOLEAN VioGpuAdapter::CreateFrameBufferObj(PVIDEO_MODE_INFORMATION pModeInfo, C
     format = ColorFormat(pCurrentMode->DispInfo.ColorFormat);
     DbgPrint(TRACE_LEVEL_INFORMATION,
              ("---> %s - (%d -> %d)\n", __FUNCTION__, pCurrentMode->DispInfo.ColorFormat, format));
-    resid = m_Idr.GetId();
+    // A mode change destroys the framebuffer resource and creates the next one right away. By default the id that was
+    // just released is reused, which is fine for QEMU, but Apple's Virtualization.framework then displays the new
+    // resource with the layout of the old one. UseFreshResourceId (set by the INF for that hypervisor's PCI
+    // subsystem id) makes every framebuffer get an id that was never used.
+    resid = m_pVioGpuDod->IsUseFreshResourceId() ? m_Idr.GetFreshId() : m_Idr.GetId();
     m_CtrlQueue.CreateResource(resid, format, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight);
     obj = new (NonPagedPoolNx) VioGpuObj();
     if (!obj->Init(size, &m_FrameSegment))
     {
         DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s Failed to init obj size = %d\n", __FUNCTION__, size));
         m_CtrlQueue.DestroyResource(resid);
-        m_Idr.PutId(resid);
+        if (!m_pVioGpuDod->IsUseFreshResourceId())
+        {
+            m_Idr.PutId(resid);
+        }
         delete obj;
         return FALSE;
     }
