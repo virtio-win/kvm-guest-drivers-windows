@@ -35,6 +35,60 @@
 #include "viomem.tmh"
 #endif
 
+//
+// Allocate the request and response buffers on the first D0 entry. This runs
+// after feature negotiation, so on a device that accepted the Device Memory
+// Buffer both come from the DMB. They live until release-hardware frees them
+// by tag.
+//
+static NTSTATUS ViomemAllocDmaBlocks(IN PDEVICE_CONTEXT devCtx)
+{
+    if (devCtx->plugRequest == NULL)
+    {
+        devCtx->plugRequest = (virtio_mem_req *)VirtIOWdfDeviceAllocDmaMemory(&devCtx->VDevice.VIODevice,
+                                                                              PAGE_SIZE,
+                                                                              VIRTIO_MEM_POOL_TAG);
+        if (devCtx->plugRequest == NULL)
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "Failed to allocate the request block\n");
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+    }
+
+    if (devCtx->MemoryResponse == NULL)
+    {
+        devCtx->MemoryResponse = (virtio_mem_resp *)VirtIOWdfDeviceAllocDmaMemory(&devCtx->VDevice.VIODevice,
+                                                                                  PAGE_SIZE,
+                                                                                  VIRTIO_MEM_POOL_TAG);
+        if (devCtx->MemoryResponse == NULL)
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "Failed to allocate MemoryResponse block\n");
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+    }
+
+    return STATUS_SUCCESS;
+}
+
+//
+// Take one copy of the response the device wrote and report whether it is an
+// ACK. The device can still write the response buffer, so every field is read
+// from the copy. A response shorter than the structure is refused: the buffer
+// is zeroed before each request, and a zero type reads as an ACK.
+//
+static BOOLEAN ViomemReadResponse(IN PDEVICE_CONTEXT devCtx, IN UINT len, OUT virtio_mem_resp *response)
+{
+    if (len < sizeof(*response))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "Short response from the device, len = [%u]\n", len);
+        RtlZeroMemory(response, sizeof(*response));
+        return FALSE;
+    }
+
+    RtlCopyMemory(response, devCtx->MemoryResponse, sizeof(*response));
+    return response->type == VIRTIO_MEM_RESP_ACK;
+}
+
 NTSTATUS
 ViomemInit(IN WDFOBJECT WdfDevice)
 {
@@ -107,6 +161,13 @@ ViomemInit(IN WDFOBJECT WdfDevice)
         if (NT_SUCCESS(status))
         {
             devCtx->infVirtQueue = vqs[0];
+
+            status = ViomemAllocDmaBlocks(devCtx);
+            if (!NT_SUCCESS(status))
+            {
+                VirtIOWdfSetDriverFailed(&devCtx->VDevice);
+                goto Exit;
+            }
 
             //
             // If bitmap buffer representing memory blocks is empty,
@@ -239,7 +300,8 @@ BOOLEAN SendUnplugAllRequest(IN WDFOBJECT WdfDevice)
     BOOLEAN do_notify = FALSE;
     NTSTATUS status;
     PVOID buffer;
-    UINT len;
+    UINT len = 0;
+    virtio_mem_resp response;
     INT result = 0;
     virtio_mem_config configuration;
 
@@ -326,7 +388,7 @@ BOOLEAN SendUnplugAllRequest(IN WDFOBJECT WdfDevice)
     DumpViomemResponseType(devCtx->MemoryResponse);
 #endif
 
-    if (devCtx->MemoryResponse->type == VIRTIO_MEM_RESP_ACK)
+    if (ViomemReadResponse(devCtx, len, &response))
     {
         VirtIOWdfDeviceGet(&devCtx->VDevice, 0, &configuration, sizeof(virtio_mem_config));
 
@@ -369,7 +431,8 @@ BOOLEAN SendUnPlugRequest(IN WDFOBJECT WdfDevice, __virtio64 Address, __virtio16
     BOOLEAN do_notify = FALSE;
     NTSTATUS status;
     PVOID buffer;
-    UINT len;
+    UINT len = 0;
+    virtio_mem_resp response;
     INT result = 0;
 
     //
@@ -455,7 +518,7 @@ BOOLEAN SendUnPlugRequest(IN WDFOBJECT WdfDevice, __virtio64 Address, __virtio16
 	DumpViomemResponseType(devCtx->MemoryResponse);
 #endif
 
-    if (devCtx->MemoryResponse->type == VIRTIO_MEM_RESP_ACK)
+    if (ViomemReadResponse(devCtx, len, &response))
     {
         return TRUE;
     }
@@ -480,7 +543,8 @@ BOOLEAN SendPlugRequest(IN WDFOBJECT WdfDevice, __virtio64 Address, __virtio16 N
     bool doNotify;
     NTSTATUS status;
     PVOID buffer;
-    UINT len;
+    UINT len = 0;
+    virtio_mem_resp response;
 
     PDEVICE_CONTEXT devCtx = GetDeviceContext(WdfDevice);
 
@@ -561,7 +625,7 @@ BOOLEAN SendPlugRequest(IN WDFOBJECT WdfDevice, __virtio64 Address, __virtio16 N
 	DumpViomemResponseType(devCtx->MemoryResponse);
 #endif
 
-    if (devCtx->MemoryResponse->type == VIRTIO_MEM_RESP_ACK)
+    if (ViomemReadResponse(devCtx, len, &response))
     {
         return TRUE;
     }
@@ -1437,7 +1501,8 @@ BOOLEAN SendStateRequest(IN WDFOBJECT WdfDevice, __virtio64 Address, __virtio16 
     BOOLEAN do_notify = FALSE;
     NTSTATUS status;
     PVOID buffer;
-    UINT len;
+    UINT len = 0;
+    virtio_mem_resp response;
     INT result = 0;
 
     //
@@ -1523,16 +1588,16 @@ BOOLEAN SendStateRequest(IN WDFOBJECT WdfDevice, __virtio64 Address, __virtio16 
 	DumpViomemResponseType(devCtx->MemoryResponse);
 #endif
 
-    if (devCtx->MemoryResponse->type == VIRTIO_MEM_RESP_ACK)
+    if (ViomemReadResponse(devCtx, len, &response))
     {
-        *state = devCtx->MemoryResponse->u.state.state;
+        *state = response.u.state.state;
         TraceEvents(TRACE_LEVEL_INFORMATION,
                     DBG_PNP,
                     "%s For address 0x%I64x, blocks count %hu get state %hu\n",
                     __FUNCTION__,
                     Address,
                     NumberOfBlocks,
-                    devCtx->MemoryResponse->u.state.state);
+                    response.u.state.state);
 
         return TRUE;
     }

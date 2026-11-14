@@ -204,43 +204,18 @@ ViomemEvtDevicePrepareHardware(IN WDFDEVICE Device,
         return status;
     }
 
+    /* Opt into the Device Memory Buffer. The request and response buffers
+     * are allocated in ViomemInit(), after feature negotiation, so they land
+     * in the DMB when the device accepted it. The addresses and block ranges
+     * a memory device plugs or unplugs are protocol addresses: they name
+     * guest memory the device must not reach, so they stay as the device
+     * reports them and only the request/response buffers that carry them use
+     * the DMB. */
+    VirtIOWdfDeviceDmbOptIn(&devCtx->VDevice);
+
     //
-    // Initialize memory for request, response, and bitmap.
+    // Initialize the bitmap.
     //
-
-    if (NT_SUCCESS(status))
-    {
-        devCtx->plugRequest = (virtio_mem_req *)VirtIOWdfDeviceAllocDmaMemory(&devCtx->VDevice.VIODevice,
-                                                                              PAGE_SIZE,
-                                                                              VIRTIO_MEM_POOL_TAG);
-    }
-
-    if (devCtx->plugRequest)
-    {
-        RtlZeroMemory(devCtx->plugRequest, sizeof(virtio_mem_req));
-    }
-    else
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "Failed to allocate MemStats block\n");
-        status = STATUS_INSUFFICIENT_RESOURCES;
-    }
-
-    if (NT_SUCCESS(status))
-    {
-        devCtx->MemoryResponse = (virtio_mem_resp *)VirtIOWdfDeviceAllocDmaMemory(&devCtx->VDevice.VIODevice,
-                                                                                  PAGE_SIZE,
-                                                                                  VIRTIO_MEM_POOL_TAG);
-    }
-
-    if (devCtx->MemoryResponse)
-    {
-        RtlZeroMemory(devCtx->MemoryResponse, sizeof(virtio_mem_resp));
-    }
-    else
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "Failed to allocate MemoryResponse block\n");
-        status = STATUS_INSUFFICIENT_RESOURCES;
-    }
 
     RtlZeroMemory(&devCtx->memoryBitmapHandle, sizeof(RTL_BITMAP));
     devCtx->bitmapBuffer = NULL;
@@ -271,6 +246,8 @@ ViomemEvtDeviceReleaseHardware(IN WDFDEVICE Device, IN WDFCMRESLIST ResourcesTra
     devCtx = GetDeviceContext(Device);
 
     VirtIOWdfDeviceFreeDmaMemoryByTag(&devCtx->VDevice.VIODevice, VIRTIO_MEM_POOL_TAG);
+    devCtx->plugRequest = NULL;
+    devCtx->MemoryResponse = NULL;
 
     WdfObjectReleaseLock(Device);
 
