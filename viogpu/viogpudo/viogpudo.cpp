@@ -2443,6 +2443,11 @@ NTSTATUS VioGpuAdapter::VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION *pDispInfo)
                           FIELD_OFFSET(GPU_CONFIG, num_scanouts),
                           &m_u32NumScanouts,
                           sizeof(m_u32NumScanouts));
+        /* The display info response has room for VIRTIO_GPU_MAX_SCANOUTS. */
+        if (m_u32NumScanouts > VIRTIO_GPU_MAX_SCANOUTS)
+        {
+            m_u32NumScanouts = VIRTIO_GPU_MAX_SCANOUTS;
+        }
 
         virtio_get_config(&m_VioDev, FIELD_OFFSET(GPU_CONFIG, num_capsets), &m_u32NumCapsets, sizeof(m_u32NumCapsets));
     } while (0);
