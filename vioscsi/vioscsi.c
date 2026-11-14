@@ -880,7 +880,8 @@ VOID HandleResponse(IN PVOID DeviceExtension, IN PVirtIOSCSICmd cmd)
 {
     PSRB_TYPE Srb = (PSRB_TYPE)(cmd->srb);
     PSRB_EXTENSION srbExt = SRB_EXTENSION(Srb);
-    VirtIOSCSICmdResp *resp = &cmd->resp.cmd;
+    VirtIOSCSICmdResp respCopy;
+    VirtIOSCSICmdResp *resp = &respCopy;
     UCHAR senseInfoBufferLength = 0;
     PVOID senseInfoBuffer = NULL;
     UCHAR srbStatus = SRB_STATUS_SUCCESS;
@@ -889,6 +890,14 @@ VOID HandleResponse(IN PVOID DeviceExtension, IN PVirtIOSCSICmd cmd)
     ENTER_FN();
 
     LOG_SRB_INFO();
+
+    /* The device writes the response. Work on one snapshot of it, and never
+     * trust its sense length beyond the sense field. */
+    RtlCopyMemory(&respCopy, &cmd->resp.cmd, sizeof(respCopy));
+    if (respCopy.sense_len > sizeof(respCopy.sense))
+    {
+        respCopy.sense_len = sizeof(respCopy.sense);
+    }
 
     switch (resp->response)
     {
