@@ -239,37 +239,13 @@ BalloonEvtDevicePrepareHardware(IN WDFDEVICE Device,
         return status;
     }
 
-    if (NT_SUCCESS(status))
-    {
-        devCtx->MemStats = (PBALLOON_STAT)VirtIOWdfDeviceAllocDmaMemory(&devCtx->VDevice.VIODevice,
-                                                                        PAGE_SIZE,
-                                                                        BALLOON_MGMT_POOL_TAG);
-    }
-
-    if (devCtx->MemStats)
-    {
-        RtlFillMemory(devCtx->MemStats, sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR, -1);
-    }
-    else
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "Failed to allocate MemStats block\n");
-        status = STATUS_INSUFFICIENT_RESOURCES;
-    }
-
-    /* use BALLOON_MGMT_POOL_TAG also for tagging common memory blocks */
-    if (NT_SUCCESS(status))
-    {
-        devCtx->pfns_table = (PULONG)VirtIOWdfDeviceAllocDmaMemory(&devCtx->VDevice.VIODevice,
-                                                                   PAGE_SIZE,
-                                                                   BALLOON_MGMT_POOL_TAG);
-    }
-
-    if (devCtx->pfns_table == NULL)
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "Failed to allocate PFNS_TABLE block\n");
-        status = STATUS_INSUFFICIENT_RESOURCES;
-        return status;
-    }
+    /* Opt into the Device Memory Buffer. The statistics block and the PFN
+     * table are allocated in BalloonInit(), after feature negotiation, so
+     * they land in the DMB when the device accepted it. The page frame
+     * numbers written into the PFN table stay guest addresses, because a
+     * balloon PFN is a protocol address the device must not use to reach
+     * memory. */
+    VirtIOWdfDeviceDmbOptIn(&devCtx->VDevice);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
     return status;
