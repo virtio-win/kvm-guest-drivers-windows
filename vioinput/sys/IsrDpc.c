@@ -133,7 +133,7 @@ VOID VIOInputQueuesInterruptDpc(IN WDFINTERRUPT Interrupt, IN WDFOBJECT Associat
     WDFDEVICE Device = WdfInterruptGetDevice(Interrupt);
     PINPUT_DEVICE pContext = GetDeviceContext(Device);
     PVIRTIO_INPUT_EVENT pEvent;
-    PVIRTIO_INPUT_EVENT_WITH_REQUEST pEventReq;
+    VIRTIO_INPUT_EVENT event;
     UINT len;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "--> %s\n", __FUNCTION__);
@@ -141,8 +141,15 @@ VOID VIOInputQueuesInterruptDpc(IN WDFINTERRUPT Interrupt, IN WDFOBJECT Associat
     WdfSpinLockAcquire(pContext->EventQLock);
     while ((pEvent = virtqueue_get_buf(pContext->EventQ, &len)) != NULL)
     {
-        // translate event to a HID report and complete a pending HID request
-        ProcessInputEvent(pContext, pEvent);
+        // translate event to a HID report and complete a pending HID request,
+        // but only when the device wrote a whole event: a short write would
+        // leave stale fields in the buffer. The device can still write the
+        // buffer, so work on a copy.
+        if (len >= sizeof(VIRTIO_INPUT_EVENT))
+        {
+            event = *pEvent;
+            ProcessInputEvent(pContext, &event);
+        }
 
         // add the buffer back to the queue
         VIOInputAddInBuf(pContext->EventQ,
@@ -152,16 +159,20 @@ VOID VIOInputQueuesInterruptDpc(IN WDFINTERRUPT Interrupt, IN WDFOBJECT Associat
     WdfSpinLockRelease(pContext->EventQLock);
 
     WdfSpinLockAcquire(pContext->StatusQLock);
-    while ((pEventReq = virtqueue_get_buf(pContext->StatusQ, &len)) != NULL)
+    while ((pEvent = virtqueue_get_buf(pContext->StatusQ, &len)) != NULL)
     {
+        ULONG slot = VIOInputStatusSlot(pContext, pEvent);
+        WDFREQUEST Request = pContext->StatusQRequest[slot];
+
         // complete the pending request
-        if (pEventReq->Request != NULL)
+        pContext->StatusQRequest[slot] = NULL;
+        if (Request != NULL)
         {
-            WdfRequestComplete(pEventReq->Request, STATUS_SUCCESS);
+            WdfRequestComplete(Request, STATUS_SUCCESS);
         }
 
         // free the buffer
-        pContext->StatusQMemBlock->return_slice(pContext->StatusQMemBlock, pEventReq);
+        pContext->StatusQMemBlock->return_slice(pContext->StatusQMemBlock, pEvent);
     }
     WdfSpinLockRelease(pContext->StatusQLock);
 

@@ -212,18 +212,10 @@ VIOInputEvtDevicePrepareHardware(IN WDFDEVICE Device, IN WDFCMRESLIST ResourcesR
         return status;
     }
 
-    pContext->EventQMemBlock = VirtIOWdfDeviceAllocDmaMemorySliced(&pContext->VDevice.VIODevice,
-                                                                   PAGE_SIZE,
-                                                                   sizeof(VIRTIO_INPUT_EVENT));
-    pContext->StatusQMemBlock = VirtIOWdfDeviceAllocDmaMemorySliced(&pContext->VDevice.VIODevice,
-                                                                    PAGE_SIZE,
-                                                                    sizeof(VIRTIO_INPUT_EVENT_WITH_REQUEST));
-
-    if (!pContext->EventQMemBlock || !pContext->StatusQMemBlock)
-    {
-        VIOInputFreeMemBlocks(pContext);
-        return STATUS_INSUFFICIENT_RESOURCES;
-    }
+    /* Opt into the Device Memory Buffer so vioinput works with a device that
+     * requires it. The event and status slices are allocated in D0 entry,
+     * once the DMB is negotiated, so they land inside it. */
+    VirtIOWdfDeviceDmbOptIn(&pContext->VDevice);
 
     // Figure out what kind of input device this is and build a
     // corresponding HID report descriptor.
@@ -508,6 +500,24 @@ VIOInputEvtDeviceD0Entry(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE Previous
     status = VIOInputInitAllQueues(Device);
     if (NT_SUCCESS(status))
     {
+        /* Allocate the event and status buffers now, after the DMB is
+         * negotiated, so the sliced allocator places them inside it. They
+         * are freed in D0 exit. */
+        pContext->EventQMemBlock = VirtIOWdfDeviceAllocDmaMemorySliced(&pContext->VDevice.VIODevice,
+                                                                       PAGE_SIZE,
+                                                                       sizeof(VIRTIO_INPUT_EVENT));
+        pContext->StatusQMemBlock = VirtIOWdfDeviceAllocDmaMemorySliced(&pContext->VDevice.VIODevice,
+                                                                        PAGE_SIZE,
+                                                                        sizeof(VIRTIO_INPUT_EVENT));
+        RtlZeroMemory(pContext->StatusQRequest, sizeof(pContext->StatusQRequest));
+        if (!pContext->EventQMemBlock || !pContext->StatusQMemBlock)
+        {
+            VIOInputFreeMemBlocks(pContext);
+            VIOInputShutDownAllQueues(Device);
+            VirtIOWdfSetDriverFailed(&pContext->VDevice);
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+
         VirtIOWdfSetDriverOK(&pContext->VDevice);
         VIOInputFillEventQueue(pContext);
     }
@@ -526,6 +536,7 @@ VIOInputEvtDeviceD0Exit(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE TargetSta
 {
     PINPUT_DEVICE pContext = GetDeviceContext(Device);
     PVIRTIO_INPUT_EVENT buf;
+    ULONG slot;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s TargetState: %d\n", __FUNCTION__, TargetState);
 
@@ -543,6 +554,23 @@ VIOInputEvtDeviceD0Exit(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE TargetSta
         }
     }
     VIOInputShutDownAllQueues(Device);
+
+    /* The device never returns a status buffer that was still posted, so
+     * complete its request here. */
+    for (slot = 0; slot < VIOINPUT_STATUS_SLOTS; slot++)
+    {
+        WDFREQUEST Request = pContext->StatusQRequest[slot];
+
+        pContext->StatusQRequest[slot] = NULL;
+        if (Request != NULL)
+        {
+            WdfRequestComplete(Request, STATUS_CANCELLED);
+        }
+    }
+
+    /* Free the event/status blocks here, not in release-hardware, so a later
+     * D0 entry re-allocates them after the DMB is negotiated again. */
+    VIOInputFreeMemBlocks(pContext);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "<-- %s\n", __FUNCTION__);
 
