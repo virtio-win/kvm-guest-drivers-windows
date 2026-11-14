@@ -56,6 +56,13 @@ NTSTATUS VirtRngEvtDevicePrepareHardware(IN WDFDEVICE Device,
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "VirtIOWdfInitialize failed with %x\n", status);
     }
+    else
+    {
+        /* Opt into the Device Memory Buffer, which a device can require. The
+         * only address viorng hands the device is the read buffer, which the
+         * shared layer then places in the DMB. */
+        VirtIOWdfDeviceDmbOptIn(&context->VDevice);
+    }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "<-- %!FUNC!");
 
