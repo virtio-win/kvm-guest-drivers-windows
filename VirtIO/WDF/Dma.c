@@ -402,6 +402,13 @@ void VirtIOWdfDeviceDmaRxComplete(VirtIODevice *vdev, WDFDMATRANSACTION transact
     PVIRTIO_WDF_DMA_TRANSACTION_CONTEXT ctx = GetDmaTransactionContext(transaction);
     NTSTATUS status;
     DPrintf(1, "%s %p, len %d\n", __FUNCTION__, transaction, length);
+    /* length is the used length the device reported. Never copy back more
+     * than we posted: the bounce buffer and the caller's buffer are both
+     * ctx->parameters.size bytes, so a device that over-reports would
+     * otherwise write past the end of both. */
+    if (length > ctx->parameters.size) {
+        length = ctx->parameters.size;
+    }
     WdfDmaTransactionDmaCompletedFinal(transaction, length, &status);
     if (length && ctx->buffer) {
         RtlCopyMemory(ctx->parameters.buffer, ctx->buffer, length);
