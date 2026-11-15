@@ -276,6 +276,9 @@ static VOID VirtFsReadFromQueue(PDEVICE_CONTEXT context, struct virtqueue *vq, W
                 TraceEvents(TRACE_LEVEL_ERROR, DBG_DPC, "WdfRequestRetrieveOutputBuffer failed");
             }
 #else
+            // length is the used length the device reported; never complete
+            // the request with more than its reply buffer holds.
+            length = min(length, fs_req->D2H_Params.size);
             VirtIOWdfDeviceDmaTxComplete(&context->VDevice.VIODevice, fs_req->H2D_Params.transaction);
             VirtIOWdfDeviceDmaRxComplete(&context->VDevice.VIODevice, fs_req->D2H_Params.transaction, length);
 #endif
