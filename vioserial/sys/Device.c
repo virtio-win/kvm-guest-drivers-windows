@@ -165,6 +165,27 @@ VIOSerialEvtDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
     return status;
 }
 
+/* A multiport device backs port 0 and the control channel with the first
+ * two queue pairs and every further port with one more pair. Return how
+ * many of the @nr_ports ports the device has queues for. */
+static UINT VIOSerialPortsBackedByQueues(IN PPORTS_DEVICE pContext, IN UINT nr_ports)
+{
+    VirtIODevice *vdev = &pContext->VDevice.VIODevice;
+    unsigned short num;
+    unsigned long ring, heap;
+    UINT nvqs = 0, wanted;
+
+    /* virtio PCI has at most 65535 queues */
+    nr_ports = min(nr_ports, MAXUSHORT / 2 - 1);
+    wanted = (nr_ports + 1) * 2;
+    while (nvqs < wanted && NT_SUCCESS(virtio_query_queue_allocation(vdev, nvqs, &num, &ring, &heap)))
+    {
+        nvqs++;
+    }
+
+    return nvqs >= 4 ? nvqs / 2 - 1 : 1;
+}
+
 NTSTATUS
 VIOSerialEvtDevicePrepareHardware(IN WDFDEVICE Device,
                                   IN WDFCMRESLIST ResourcesRaw,
@@ -212,6 +233,21 @@ VIOSerialEvtDevicePrepareHardware(IN WDFDEVICE Device,
                     pContext->consoleConfig.max_nr_ports);
     }
     VirtIOWdfSetDriverFeatures(&pContext->VDevice, u64GuestFeatures, 0);
+
+    /* Queues can be queried only once the features are negotiated. */
+    if (pContext->isHostMultiport)
+    {
+        nr_ports = VIOSerialPortsBackedByQueues(pContext, pContext->consoleConfig.max_nr_ports);
+        if (nr_ports < pContext->consoleConfig.max_nr_ports)
+        {
+            TraceEvents(TRACE_LEVEL_WARNING,
+                        DBG_INIT,
+                        "Device has queues for %u of %u ports\n",
+                        nr_ports,
+                        pContext->consoleConfig.max_nr_ports);
+            pContext->consoleConfig.max_nr_ports = nr_ports;
+        }
+    }
 
     if (pContext->isHostMultiport)
     {
