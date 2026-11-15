@@ -897,16 +897,16 @@ _Requires_lock_not_held_(pContext->RxLock) VOID VIOSockRxVqProcess(IN PDEVICE_CO
                 break;
             }
 
-            /* Drop short/long packets */
+            /* Drop a packet whose header does not describe exactly what the
+             * device wrote, or more than the buffer we posted for it. */
 
-            if (len < sizeof(pPkt->Header) || len > sizeof(pPkt->Header) + pPkt->Header.len)
+            if (len < sizeof(pPkt->Header) || pPkt->Header.len != len - sizeof(pPkt->Header) ||
+                pPkt->Header.len > VIRTIO_VSOCK_DEFAULT_RX_BUF_SIZE)
             {
                 TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "Short/Long packet (%d)\n", len);
                 VIOSockRxPktInsert(pContext, pPkt);
                 continue;
             }
-
-            ASSERT(pPkt->Header.len == len - sizeof(pPkt->Header));
 
             TraceEvents(TRACE_LEVEL_INFORMATION,
                         DBG_READ,
