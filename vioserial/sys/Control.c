@@ -100,7 +100,7 @@ VOID VIOSerialCtrlWorkHandler(IN WDFDEVICE Device)
     while ((buf = virtqueue_get_buf(vq, &len)))
     {
         WdfSpinLockRelease(pContext->CInVqLock);
-        buf->len = len;
+        buf->len = min(len, buf->size);
         buf->offset = 0;
         VIOSerialHandleCtrlMsg(Device, buf);
 
@@ -123,6 +123,12 @@ VOID VIOSerialHandleCtrlMsg(IN WDFDEVICE Device, IN PPORT_BUFFER buf)
     PVIOSERIAL_PORT port;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
+
+    if (buf->len - buf->offset < sizeof(VIRTIO_CONSOLE_CONTROL))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "Short control packet (%u bytes)\n", (ULONG)(buf->len - buf->offset));
+        return;
+    }
 
     cpkt = (PVIRTIO_CONSOLE_CONTROL)((ULONG_PTR)buf->va_buf + buf->offset);
 

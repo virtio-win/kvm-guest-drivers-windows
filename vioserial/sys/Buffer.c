@@ -357,7 +357,9 @@ VIOSerialGetInBuf(IN PVIOSERIAL_PORT port)
         buf = virtqueue_get_buf(vq, &len);
         if (buf)
         {
-            buf->len = len;
+            /* len is the used length the device reported: never let it
+             * claim more data than the buffer holds. */
+            buf->len = min(len, buf->size);
             buf->offset = 0;
         }
     }
