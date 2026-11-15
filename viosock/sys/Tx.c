@@ -523,6 +523,9 @@ _Requires_lock_not_held_(pContext->TxLock) static VOID VIOSockTxDequeue(PDEVICE_
                 ASSERT(status == STATUS_CANCELLED);
                 TraceEvents(TRACE_LEVEL_WARNING, DBG_WRITE, "Write request canceled\n");
                 InitializeListHead(&pTxEntry->ListEntry); // cancellation routine removes element from the list
+                // ... and drops it from TxEnqueued again
+                InterlockedIncrement(&pContext->TxEnqueued);
+                VIOSockTxPktFree(pContext, pPkt);
             }
         }
         else
