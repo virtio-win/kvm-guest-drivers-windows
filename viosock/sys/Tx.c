@@ -44,19 +44,25 @@ EVT_WDF_TIMER VIOSockTxTimerFunc;
 
 #define VIOSOCK_DMA_TX_PAGES BYTES_TO_PAGES(VIRTIO_VSOCK_MAX_PKT_BUF_SIZE)
 
-typedef struct _VIOSOCK_TX_PKT
+// The part of a Tx packet the device sees: an element of the TxPktVA array
+typedef struct _VIOSOCK_TX_DEV_PKT
 {
     VIRTIO_VSOCK_HDR Header;
-    PHYSICAL_ADDRESS PhysAddr; // packet addr
+    BYTE IndirectDescs[SIZE_OF_SINGLE_INDIRECT_DESC *
+                       (1 + (VIOSOCK_DMA_TX_PAGES + 1))]; // Header + sglist(maybe not aligned)
+} VIOSOCK_TX_DEV_PKT, *PVIOSOCK_TX_DEV_PKT;
+
+// Driver-private state of a Tx packet: an element of the TxPkts array
+typedef struct _VIOSOCK_TX_PKT
+{
+    VIRTIO_VSOCK_HDR Header; // built here, copied to DevPkt->Header when posted
+    PVIOSOCK_TX_DEV_PKT DevPkt;
+    PHYSICAL_ADDRESS DevPktPA;
     WDFDMATRANSACTION Transaction;
+    WDFREQUEST Request;
     union {
-        BYTE IndirectDescs[SIZE_OF_SINGLE_INDIRECT_DESC *
-                           (1 + (VIOSOCK_DMA_TX_PAGES + 1))]; // Header + sglist(maybe not aligned)
-        struct
-        {
-            LIST_ENTRY ListEntry;
-            WDFREQUEST Request;
-        };
+        LIST_ENTRY ListEntry;
+        SINGLE_LIST_ENTRY FreeListEntry;
     };
 } VIOSOCK_TX_PKT, *PVIOSOCK_TX_PKT;
 
@@ -98,15 +104,17 @@ _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxDequeue(PDEVICE_CONTEXT
 _Requires_lock_held_(pContext->TxLock) static PVIOSOCK_TX_PKT VIOSockTxPktAlloc(IN PDEVICE_CONTEXT pContext,
                                                                                 IN PVIOSOCK_TX_ENTRY pTxEntry)
 {
-    PHYSICAL_ADDRESS PA;
-    PVIOSOCK_TX_PKT pPkt;
+    PSINGLE_LIST_ENTRY pEntry;
+    PVIOSOCK_TX_PKT pPkt = NULL;
 
-    ASSERT(pContext->TxPktSliced);
-    pPkt = pContext->TxPktSliced->get_slice(pContext->TxPktSliced, &PA);
-    if (pPkt)
+    ASSERT(pContext->TxPkts);
+    pEntry = PopEntryList(&pContext->TxPktFree);
+    if (pEntry)
     {
-        pPkt->PhysAddr = PA;
+        pPkt = CONTAINING_RECORD(pEntry, VIOSOCK_TX_PKT, FreeListEntry);
+        RtlZeroMemory(&pPkt->Header, sizeof(pPkt->Header));
         pPkt->Transaction = WDF_NO_HANDLE;
+        pPkt->Request = WDF_NO_HANDLE;
         if (pTxEntry->Socket != WDF_NO_HANDLE)
         {
             VIOSockRxIncTxPkt(GetSocketContext(pTxEntry->Socket), &pPkt->Header);
@@ -127,7 +135,7 @@ _Requires_lock_held_(pContext->TxLock) static PVIOSOCK_TX_PKT VIOSockTxPktAlloc(
 _Requires_lock_held_(pContext->TxLock) __inline VOID VIOSockTxPktFree(IN PDEVICE_CONTEXT pContext,
                                                                       IN PVIOSOCK_TX_PKT pPkt)
 {
-    pContext->TxPktSliced->return_slice(pContext->TxPktSliced, pPkt);
+    PushEntryList(&pContext->TxPktFree, &pPkt->FreeListEntry);
     InterlockedDecrement(&pContext->TxPktAllocated);
 }
 
@@ -149,15 +157,12 @@ _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxVqCleanup(IN PDEVICE_CO
     {
         if (pPkt->Transaction != WDF_NO_HANDLE)
         {
-            pPkt->Request = WdfDmaTransactionGetRequest(pPkt->Transaction);
-
             // postpone to complete transaction
             InsertTailList(&CompletionList, &pPkt->ListEntry);
         }
         else
         {
             // just free packet
-            pPkt->Request = WDF_NO_HANDLE;
             VIOSockTxPktFree(pContext, pPkt);
         }
     }
@@ -175,12 +180,18 @@ _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxVqCleanup(IN PDEVICE_CO
         }
     };
 
-    if (pContext->TxPktSliced)
+    if (pContext->TxPktVA)
     {
-        pContext->TxPktSliced->destroy(pContext->TxPktSliced);
-        pContext->TxPktSliced = NULL;
-        pContext->TxPktNum = 0;
+        VirtIOWdfDeviceFreeDmaMemory(&pContext->VDevice.VIODevice, pContext->TxPktVA);
+        pContext->TxPktVA = NULL;
     }
+    if (pContext->TxPkts)
+    {
+        ExFreePoolWithTag(pContext->TxPkts, VIOSOCK_DRIVER_MEMORY_TAG);
+        pContext->TxPkts = NULL;
+    }
+    pContext->TxPktFree.Next = NULL;
+    pContext->TxPktNum = 0;
     pContext->TxVq = NULL;
 }
 
@@ -195,26 +206,39 @@ VIOSockTxVqInit(IN PDEVICE_CONTEXT pContext)
 
     uNumEntries = (USHORT)virtio_get_queue_size(pContext->TxVq);
 
-    uBufferSize = sizeof(VIOSOCK_TX_PKT) * uNumEntries;
+    uBufferSize = sizeof(VIOSOCK_TX_DEV_PKT) * uNumEntries;
 
     TraceEvents(TRACE_LEVEL_INFORMATION,
                 DBG_HW_ACCESS,
-                "Allocating sliced buffer of %u bytes for %u Tx packets\n",
+                "Allocating common buffer of %u bytes for %u Tx packets\n",
                 uBufferSize,
                 uNumEntries);
 
-    pContext->TxPktSliced = VirtIOWdfDeviceAllocDmaMemorySliced(&pContext->VDevice.VIODevice,
-                                                                uBufferSize,
-                                                                sizeof(VIOSOCK_TX_PKT));
+    pContext->TxPktFree.Next = NULL;
+    pContext->TxPktVA = VirtIOWdfDeviceAllocDmaMemory(&pContext->VDevice.VIODevice,
+                                                      uBufferSize,
+                                                      VIOSOCK_DRIVER_MEMORY_TAG);
+    pContext->TxPkts = ExAllocatePoolZero(NonPagedPoolNx,
+                                          sizeof(VIOSOCK_TX_PKT) * uNumEntries,
+                                          VIOSOCK_DRIVER_MEMORY_TAG);
 
-    ASSERT(pContext->TxPktSliced);
-    if (!pContext->TxPktSliced)
+    ASSERT(pContext->TxPktVA && pContext->TxPkts);
+    if (!pContext->TxPktVA || !pContext->TxPkts)
     {
-        TraceEvents(TRACE_LEVEL_ERROR,
-                    DBG_HW_ACCESS,
-                    "VirtIOWdfDeviceAllocDmaMemorySliced(%u bytes for TxPackets) failed\n",
-                    uBufferSize);
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "Allocation of %u Tx packets failed\n", uNumEntries);
         status = STATUS_INSUFFICIENT_RESOURCES;
+    }
+    else
+    {
+        PHYSICAL_ADDRESS PA = VirtIOWdfDeviceGetPhysicalAddress(&pContext->VDevice.VIODevice, pContext->TxPktVA);
+        ULONG i;
+
+        for (i = uNumEntries; i-- > 0;)
+        {
+            pContext->TxPkts[i].DevPkt = &((PVIOSOCK_TX_DEV_PKT)pContext->TxPktVA)[i];
+            pContext->TxPkts[i].DevPktPA.QuadPart = PA.QuadPart + i * sizeof(VIOSOCK_TX_DEV_PKT);
+            PushEntryList(&pContext->TxPktFree, &pContext->TxPkts[i].FreeListEntry);
+        }
     }
 
     pContext->TxPktNum = uNumEntries;
@@ -240,11 +264,13 @@ _Requires_lock_held_(pContext->TxLock) static BOOLEAN VIOSockTxPktInsert(IN PDEV
     {
         ASSERT(pParams->transaction);
         pPkt->Transaction = pParams->transaction;
+        pPkt->Request = pParams->req;
         SgList = pParams->sgList;
     }
 
+    RtlCopyMemory(&pPkt->DevPkt->Header, &pPkt->Header, sizeof(pPkt->Header));
     sg[0].length = sizeof(VIRTIO_VSOCK_HDR);
-    sg[0].physAddr.QuadPart = pPkt->PhysAddr.QuadPart + FIELD_OFFSET(VIOSOCK_TX_PKT, Header);
+    sg[0].physAddr.QuadPart = pPkt->DevPktPA.QuadPart + FIELD_OFFSET(VIOSOCK_TX_DEV_PKT, Header);
 
     if (SgList)
     {
@@ -275,8 +301,8 @@ _Requires_lock_held_(pContext->TxLock) static BOOLEAN VIOSockTxPktInsert(IN PDEV
 
     if (uElements > 1)
     {
-        va_indirect = &pPkt->IndirectDescs;
-        phys_indirect = pPkt->PhysAddr.QuadPart + FIELD_OFFSET(VIOSOCK_TX_PKT, IndirectDescs);
+        va_indirect = &pPkt->DevPkt->IndirectDescs;
+        phys_indirect = pPkt->DevPktPA.QuadPart + FIELD_OFFSET(VIOSOCK_TX_DEV_PKT, IndirectDescs);
     }
 
     TraceEvents(TRACE_LEVEL_INFORMATION,
@@ -335,15 +361,12 @@ _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxVqProcess(IN PDEVICE_CO
 
             if (pPkt->Transaction != WDF_NO_HANDLE)
             {
-                pPkt->Request = WdfDmaTransactionGetRequest(pPkt->Transaction);
-
                 // postpone to complete transaction
                 InsertTailList(&CompletionList, &pPkt->ListEntry);
             }
             else
             {
                 // just free packet
-                pPkt->Request = WDF_NO_HANDLE;
                 VIOSockTxPktFree(pContext, pPkt);
             }
         }

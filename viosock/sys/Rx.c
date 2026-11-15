@@ -61,12 +61,21 @@ typedef struct _VIOSOCK_RX_CB
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIOSOCK_RX_CB, GetRequestRxCb);
 
-typedef struct _VIOSOCK_RX_PKT
+// The part of an Rx packet the device sees: an element of the RxPktVA array
+typedef struct _VIOSOCK_RX_DEV_PKT
 {
     VIRTIO_VSOCK_HDR Header;
-    PVIOSOCK_RX_CB Buffer; // Chained buffer
+    BYTE IndirectDescs[SIZE_OF_SINGLE_INDIRECT_DESC * (1 + VIOSOCK_DMA_RX_PAGES)]; // Header + buffer
+} VIOSOCK_RX_DEV_PKT, *PVIOSOCK_RX_DEV_PKT;
+
+// Driver-private state of an Rx packet: an element of the RxPkts array
+typedef struct _VIOSOCK_RX_PKT
+{
+    VIRTIO_VSOCK_HDR Header; // copy of DevPkt->Header, taken once the device returns the packet
+    PVIOSOCK_RX_CB Buffer;   // Chained buffer
+    PVIOSOCK_RX_DEV_PKT DevPkt;
+    PHYSICAL_ADDRESS DevPktPA;
     union {
-        BYTE IndirectDescs[SIZE_OF_SINGLE_INDIRECT_DESC * (1 + VIOSOCK_DMA_RX_PAGES)]; // Header + buffer
         SINGLE_LIST_ENTRY RxPktListEntry;
         LIST_ENTRY CompletionListEntry;
     };
@@ -338,15 +347,11 @@ __inline VOID VIOSockRxPktCleanup(IN PDEVICE_CONTEXT pContext, IN PVIOSOCK_RX_PK
 
 C_ASSERT((VIOSOCK_DMA_RX_PAGES + 1) == 2);
 
-#define VIOSOCK_PKT_PA_FROM_VA(ctx, pva)                                                                               \
-    (((ctx)->RxPktPA.QuadPart) + (ULONGLONG)((PCHAR)(pva) - (PCHAR)((ctx)->RxPktVA)))
-
 _Requires_lock_held_(pContext->RxLock) static BOOLEAN VIOSockRxPktInsert(IN PDEVICE_CONTEXT pContext,
                                                                          IN PVIOSOCK_RX_PKT pPkt)
 {
     BOOLEAN bRes = TRUE;
     VIOSOCK_SG_DESC sg[VIOSOCK_DMA_RX_PAGES + 1];
-    PHYSICAL_ADDRESS pPKtPA;
     int ret;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
@@ -363,10 +368,8 @@ _Requires_lock_held_(pContext->RxLock) static BOOLEAN VIOSockRxPktInsert(IN PDEV
 
     ASSERT(pPkt->Buffer->Request == WDF_NO_HANDLE);
 
-    pPKtPA.QuadPart = VIOSOCK_PKT_PA_FROM_VA(pContext, pPkt);
-
     sg[0].length = sizeof(VIRTIO_VSOCK_HDR);
-    sg[0].physAddr.QuadPart = pPKtPA.QuadPart + FIELD_OFFSET(VIOSOCK_RX_PKT, Header);
+    sg[0].physAddr.QuadPart = pPkt->DevPktPA.QuadPart + FIELD_OFFSET(VIOSOCK_RX_DEV_PKT, Header);
 
     sg[1].length = VIRTIO_VSOCK_DEFAULT_RX_BUF_SIZE;
     sg[1].physAddr.QuadPart = pPkt->Buffer->BufferPA.QuadPart;
@@ -376,8 +379,8 @@ _Requires_lock_held_(pContext->RxLock) static BOOLEAN VIOSockRxPktInsert(IN PDEV
                             0,
                             2,
                             pPkt,
-                            &pPkt->IndirectDescs,
-                            pPKtPA.QuadPart + FIELD_OFFSET(VIOSOCK_RX_PKT, IndirectDescs));
+                            &pPkt->DevPkt->IndirectDescs,
+                            pPkt->DevPktPA.QuadPart + FIELD_OFFSET(VIOSOCK_RX_DEV_PKT, IndirectDescs));
 
     ASSERT(ret >= 0);
     if (ret < 0)
@@ -491,6 +494,12 @@ _Requires_lock_not_held_(pContext->RxLock) VOID VIOSockRxVqCleanup(IN PDEVICE_CO
         pContext->RxPktVA = NULL;
     }
 
+    if (pContext->RxPkts)
+    {
+        ExFreePoolWithTag(pContext->RxPkts, VIOSOCK_DRIVER_MEMORY_TAG);
+        pContext->RxPkts = NULL;
+    }
+
     pContext->RxVq = NULL;
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "<-- %s\n", __FUNCTION__);
 }
@@ -510,7 +519,7 @@ VIOSockRxVqInit(IN PDEVICE_CONTEXT pContext)
 
     pContext->RxPktNum = uNumEntries;
 
-    uBufferSize = sizeof(VIOSOCK_RX_PKT) * uNumEntries;
+    uBufferSize = sizeof(VIOSOCK_RX_DEV_PKT) * uNumEntries;
 
     TraceEvents(TRACE_LEVEL_INFORMATION,
                 DBG_HW_ACCESS,
@@ -518,12 +527,15 @@ VIOSockRxVqInit(IN PDEVICE_CONTEXT pContext)
                 uBufferSize,
                 uNumEntries);
 
-    pContext->RxPktVA = (PVIOSOCK_RX_PKT)VirtIOWdfDeviceAllocDmaMemory(&pContext->VDevice.VIODevice,
-                                                                       uBufferSize,
-                                                                       VIOSOCK_DRIVER_MEMORY_TAG);
+    pContext->RxPktVA = VirtIOWdfDeviceAllocDmaMemory(&pContext->VDevice.VIODevice,
+                                                      uBufferSize,
+                                                      VIOSOCK_DRIVER_MEMORY_TAG);
+    pContext->RxPkts = ExAllocatePoolZero(NonPagedPoolNx,
+                                          sizeof(VIOSOCK_RX_PKT) * uNumEntries,
+                                          VIOSOCK_DRIVER_MEMORY_TAG);
 
-    ASSERT(pContext->RxPktVA);
-    if (!pContext->RxPktVA)
+    ASSERT(pContext->RxPktVA && pContext->RxPkts);
+    if (!pContext->RxPktVA || !pContext->RxPkts)
     {
         TraceEvents(TRACE_LEVEL_ERROR,
                     DBG_HW_ACCESS,
@@ -534,15 +546,21 @@ VIOSockRxVqInit(IN PDEVICE_CONTEXT pContext)
     else if (VIOSockRxCbInit(pContext))
     {
         ULONG i;
-        PVIOSOCK_RX_PKT RxPktVA = (PVIOSOCK_RX_PKT)pContext->RxPktVA;
+        PVIOSOCK_RX_DEV_PKT RxPktVA = (PVIOSOCK_RX_DEV_PKT)pContext->RxPktVA;
 
         pContext->RxPktPA = VirtIOWdfDeviceGetPhysicalAddress(&pContext->VDevice.VIODevice, pContext->RxPktVA);
         ASSERT(pContext->RxPktPA.QuadPart);
 
+        for (i = 0; i < uNumEntries; i++)
+        {
+            pContext->RxPkts[i].DevPkt = &RxPktVA[i];
+            pContext->RxPkts[i].DevPktPA.QuadPart = pContext->RxPktPA.QuadPart + i * sizeof(VIOSOCK_RX_DEV_PKT);
+        }
+
         // fill queue, no lock
         for (i = 0; i < uNumEntries; i++)
         {
-            if (!VIOSockRxPktInsert(pContext, &RxPktVA[i]))
+            if (!VIOSockRxPktInsert(pContext, &pContext->RxPkts[i]))
             {
                 TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "VIOSockRxPktInsert[%u] failed\n", i);
                 status = STATUS_UNSUCCESSFUL;
@@ -896,6 +914,10 @@ _Requires_lock_not_held_(pContext->RxLock) VOID VIOSockRxVqProcess(IN PDEVICE_CO
             {
                 break;
             }
+
+            // Take the header out of device-visible memory once; everything
+            // below works on this copy.
+            RtlCopyMemory(&pPkt->Header, &pPkt->DevPkt->Header, sizeof(pPkt->Header));
 
             /* Drop a packet whose header does not describe exactly what the
              * device wrote, or more than the buffer we posted for it. */
