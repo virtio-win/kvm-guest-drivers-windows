@@ -34,29 +34,8 @@ VIOSerialInterruptIsr(IN WDFINTERRUPT Interrupt, IN ULONG MessageID)
     return serviced;
 }
 
-VOID VIOSerialInterruptDpc(IN WDFINTERRUPT Interrupt, IN WDFOBJECT AssociatedObject)
-{
-    WDFDEVICE Device = WdfInterruptGetDevice(Interrupt);
-    PPORTS_DEVICE Context = GetPortsDevice(Device);
-    WDF_INTERRUPT_INFO info;
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "--> %s\n", __FUNCTION__);
-
-    VIOSerialCtrlWorkHandler(Device);
-
-    WDF_INTERRUPT_INFO_INIT(&info);
-    WdfInterruptGetInfo(Context->QueuesInterrupt, &info);
-
-    // Using the queues' DPC if only one interrupt is available.
-    if (info.Vector == 0)
-    {
-        VIOSerialQueuesInterruptDpc(Interrupt, AssociatedObject);
-    }
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "<-- %s\n", __FUNCTION__);
-}
-
-VOID VIOSerialQueuesInterruptDpc(IN WDFINTERRUPT Interrupt, IN WDFOBJECT AssociatedObject)
+// Process the input and output queues of every port.
+static VOID VIOSerialServicePorts(IN WDFDEVICE BusDevice)
 {
     NTSTATUS status;
     WDFCHILDLIST PortList;
@@ -66,11 +45,7 @@ VOID VIOSerialQueuesInterruptDpc(IN WDFINTERRUPT Interrupt, IN WDFOBJECT Associa
     VIOSERIAL_PORT VirtPort;
     VIOSERIAL_PORT *Port;
 
-    UNREFERENCED_PARAMETER(AssociatedObject);
-
-    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "--> %s\n", __FUNCTION__);
-
-    PortList = WdfFdoGetDefaultChildList(WdfInterruptGetDevice(Interrupt));
+    PortList = WdfFdoGetDefaultChildList(BusDevice);
     WDF_CHILD_LIST_ITERATOR_INIT(&iterator, WdfRetrievePresentChildren);
 
     WdfChildListBeginIteration(PortList, &iterator);
@@ -95,6 +70,49 @@ VOID VIOSerialQueuesInterruptDpc(IN WDFINTERRUPT Interrupt, IN WDFOBJECT Associa
         VIOSerialReclaimConsumedBuffers(Port);
     }
     WdfChildListEndIteration(PortList, &iterator);
+}
+
+// A completion can arrive on either of our messages, not only on the one we
+// assigned to its queue. So both DPCs look at the port queues, and both make
+// sure that the control DPC, which handles control messages in order, runs
+// when the control receive queue has work.
+VOID VIOSerialInterruptDpc(IN WDFINTERRUPT Interrupt, IN WDFOBJECT AssociatedObject)
+{
+    WDFDEVICE Device = WdfInterruptGetDevice(Interrupt);
+
+    UNREFERENCED_PARAMETER(AssociatedObject);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "--> %s\n", __FUNCTION__);
+
+    VIOSerialCtrlWorkHandler(Device);
+    VIOSerialServicePorts(Device);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "<-- %s\n", __FUNCTION__);
+}
+
+VOID VIOSerialQueuesInterruptDpc(IN WDFINTERRUPT Interrupt, IN WDFOBJECT AssociatedObject)
+{
+    WDFDEVICE Device = WdfInterruptGetDevice(Interrupt);
+    PPORTS_DEVICE Context = GetPortsDevice(Device);
+    BOOLEAN control_work = FALSE;
+
+    UNREFERENCED_PARAMETER(AssociatedObject);
+
+    TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "--> %s\n", __FUNCTION__);
+
+    VIOSerialServicePorts(Device);
+
+    if (Context->c_ivq)
+    {
+        WdfSpinLockAcquire(Context->CInVqLock);
+        control_work = virtqueue_has_buf(Context->c_ivq);
+        WdfSpinLockRelease(Context->CInVqLock);
+    }
+
+    if (control_work)
+    {
+        WdfInterruptQueueDpcForIsr(Context->WdfInterrupt);
+    }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "<-- %s\n", __FUNCTION__);
 }
