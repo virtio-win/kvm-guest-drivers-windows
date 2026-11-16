@@ -1321,6 +1321,39 @@ BOOLEAN VirtioMemRemovePhysicalMemory(IN WDFOBJECT Device, virtio_mem_config *Co
     return TRUE;
 }
 
+//
+// Function removes every plugged block from the system and unplugs it.
+// The caller holds PlugLock. Returns TRUE if nothing is plugged afterwards.
+//
+
+BOOLEAN ViomemRemoveAllPhysicalMemory(IN WDFOBJECT Device)
+{
+    PDEVICE_CONTEXT devCtx = GetDeviceContext(Device);
+    virtio_mem_config configuration = {0};
+    ULONG before;
+    ULONG after;
+
+    VirtIOWdfDeviceGet(&devCtx->VDevice, 0, &configuration, sizeof(configuration));
+
+    after = RtlNumberOfSetBits(&devCtx->memoryBitmapHandle);
+    while (after != 0 && configuration.block_size != 0)
+    {
+        before = after;
+        configuration.plugged_size = (__u64)before * configuration.block_size;
+        configuration.requested_size = 0;
+
+        VirtioMemRemovePhysicalMemory(Device, &configuration);
+
+        after = RtlNumberOfSetBits(&devCtx->memoryBitmapHandle);
+        if (after == before)
+        {
+            break;
+        }
+    }
+
+    return after == 0;
+}
+
 #if 0
 //
 // Function returns TRUE if a given memory range is on the list of system
@@ -1855,6 +1888,8 @@ VOID ViomemWorkerThread(IN PVOID pContext)
                 //	     based on memory configuration (requested size and plugged size fields).
                 //
 
+                WdfWaitLockAcquire(devCtx->PlugLock, NULL);
+
                 VirtIOWdfDeviceGet(&devCtx->VDevice, 0, &configReqest, sizeof(configReqest));
 
                 TraceEvents(TRACE_LEVEL_INFORMATION,
@@ -1885,6 +1920,7 @@ VOID ViomemWorkerThread(IN PVOID pContext)
                             // Synchronization failed so quit this thread.
                             //
                             TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "Failed to SynchronizeDeviceAndDriverMemory...\n");
+                            WdfWaitLockRelease(devCtx->PlugLock);
                             break;
                         }
                     }
@@ -1905,10 +1941,14 @@ VOID ViomemWorkerThread(IN PVOID pContext)
                 if (configReqest.requested_size > configReqest.plugged_size)
                 {
                     //
-                    // Try to add memory to the system.
+                    // Try to add memory to the system, unless hibernation is
+                    // pending. Then we plug once the system is back in S0.
                     //
 
-                    VirtioMemAddPhysicalMemory(Device, &configReqest);
+                    if (!devCtx->HibernateAccepted)
+                    {
+                        VirtioMemAddPhysicalMemory(Device, &configReqest);
+                    }
                 }
                 else if (configReqest.requested_size < configReqest.plugged_size)
                 {
@@ -1918,6 +1958,8 @@ VOID ViomemWorkerThread(IN PVOID pContext)
 
                     VirtioMemRemovePhysicalMemory(Device, &configReqest);
                 }
+
+                WdfWaitLockRelease(devCtx->PlugLock);
             }
         }
     }
