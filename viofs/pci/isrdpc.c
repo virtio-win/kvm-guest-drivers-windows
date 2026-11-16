@@ -317,9 +317,6 @@ static VOID VirtFsReadFromQueue(PDEVICE_CONTEXT context, struct virtqueue *vq, W
 VOID VirtFsEvtInterruptDpc(IN WDFINTERRUPT Interrupt, IN WDFOBJECT AssociatedObject)
 {
     PDEVICE_CONTEXT context;
-    WDF_INTERRUPT_INFO info;
-    struct virtqueue *vq = NULL;
-    WDFSPINLOCK vq_lock = NULL;
     ULONG i;
 
     UNREFERENCED_PARAMETER(AssociatedObject);
@@ -328,28 +325,12 @@ VOID VirtFsEvtInterruptDpc(IN WDFINTERRUPT Interrupt, IN WDFOBJECT AssociatedObj
 
     context = GetDeviceContext(WdfInterruptGetDevice(Interrupt));
 
-    WDF_INTERRUPT_INFO_INIT(&info);
-    WdfInterruptGetInfo(Interrupt, &info);
-
-    if ((info.MessageSignaled == TRUE) && (info.MessageNumber < VQ_TYPE_MAX))
+    // A completion can arrive on any of our messages, not only on the one we
+    // assigned to its queue, so drain every queue. Each queue has its own
+    // lock, and a request comes off the ring exactly once.
+    for (i = 0; i < context->NumQueues; i++)
     {
-        vq = context->VirtQueues[info.MessageNumber];
-        vq_lock = context->VirtQueueLocks[info.MessageNumber];
-    }
-
-    if (vq != NULL)
-    {
-        VirtFsReadFromQueue(context, vq, vq_lock);
-    }
-    else
-    {
-        for (i = 0; i < context->NumQueues; i++)
-        {
-            vq = context->VirtQueues[i];
-            vq_lock = context->VirtQueueLocks[i];
-
-            VirtFsReadFromQueue(context, vq, vq_lock);
-        }
+        VirtFsReadFromQueue(context, context->VirtQueues[i], context->VirtQueueLocks[i]);
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_DPC, "<-- %!FUNC!");
