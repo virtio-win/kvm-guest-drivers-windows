@@ -82,6 +82,7 @@ DmaWriteCallback(PVIRTIO_DMA_TRANSACTION_PARAMS params)
     PWRITE_BUFFER_ENTRY Entry = params->param2;
     struct virtqueue *vq = GetOutQueue(Port);
     struct VirtIOBufferDescriptor sg[QUEUE_DESCRIPTORS];
+    WDFREQUEST cancelled = NULL;
     int prepared = 0, ret;
     ULONG i = 0;
     if (!params->sgList || params->sgList->NumberOfElements > QUEUE_DESCRIPTORS)
@@ -103,6 +104,14 @@ DmaWriteCallback(PVIRTIO_DMA_TRANSACTION_PARAMS params)
         prepared = virtqueue_kick_prepare(vq);
         PushEntryList(&Port->WriteBuffersList, &Entry->ListEntry);
         Entry->dmaTransaction = params->transaction;
+
+        // The device reads a copy of the data, so the writer can cancel the
+        // request while the device holds the buffer.
+        if (WdfRequestMarkCancelableEx(Entry->Request, VIOSerialPortWriteRequestCancel) == STATUS_CANCELLED)
+        {
+            cancelled = Entry->Request;
+            Entry->Request = NULL;
+        }
     }
     else
     {
@@ -118,6 +127,11 @@ DmaWriteCallback(PVIRTIO_DMA_TRANSACTION_PARAMS params)
     {
         // notify can run without the lock held
         virtqueue_notify(vq);
+    }
+
+    if (cancelled != NULL)
+    {
+        WdfRequestComplete(cancelled, STATUS_CANCELLED);
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s ok\n", __FUNCTION__);
@@ -233,6 +247,12 @@ BOOLEAN VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
 
                 if (buffer == entry)
                 {
+                    // the cancel routine completes a cancelled request
+                    if (entry->Request != NULL && WdfRequestUnmarkCancelable(entry->Request) == STATUS_CANCELLED)
+                    {
+                        entry->Request = NULL;
+                    }
+
                     // remove from WriteBuffersList
                     iter->Next = entry->ListEntry.Next;
 
