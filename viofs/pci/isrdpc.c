@@ -228,8 +228,6 @@ static VOID VirtFsReadFromQueue(PDEVICE_CONTEXT context, struct virtqueue *vq, W
                 if (status2 == STATUS_CANCELLED)
                 {
                     fs_req->Request = NULL;
-                    VirtIOWdfDeviceDmaTxComplete(&context->VDevice.VIODevice, fs_req->H2D_Params.transaction);
-                    VirtIOWdfDeviceDmaRxComplete(&context->VDevice.VIODevice, fs_req->D2H_Params.transaction, 0);
                 }
             }
             else if (WdfRequestIsCanceled(fs_req->Request))
@@ -281,6 +279,8 @@ static VOID VirtFsReadFromQueue(PDEVICE_CONTEXT context, struct virtqueue *vq, W
             length = min(length, fs_req->D2H_Params.size);
             VirtIOWdfDeviceDmaTxComplete(&context->VDevice.VIODevice, fs_req->H2D_Params.transaction);
             VirtIOWdfDeviceDmaRxComplete(&context->VDevice.VIODevice, fs_req->D2H_Params.transaction, length);
+            fs_req->H2D_Params.transaction = NULL;
+            fs_req->D2H_Params.transaction = NULL;
 #endif
 
             TraceEvents(TRACE_LEVEL_VERBOSE,
@@ -296,6 +296,19 @@ static VOID VirtFsReadFromQueue(PDEVICE_CONTEXT context, struct virtqueue *vq, W
             }
             WdfRequestCompleteWithInformation(fs_req->Request, status, (ULONG_PTR)length);
         }
+
+#if VIRT_FS_DMAR
+        // A request that was cancelled or purged while the device held it
+        // still owns both transfers.
+        if (fs_req->H2D_Params.transaction)
+        {
+            VirtIOWdfDeviceDmaTxComplete(&context->VDevice.VIODevice, fs_req->H2D_Params.transaction);
+        }
+        if (fs_req->D2H_Params.transaction)
+        {
+            VirtIOWdfDeviceDmaRxComplete(&context->VDevice.VIODevice, fs_req->D2H_Params.transaction, 0);
+        }
+#endif
 
         FreeVirtFsRequest(fs_req);
     }
