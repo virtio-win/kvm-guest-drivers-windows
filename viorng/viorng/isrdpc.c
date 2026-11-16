@@ -117,6 +117,10 @@ VOID VirtRngEvtInterruptDpc(IN WDFINTERRUPT Interrupt, IN WDFOBJECT AssociatedOb
             break;
         }
 
+        // length is the used length the device reported. Never copy more
+        // than we posted out of the shared buffer.
+        length = min(length, entry->Length);
+
         TraceEvents(TRACE_LEVEL_VERBOSE,
                     DBG_READ,
                     "Got %p Request: %p Buffer: %p",

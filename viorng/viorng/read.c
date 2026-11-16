@@ -55,6 +55,7 @@ static NTSTATUS VirtQueueAddBuffer(IN PDEVICE_CONTEXT Context, IN WDFREQUEST Req
     length = min(Length, PAGE_SIZE);
 
     entry->Request = Request;
+    entry->Length = (unsigned)length;
 
     sg.physAddr = Context->SingleBufferPA;
     sg.length = (unsigned)length;

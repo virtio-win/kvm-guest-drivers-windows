@@ -51,6 +51,8 @@ typedef struct _ReadBufferEntry
 {
     SINGLE_LIST_ENTRY ListEntry;
     WDFREQUEST Request;
+    // Length of the buffer posted for this request.
+    unsigned int Length;
 } READ_BUFFER_ENTRY, *PREAD_BUFFER_ENTRY;
 
 typedef struct _DEVICE_CONTEXT
