@@ -40,6 +40,7 @@
 #include "virtio_ring.h"
 #include "virtio_pci_common.h"
 #include "windows\virtio_ring_allocation.h"
+#include "VirtIODmb.h"
 #include <stddef.h>
 
 #ifdef WPP_EVENT_TRACING
@@ -247,6 +248,54 @@ static size_t vring_pci_size(u16 num, bool packed)
     return (size_t)ROUND_TO_PAGES(vring_size(num, SMP_CACHE_BYTES, packed));
 }
 
+/* The address programmed into the device for a ring that the driver owns. In
+ * DMB mode the ring lives in the DMB and the device takes a byte offset into
+ * it; otherwise the device takes the guest physical address. */
+static u64 vio_modern_queue_addr(VirtIODevice *vdev, void *va)
+{
+    u64 offset;
+
+    if (virtio_dmb_is_active(vdev)) {
+        if (virtio_dmb_va_to_offset(vdev, va, 1, &offset)) {
+            return offset;
+        }
+        /* The ring was allocated from the DMB, so this cannot happen. */
+        ASSERT(!"ring address is outside the DMB");
+    }
+    return mem_get_physical_address(vdev, va);
+}
+
+/* Allocate the ring pages for a queue, from the DMB when it is active. */
+static void *vio_modern_alloc_queue(VirtIODevice *vdev, size_t size)
+{
+    if (virtio_dmb_is_active(vdev)) {
+        u64 offset;
+        void *va = virtio_dmb_alloc(vdev, size, &offset);
+        if (va != NULL) {
+            RtlZeroMemory(va, size);
+        }
+        return va;
+    }
+    return mem_alloc_contiguous_pages(vdev, size);
+}
+
+/* Free the ring pages of a queue to wherever they came from. */
+static void vio_modern_free_queue(VirtIODevice *vdev, VirtIOQueueInfo *info)
+{
+    size_t size;
+
+    if (info->queue == NULL) {
+        return;
+    }
+    size = vring_pci_size(info->num, vdev->packed_ring);
+    if (virtio_dmb_contains(vdev, info->queue, size)) {
+        virtio_dmb_free(vdev, info->queue, size);
+    } else {
+        mem_free_contiguous_pages(vdev, info->queue);
+    }
+    info->queue = NULL;
+}
+
 static NTSTATUS vio_modern_query_vq_alloc(VirtIODevice *vdev, unsigned index,
                                           unsigned short *pNumEntries, unsigned long *pRingSize,
                                           unsigned long *pHeapSize)
@@ -301,9 +350,30 @@ static NTSTATUS vio_modern_setup_vq(struct virtqueue **queue, VirtIODevice *vdev
     /* get offset of notification word for this vq */
     off = ioread16(vdev, &cfg->queue_notify_off);
 
+    /* A device that offers VIRTIO_F_DMB can only reach its DMB. If the DMB
+     * is not active (the driver did not opt in, or negotiation failed and
+     * the driver went on), a ring in guest RAM would be unusable to the
+     * device, so refuse it here for every driver. */
+    if (virtio_dmb_is_required(vdev) && !virtio_dmb_is_active(vdev)) {
+        DPrintf(0, "virtio DMB: refusing queue %u, the device requires an inactive DMB\n", index);
+        return STATUS_NOT_SUPPORTED;
+    }
+    /* Only the split ring keeps all of its bookkeeping out of device-writable
+     * memory, so the DMB negotiation never accepts the packed ring. */
+    if (virtio_dmb_is_active(vdev) && vdev->packed_ring) {
+        ASSERT(!"packed ring with VIRTIO_F_DMB");
+        return STATUS_NOT_SUPPORTED;
+    }
+    /* The bitmap of a driver that deferred it is allocated with its first
+     * ring; every later call finds it in place. */
+    status = virtio_dmb_attach(vdev);
+    if (!NT_SUCCESS(status)) {
+        return status;
+    }
+
     /* try to allocate contiguous pages, scale down on failure */
     while (!(info->queue =
-                 mem_alloc_contiguous_pages(vdev, vring_pci_size(info->num, vdev->packed_ring)))) {
+                 vio_modern_alloc_queue(vdev, vring_pci_size(info->num, vdev->packed_ring)))) {
         if (info->num > 1) {
             info->num /= 2;
         } else {
@@ -313,7 +383,7 @@ static NTSTATUS vio_modern_setup_vq(struct virtqueue **queue, VirtIODevice *vdev
 
     vq_addr = mem_alloc_nonpaged_block(vdev, heap_size);
     if (vq_addr == NULL) {
-        mem_free_contiguous_pages(vdev, info->queue);
+        vio_modern_free_queue(vdev, info);
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
@@ -333,11 +403,11 @@ static NTSTATUS vio_modern_setup_vq(struct virtqueue **queue, VirtIODevice *vdev
 
     /* activate the queue */
     iowrite16(vdev, info->num, &cfg->queue_size);
-    iowrite64_twopart(vdev, mem_get_physical_address(vdev, info->queue), &cfg->queue_desc_lo,
+    iowrite64_twopart(vdev, vio_modern_queue_addr(vdev, info->queue), &cfg->queue_desc_lo,
                       &cfg->queue_desc_hi);
-    iowrite64_twopart(vdev, mem_get_physical_address(vdev, vq->avail_va), &cfg->queue_avail_lo,
+    iowrite64_twopart(vdev, vio_modern_queue_addr(vdev, vq->avail_va), &cfg->queue_avail_lo,
                       &cfg->queue_avail_hi);
-    iowrite64_twopart(vdev, mem_get_physical_address(vdev, vq->used_va), &cfg->queue_used_lo,
+    iowrite64_twopart(vdev, vio_modern_queue_addr(vdev, vq->used_va), &cfg->queue_used_lo,
                       &cfg->queue_used_hi);
 
     if (vdev->notify_base) {
@@ -380,7 +450,7 @@ err_map_notify:
     virtqueue_shutdown(vq);
 err_new_queue:
     mem_free_nonpaged_block(vdev, vq_addr);
-    mem_free_contiguous_pages(vdev, info->queue);
+    vio_modern_free_queue(vdev, info);
     return status;
 }
 
@@ -400,7 +470,7 @@ static void vio_modern_del_vq(VirtIOQueueInfo *info)
     virtqueue_shutdown(vq);
 
     mem_free_nonpaged_block(vdev, vq);
-    mem_free_contiguous_pages(vdev, info->queue);
+    vio_modern_free_queue(vdev, info);
 }
 
 static const struct virtio_device_ops virtio_pci_device_ops = {
@@ -500,6 +570,130 @@ static void find_pci_vendor_capabilities(VirtIODevice *vdev, int *Offsets, size_
     }
 }
 
+/* True if the device presents any shared memory capability (cfg_type 8). */
+static bool has_shm_capability(VirtIODevice *vdev)
+{
+    u8 offset = find_first_pci_vendor_capability(vdev);
+
+    while (offset > 0) {
+        u8 cfg_type = 0;
+
+        pci_read_config_byte(vdev, offset + offsetof(struct virtio_pci_cap, cfg_type), &cfg_type);
+        if (cfg_type == VIRTIO_PCI_CAP_SHARED_MEMORY_CFG) {
+            return true;
+        }
+        offset =
+            find_next_pci_vendor_capability(vdev, offset + offsetof(PCI_CAPABILITIES_HEADER, Next));
+    }
+    return false;
+}
+
+/* Find the shared memory capability (cfg_type 8) whose id is shm_id, the
+ * shmid the device reports in dmb_shm_id, and record its location as the
+ * Device Memory Buffer. Other shared memory regions can share the BAR, so
+ * match on the id. Only the first matching capability is used. */
+static void find_dmb_capability(VirtIODevice *vdev, u8 shm_id)
+{
+    u8 offset = find_first_pci_vendor_capability(vdev);
+    bool found = false;
+
+    while (offset > 0) {
+        u8 cfg_type = 0, bar = 0, id = 0;
+        u32 offset_lo = 0, offset_hi = 0, length_lo = 0, length_hi = 0;
+
+        pci_read_config_byte(vdev, offset + offsetof(struct virtio_pci_cap, cfg_type), &cfg_type);
+        if (cfg_type == VIRTIO_PCI_CAP_SHARED_MEMORY_CFG) {
+            pci_read_config_byte(vdev, offset + offsetof(struct virtio_pci_cap, bar), &bar);
+            pci_read_config_byte(vdev, offset + offsetof(struct virtio_pci_cap, padding), &id);
+            if (id == shm_id && found) {
+                DPrintf(0, "virtio DMB: ignoring a second DMB capability at 0x%x\n", offset);
+            } else if (id == shm_id && bar < PCI_TYPE0_ADDRESSES &&
+                       pci_get_resource_len(vdev, bar) > 0) {
+                pci_read_config_dword(vdev, offset + offsetof(struct virtio_pci_cap, offset),
+                                      &offset_lo);
+                pci_read_config_dword(vdev, offset + offsetof(struct virtio_pci_cap, length),
+                                      &length_lo);
+                pci_read_config_dword(vdev, offset + offsetof(struct virtio_pci_cap64, offset_hi),
+                                      &offset_hi);
+                pci_read_config_dword(vdev, offset + offsetof(struct virtio_pci_cap64, length_hi),
+                                      &length_hi);
+                virtio_dmb_set_location(vdev, bar, ((u64)offset_hi << 32) | offset_lo,
+                                        ((u64)length_hi << 32) | length_lo);
+                found = true;
+            }
+        }
+        offset =
+            find_next_pci_vendor_capability(vdev, offset + offsetof(PCI_CAPABILITIES_HEADER, Next));
+    }
+}
+
+/* True if the region that the capability at cap_offset maps overlaps
+ * [start, start + len) of the given BAR. */
+static bool cap_overlaps_range(VirtIODevice *vdev, int cap_offset, u8 bar, u64 start, u64 len)
+{
+    u8 cap_bar = 0;
+    u32 cap_start = 0, cap_len = 0;
+
+    if (cap_offset == 0) {
+        return false;
+    }
+    pci_read_config_byte(vdev, cap_offset + offsetof(struct virtio_pci_cap, bar), &cap_bar);
+    if (cap_bar != bar) {
+        return false;
+    }
+    pci_read_config_dword(vdev, cap_offset + offsetof(struct virtio_pci_cap, offset), &cap_start);
+    pci_read_config_dword(vdev, cap_offset + offsetof(struct virtio_pci_cap, length), &cap_len);
+    if (len > ~0ULL - start) {
+        return true;
+    }
+    return (u64)cap_start < start + len && start < (u64)cap_start + cap_len;
+}
+
+/* The DMB must not alias the device's register blocks: the guest writes ring
+ * memory and bounce data there. Decline a region that overlaps one. */
+static void check_dmb_overlap(VirtIODevice *vdev, int *capabilities)
+{
+    static const int types[] = { VIRTIO_PCI_CAP_COMMON_CFG, VIRTIO_PCI_CAP_NOTIFY_CFG,
+                                 VIRTIO_PCI_CAP_ISR_CFG, VIRTIO_PCI_CAP_DEVICE_CFG };
+    size_t i;
+
+    if (vdev->dmb.size == 0) {
+        return;
+    }
+    for (i = 0; i < ARRAYSIZE(types); i++) {
+        if (cap_overlaps_range(vdev, capabilities[types[i]], vdev->dmb.bar, vdev->dmb.bar_offset,
+                               vdev->dmb.size)) {
+            DPrintf(0, "virtio DMB: region overlaps capability type %d, declined\n", types[i]);
+            virtio_dmb_set_location(vdev, 0, 0, 0);
+            return;
+        }
+    }
+}
+
+/* Locate the Device Memory Buffer of a device that offers VIRTIO_F_DMB: read
+ * its shmid from dmb_shm_id, once, and find the shared memory capability with
+ * that id. The common configuration must be mapped and the device ops set. */
+static void find_dmb_region(VirtIODevice *vdev, int *capabilities)
+{
+    u16 shm_id;
+
+    if (!virtio_is_feature_enabled(vdev->device->get_features(vdev), VIRTIO_F_DMB)) {
+        return;
+    }
+    if (!vdev->dmb.cfg_reachable) {
+        DPrintf(0, "virtio DMB: common configuration too short for the DMB fields\n");
+        return;
+    }
+    shm_id = ioread16(vdev, (volatile u8 *)vdev->common + VIRTIO_PCI_COMMON_CFG_DMB_SHM_ID);
+    /* The id field of a PCI shared memory capability is 8 bits wide. */
+    if (shm_id > 0xff) {
+        DPrintf(0, "virtio DMB: dmb_shm_id 0x%x does not fit a capability id\n", shm_id);
+        return;
+    }
+    find_dmb_capability(vdev, (u8)shm_id);
+    check_dmb_overlap(vdev, capabilities);
+}
+
 /* Modern device initialization */
 NTSTATUS vio_modern_initialize(VirtIODevice *vdev)
 {
@@ -507,12 +701,22 @@ NTSTATUS vio_modern_initialize(VirtIODevice *vdev)
 
     u32 notify_length;
     u32 notify_offset;
+    size_t common_len;
+    bool has_shm;
 
     RtlZeroMemory(capabilities, sizeof(capabilities));
     find_pci_vendor_capabilities(vdev, capabilities, VIRTIO_PCI_CAP_PCI_CFG);
+    has_shm = has_shm_capability(vdev);
 
     /* Check for a common config, if not found use legacy mode */
     if (!capabilities[VIRTIO_PCI_CAP_COMMON_CFG]) {
+        if (has_shm) {
+            /* Shared memory regions, the DMB among them, exist only on modern
+             * devices. The legacy interface cannot negotiate the DMB. */
+            DPrintf(0, "%s(%p): shared memory device without a common config\n", __FUNCTION__,
+                    vdev);
+            return STATUS_INVALID_PARAMETER;
+        }
         DPrintf(0, "%s(%p): device not found\n", __FUNCTION__, vdev);
         return STATUS_DEVICE_NOT_CONNECTED;
     }
@@ -525,9 +729,25 @@ NTSTATUS vio_modern_initialize(VirtIODevice *vdev)
         return STATUS_INVALID_PARAMETER;
     }
 
+    /* A device with a DMB serves its shmid and memory type behind the common
+     * configuration. Map that far only when the capability covers the
+     * fields; otherwise map the standard size and decline the DMB. */
+    common_len = sizeof(struct virtio_pci_common_cfg);
+    if (has_shm) {
+        u32 cap_len = 0;
+
+        pci_read_config_dword(
+            vdev, capabilities[VIRTIO_PCI_CAP_COMMON_CFG] + offsetof(struct virtio_pci_cap, length),
+            &cap_len);
+        if (cap_len >= VIRTIO_PCI_COMMON_CFG_DMB_MEM_TYPE + sizeof(u16)) {
+            common_len = max(common_len, VIRTIO_PCI_COMMON_CFG_DMB_MEM_TYPE + sizeof(u16));
+            vdev->dmb.cfg_reachable = true;
+        }
+    }
+
     /* Map bars according to the capabilities */
     vdev->common = vio_modern_map_simple_capability(vdev, capabilities[VIRTIO_PCI_CAP_COMMON_CFG],
-                                                    sizeof(struct virtio_pci_common_cfg), 4);
+                                                    common_len, 4);
     if (!vdev->common) {
         return STATUS_INVALID_PARAMETER;
     }
@@ -577,6 +797,14 @@ NTSTATUS vio_modern_initialize(VirtIODevice *vdev)
     }
 
     vdev->device = &virtio_pci_device_ops;
+
+    /* Locate, validate and map the Device Memory Buffer, if the device has
+     * one. Must run after vdev->device is set (it reads the device features)
+     * and after the common config is mapped (it reads dmb_shm_id and
+     * dmb_mem_type).
+     */
+    find_dmb_region(vdev, capabilities);
+    virtio_dmb_map(vdev);
 
     return STATUS_SUCCESS;
 }

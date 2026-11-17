@@ -253,6 +253,12 @@ virtqueue_add_buf_split(struct virtqueue *_vq,   /* the queue */
     unsigned int i;
     u16 idx;
 
+    /* Under VIRTIO_F_DMB the indirect table would hold guest addresses the
+     * device cannot reach; the negotiation drops indirect descriptors. */
+    if (_vq->vdev->dmb.active) {
+        va_indirect = NULL;
+    }
+
     if (va_indirect && (out + in) > 1 && vq->num_unused > 0) {
         /* Use one indirect descriptor */
         struct vring_desc *desc = (struct vring_desc *)va_indirect;

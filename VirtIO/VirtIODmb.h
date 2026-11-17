@@ -40,6 +40,60 @@
  * an ISR. */
 #define VIRTIO_DMB_MAX_SIZE (64ULL << 20)
 
+/* Called by a DMB-aware driver after virtio_device_initialize() and before
+ * virtio_set_features(), on every initialization: the driver keeps every
+ * device address inside the DMB when the device requires it. Without this
+ * call, a device that offers VIRTIO_F_DMB fails feature negotiation, because
+ * the driver would hand it guest physical addresses it cannot reach. */
+static __inline void virtio_dmb_opt_in(VirtIODevice *vdev)
+{
+    vdev->dmb.driver_capable = true;
+}
+
+/* Called by virtio_set_features() before the features are written: decides
+ * whether VIRTIO_F_DMB is accepted and adjusts *features to suit (adds
+ * VIRTIO_F_DMB and VIRTIO_F_ACCESS_PLATFORM, drops the packed ring and
+ * indirect descriptors). Fails when the device offers the DMB and the driver
+ * did not opt in, the region is unusable, or the outcome differs from an
+ * earlier negotiation since virtio_device_initialize(). */
+NTSTATUS virtio_dmb_negotiate(VirtIODevice *vdev, u64 *features);
+
+/* Called by a DMB-aware driver whose mem_alloc_nonpaged_block cannot allocate
+ * at feature negotiation, such as a StorPort miniport whose pool is set up
+ * and reset in HwInitialize, after that negotiation. The bitmap is then
+ * allocated at the first queue setup instead of when the device accepts the
+ * features, and the driver allocates nothing from the DMB before its first
+ * queue. Call it with virtio_dmb_opt_in(). */
+static __inline void virtio_dmb_defer_bitmap(VirtIODevice *vdev)
+{
+    vdev->dmb.defer_bitmap = true;
+}
+
+/* True when the device offers VIRTIO_F_DMB, so it cannot be driven without
+ * the DMB. */
+bool virtio_dmb_is_required(VirtIODevice *vdev);
+
+/* Called by virtio_set_features() once the device has accepted @features.
+ * Allocates the bitmap unless the driver deferred it. */
+NTSTATUS virtio_dmb_features_accepted(VirtIODevice *vdev, u64 features);
+
+/* The DMB mode a driver sized itself for: whether the DMB is active, and its
+ * size. The driver keeps it outside VirtIODevice, which every
+ * virtio_device_initialize() clears, and zeroes it once, before the first
+ * negotiation. */
+typedef struct virtio_dmb_mode {
+    bool fixed;
+    bool active;
+    u64 size;
+} VirtIODmbMode;
+
+/* Called by a DMB-aware driver after every feature negotiation. The first
+ * call records the mode in @mode; a later call fails when the mode differs,
+ * because the driver sized its transfers, pools or buffers from the first.
+ * Every call fails when the device requires the DMB and it is not active.
+ * On failure the device is marked FAILED. */
+NTSTATUS virtio_dmb_check_mode(VirtIODevice *vdev, VirtIODmbMode *mode);
+
 /* Called by the transport during device initialization. */
 
 /* Record the region a shared memory capability describes, before the BAR is

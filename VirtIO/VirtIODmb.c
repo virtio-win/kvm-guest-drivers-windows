@@ -167,6 +167,87 @@ void virtio_dmb_map(VirtIODevice *vdev)
             dmb->bar, dmb->bar_offset, dmb->num_pages);
 }
 
+bool virtio_dmb_is_required(VirtIODevice *vdev)
+{
+    return virtio_is_feature_enabled(vdev->device->get_features(vdev), VIRTIO_F_DMB);
+}
+
+NTSTATUS virtio_dmb_negotiate(VirtIODevice *vdev, u64 *features)
+{
+    VirtIODmb *dmb = &vdev->dmb;
+    u64 device_features = vdev->device->get_features(vdev);
+
+    if (!virtio_is_feature_enabled(device_features, VIRTIO_F_DMB)) {
+        virtio_feature_disable(*features, VIRTIO_F_DMB);
+        if (dmb->negotiated && dmb->active) {
+            DPrintf(0, "virtio DMB: device no longer offers VIRTIO_F_DMB\n");
+            return STATUS_DEVICE_CONFIGURATION_ERROR;
+        }
+        return STATUS_SUCCESS;
+    }
+
+    if (!dmb->driver_capable) {
+        DPrintf(0, "virtio DMB: the device requires the Device Memory Buffer (VIRTIO_F_DMB); "
+                   "this driver is not DMB-aware\n");
+        return STATUS_NOT_SUPPORTED;
+    }
+    if (!virtio_is_feature_enabled(*features, VIRTIO_F_VERSION_1)) {
+        DPrintf(0, "virtio DMB: VIRTIO_F_DMB needs VIRTIO_F_VERSION_1\n");
+        return STATUS_NOT_SUPPORTED;
+    }
+    if (!dmb->present) {
+        DPrintf(0, "virtio DMB: the device offers VIRTIO_F_DMB but its region is unusable\n");
+        return STATUS_DEVICE_CONFIGURATION_ERROR;
+    }
+    if (dmb->negotiated && !dmb->active) {
+        DPrintf(0, "virtio DMB: device offers VIRTIO_F_DMB after a negotiation without it\n");
+        return STATUS_DEVICE_CONFIGURATION_ERROR;
+    }
+
+    virtio_feature_enable(*features, VIRTIO_F_DMB);
+    if (virtio_is_feature_enabled(device_features, VIRTIO_F_ACCESS_PLATFORM)) {
+        virtio_feature_enable(*features, VIRTIO_F_ACCESS_PLATFORM);
+    }
+    /* The packed ring and indirect tables would put driver bookkeeping or
+     * guest addresses where the device can reach them. */
+    virtio_feature_disable(*features, VIRTIO_F_RING_PACKED);
+    virtio_feature_disable(*features, VIRTIO_RING_F_INDIRECT_DESC);
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS virtio_dmb_features_accepted(VirtIODevice *vdev, u64 features)
+{
+    vdev->dmb.active = vdev->dmb.present && virtio_is_feature_enabled(features, VIRTIO_F_DMB);
+    vdev->dmb.negotiated = true;
+    if (!vdev->dmb.active) {
+        return STATUS_SUCCESS;
+    }
+    DPrintf(0, "virtio DMB: VIRTIO_F_DMB accepted, features 0x%llx\n", features);
+    return vdev->dmb.defer_bitmap ? STATUS_SUCCESS : virtio_dmb_attach(vdev);
+}
+
+NTSTATUS virtio_dmb_check_mode(VirtIODevice *vdev, VirtIODmbMode *mode)
+{
+    bool active = virtio_dmb_is_active(vdev);
+    u64 size = active ? vdev->dmb.size : 0;
+
+    if (!active && virtio_dmb_is_required(vdev)) {
+        DPrintf(0, "virtio DMB: the device requires a DMB that is not active\n");
+    } else if (!mode->fixed) {
+        mode->fixed = true;
+        mode->active = active;
+        mode->size = size;
+        return STATUS_SUCCESS;
+    } else if (mode->active == active && mode->size == size) {
+        return STATUS_SUCCESS;
+    } else {
+        DPrintf(0, "virtio DMB: mode changed: active %u -> %u, %llu -> %llu bytes\n", mode->active,
+                active, mode->size, size);
+    }
+    virtio_add_status(vdev, VIRTIO_CONFIG_S_FAILED);
+    return STATUS_DEVICE_CONFIGURATION_ERROR;
+}
+
 NTSTATUS virtio_dmb_attach(VirtIODevice *vdev)
 {
     VirtIODmb *dmb = &vdev->dmb;
