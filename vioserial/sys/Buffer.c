@@ -414,6 +414,17 @@ BOOLEAN VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
                 virtqueue_notify(vq);
             }
         }
+        else if (entry->PendingBatches.Next != NULL)
+        {
+            while (entry->PendingBatches.Next != NULL)
+            {
+                PSINGLE_LIST_ENTRY pe = PopEntryList(&entry->PendingBatches);
+                PWRITE_DMA_CHUNK c = CONTAINING_RECORD(pe, WRITE_DMA_CHUNK, PendingEntry);
+                ExFreePoolWithTag(c, VIOSERIAL_DRIVER_MEMORY_TAG);
+                InterlockedDecrement(&entry->PendingChunks);
+            }
+            entry->Failed = TRUE;
+        }
 
         /* Decrement for this reclaimed batch regardless of whether another was queued.
          * If a next batch was submitted it contributes its own PendingChunks count;
