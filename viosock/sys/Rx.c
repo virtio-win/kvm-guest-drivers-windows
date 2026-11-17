@@ -374,13 +374,21 @@ _Requires_lock_held_(pContext->RxLock) static BOOLEAN VIOSockRxPktInsert(IN PDEV
     sg[1].length = VIRTIO_VSOCK_DEFAULT_RX_BUF_SIZE;
     sg[1].physAddr.QuadPart = pPkt->Buffer->BufferPA.QuadPart;
 
-    ret = virtqueue_add_buf(pContext->RxVq,
-                            sg,
-                            0,
-                            2,
-                            pPkt,
-                            &pPkt->DevPkt->IndirectDescs,
-                            pPkt->DevPktPA.QuadPart + FIELD_OFFSET(VIOSOCK_RX_DEV_PKT, IndirectDescs));
+    if (VirtIOWdfDeviceDmbActive(&pContext->VDevice))
+    {
+        // no indirect table in the DMB
+        ret = virtqueue_add_buf(pContext->RxVq, sg, 0, 2, pPkt, NULL, 0);
+    }
+    else
+    {
+        ret = virtqueue_add_buf(pContext->RxVq,
+                                sg,
+                                0,
+                                2,
+                                pPkt,
+                                &pPkt->DevPkt->IndirectDescs,
+                                pPkt->DevPktPA.QuadPart + FIELD_OFFSET(VIOSOCK_RX_DEV_PKT, IndirectDescs));
+    }
 
     ASSERT(ret >= 0);
     if (ret < 0)
@@ -509,7 +517,7 @@ VIOSockRxVqInit(IN PDEVICE_CONTEXT pContext)
 {
     NTSTATUS status = STATUS_SUCCESS;
     USHORT uNumEntries;
-    ULONG uBufferSize;
+    ULONG uBufferSize, uStride;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_HW_ACCESS, "--> %s\n", __FUNCTION__);
 
@@ -517,9 +525,19 @@ VIOSockRxVqInit(IN PDEVICE_CONTEXT pContext)
 
     uNumEntries = (USHORT)virtio_get_queue_size(pContext->RxVq);
 
+    // Without indirect descriptors a packet takes two ring descriptors, its
+    // header and its buffer, so only half as many packets fit the ring.
+    if (VirtIOWdfDeviceDmbActive(&pContext->VDevice))
+    {
+        uNumEntries /= 2;
+    }
+
     pContext->RxPktNum = uNumEntries;
 
-    uBufferSize = sizeof(VIOSOCK_RX_DEV_PKT) * uNumEntries;
+    // The DMB rules out indirect descriptors, so a packet there needs room
+    // for its header only.
+    uStride = VirtIOWdfDeviceDmbActive(&pContext->VDevice) ? sizeof(VIRTIO_VSOCK_HDR) : sizeof(VIOSOCK_RX_DEV_PKT);
+    uBufferSize = uStride * uNumEntries;
 
     TraceEvents(TRACE_LEVEL_INFORMATION,
                 DBG_HW_ACCESS,
@@ -546,15 +564,14 @@ VIOSockRxVqInit(IN PDEVICE_CONTEXT pContext)
     else if (VIOSockRxCbInit(pContext))
     {
         ULONG i;
-        PVIOSOCK_RX_DEV_PKT RxPktVA = (PVIOSOCK_RX_DEV_PKT)pContext->RxPktVA;
 
         pContext->RxPktPA = VirtIOWdfDeviceGetPhysicalAddress(&pContext->VDevice.VIODevice, pContext->RxPktVA);
         ASSERT(pContext->RxPktPA.QuadPart);
 
         for (i = 0; i < uNumEntries; i++)
         {
-            pContext->RxPkts[i].DevPkt = &RxPktVA[i];
-            pContext->RxPkts[i].DevPktPA.QuadPart = pContext->RxPktPA.QuadPart + i * sizeof(VIOSOCK_RX_DEV_PKT);
+            pContext->RxPkts[i].DevPkt = (PVIOSOCK_RX_DEV_PKT)((PCHAR)pContext->RxPktVA + i * uStride);
+            pContext->RxPkts[i].DevPktPA.QuadPart = pContext->RxPktPA.QuadPart + i * uStride;
         }
 
         // fill queue, no lock

@@ -418,6 +418,11 @@ static NTSTATUS VIOSockEvtDevicePrepareHardware(IN WDFDEVICE Device,
         return status;
     }
 
+    // Opt into the Device Memory Buffer so viosock works with a device that
+    // requires it. The packet arrays and Rx buffers are allocated in D0
+    // entry, after the DMB is negotiated, and Tx payloads are bounced there.
+    VirtIOWdfDeviceDmbOptIn(&pContext->VDevice);
+
     u64HostFeatures = VirtIOWdfGetDeviceFeatures(&pContext->VDevice);
 
     if (virtio_is_feature_enabled(u64HostFeatures, VIRTIO_RING_F_INDIRECT_DESC))
