@@ -148,6 +148,29 @@ RhelGetSectors(IN PVOID DeviceExtension, IN PCDB Cdb);
 BOOLEAN
 RhelGetSerialNumber(IN PVOID DeviceExtension, IN PSRB_TYPE Srb);
 
+/* Device Memory Buffer request bouncing. */
+
+/* Bounce this request through one DMB run as [out_hdr][payload][status],
+ * build srbExt->sg[] with DMB offsets (one payload descriptor per size_max
+ * bytes) and set srbExt->out / ->in. A device-read payload (payloadToDevice)
+ * is copied in now; a device-written payload is copied out to @payloadVa at
+ * completion. @payloadVa may be NULL / @payloadLen 0 for a request with no
+ * data (flush). VIRTIO_DMB_FULL: retry later; VIRTIO_DMB_TOO_BIG: fail. */
+virtio_dmb_map_result VioStorDmbMapRequest(IN PVOID DeviceExtension,
+                                           IN PSRB_EXTENSION srbExt,
+                                           IN PVOID payloadVa,
+                                           IN ULONG payloadLen,
+                                           IN BOOLEAN payloadToDevice);
+
+/* Free the DMB run of a request that will not be completed by the device.
+ * A no-op if the request holds no run. */
+VOID VioStorDmbRelease(IN PVOID DeviceExtension, IN PSRB_EXTENSION srbExt);
+
+/* Finish a bounced request: copy the status byte back, copy out a
+ * device-written payload, and free the DMB run. A request without a run
+ * completes with VIRTIO_BLK_S_IOERR. */
+VOID VioStorDmbCompleteRequest(IN PVOID DeviceExtension, IN PSRB_EXTENSION srbExt);
+
 VOID RhelGetDiskGeometry(IN PVOID DeviceExtension);
 
 VOID VioStorCompleteRequest(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOOLEAN bIsr);

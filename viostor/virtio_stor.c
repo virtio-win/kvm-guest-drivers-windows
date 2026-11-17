@@ -31,6 +31,7 @@
  */
 #include "virtio_stor.h"
 #include "virtio_stor_hw_helper.h"
+#include "VirtIODmb.h"
 #if defined(EVENT_TRACING)
 #include "virtio_stor.tmh"
 #endif
@@ -231,7 +232,15 @@ static ULONG InitVirtIODevice(PVOID DeviceExtension)
 
     status = virtio_device_initialize(&adaptExt->vdev, &VioStorSystemOps, adaptExt, adaptExt->msix_enabled);
 
-    if (!NT_SUCCESS(status))
+    if (NT_SUCCESS(status))
+    {
+        /* viostor bounces every request through the DMB when the device
+         * requires one, so it may accept VIRTIO_F_DMB. Its pool only exists
+         * from HwInitialize on, where the queues are set up. */
+        virtio_dmb_opt_in(&adaptExt->vdev);
+        virtio_dmb_defer_bitmap(&adaptExt->vdev);
+    }
+    else
     {
         LogError(adaptExt, SP_INTERNAL_ADAPTER_ERROR, __LINE__);
         RhelDbgPrint(TRACE_LEVEL_FATAL, " Failed to initialize virtio device, error %x\n", status);
@@ -411,6 +420,22 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
     RhelGetDiskGeometry(DeviceExtension);
     RhelSetGuestFeatures(DeviceExtension);
 
+    /* VIRTIO_F_DMB is negotiated by the transport inside RhelSetGuestFeatures
+     * when the device offers it and has a usable DMB. In that case every
+     * request is bounced through the DMB. A device that requires the DMB is
+     * not driven without it. */
+    if (!NT_SUCCESS(virtio_dmb_check_mode(&adaptExt->vdev, &adaptExt->dmb_mode)))
+    {
+        LogError(DeviceExtension, SP_INTERNAL_ADAPTER_ERROR, __LINE__);
+        return SP_RETURN_ERROR;
+    }
+    if (adaptExt->dmb_mode.active)
+    {
+        /* Bouncing copies through the data buffer's virtual address, so ask
+         * StorPort to map read and write buffers, not only non-read/write. */
+        ConfigInfo->MapBuffers = STOR_MAP_ALL_BUFFERS_INCLUDING_READ_WRITE;
+    }
+
     ConfigInfo->NumberOfBuses = 1;
     ConfigInfo->MaximumNumberOfTargets = 1;
     ConfigInfo->MaximumNumberOfLogicalUnits = 1;
@@ -436,6 +461,14 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
     if (!adaptExt->dump_mode)
     {
         adaptExt->indirect = CHECKBIT(adaptExt->features, VIRTIO_RING_F_INDIRECT_DESC);
+    }
+
+    /* The DMB bounce uses direct descriptors (header, data, status), so
+     * indirect descriptors (which would also have to live in the DMB) are not
+     * used in DMB mode; the DMB negotiation does not accept them either. */
+    if (adaptExt->dmb_mode.active)
+    {
+        adaptExt->indirect = FALSE;
     }
 
     if (adaptExt->dump_mode)
@@ -477,6 +510,37 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
     ConfigInfo->MaximumTransferLength = ConfigInfo->NumberOfPhysicalBreaks * PAGE_SIZE;
     ConfigInfo->NumberOfPhysicalBreaks++;
     adaptExt->max_tx_length = ConfigInfo->MaximumTransferLength;
+
+    if (adaptExt->dmb_mode.active)
+    {
+        /* The bounce is contiguous, so a request needs one data descriptor
+         * per size_max bytes, plus the header and the status. Keep that
+         * within seg_max, the ring and srbExt->sg[]. */
+        ULONG dataDescs = (ULONG)min(VIRTIO_MAX_SG, queueLength);
+        ULONG dmbMax;
+
+        dataDescs = (dataDescs > 3) ? dataDescs - 2 : 1;
+        if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_SEG_MAX) && adaptExt->info.seg_max > 0)
+        {
+            dataDescs = min(dataDescs, adaptExt->info.seg_max);
+        }
+        adaptExt->dmb_seg_size = 0;
+        if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_SIZE_MAX) && adaptExt->info.size_max > 0)
+        {
+            adaptExt->dmb_seg_size = adaptExt->info.size_max;
+        }
+        adaptExt->dmb_max_descs = dataDescs + 2;
+        dmbMax = virtio_dmb_max_transfer(&adaptExt->vdev, adaptExt->dmb_seg_size, dataDescs);
+        if (ConfigInfo->MaximumTransferLength > dmbMax)
+        {
+            ConfigInfo->MaximumTransferLength = dmbMax;
+            ConfigInfo->NumberOfPhysicalBreaks = min(ConfigInfo->NumberOfPhysicalBreaks, (dmbMax / PAGE_SIZE) + 1);
+            adaptExt->max_tx_length = dmbMax;
+        }
+        RhelDbgPrint(TRACE_LEVEL_INFORMATION,
+                     " DMB active: MaximumTransferLength = %lu\n",
+                     ConfigInfo->MaximumTransferLength);
+    }
 
     num_cpus = KeQueryActiveProcessorCountEx(ALL_PROCESSOR_GROUPS);
     max_cpus = KeQueryMaximumProcessorCountEx(ALL_PROCESSOR_GROUPS);
@@ -525,13 +589,24 @@ VirtIoFindAdapter(IN PVOID DeviceExtension,
             RhelDbgPrint(TRACE_LEVEL_FATAL, " Virtual queue %d config failed.\n", index);
             return SP_RETURN_ERROR;
         }
-        adaptExt->pageAllocationSize += ROUND_TO_PAGES(Size);
+        /* In DMB mode the rings come from the DMB, not from the uncached
+         * extension. */
+        if (!adaptExt->dmb_mode.active)
+        {
+            adaptExt->pageAllocationSize += ROUND_TO_PAGES(Size);
+        }
         adaptExt->poolAllocationSize += ROUND_TO_CACHE_LINES(HeapSize);
     }
     if (!adaptExt->dump_mode)
     {
         adaptExt->poolAllocationSize += ROUND_TO_CACHE_LINES(sizeof(SRB_EXTENSION));
         adaptExt->poolAllocationSize += ROUND_TO_CACHE_LINES(sizeof(STOR_DPC) * max_queues);
+    }
+    if (adaptExt->dmb_mode.active)
+    {
+        /* The transport allocates the DMB page bitmap from this pool with
+         * the first queue. */
+        adaptExt->poolAllocationSize += ROUND_TO_CACHE_LINES(virtio_dmb_bitmap_bytes(&adaptExt->vdev));
     }
     if (max_queues > MAX_QUEUES_PER_DEVICE_DEFAULT)
     {
@@ -720,6 +795,20 @@ VOID RhelSetGuestFeatures(IN PVOID DeviceExtension)
     RhelDbgPrint(TRACE_LEVEL_VERBOSE, " Host Features %llu gust features %llu\n", adaptExt->features, guestFeatures);
 }
 
+/* Tell the kernel debugger, once per adapter, that viostor is running from
+ * the DMB. The crash dump and hibernation instance initializes at
+ * HIGH_LEVEL, where DbgPrintEx must not be called, so it stays quiet. */
+static VOID VioStorAnnounceDmb(IN PADAPTER_EXTENSION adaptExt)
+{
+    if (adaptExt->dmb_announced || adaptExt->dump_mode)
+    {
+        return;
+    }
+    adaptExt->dmb_announced = TRUE;
+
+    DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, "viostor: DMB active, %llu bytes\n", adaptExt->dmb_mode.size);
+}
+
 BOOLEAN
 VirtIoHwInitialize(IN PVOID DeviceExtension)
 {
@@ -772,6 +861,19 @@ VirtIoHwInitialize(IN PVOID DeviceExtension)
         adaptExt->msix_has_config_vector = FALSE;
         /* TODO Allow using multiple queues even with a single vector */
         adaptExt->num_queues = 1;
+    }
+
+    /* VirtIoHwReinitialize negotiates the features again from scratch, but
+     * the DMB mode and size fixed MapBuffers, MaximumTransferLength and the
+     * pool size in VirtIoFindAdapter. Refuse a device that changed them. */
+    if (!NT_SUCCESS(virtio_dmb_check_mode(&adaptExt->vdev, &adaptExt->dmb_mode)))
+    {
+        LogError(DeviceExtension, SP_INTERNAL_ADAPTER_ERROR, __LINE__);
+        return FALSE;
+    }
+    if (adaptExt->dmb_mode.active)
+    {
+        VioStorAnnounceDmb(adaptExt);
     }
 
     if (!InitializeVirtualQueues(adaptExt))
@@ -930,6 +1032,14 @@ static VOID CompletePendingRequestsOnReset(IN PVOID DeviceExtension)
                 PSCSI_REQUEST_BLOCK Srb = (PSCSI_REQUEST_BLOCK)req->req;
                 if (Srb)
                 {
+                    PSRB_EXTENSION srbExt = (PSRB_EXTENSION)SRB_EXTENSION((PSRB_TYPE)Srb);
+
+                    /* The device is shut down, so this only forgets the
+                     * run. */
+                    if (srbExt != NULL)
+                    {
+                        virtio_dmb_req_release(&adaptExt->vdev, &srbExt->dmb);
+                    }
                     SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
                     CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_BUS_RESET);
                     element->srb_cnt--;
@@ -1606,6 +1716,20 @@ VirtIoBuildIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
                      blocks);
         CompleteRequestWithStatus(DeviceExtension, (PSRB_TYPE)Srb, SRB_STATUS_BAD_SRB_BLOCK_LENGTH);
         return FALSE;
+    }
+
+    if (adaptExt->dmb_mode.active)
+    {
+        /* In DMB mode the transfer is bounced into one contiguous DMB run in
+         * RhelDoReadWrite, which also builds the descriptors; the StorPort
+         * scatter/gather list is not used. StorPort caps the transfer to
+         * MaximumTransferLength, which FindAdapter bounded to the DMB. */
+        srbExt->vbr.out_hdr.sector = lba;
+        srbExt->vbr.out_hdr.ioprio = 0;
+        srbExt->vbr.req = (PVOID)Srb;
+        srbExt->fua = adaptExt->writeback_cache ? (cdb->CDB10.ForceUnitAccess == 1) : FALSE;
+        srbExt->vbr.out_hdr.type = (SRB_FLAGS(Srb) & SRB_FLAGS_DATA_OUT) ? VIRTIO_BLK_T_OUT : VIRTIO_BLK_T_IN;
+        return TRUE;
     }
 
     sgList = StorPortGetScatterGatherList(DeviceExtension, Srb);
@@ -2399,6 +2523,13 @@ VOID VioStorCompleteRequest(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOO
             if (!bFound)
             {
                 RhelDbgPrint(TRACE_LEVEL_WARNING, " No Srb to complete for ID 0x%p\n", (void *)srbId);
+            }
+
+            if (bFound && adaptExt->dmb_mode.active)
+            {
+                /* Mirror the status byte out of the DMB, copy out any
+                 * device-written payload, and release the DMB run. */
+                VioStorDmbCompleteRequest(DeviceExtension, srbExt);
             }
 
             if (bFound && srbExt->vbr.out_hdr.type == VIRTIO_BLK_T_GET_ID)
