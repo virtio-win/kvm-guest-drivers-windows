@@ -31,6 +31,7 @@
  */
 #include "trace.h"
 #include "helper.h"
+#include "VirtIODmb.h"
 
 #if defined(EVENT_TRACING)
 #include "helper.tmh"
@@ -42,6 +43,134 @@
         va = adaptExt->indirect ? srbExt->pdesc : NULL;                                                                \
         pa = va ? StorPortGetPhysicalAddress(DeviceExtension, NULL, va, &len).QuadPart : 0;                            \
     }
+
+C_ASSERT(VIOSCSI_DMB_EVENT_NODES * sizeof(VirtIOSCSIEvent) <= VIOSCSI_DMB_TMF_REQ_OFFSET);
+C_ASSERT(VIOSCSI_DMB_TMF_REQ_OFFSET + sizeof(VirtIOSCSICtrlTMFReq) <= VIOSCSI_DMB_TMF_RESP_OFFSET);
+C_ASSERT(VIOSCSI_DMB_TMF_RESP_OFFSET + sizeof(VirtIOSCSICtrlTMFResp) <= PAGE_SIZE);
+
+virtio_dmb_map_result VioScsiDmbMapRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb, IN PSRB_EXTENSION srbExt)
+{
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    PVOID dataVa = SRB_DATA_BUFFER(Srb);
+    ULONG dataLen = SRB_DATA_TRANSFER_LENGTH(Srb);
+    BOOLEAN toDevice = (SRB_FLAGS(Srb) & SRB_FLAGS_DATA_OUT) == SRB_FLAGS_DATA_OUT;
+    VirtIOSCSICmdReq req;
+    VirtIOSCSICmdResp failed = {0};
+    VirtIODmbSeg segs[4] = {0};
+    virtio_dmb_map_result map;
+    unsigned out, in;
+
+    /* StorPort maps every data buffer in DMB mode, so one without a virtual
+     * address never fits. */
+    if (dataLen > 0 && dataVa == NULL)
+    {
+        return VIRTIO_DMB_TOO_BIG;
+    }
+
+    /* SendSRB fills in the tag once the request has its id. A device that
+     * completes the request without writing the response reports a
+     * failure, not a zeroed success. */
+    req = srbExt->cmd.req.cmd;
+    req.tag = 0;
+    failed.response = VIRTIO_SCSI_S_FAILURE;
+    segs[0].va = &req;
+    segs[0].len = sizeof(req);
+    segs[0].to_device = TRUE;
+    segs[1].va = dataVa;
+    segs[1].len = toDevice ? dataLen : 0;
+    segs[1].to_device = TRUE;
+    segs[2].va = &srbExt->cmd.resp.cmd;
+    segs[2].len = sizeof(srbExt->cmd.resp.cmd);
+    segs[2].preset = &failed;
+    segs[2].preset_len = sizeof(failed);
+    segs[3].va = dataVa;
+    segs[3].len = toDevice ? 0 : dataLen;
+
+    map = virtio_dmb_req_map(&adaptExt->vdev,
+                             &srbExt->dmb,
+                             segs,
+                             ARRAYSIZE(segs),
+                             0,
+                             srbExt->psgl,
+                             VIRTIO_MAX_SG,
+                             &out,
+                             &in);
+    srbExt->out = out;
+    srbExt->in = in;
+    srbExt->Xfer = dataLen;
+    return map;
+}
+
+VOID VioScsiDmbRelease(IN PVOID DeviceExtension, IN PSRB_EXTENSION srbExt)
+{
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+
+    virtio_dmb_req_release(&adaptExt->vdev, &srbExt->dmb);
+}
+
+VOID VioScsiDmbCompleteRequest(IN PVOID DeviceExtension, IN PSRB_EXTENSION srbExt)
+{
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    VirtIOSCSICmdResp *resp = &srbExt->cmd.resp.cmd;
+    ULONG copyLen = srbExt->Xfer;
+
+    /* Read the response once, into driver memory; HandleResponse parses
+     * that copy. No run means no data reached the caller. */
+    if (virtio_dmb_req_copy_out(&adaptExt->vdev, &srbExt->dmb, 2, sizeof(*resp)) == 0)
+    {
+        RtlZeroMemory(resp, sizeof(*resp));
+        resp->response = VIRTIO_SCSI_S_FAILURE;
+        return;
+    }
+
+    /* Copy back what the device wrote. The residual comes from the device,
+     * so it only shortens the copy when it fits our own length. */
+    if (resp->resid <= copyLen)
+    {
+        copyLen -= resp->resid;
+    }
+    virtio_dmb_req_copy_out(&adaptExt->vdev, &srbExt->dmb, 3, copyLen);
+
+    virtio_dmb_req_release(&adaptExt->vdev, &srbExt->dmb);
+}
+
+BOOLEAN
+VioScsiDmbAllocControl(IN PVOID DeviceExtension)
+{
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    u64 offset = 0;
+
+    adaptExt->dmb_ctrl_va = (PUCHAR)virtio_dmb_alloc(&adaptExt->vdev, PAGE_SIZE, &offset);
+    adaptExt->dmb_ctrl_offset = offset;
+    if (adaptExt->dmb_ctrl_va == NULL)
+    {
+        return FALSE;
+    }
+    RtlZeroMemory(adaptExt->dmb_ctrl_va, PAGE_SIZE);
+    return TRUE;
+}
+
+VOID VioScsiDmbFetchEvent(IN PVOID DeviceExtension, IN PVirtIOSCSIEventNode EventNode)
+{
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    ULONG index = (ULONG)(EventNode - adaptExt->events);
+    PUCHAR slot = adaptExt->dmb_ctrl_va + (SIZE_T)index * sizeof(VirtIOSCSIEvent);
+
+    /* Snapshot the event into the node, then clear the slot for the next
+     * post. */
+    virtio_dmb_copy_out(&adaptExt->vdev, &EventNode->event, slot, sizeof(VirtIOSCSIEvent));
+    RtlZeroMemory(slot, sizeof(VirtIOSCSIEvent));
+}
+
+VOID VioScsiDmbFetchTmfResponse(IN PVOID DeviceExtension, IN PVirtIOSCSICmd cmd)
+{
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+
+    virtio_dmb_copy_out(&adaptExt->vdev,
+                        &cmd->resp.tmf,
+                        adaptExt->dmb_ctrl_va + VIOSCSI_DMB_TMF_RESP_OFFSET,
+                        sizeof(cmd->resp.tmf));
+}
 
 VOID SendSRB(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
 {
@@ -116,6 +245,30 @@ VOID SendSRB(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
         return;
     }
 
+    if (adaptExt->dmb_mode.active)
+    {
+        virtio_dmb_map_result map = VioScsiDmbMapRequest(DeviceExtension, Srb, srbExt);
+
+        if (map != VIRTIO_DMB_MAPPED)
+        {
+            if (map == VIRTIO_DMB_FULL)
+            {
+                RhelDbgPrint(TRACE_LEVEL_WARNING, " DMB full, busy.\n");
+                InterlockedIncrement(&adaptExt->diagCounters.queue_full);
+                SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BUSY);
+                StorPortBusy(DeviceExtension, 2);
+            }
+            else
+            {
+                RhelDbgPrint(TRACE_LEVEL_ERROR, " Request does not fit the DMB.\n");
+                SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
+                SRB_SET_SRB_STATUS(Srb, SRB_STATUS_INVALID_REQUEST);
+            }
+            CompleteRequest(DeviceExtension, Srb);
+            return;
+        }
+    }
+
     MessageId = QUEUE_TO_MESSAGE(QueueNumber);
     vq_req_idx = QueueNumber - VIRTIO_SCSI_REQUEST_QUEUE_0;
 
@@ -132,6 +285,14 @@ VOID SendSRB(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
 
     srbExt->id = id;
     element->next_id = ++id;
+
+    if (virtio_dmb_req_mapped(&srbExt->dmb))
+    {
+        /* The device sees the request id as the tag, not the SRB address. */
+        u64 tag = srbExt->id;
+
+        virtio_dmb_req_write(&adaptExt->vdev, &srbExt->dmb, 0, FIELD_OFFSET(VirtIOSCSICmdReq, tag), &tag, sizeof(tag));
+    }
 
     SET_VA_PA();
     add_buffer_req_status = virtqueue_add_buf(adaptExt->vq[QueueNumber],
@@ -153,6 +314,7 @@ VOID SendSRB(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     else
     {
         // virtqueue_add_buf() returned -28 (ENOSPC), i.e. no space for buffer, or some other error
+        VioScsiDmbRelease(DeviceExtension, srbExt);
         InterlockedIncrement(&adaptExt->diagCounters.queue_full);
         ScsiStatus = SCSISTAT_QUEUE_FULL;
         SRB_SET_SRB_STATUS(Srb, SRB_STATUS_BUSY);
@@ -244,13 +406,33 @@ DeviceReset(IN PVOID DeviceExtension)
     srbExt->psgl = srbExt->vio_sg;
     srbExt->pdesc = srbExt->desc_alias;
     sgElement = 0;
-    srbExt->psgl[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &cmd->req.tmf, &fragLen);
-    srbExt->psgl[sgElement].length = sizeof(cmd->req.tmf);
-    sgElement++;
-    srbExt->out = sgElement;
-    srbExt->psgl[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &cmd->resp.tmf, &fragLen);
-    srbExt->psgl[sgElement].length = sizeof(cmd->resp.tmf);
-    sgElement++;
+    if (adaptExt->dmb_mode.active)
+    {
+        /* The TMF has its own slots in the control page; only one is ever in
+         * flight. */
+        virtio_dmb_copy_in(&adaptExt->vdev,
+                           adaptExt->dmb_ctrl_va + VIOSCSI_DMB_TMF_REQ_OFFSET,
+                           &cmd->req.tmf,
+                           sizeof(cmd->req.tmf));
+        *(volatile u8 *)(adaptExt->dmb_ctrl_va + VIOSCSI_DMB_TMF_RESP_OFFSET) = VIRTIO_SCSI_S_FAILURE;
+        srbExt->psgl[sgElement].physAddr.QuadPart = (LONGLONG)(adaptExt->dmb_ctrl_offset + VIOSCSI_DMB_TMF_REQ_OFFSET);
+        srbExt->psgl[sgElement].length = sizeof(cmd->req.tmf);
+        sgElement++;
+        srbExt->out = sgElement;
+        srbExt->psgl[sgElement].physAddr.QuadPart = (LONGLONG)(adaptExt->dmb_ctrl_offset + VIOSCSI_DMB_TMF_RESP_OFFSET);
+        srbExt->psgl[sgElement].length = sizeof(cmd->resp.tmf);
+        sgElement++;
+    }
+    else
+    {
+        srbExt->psgl[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &cmd->req.tmf, &fragLen);
+        srbExt->psgl[sgElement].length = sizeof(cmd->req.tmf);
+        sgElement++;
+        srbExt->out = sgElement;
+        srbExt->psgl[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &cmd->resp.tmf, &fragLen);
+        srbExt->psgl[sgElement].length = sizeof(cmd->resp.tmf);
+        sgElement++;
+    }
     srbExt->in = sgElement - srbExt->out;
     StorPortPause(DeviceExtension, 60);
     if (!SendTMF(DeviceExtension, Srb))
@@ -402,7 +584,15 @@ InitVirtIODevice(IN PVOID DeviceExtension)
     NTSTATUS status;
 
     status = virtio_device_initialize(&adaptExt->vdev, &VioScsiSystemOps, adaptExt, adaptExt->msix_enabled);
-    if (!NT_SUCCESS(status))
+    if (NT_SUCCESS(status))
+    {
+        /* vioscsi bounces every request, the TMF and the events through the
+         * DMB when the device requires one, so it may accept VIRTIO_F_DMB. Its
+         * pool only exists from HwInitialize on, where the queues are set up. */
+        virtio_dmb_opt_in(&adaptExt->vdev);
+        virtio_dmb_defer_bitmap(&adaptExt->vdev);
+    }
+    else
     {
         LogError(adaptExt, SP_INTERNAL_ADAPTER_ERROR, __LINE__);
         RhelDbgPrint(TRACE_LEVEL_FATAL, " Failed to initialize virtio device, error %x\n", status);
@@ -549,7 +739,18 @@ KickEvent(IN PVOID DeviceExtension, IN PVirtIOSCSIEventNode EventNode)
     ENTER_FN();
     adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     RtlZeroMemory((PVOID)EventNode, sizeof(VirtIOSCSIEventNode));
-    EventNode->sg.physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &EventNode->event, &fragLen);
+    if (adaptExt->dmb_mode.active)
+    {
+        ULONG index = (ULONG)(EventNode - adaptExt->events);
+
+        RtlZeroMemory(adaptExt->dmb_ctrl_va + (SIZE_T)index * sizeof(VirtIOSCSIEvent), sizeof(VirtIOSCSIEvent));
+        EventNode->sg.physAddr.QuadPart = (LONGLONG)(adaptExt->dmb_ctrl_offset +
+                                                     (ULONGLONG)index * sizeof(VirtIOSCSIEvent));
+    }
+    else
+    {
+        EventNode->sg.physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &EventNode->event, &fragLen);
+    }
     EventNode->sg.length = sizeof(VirtIOSCSIEvent);
     return SynchronizedKickEventRoutine(DeviceExtension, (PVOID)EventNode);
     EXIT_FN();

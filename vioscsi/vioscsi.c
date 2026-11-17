@@ -32,6 +32,7 @@
 #include "vioscsi.h"
 #include "helper.h"
 #include "vioscsidt.h"
+#include "VirtIODmb.h"
 #include "trace.h"
 
 #if defined(EVENT_TRACING)
@@ -398,6 +399,22 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
     GetScsiConfig(DeviceExtension);
     SetGuestFeatures(DeviceExtension);
 
+    /* SetGuestFeatures negotiates VIRTIO_F_DMB through the transport when the
+     * device offers it with a usable DMB. Then every device address is a DMB
+     * offset. A device that requires the DMB is not driven without it. */
+    if (!NT_SUCCESS(virtio_dmb_check_mode(&adaptExt->vdev, &adaptExt->dmb_mode)))
+    {
+        LogError(DeviceExtension, SP_INTERNAL_ADAPTER_ERROR, __LINE__);
+        return SP_RETURN_ERROR;
+    }
+    if (adaptExt->dmb_mode.active)
+    {
+        /* The bounce copies through the data buffer's virtual address. The
+         * transport does not accept indirect descriptors in DMB mode. */
+        ConfigInfo->MapBuffers = STOR_MAP_ALL_BUFFERS_INCLUDING_READ_WRITE;
+        adaptExt->indirect = FALSE;
+    }
+
     /* The following *NumberOf* PORT_CONFIGURATION_INFORMATION members are set by values with a zero-based index,
      * so add one (1) to each: NumberOfBuses, MaximumNumberOfTargets and MaximumNumberOfLogicalUnits.
      * -----------------------------------------------------------------------------------------------------------
@@ -454,6 +471,19 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
     }
     ConfigInfo->NumberOfPhysicalBreaks = adaptExt->max_physical_breaks + 1;
     ConfigInfo->MaximumTransferLength = adaptExt->max_physical_breaks * PAGE_SIZE;
+
+    if (adaptExt->dmb_mode.active)
+    {
+        /* A request bounces through one contiguous run, so its size is bounded
+         * by the DMB rather than by the number of segments. */
+        ULONG dmbMax = virtio_dmb_max_transfer(&adaptExt->vdev, 0, 1);
+
+        if (ConfigInfo->MaximumTransferLength > dmbMax)
+        {
+            ConfigInfo->MaximumTransferLength = dmbMax;
+        }
+        ConfigInfo->NumberOfPhysicalBreaks = ConfigInfo->MaximumTransferLength / PAGE_SIZE + 1;
+    }
 
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " NumberOfPhysicalBreaks %d\n", ConfigInfo->NumberOfPhysicalBreaks);
     RhelDbgPrint(TRACE_LEVEL_INFORMATION, " MaximumTransferLength %d\n", ConfigInfo->MaximumTransferLength);
@@ -528,13 +558,23 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
             RhelDbgPrint(TRACE_LEVEL_FATAL, " Virtual queue %d config failed.\n", index);
             return SP_RETURN_ERROR;
         }
-        adaptExt->pageAllocationSize += ROUND_TO_PAGES(Size);
+        /* In DMB mode the transport takes the rings from the DMB. */
+        if (!adaptExt->dmb_mode.active)
+        {
+            adaptExt->pageAllocationSize += ROUND_TO_PAGES(Size);
+        }
         adaptExt->poolAllocationSize += ROUND_TO_CACHE_LINES(HeapSize);
+    }
+    if (adaptExt->dmb_mode.active)
+    {
+        /* The transport allocates the DMB page bitmap from this pool with
+         * the first queue. */
+        adaptExt->poolAllocationSize += ROUND_TO_CACHE_LINES(virtio_dmb_bitmap_bytes(&adaptExt->vdev));
     }
     if (!adaptExt->dump_mode)
     {
         adaptExt->poolAllocationSize += ROUND_TO_CACHE_LINES(sizeof(SRB_EXTENSION));
-        adaptExt->poolAllocationSize += ROUND_TO_CACHE_LINES(sizeof(VirtIOSCSIEventNode) * 8);
+        adaptExt->poolAllocationSize += ROUND_TO_CACHE_LINES(sizeof(VirtIOSCSIEventNode) * VIOSCSI_DMB_EVENT_NODES);
         adaptExt->poolAllocationSize += ROUND_TO_CACHE_LINES(sizeof(STOR_DPC) * max_queues);
     }
     if (max_queues + VIRTIO_SCSI_REQUEST_QUEUE_0 > MAX_QUEUES_PER_DEVICE_DEFAULT)
@@ -546,6 +586,11 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
     if (adaptExt->indirect)
     {
         adaptExt->queue_depth = queueLength;
+    }
+    else if (adaptExt->dmb_mode.active)
+    {
+        /* A bounced request takes three descriptors: header, data, response. */
+        adaptExt->queue_depth = max(1, queueLength / 3);
     }
     else
     {
@@ -681,6 +726,16 @@ VioScsiHwInitialize(IN PVOID DeviceExtension)
     adaptExt->pageOffset = 0;
     adaptExt->poolOffset = 0;
 
+    /* VioScsiHwReinitialize negotiates the features again, but the DMB mode
+     * and size fixed MapBuffers, MaximumTransferLength and the allocation
+     * sizes in VioScsiFindAdapter. Refuse a device that changed them. */
+    if (!NT_SUCCESS(virtio_dmb_check_mode(&adaptExt->vdev, &adaptExt->dmb_mode)))
+    {
+        LogError(DeviceExtension, SP_INTERNAL_ADAPTER_ERROR, __LINE__);
+        return FALSE;
+    }
+    adaptExt->dmb_ctrl_va = NULL;
+
     while (StorPortGetMSIInfo(DeviceExtension, adaptExt->msix_vectors, &msi_info) == STOR_STATUS_SUCCESS)
     {
         RhelDbgPrint(TRACE_LEVEL_INFORMATION, " MessageId = %x\n", msi_info.MessageId);
@@ -736,6 +791,14 @@ VioScsiHwInitialize(IN PVOID DeviceExtension)
         element->srb_cnt = 0;
     }
 
+    if (adaptExt->dmb_mode.active && !adaptExt->dump_mode && !VioScsiDmbAllocControl(DeviceExtension))
+    {
+        LogError(DeviceExtension, SP_INTERNAL_ADAPTER_ERROR, __LINE__);
+        RhelDbgPrint(TRACE_LEVEL_FATAL, " Cannot allocate the DMB control page\n");
+        virtio_add_status(&adaptExt->vdev, VIRTIO_CONFIG_S_FAILED);
+        return FALSE;
+    }
+
     if (!adaptExt->dump_mode)
     {
         /* we don't get another chance to call StorPortEnablePassiveInitialization and initialize
@@ -744,7 +807,8 @@ VioScsiHwInitialize(IN PVOID DeviceExtension)
         if (adaptExt->dpc == NULL)
         {
             adaptExt->tmf_cmd.SrbExtension = (PSRB_EXTENSION)VioScsiPoolAlloc(DeviceExtension, sizeof(SRB_EXTENSION));
-            adaptExt->events = (PVirtIOSCSIEventNode)VioScsiPoolAlloc(DeviceExtension, sizeof(VirtIOSCSIEventNode) * 8);
+            adaptExt->events = (PVirtIOSCSIEventNode)VioScsiPoolAlloc(DeviceExtension,
+                                                                      sizeof(VirtIOSCSIEventNode) * VIOSCSI_DMB_EVENT_NODES);
             adaptExt->dpc = (PSTOR_DPC)VioScsiPoolAlloc(DeviceExtension, sizeof(STOR_DPC) * adaptExt->num_queues);
         }
     }
@@ -752,7 +816,7 @@ VioScsiHwInitialize(IN PVOID DeviceExtension)
     if (!adaptExt->dump_mode && CHECKBIT(adaptExt->features, VIRTIO_SCSI_F_HOTPLUG))
     {
         PVirtIOSCSIEventNode events = adaptExt->events;
-        for (i = 0; i < 8; i++)
+        for (i = 0; i < VIOSCSI_DMB_EVENT_NODES; i++)
         {
             if (!KickEvent(DeviceExtension, (PVOID)(&events[i])))
             {
@@ -1009,6 +1073,10 @@ VioScsiInterrupt(IN PVOID DeviceExtension)
                 VirtIOSCSICtrlTMFResp *resp;
                 Srb = (PSRB_TYPE)cmd->srb;
                 ASSERT(Srb == (PSRB_TYPE)&adaptExt->tmf_cmd.Srb);
+                if (adaptExt->dmb_mode.active)
+                {
+                    VioScsiDmbFetchTmfResponse(DeviceExtension, cmd);
+                }
                 resp = &cmd->resp.tmf;
                 switch (resp->response)
                 {
@@ -1028,6 +1096,10 @@ VioScsiInterrupt(IN PVOID DeviceExtension)
                NULL)
         {
             PVirtIOSCSIEvent evt = &evtNode->event;
+            if (adaptExt->dmb_mode.active)
+            {
+                VioScsiDmbFetchEvent(DeviceExtension, evtNode);
+            }
             switch (evt->event)
             {
                 case VIRTIO_SCSI_T_NO_EVENT:
@@ -1093,6 +1165,10 @@ static BOOLEAN VioScsiMSInterruptWorker(IN PVOID DeviceExtension, IN ULONG Messa
                 VirtIOSCSICtrlTMFResp *resp;
                 Srb = (PSRB_TYPE)(cmd->srb);
                 ASSERT(Srb == (PSRB_TYPE)&adaptExt->tmf_cmd.Srb);
+                if (adaptExt->dmb_mode.active)
+                {
+                    VioScsiDmbFetchTmfResponse(DeviceExtension, cmd);
+                }
                 resp = &cmd->resp.tmf;
                 switch (resp->response)
                 {
@@ -1116,6 +1192,10 @@ static BOOLEAN VioScsiMSInterruptWorker(IN PVOID DeviceExtension, IN ULONG Messa
                NULL)
         {
             PVirtIOSCSIEvent evt = &evtNode->event;
+            if (adaptExt->dmb_mode.active)
+            {
+                VioScsiDmbFetchEvent(DeviceExtension, evtNode);
+            }
             switch (evt->event)
             {
                 case VIRTIO_SCSI_T_NO_EVENT:
@@ -1305,6 +1385,7 @@ VioScsiUnitControl(IN PVOID DeviceExtension, IN SCSI_UNIT_CONTROL_TYPE ControlTy
                         if (SRB_PATH_ID(currSrb) == stor_addr->Path && SRB_TARGET_ID(currSrb) == stor_addr->Target &&
                             SRB_LUN(currSrb) == stor_addr->Lun)
                         {
+                            VioScsiDmbRelease(DeviceExtension, currSrbExt);
                             SRB_SET_SRB_STATUS(currSrb, SRB_STATUS_NO_DEVICE);
                             SRB_SET_DATA_TRANSFER_LENGTH(currSrb, 0);
                             CompleteRequest(DeviceExtension, (PSRB_TYPE)currSrb);
@@ -1401,6 +1482,14 @@ VioScsiBuildIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
         RtlCopyMemory(cmd->req.cmd.cdb, cdb, min(VIRTIO_SCSI_CDB_SIZE, SRB_CDB_LENGTH(Srb)));
     }
 
+    if (adaptExt->dmb_mode.active)
+    {
+        /* In DMB mode SendSRB bounces the request through one DMB run and
+         * builds the descriptors; the StorPort scatter/gather list is not
+         * used. */
+        goto out;
+    }
+
     sgElement = 0;
     srbExt->psgl[sgElement].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &cmd->req.cmd, &fragLen);
     srbExt->psgl[sgElement].length = sizeof(cmd->req.cmd);
@@ -1442,6 +1531,7 @@ VioScsiBuildIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
     }
     srbExt->in = sgElement - srbExt->out;
 
+out:
     if (adaptExt->resp_time)
     {
         LARGE_INTEGER counter = {0};
@@ -1536,6 +1626,12 @@ VOID ProcessQueue(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOOLEAN isr)
             if (bFound)
             {
                 InterlockedIncrement64(&adaptExt->diagCounters.srbs_completed);
+                if (adaptExt->dmb_mode.active)
+                {
+                    /* Snapshot the response, copy out any data-in and
+                     * release the DMB run. */
+                    VioScsiDmbCompleteRequest(DeviceExtension, srbExt);
+                }
                 HandleResponse(DeviceExtension, &srbExt->cmd);
             }
         }
@@ -1588,6 +1684,7 @@ VOID CompletePendingRequestsOnReset(IN PVOID DeviceExtension)
                     PSCSI_REQUEST_BLOCK currSrb = currSrbExt->Srb;
                     if (currSrb)
                     {
+                        VioScsiDmbRelease(DeviceExtension, currSrbExt);
                         SRB_SET_SRB_STATUS(currSrb, SRB_STATUS_BUS_RESET);
                         SRB_SET_DATA_TRANSFER_LENGTH(currSrb, 0);
                         CompleteRequest(DeviceExtension, (PSRB_TYPE)currSrb);
