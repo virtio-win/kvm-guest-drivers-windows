@@ -62,6 +62,11 @@ typedef struct virtio_wdf_driver {
     WDFCOLLECTION MemoryBlockCollection;
     WDFSPINLOCK DmaSpinlock;
 
+    /* Device Memory Buffer bookkeeping, used only once a driver has opted in
+     * and the device accepted VIRTIO_F_DMB: the runs handed out from the DMB,
+     * with their sizes and group tags. See VirtIOWdfDeviceDmbOptIn(). */
+    LIST_ENTRY DmbBlocks;
+
     BOOLEAN IsIoMmuActive;
 
 } VIRTIO_WDF_DRIVER, *PVIRTIO_WDF_DRIVER;

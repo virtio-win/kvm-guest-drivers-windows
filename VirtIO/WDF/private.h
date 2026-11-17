@@ -79,6 +79,16 @@ typedef struct virtio_wdf_memory_block_context {
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIRTIO_WDF_MEMORY_BLOCK_CONTEXT, GetMemoryBlockContext)
 
+/* One allocation handed out from the Device Memory Buffer. In DMB mode the
+ * driver tracks these in place of the WDFCOMMONBUFFER collection, because a
+ * DMB run is a slice of the device region, not a common buffer. */
+typedef struct virtio_wdf_dmb_block {
+    LIST_ENTRY ListEntry;
+    PVOID VirtualAddress;
+    size_t Length;
+    ULONG groupTag;
+} VIRTIO_WDF_DMB_BLOCK, *PVIRTIO_WDF_DMB_BLOCK;
+
 typedef struct virtio_wdf_dma_transaction_context {
     VIRTIO_DMA_TRANSACTION_PARAMS parameters;
     VirtIOWdfDmaTransactionCallback callback;

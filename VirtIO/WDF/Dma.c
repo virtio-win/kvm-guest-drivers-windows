@@ -32,11 +32,119 @@
 #include "osdep.h"
 #include "virtio_pci.h"
 #include "VirtIOWdf.h"
+#include "VirtIODmb.h"
 #include "private.h"
 #include <devpropdef.h>
 
 static EVT_WDF_OBJECT_CONTEXT_DESTROY OnDmaTransactionDestroy;
 static EVT_WDF_PROGRAM_DMA OnDmaTransactionProgramDma;
+
+/*
+ * Device Memory Buffer paths
+ *
+ * When the device accepted VIRTIO_F_DMB, every address it sees must be an
+ * offset into the DMB, so the allocators hand out DMB runs instead of common
+ * buffers and report the DMB offset as the "physical address". The runs are
+ * tracked in pWdfDriver->DmbBlocks rather than the WDFCOMMONBUFFER
+ * collection. Non-DMB devices never enter these paths.
+ */
+static BOOLEAN DmbActive(PVIRTIO_WDF_DRIVER pWdfDriver)
+{
+    return virtio_dmb_is_active(&pWdfDriver->VIODevice);
+}
+
+static void *AllocateDmbBlock(PVIRTIO_WDF_DRIVER pWdfDriver, size_t size, ULONG groupTag)
+{
+    VirtIODevice *vdev = &pWdfDriver->VIODevice;
+    PVIRTIO_WDF_DMB_BLOCK block;
+    ULONGLONG offset;
+    void *va;
+
+    /* Match AllocateCommonBuffer: PASSIVE only. */
+    if (KeGetCurrentIrql() > PASSIVE_LEVEL) {
+        DPrintf(0, "%s FAILED(irql)\n", __FUNCTION__);
+        return NULL;
+    }
+    block = ExAllocatePoolUninitialized(NonPagedPoolNx, sizeof(*block), pWdfDriver->MemoryTag);
+    if (block == NULL) {
+        return NULL;
+    }
+    va = virtio_dmb_alloc(vdev, size, &offset);
+    if (va == NULL) {
+        DPrintf(0, "%s FAILED(dmb exhausted, size 0x%Ix)\n", __FUNCTION__, size);
+        ExFreePoolWithTag(block, pWdfDriver->MemoryTag);
+        return NULL;
+    }
+    /* Keep AllocateCommonBuffer's zero-on-alloc behaviour. The block is
+     * device-writable, so zeroing it before it is posted also keeps private
+     * data out of the device's reach. */
+    RtlZeroMemory(va, size);
+
+    block->VirtualAddress = va;
+    block->Length = size;
+    block->groupTag = groupTag;
+
+    WdfSpinLockAcquire(pWdfDriver->DmaSpinlock);
+    InsertTailList(&pWdfDriver->DmbBlocks, &block->ListEntry);
+    WdfSpinLockRelease(pWdfDriver->DmaSpinlock);
+
+    DPrintf(1, "%s done %p@%I64x(tag %08X), size 0x%x\n", __FUNCTION__, va, offset, groupTag,
+            (ULONG)size);
+    return va;
+}
+
+/* Free a DMB run by any VA inside it. Returns FALSE when no run matches. */
+static BOOLEAN FreeDmbBlock(PVIRTIO_WDF_DRIVER pWdfDriver, void *va)
+{
+    ULONG_PTR p = (ULONG_PTR)va;
+    PLIST_ENTRY entry;
+    PVIRTIO_WDF_DMB_BLOCK block = NULL;
+
+    WdfSpinLockAcquire(pWdfDriver->DmaSpinlock);
+    for (entry = pWdfDriver->DmbBlocks.Flink; entry != &pWdfDriver->DmbBlocks;
+         entry = entry->Flink) {
+        PVIRTIO_WDF_DMB_BLOCK b = CONTAINING_RECORD(entry, VIRTIO_WDF_DMB_BLOCK, ListEntry);
+        ULONG_PTR start = (ULONG_PTR)b->VirtualAddress;
+        if (p >= start && p < start + b->Length) {
+            block = b;
+            RemoveEntryList(entry);
+            break;
+        }
+    }
+    WdfSpinLockRelease(pWdfDriver->DmaSpinlock);
+    if (block == NULL) {
+        return FALSE;
+    }
+    virtio_dmb_free(&pWdfDriver->VIODevice, block->VirtualAddress, block->Length);
+    ExFreePoolWithTag(block, pWdfDriver->MemoryTag);
+    return TRUE;
+}
+
+/* Free every DMB run with a matching group tag. */
+static void FreeDmbBlocksByTag(PVIRTIO_WDF_DRIVER pWdfDriver, ULONG groupTag)
+{
+    for (;;) {
+        PLIST_ENTRY entry;
+        PVIRTIO_WDF_DMB_BLOCK block = NULL;
+
+        WdfSpinLockAcquire(pWdfDriver->DmaSpinlock);
+        for (entry = pWdfDriver->DmbBlocks.Flink; entry != &pWdfDriver->DmbBlocks;
+             entry = entry->Flink) {
+            PVIRTIO_WDF_DMB_BLOCK b = CONTAINING_RECORD(entry, VIRTIO_WDF_DMB_BLOCK, ListEntry);
+            if (b->groupTag == groupTag) {
+                block = b;
+                RemoveEntryList(entry);
+                break;
+            }
+        }
+        WdfSpinLockRelease(pWdfDriver->DmaSpinlock);
+        if (block == NULL) {
+            return;
+        }
+        virtio_dmb_free(&pWdfDriver->VIODevice, block->VirtualAddress, block->Length);
+        ExFreePoolWithTag(block, pWdfDriver->MemoryTag);
+    }
+}
 
 static void *AllocateCommonBuffer(PVIRTIO_WDF_DRIVER pWdfDriver, size_t size, ULONG groupTag)
 {
@@ -45,6 +153,10 @@ static void *AllocateCommonBuffer(PVIRTIO_WDF_DRIVER pWdfDriver, size_t size, UL
     PVIRTIO_WDF_MEMORY_BLOCK_CONTEXT context;
     WDF_OBJECT_ATTRIBUTES attr;
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attr, VIRTIO_WDF_MEMORY_BLOCK_CONTEXT);
+
+    if (DmbActive(pWdfDriver)) {
+        return AllocateDmbBlock(pWdfDriver, size, groupTag);
+    }
 
     if (KeGetCurrentIrql() > PASSIVE_LEVEL) {
         DPrintf(0, "%s FAILED(irql)\n", __FUNCTION__);
@@ -137,6 +249,15 @@ static PHYSICAL_ADDRESS GetPhysicalAddress(PVIRTIO_WDF_DRIVER pWdfDriver, PVOID 
     PHYSICAL_ADDRESS pa;
     size_t offset;
     pa.QuadPart = 0;
+    if (DmbActive(pWdfDriver)) {
+        u64 dmbOffset = 0;
+
+        if (!virtio_dmb_va_to_offset(&pWdfDriver->VIODevice, va, 1, &dmbOffset)) {
+            DPrintf(0, "%s: %p is not in the DMB\n", __FUNCTION__, va);
+        }
+        pa.QuadPart = (LONGLONG)dmbOffset;
+        return pa;
+    }
     if (FindCommonBuffer(pWdfDriver, va, &pa, &offset, FALSE)) {
         pa.QuadPart += offset;
     }
@@ -150,9 +271,14 @@ PHYSICAL_ADDRESS VirtIOWdfDeviceGetPhysicalAddress(VirtIODevice *vdev, void *va)
 
 void VirtIOWdfDeviceFreeDmaMemory(VirtIODevice *vdev, void *va)
 {
+    PVIRTIO_WDF_DRIVER pWdfDriver = vdev->DeviceContext;
     PHYSICAL_ADDRESS pa;
     size_t offset;
-    FindCommonBuffer(vdev->DeviceContext, va, &pa, &offset, TRUE);
+    if (DmbActive(pWdfDriver)) {
+        FreeDmbBlock(pWdfDriver, va);
+        return;
+    }
+    FindCommonBuffer(pWdfDriver, va, &pa, &offset, TRUE);
 }
 
 static BOOLEAN FindCommonBufferByTag(PVIRTIO_WDF_DRIVER pWdfDriver, ULONG tag)
@@ -200,6 +326,10 @@ void VirtIOWdfDeviceFreeDmaMemoryByTag(VirtIODevice *vdev, ULONG groupTag)
         DPrintf(0, "%s was not initialized\n", __FUNCTION__);
         return;
     }
+    if (DmbActive(vdev->DeviceContext)) {
+        FreeDmbBlocksByTag(vdev->DeviceContext, groupTag);
+        return;
+    }
     while (FindCommonBufferByTag(vdev->DeviceContext, groupTag))
         ;
 }
@@ -207,7 +337,11 @@ void VirtIOWdfDeviceFreeDmaMemoryByTag(VirtIODevice *vdev, ULONG groupTag)
 static void FreeSlicedBlock(PVIRTIO_DMA_MEMORY_SLICED p)
 {
     size_t offset;
-    FindCommonBuffer(p->drv, p->va, &p->pa, &offset, TRUE);
+    if (DmbActive(p->drv)) {
+        FreeDmbBlock(p->drv, p->va);
+    } else {
+        FindCommonBuffer(p->drv, p->va, &p->pa, &offset, TRUE);
+    }
     ExFreePoolWithTag(p, p->drv->MemoryTag);
 }
 
@@ -226,7 +360,12 @@ static void FreeSlice(PVIRTIO_DMA_MEMORY_SLICED p, PVOID va)
 {
     PHYSICAL_ADDRESS pa;
     size_t offset;
-    if (!FindCommonBuffer(p->drv, va, &pa, &offset, FALSE)) {
+    if (DmbActive(p->drv)) {
+        /* The block is one DMB run starting at p->va; the slice offset is the
+         * distance from it. GetPhysicalAddress would also work, but this
+         * needs no lookup. */
+        offset = (size_t)((PUCHAR)va - (PUCHAR)p->va);
+    } else if (!FindCommonBuffer(p->drv, va, &pa, &offset, FALSE)) {
         DPrintf(0, "%s: block with va %p not found\n", __FUNCTION__, va);
         return;
     }
