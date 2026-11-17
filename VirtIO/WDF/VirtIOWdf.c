@@ -32,6 +32,7 @@
 #include "osdep.h"
 #include "virtio_pci.h"
 #include "VirtIOWdf.h"
+#include "VirtIODmb.h"
 #include "private.h"
 #include <wdmguid.h>
 
@@ -112,6 +113,22 @@ ULONGLONG VirtIOWdfGetDeviceFeatures(PVIRTIO_WDF_DRIVER pWdfDriver)
     return virtio_get_features(&pWdfDriver->VIODevice);
 }
 
+void VirtIOWdfDeviceDmbOptIn(PVIRTIO_WDF_DRIVER pWdfDriver)
+{
+    pWdfDriver->DmbOptIn = TRUE;
+    virtio_dmb_opt_in(&pWdfDriver->VIODevice);
+}
+
+BOOLEAN VirtIOWdfDeviceDmbActive(PVIRTIO_WDF_DRIVER pWdfDriver)
+{
+    return (BOOLEAN)virtio_dmb_is_active(&pWdfDriver->VIODevice);
+}
+
+size_t VirtIOWdfDeviceDmbMaxMapping(PVIRTIO_WDF_DRIVER pWdfDriver)
+{
+    return virtio_dmb_max_mapping(&pWdfDriver->VIODevice);
+}
+
 NTSTATUS VirtIOWdfSetDriverFeatures(PVIRTIO_WDF_DRIVER pWdfDriver, ULONGLONG uPrivateFeaturesOn,
                                     ULONGLONG uFeaturesOff)
 {
@@ -176,8 +193,14 @@ static NTSTATUS VirtIOWdfFinalizeFeatures(PVIRTIO_WDF_DRIVER pWdfDriver)
     if (!(dev_status & VIRTIO_CONFIG_S_FEATURES_OK)) {
         status = virtio_set_features(&pWdfDriver->VIODevice, pWdfDriver->uFeatures);
     }
+    if (!NT_SUCCESS(status)) {
+        return status;
+    }
 
-    return status;
+    /* Features are settled, so the DMB state is known. The layer sized
+     * nothing from it, but the driver did, so refuse a restart that changes
+     * it. */
+    return virtio_dmb_check_mode(&pWdfDriver->VIODevice, &pWdfDriver->DmbMode);
 }
 
 NTSTATUS VirtIOWdfInitQueues(PVIRTIO_WDF_DRIVER pWdfDriver, ULONG nQueues,
@@ -286,6 +309,8 @@ void VirtIOWdfSetDriverFailed(PVIRTIO_WDF_DRIVER pWdfDriver)
 NTSTATUS VirtIOWdfShutdown(PVIRTIO_WDF_DRIVER pWdfDriver)
 {
     virtio_device_shutdown(&pWdfDriver->VIODevice);
+
+    VirtIOWdfDmbShutdown(pWdfDriver);
 
     PCIFreeBars(pWdfDriver);
 

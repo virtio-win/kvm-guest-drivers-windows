@@ -147,6 +147,18 @@ static void FreeDmbBlocksByTag(PVIRTIO_WDF_DRIVER pWdfDriver, ULONG groupTag)
     }
 }
 
+void VirtIOWdfDmbShutdown(PVIRTIO_WDF_DRIVER pWdfDriver)
+{
+    /* The device is shut down, so the allocator is detached. Drop any run
+     * trackers a driver left behind; the region itself is owned by the
+     * transport. */
+    while (!IsListEmpty(&pWdfDriver->DmbBlocks)) {
+        PLIST_ENTRY entry = RemoveHeadList(&pWdfDriver->DmbBlocks);
+        PVIRTIO_WDF_DMB_BLOCK block = CONTAINING_RECORD(entry, VIRTIO_WDF_DMB_BLOCK, ListEntry);
+        ExFreePoolWithTag(block, pWdfDriver->MemoryTag);
+    }
+}
+
 static void *AllocateCommonBuffer(PVIRTIO_WDF_DRIVER pWdfDriver, size_t size, ULONG groupTag)
 {
     NTSTATUS status;
@@ -157,6 +169,13 @@ static void *AllocateCommonBuffer(PVIRTIO_WDF_DRIVER pWdfDriver, size_t size, UL
 
     if (DmbActive(pWdfDriver)) {
         return AllocateDmbBlock(pWdfDriver, size, groupTag);
+    }
+    /* Before feature negotiation the DMB is not active yet, so this buffer
+     * would land in guest RAM that a DMB device cannot reach and that has no
+     * DMB offset. Fail the allocation instead of handing out such a buffer. */
+    if (pWdfDriver->DmbOptIn && virtio_dmb_is_required(&pWdfDriver->VIODevice)) {
+        DPrintf(0, "%s FAILED(allocation before the DMB is negotiated)\n", __FUNCTION__);
+        return NULL;
     }
 
     if (KeGetCurrentIrql() > PASSIVE_LEVEL) {

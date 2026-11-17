@@ -116,3 +116,6 @@ typedef struct virtio_wdf_dma_transaction_context {
 } VIRTIO_WDF_DMA_TRANSACTION_CONTEXT, *PVIRTIO_WDF_DMA_TRANSACTION_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIRTIO_WDF_DMA_TRANSACTION_CONTEXT, GetDmaTransactionContext)
+
+/* Reclaim leftover DMB run trackers. Call after virtio_device_shutdown(). */
+void VirtIOWdfDmbShutdown(PVIRTIO_WDF_DRIVER pWdfDriver);
