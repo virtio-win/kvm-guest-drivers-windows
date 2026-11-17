@@ -651,8 +651,11 @@ static VOID VIOSockTxEnqueueCancel(IN WDFREQUEST Request)
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
 
     WdfSpinLockAcquire(pContext->TxLock);
-    RemoveEntryList(&pTxEntry->ListEntry);
-    InterlockedDecrement(&pContext->TxEnqueued);
+    if (!IsListEmpty(&pTxEntry->ListEntry))
+    {
+        RemoveEntryList(&pTxEntry->ListEntry);
+        InterlockedDecrement(&pContext->TxEnqueued);
+    }
     VIOSockTxPutCredit(pSocket, pTxEntry->len);
 
     if (VIOSockTimerEntryIsSet(&pTxEntry->TimerEntry))
@@ -1018,7 +1021,7 @@ VOID VIOSockTxTimerFunc(WDFTIMER Timer)
 {
     PDEVICE_CONTEXT pContext = GetDeviceContext(WdfTimerGetParentObject(Timer));
     PLIST_ENTRY CurrentEntry;
-    LONGLONG MinRemainingTicks = MAXLONGLONG;
+    LONGLONG MinDeadline = MAXLONGLONG;
     LIST_ENTRY CompletionList;
     BOOLEAN SetTimer = FALSE, bAlwaysTrue = TRUE;
 
@@ -1065,16 +1068,16 @@ VOID VIOSockTxTimerFunc(WDFTIMER Timer)
                     VIOSockTimerDeref(&pContext->TxTimer, FALSE);
                 }
             }
-            else if (llRemainingTicks < MinRemainingTicks)
+            else if (pTxEntry->TimerEntry.Deadline < MinDeadline)
             {
-                MinRemainingTicks = llRemainingTicks;
+                MinDeadline = pTxEntry->TimerEntry.Deadline;
             }
         }
     }
 
-    if (MinRemainingTicks != MAXLONGLONG)
+    if (MinDeadline != MAXLONGLONG)
     {
-        VIOSockTimerSetDeadline(&pContext->TxTimer, VIOSockTimerTicksToDeadline(MinRemainingTicks));
+        VIOSockTimerSetDeadline(&pContext->TxTimer, MinDeadline);
     }
 
     WdfSpinLockRelease(pContext->TxLock);

@@ -640,17 +640,13 @@ _Requires_lock_held_(pSocket->RxLock) NTSTATUS VIOSockPendedRequestSet(IN PSOCKE
                 // rollback request pending
                 if (!NT_SUCCESS(WdfRequestUnmarkCancelable(Request)))
                 {
-                    status = STATUS_CANCELLED;
-                }
-                else
-                {
-                    status = STATUS_IO_TIMEOUT;
+                    return STATUS_CANCELLED;
                 }
 
                 pSocket->PendedRequest = WDF_NO_HANDLE;
                 WdfObjectDereference(pSocket->ThisSocket);
 
-                return status;
+                return STATUS_IO_TIMEOUT;
             }
         }
 
