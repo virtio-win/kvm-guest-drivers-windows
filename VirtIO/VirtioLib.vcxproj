@@ -32,6 +32,7 @@
     <ClCompile Include="VirtIOPCIModern.c" />
     <ClCompile Include="VirtIORing-Packed.c" />
     <ClCompile Include="VirtIORing.c" />
+    <ClCompile Include="VirtIODmb.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="kdebugprint.h" />
@@ -43,6 +44,7 @@
     <ClInclude Include="virtio_pci.h" />
     <ClInclude Include="virtio_pci_common.h" />
     <ClInclude Include="virtio_ring.h" />
+    <ClInclude Include="VirtIODmb.h" />
     <ClInclude Include="windows\virtio_ring_allocation.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
