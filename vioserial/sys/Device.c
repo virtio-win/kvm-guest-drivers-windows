@@ -209,6 +209,12 @@ VIOSerialEvtDevicePrepareHardware(IN WDFDEVICE Device,
         return status;
     }
 
+    /* Opt into the Device Memory Buffer so vioserial works with a device that
+     * requires it. The in-buffers and control slices are allocated in D0
+     * entry, after the DMB is negotiated, and writes go through the shared
+     * layer's DMB bounce. */
+    VirtIOWdfDeviceDmbOptIn(&pContext->VDevice);
+
     pContext->consoleConfig.max_nr_ports = 1;
     pContext->DmaGroupTag = 0xD0000000;
 
@@ -445,12 +451,25 @@ VIOSerialFillQueue(IN struct virtqueue *vq, IN WDFSPINLOCK Lock, IN ULONG id)
 {
     NTSTATUS status = STATUS_SUCCESS;
     PPORT_BUFFER buf = NULL;
+    BOOLEAN dmb = VirtIOWdfDeviceDmbActive((PVIRTIO_WDF_DRIVER)vq->vdev->DeviceContext);
+    ULONG added = 0;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "--> %s\n", __FUNCTION__);
 
     for (;;)
     {
+        /* In the DMB every in-buffer takes a page of a small shared region,
+         * so leave room for the other ports and for writes. */
+        if (dmb && added == VIOSERIAL_DMB_IN_BUFFERS)
+        {
+            break;
+        }
         buf = VIOSerialAllocateSinglePageBuffer(vq->vdev, id);
+        if (buf == NULL && dmb && added)
+        {
+            /* The DMB ran out; the buffers we already posted will do. */
+            break;
+        }
         if (buf == NULL)
         {
             TraceEvents(TRACE_LEVEL_ERROR, DBG_INIT, "VIOSerialAllocateBuffer failed\n");
@@ -472,6 +491,7 @@ VIOSerialFillQueue(IN struct virtqueue *vq, IN WDFSPINLOCK Lock, IN ULONG id)
             break;
         }
         WdfSpinLockRelease(Lock);
+        added++;
     }
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_INIT, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;

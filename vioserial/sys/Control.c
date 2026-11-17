@@ -119,7 +119,8 @@ VOID VIOSerialCtrlWorkHandler(IN WDFDEVICE Device)
 VOID VIOSerialHandleCtrlMsg(IN WDFDEVICE Device, IN PPORT_BUFFER buf)
 {
     PPORTS_DEVICE pContext = GetPortsDevice(Device);
-    PVIRTIO_CONSOLE_CONTROL cpkt;
+    VIRTIO_CONSOLE_CONTROL ctrl;
+    PVIRTIO_CONSOLE_CONTROL cpkt = &ctrl;
     PVIOSERIAL_PORT port;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
@@ -130,7 +131,9 @@ VOID VIOSerialHandleCtrlMsg(IN WDFDEVICE Device, IN PPORT_BUFFER buf)
         return;
     }
 
-    cpkt = (PVIRTIO_CONSOLE_CONTROL)((ULONG_PTR)buf->va_buf + buf->offset);
+    /* The device may still write the buffer, so read the packet once and
+     * work on that copy. */
+    RtlCopyMemory(&ctrl, (PVOID)((ULONG_PTR)buf->va_buf + buf->offset), sizeof(ctrl));
 
     port = VIOSerialFindPortById(Device, cpkt->id);
 

@@ -566,6 +566,7 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN size_t Leng
     PWRITE_BUFFER_ENTRY entry;
     WDFDEVICE Device;
     PDRIVER_CONTEXT Context;
+    PPORTS_DEVICE PortsDevice;
     WDFMEMORY EntryHandle;
 
     PAGED_CODE();
@@ -602,6 +603,14 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN size_t Leng
         return;
     }
 
+    /* A write is bounced through the Device Memory Buffer in one piece, so
+     * bound it to a share of that region and report a short write. */
+    PortsDevice = GetPortsDevice(Port->BusDevice);
+    if (VirtIOWdfDeviceDmbActive(&PortsDevice->VDevice))
+    {
+        Length = min(Length, VirtIOWdfDeviceDmbMaxMapping(&PortsDevice->VDevice));
+    }
+
     Context = GetDriverContext(WdfDeviceGetDriver(Device));
     status = WdfMemoryCreateFromLookaside(Context->WriteBufferLookaside, &EntryHandle);
     if (!NT_SUCCESS(status))
@@ -624,7 +633,8 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN size_t Leng
     entry->Request = Request;
     entry->dmaTransaction = NULL;
 
-    if (VIOSerialSendBuffers(Port, entry) == 0)
+    status = VIOSerialSendBuffers(Port, entry);
+    if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "Failed to send user's buffer.\n");
 
@@ -634,7 +644,33 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN size_t Leng
         }
         WdfObjectDelete(EntryHandle);
 
-        WdfRequestComplete(Request, Port->Removed ? STATUS_INVALID_DEVICE_STATE : STATUS_INSUFFICIENT_RESOURCES);
+        if (Port->Removed)
+        {
+            status = STATUS_INVALID_DEVICE_STATE;
+        }
+        else if (status == STATUS_DEVICE_BUSY)
+        {
+            /* The DMB is full. With a write of this port in flight, treat it
+             * like a full ring: block further writes until that write
+             * completes and let the writer retry. With none, no completion
+             * of ours makes room, so fail the write. */
+            WdfSpinLockAcquire(Port->OutVqLock);
+            if (Port->WriteBuffersList.Next != NULL)
+            {
+                Port->OutVqFull = TRUE;
+                status = STATUS_CANT_WAIT;
+            }
+            else
+            {
+                status = STATUS_INSUFFICIENT_RESOURCES;
+            }
+            WdfSpinLockRelease(Port->OutVqLock);
+        }
+        else
+        {
+            status = STATUS_INSUFFICIENT_RESOURCES;
+        }
+        WdfRequestComplete(Request, status);
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);

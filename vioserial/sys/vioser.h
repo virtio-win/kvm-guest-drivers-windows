@@ -108,6 +108,10 @@ WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(PORTS_DEVICE, GetPortsDevice)
 
 #define VIOSERIAL_DRIVER_MEMORY_TAG (ULONG)'rsIV'
 
+/* In-buffers posted per receive queue when the device uses the Device
+ * Memory Buffer: one page each. */
+#define VIOSERIAL_DMB_IN_BUFFERS    64
+
 #define PORT_DEVICE_ID              L"{6FDE7547-1B65-48ae-B628-80BE62016026}\\VIOSerialPort\0"
 
 DEFINE_GUID(GUID_DEVCLASS_PORT_DEVICE, 0x6fde7547, 0x1b65, 0x48ae, 0xb6, 0x28, 0x80, 0xbe, 0x62, 0x1, 0x60, 0x26);
@@ -199,7 +203,7 @@ VOID VIOSerialProcessInputBuffers(IN PVIOSERIAL_PORT port);
 BOOLEAN
 VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT port);
 
-size_t VIOSerialSendBuffers(IN PVIOSERIAL_PORT Port, IN PWRITE_BUFFER_ENTRY Entry);
+NTSTATUS VIOSerialSendBuffers(IN PVIOSERIAL_PORT Port, IN PWRITE_BUFFER_ENTRY Entry);
 
 SSIZE_T
 VIOSerialFillReadBufLocked(IN PVIOSERIAL_PORT port, IN PVOID outbuf, IN SIZE_T count);

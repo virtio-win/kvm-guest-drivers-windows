@@ -61,7 +61,7 @@ VIOSerialAllocateSinglePageBuffer(IN VirtIODevice *vdev, IN ULONG id)
     return buf;
 }
 
-size_t VIOSerialSendBuffers(IN PVIOSERIAL_PORT Port, IN PWRITE_BUFFER_ENTRY Entry)
+NTSTATUS VIOSerialSendBuffers(IN PVIOSERIAL_PORT Port, IN PWRITE_BUFFER_ENTRY Entry)
 {
     struct virtqueue *vq = GetOutQueue(Port);
     VIRTIO_DMA_TRANSACTION_PARAMS params;
@@ -71,7 +71,7 @@ size_t VIOSerialSendBuffers(IN PVIOSERIAL_PORT Port, IN PWRITE_BUFFER_ENTRY Entr
     params.param2 = Entry;
     params.buffer = Entry->OriginalWriteBuffer;
     params.size = (ULONG)Entry->OriginalWriteBufferSize;
-    return !!VirtIOWdfDeviceDmaTxAsync(vq->vdev, &params, DmaWriteCallback);
+    return VirtIOWdfDeviceDmaTxAsyncEx(vq->vdev, &params, DmaWriteCallback);
 }
 
 BOOLEAN
