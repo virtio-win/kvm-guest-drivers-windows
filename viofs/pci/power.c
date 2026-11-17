@@ -75,9 +75,20 @@ NTSTATUS VirtFsEvtDevicePrepareHardware(IN WDFDEVICE Device,
         return status;
     }
 
+#if VIRT_FS_DMAR
+    // Opt into the Device Memory Buffer so viofs works with a device that
+    // requires it: every transfer goes through the shared layer's DMA
+    // bounce. The raw page path of !VIRT_FS_DMAR hands out guest pages and
+    // must not opt in.
+    VirtIOWdfDeviceDmbOptIn(&context->VDevice);
+#endif
+
     HostFeatures = VirtIOWdfGetDeviceFeatures(&context->VDevice);
 
-    if (virtio_is_feature_enabled(HostFeatures, VIRTIO_RING_F_INDIRECT_DESC) && VIRT_FS_ENABLE_INDIRECT)
+    // A device that offers the DMB gets driven through it, which rules out
+    // indirect descriptors.
+    if (virtio_is_feature_enabled(HostFeatures, VIRTIO_RING_F_INDIRECT_DESC) && VIRT_FS_ENABLE_INDIRECT &&
+        !virtio_is_feature_enabled(HostFeatures, VIRTIO_F_DMB))
     {
         virtio_feature_enable(GuestFeatures, VIRTIO_RING_F_INDIRECT_DESC);
         context->UseIndirect = TRUE;
@@ -224,6 +235,14 @@ NTSTATUS VirtFsEvtDeviceD0Entry(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE P
 
     status = VirtIOWdfInitQueues(&context->VDevice, context->NumQueues, context->VirtQueues, params);
 
+    if (NT_SUCCESS(status) && VirtIOWdfDeviceDmbActive(&context->VDevice))
+    {
+        // Each transfer is a single contiguous bounce in the DMB, so post it
+        // as one descriptor rather than one per page: without indirect
+        // descriptors a large request would not fit the ring otherwise.
+        context->SplitToPages = FALSE;
+    }
+
     if (NT_SUCCESS(status))
     {
         // set limit number of SG elements to exact queue size
@@ -260,6 +279,9 @@ NTSTATUS VirtFsEvtDeviceD0Exit(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE Ta
     PAGED_CODE();
 
     VirtIOWdfDestroyQueues(&context->VDevice);
+#if VIRT_FS_DMAR
+    VirtFsFailDmbWaiters(context);
+#endif
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_POWER, "<-- %!FUNC!");
 

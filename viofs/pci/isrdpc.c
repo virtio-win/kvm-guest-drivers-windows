@@ -192,6 +192,37 @@ BOOLEAN VirtFsDequeueRequest(PDEVICE_CONTEXT Context, PVIRTIO_FS_REQUEST Req)
     return found;
 }
 
+#if VIRT_FS_DMAR
+// In DMB mode each direction of a request is bounced in one piece of at most
+// the DMB mapping limit. Lower the read and write sizes the FUSE_INIT reply
+// grants, so that the service never builds a larger request.
+static VOID VirtFsLimitInitReply(PDEVICE_CONTEXT context, PVIRTIO_FS_REQUEST fs_req, ULONG length)
+{
+    ULONG limit = (ULONG)VirtIOWdfDeviceDmbMaxMapping(&context->VDevice);
+    ULONG maxWrite = (ULONG)(limit - sizeof(struct fuse_in_header) - sizeof(struct fuse_write_in));
+    USHORT maxPages = (USHORT)max((size_t)1, (limit - sizeof(struct fuse_out_header)) / PAGE_SIZE);
+    struct fuse_out_header *hdr;
+    struct fuse_init_out *init;
+
+    if (fs_req->Mdl != NULL || ((struct fuse_in_header *)fs_req->H2D_Params.buffer)->opcode != FUSE_INIT ||
+        length < sizeof(*hdr) + RTL_SIZEOF_THROUGH_FIELD(struct fuse_init_out, max_pages) ||
+        !NT_SUCCESS(WdfRequestRetrieveOutputBuffer(fs_req->Request, length, (PVOID *)&hdr, NULL)) || hdr->error != 0)
+    {
+        return;
+    }
+    init = (struct fuse_init_out *)(hdr + 1);
+    if (init->max_write > maxWrite)
+    {
+        init->max_write = maxWrite;
+    }
+    // The service reads 32 pages at a time when max_pages is 0.
+    if (init->max_pages == 0 || init->max_pages > maxPages)
+    {
+        init->max_pages = (USHORT)min(init->max_pages ? init->max_pages : 32, maxPages);
+    }
+}
+#endif
+
 static VOID VirtFsReadFromQueue(PDEVICE_CONTEXT context, struct virtqueue *vq, WDFSPINLOCK vq_lock)
 {
     PVIRTIO_FS_REQUEST fs_req;
@@ -278,9 +309,13 @@ static VOID VirtFsReadFromQueue(PDEVICE_CONTEXT context, struct virtqueue *vq, W
             // the request with more than its reply buffer holds.
             length = min(length, fs_req->D2H_Params.size);
             VirtIOWdfDeviceDmaTxComplete(&context->VDevice.VIODevice, fs_req->H2D_Params.transaction);
-            VirtIOWdfDeviceDmaRxComplete(&context->VDevice.VIODevice, fs_req->D2H_Params.transaction, length);
+            length = VirtIOWdfDeviceDmaRxComplete(&context->VDevice.VIODevice, fs_req->D2H_Params.transaction, length);
             fs_req->H2D_Params.transaction = NULL;
             fs_req->D2H_Params.transaction = NULL;
+            if (VirtIOWdfDeviceDmbActive(&context->VDevice))
+            {
+                VirtFsLimitInitReply(context, fs_req, length);
+            }
 #endif
 
             TraceEvents(TRACE_LEVEL_VERBOSE,
@@ -308,10 +343,16 @@ static VOID VirtFsReadFromQueue(PDEVICE_CONTEXT context, struct virtqueue *vq, W
         {
             VirtIOWdfDeviceDmaRxComplete(&context->VDevice.VIODevice, fs_req->D2H_Params.transaction, 0);
         }
+        // Its DMB runs are free now.
+        InterlockedDecrement(&context->RequestsOnRing);
 #endif
 
         FreeVirtFsRequest(fs_req);
     }
+
+#if VIRT_FS_DMAR
+    VirtFsResubmitDmbWaiters(context);
+#endif
 }
 
 VOID VirtFsEvtInterruptDpc(IN WDFINTERRUPT Interrupt, IN WDFOBJECT AssociatedObject)
