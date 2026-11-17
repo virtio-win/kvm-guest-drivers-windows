@@ -6,6 +6,7 @@ extern "C"
 #include "osdep.h"
 #include "virtio_pci.h"
 #include "virtio.h"
+#include "VirtIODmb.h"
 
 #include "ethernetutils.h"
 }
@@ -57,6 +58,16 @@ class CTXHeaders
     PVOID EthHeadersAreaVA() const
     {
         return m_EthHeaderVA;
+    }
+    PVOID HeadersBufferVA() const
+    {
+        return m_HeadersBuffer.Virtual;
+    }
+    // Bytes from the start of the headers buffer to the end of
+    // ParsedHeadersLength bytes of Ethernet headers.
+    ULONG UsedLength(ULONG ParsedHeadersLength) const
+    {
+        return RtlPointerToOffset(m_HeadersBuffer.Virtual, m_EthHeaderVA) + ParsedHeadersLength;
     }
 
     ULONG MaxEthHeadersSize() const
@@ -112,12 +123,27 @@ class CTXDescriptor : public CNdisAllocatable<CTXDescriptor, 'DTHR'>
     {
     }
 
+    ~CTXDescriptor()
+    {
+        if (m_DmbHeadersVA != nullptr)
+        {
+            virtio_dmb_free(m_DmbDevice, m_DmbHeadersVA, PAGE_SIZE);
+            m_DmbHeadersVA = nullptr;
+        }
+    }
+
+    // DmbDevice is the device when its Device Memory Buffer is active, else
+    // nullptr. With a DMB the headers are built in this descriptor's private
+    // page, as usual, and copied into a DMB page of the same layout when the
+    // packet is enqueued, so the device never sees guest RAM and the driver
+    // never parses memory the device can change.
     bool Create(NDIS_HANDLE DrvHandle,
                 ULONG VirtioHeaderSize,
                 struct VirtIOBufferDescriptor *VirtioSGL,
                 ULONG VirtioSGLSize,
                 bool Indirect,
-                bool AnyLayout)
+                bool AnyLayout,
+                VirtIODevice *DmbDevice)
     {
         m_MemoryBuffer.Initialize(DrvHandle);
         // allocate 8K buffer (or 4K if indirect is not used)
@@ -125,6 +151,9 @@ class CTXDescriptor : public CNdisAllocatable<CTXDescriptor, 'DTHR'>
         {
             return false;
         }
+        // The headers page is copied into the DMB by prefix length, including
+        // padding the header builders never write, so start it zeroed.
+        RtlZeroMemory(m_MemoryBuffer.GetVA(), PAGE_SIZE * (Indirect ? 2 : 1));
         m_VirtioSGL = VirtioSGL;
         m_VirtioSGLSize = VirtioSGLSize;
         m_Indirect = Indirect;
@@ -135,6 +164,23 @@ class CTXDescriptor : public CNdisAllocatable<CTXDescriptor, 'DTHR'>
         headers.Physical = m_MemoryBuffer.GetPA();
         headers.Virtual = m_MemoryBuffer.GetVA();
         headers.size = PAGE_SIZE;
+
+        if (DmbDevice != nullptr)
+        {
+            u64 offset = 0;
+
+            // Indirect tables would also have to live in the DMB; the caller
+            // does not negotiate them in DMB mode.
+            NETKVM_ASSERT(!Indirect);
+            m_DmbHeadersVA = virtio_dmb_alloc(DmbDevice, PAGE_SIZE, &offset);
+            if (m_DmbHeadersVA == nullptr)
+            {
+                return false;
+            }
+            m_DmbDevice = DmbDevice;
+            // The device addresses of the header chunks are DMB offsets.
+            headers.Physical.QuadPart = (LONGLONG)offset;
+        }
         m_Headers.Initialize(VirtioHeaderSize, headers);
 
         // second 4K is for indirect area
@@ -178,6 +224,11 @@ class CTXDescriptor : public CNdisAllocatable<CTXDescriptor, 'DTHR'>
   private:
     CTXHeaders m_Headers;
     CNdisSharedMemory m_MemoryBuffer;
+    // DMB copy of the headers page (DMB mode only) and the number of bytes
+    // of it the current packet uses, from the start of the page.
+    VirtIODevice *m_DmbDevice = nullptr;
+    PVOID m_DmbHeadersVA = nullptr;
+    ULONG m_HeadersUsedLength = 0;
     tCompletePhysicalAddress m_IndirectArea = {};
     bool m_Indirect = false;
     bool m_AnyLayout = false;

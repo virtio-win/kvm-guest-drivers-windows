@@ -23,6 +23,13 @@ bool CVirtQueue::AllocateQueueMemory()
         return false;
     }
 
+    // With a Device Memory Buffer the transport places the ring in the DMB
+    // itself and never asks for these pages.
+    if (virtio_dmb_is_active(m_IODevice))
+    {
+        return RingSize != 0;
+    }
+
     return (RingSize != 0) ? m_SharedMemory.Allocate(RingSize) : false;
 }
 
@@ -106,7 +113,8 @@ bool CTXVirtQueue::PrepareBuffers()
                              m_SGTable,
                              SGTableCapacity,
                              m_Context->bUseIndirect ? true : false,
-                             m_Context->bAnyLayout ? true : false))
+                             m_Context->bAnyLayout ? true : false,
+                             m_Context->DmbMode.active ? &m_Context->IODevice : nullptr))
         {
             CTXDescriptor::Destroy(TXDescr, m_Context->MiniportHandle);
             break;
@@ -380,6 +388,14 @@ SubmitTxPacketResult CTXDescriptor::Enqueue(CTXVirtQueue *Queue, ULONG TotalDesc
         return SubmitTxPacketResult::SUBMIT_NO_PLACE_IN_QUEUE;
     }
 
+    if (m_DmbHeadersVA != nullptr)
+    {
+        // Publish the finished headers (priority, virtio and Ethernet/IP
+        // headers, laid out from the start of the page) to the DMB copy that
+        // the header descriptors point at.
+        virtio_dmb_copy_in(m_DmbDevice, m_DmbHeadersVA, m_Headers.HeadersBufferVA(), m_HeadersUsedLength);
+    }
+
     if (0 <= Queue->AddBuf(m_VirtioSGL,
                            m_CurrVirtioSGLEntry,
                            0,
@@ -410,6 +426,12 @@ bool CTXDescriptor::AddDataChunk(const PHYSICAL_ADDRESS &PA, ULONG Length)
 bool CTXDescriptor::SetupHeaders(ULONG ParsedHeadersLength)
 {
     m_CurrVirtioSGLEntry = 0;
+
+    if (ParsedHeadersLength > m_Headers.MaxEthHeadersSize())
+    {
+        return false;
+    }
+    m_HeadersUsedLength = m_Headers.UsedLength(ParsedHeadersLength);
 
     if (m_Headers.VlanHeader()->TCI == 0)
     {

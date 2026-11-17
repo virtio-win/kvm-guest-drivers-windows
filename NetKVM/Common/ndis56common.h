@@ -84,6 +84,7 @@ extern "C"
 
 #include "kdebugprint.h"
 #include "virtio_pci.h"
+#include "VirtIODmb.h"
 #include "DebugData.h"
 }
 
@@ -458,6 +459,12 @@ struct _tagRxNetDescriptor
     // Bytes the descriptor offers the device: the sum of BufferSGArray
     // lengths. A used length above it is clamped to it.
     ULONG BufferCapacity;
+    // Device Memory Buffer mode only: the device writes the packet into
+    // DmbShadow (one DMB run, BufferSGArray points at it), and the driver
+    // copies it into PhysicalPages before looking at it. DmbSgVA[i] is the
+    // private virtual address that BufferSGArray[i] stands for.
+    tCompletePhysicalAddress DmbShadow;
+    PVOID *DmbSgVA;
 
     NET_PACKET_INFO PacketInfo;
 
@@ -532,6 +539,15 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
     volatile LONG bAdapterFailed = FALSE;
     BOOLEAN bUsingMSIX = false;
     BOOLEAN bUseIndirect = false;
+    // The device offers a usable Device Memory Buffer, so features are
+    // picked to suit it ...
+    bool bDmbPresent = false;
+    // ... and the mode the transport negotiated: when active, every device
+    // address is a DMB offset, RX is copied out of the DMB, TX is copied
+    // into it.
+    VirtIODmbMode DmbMode = {};
+    // TX payload copy pages per TX path in DMB mode.
+    ULONG nDmbTxPages = 0;
     BOOLEAN bAnyLayout = false;
     BOOLEAN bCtrlRXFiltersSupported = false;
     BOOLEAN bCtrlRXExtraFiltersSupported = false;

@@ -23,11 +23,34 @@ bool CNdisSharedMemory::Allocate(ULONG Size, bool IsCached)
     return m_VA != nullptr;
 }
 
+bool CNdisSharedMemory::AllocateDmb(struct virtio_device *DmbDevice, ULONG Size)
+{
+    u64 offset = 0;
+
+    m_Size = Size;
+    m_IsCached = false;
+    m_VA = virtio_dmb_alloc(DmbDevice, Size, &offset);
+    if (m_VA == nullptr)
+    {
+        return false;
+    }
+    m_PA.QuadPart = (LONGLONG)offset;
+    m_DmbDevice = DmbDevice;
+    return true;
+}
+
 CNdisSharedMemory::~CNdisSharedMemory()
 {
     if (m_VA != nullptr)
     {
-        NdisMFreeSharedMemory(m_DrvHandle, m_Size, m_IsCached, m_VA, m_PA);
+        if (m_DmbDevice != nullptr)
+        {
+            virtio_dmb_free(m_DmbDevice, m_VA, m_Size);
+        }
+        else
+        {
+            NdisMFreeSharedMemory(m_DrvHandle, m_Size, m_IsCached, m_VA, m_PA);
+        }
         m_VA = nullptr;
     }
 }

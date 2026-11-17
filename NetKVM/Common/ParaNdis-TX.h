@@ -70,7 +70,9 @@ class CNB : public CNdisAllocatableViaHelper<CNB>
 
     ULONG GetSGLLength() const
     {
-        return m_SGL->NumberOfElements;
+        // No DMA scatter/gather list exists in DMB mode, where every packet
+        // takes the copy path.
+        return (m_SGL != nullptr) ? m_SGL->NumberOfElements : 0;
     }
 
     NBMappingStatus BindToDescriptor(CTXDescriptor &Descriptor);

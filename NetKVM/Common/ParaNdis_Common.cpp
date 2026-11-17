@@ -876,8 +876,21 @@ NDIS_STATUS ParaNdis_InitializeContext(PARANDIS_ADAPTER *pContext, PNDIS_RESOURC
             return status;
         }
 
+        // NetKVM keeps every device address inside the DMB when the device
+        // requires one (see PrepareDmb), so it may accept VIRTIO_F_DMB.
+        virtio_dmb_opt_in(&pContext->IODevice);
+
         pContext->u64HostFeatures = virtio_get_features(&pContext->IODevice);
         DumpVirtIOFeatures(pContext);
+
+        // A device with a Device Memory Buffer can only reach that buffer.
+        // The transport negotiates VIRTIO_F_DMB itself; the choices below
+        // keep every address the driver hands out inside a bounded DMB.
+        pContext->bDmbPresent = virtio_dmb_is_present(&pContext->IODevice);
+        if (pContext->bDmbPresent)
+        {
+            DPrintf(0, "Device Memory Buffer present, %I64u bytes", virtio_dmb_size(&pContext->IODevice));
+        }
 
         // Enable VIRTIO_F_ACCESS_PLATFORM feature on Windows 10 and Windows Server 2016
 #if (WINVER == 0x0A00)
@@ -903,7 +916,9 @@ NDIS_STATUS ParaNdis_InitializeContext(PARANDIS_ADAPTER *pContext, PNDIS_RESOURC
         InitializeMaxMTUConfig(pContext);
 
         // ACK VIRTIO_NET_F_MRG_RXBUF conditionally to align with VirtIO spec.
-        pContext->bUseMergedBuffers = pContext->bMergeableBuffersConfigured &&
+        // In DMB mode mergeable buffers are always used when offered: each RX
+        // buffer then takes one DMB page instead of a whole maximum packet.
+        pContext->bUseMergedBuffers = (pContext->bMergeableBuffersConfigured || pContext->bDmbPresent) &&
                                       AckFeature(pContext, VIRTIO_NET_F_MRG_RXBUF);
         if (!pContext->bMergeableBuffersConfigured)
         {
@@ -926,9 +941,12 @@ NDIS_STATUS ParaNdis_InitializeContext(PARANDIS_ADAPTER *pContext, PNDIS_RESOURC
     }
 
 #if PARANDIS_SUPPORT_RSS
-    pContext->bMultiQueue = pContext->bControlQueueSupported && AckFeature(pContext, VIRTIO_NET_F_MQ);
-    bool bRSS = virtio_is_feature_enabled(pContext->u64HostFeatures, VIRTIO_NET_F_RSS);
-    bool bHash = virtio_is_feature_enabled(pContext->u64HostFeatures, VIRTIO_NET_F_HASH_REPORT);
+    // In DMB mode one queue pair keeps the rings and buffers within the DMB.
+    pContext->bMultiQueue = !pContext->bDmbPresent && pContext->bControlQueueSupported &&
+                            AckFeature(pContext, VIRTIO_NET_F_MQ);
+    bool bRSS = !pContext->bDmbPresent && virtio_is_feature_enabled(pContext->u64HostFeatures, VIRTIO_NET_F_RSS);
+    bool bHash = !pContext->bDmbPresent &&
+                 virtio_is_feature_enabled(pContext->u64HostFeatures, VIRTIO_NET_F_HASH_REPORT);
 
     if ((bHash || bRSS) && pContext->bControlQueueSupported &&
         virtio_is_feature_enabled(pContext->u64HostFeatures, VIRTIO_F_VERSION_1))
@@ -981,7 +999,16 @@ NDIS_STATUS ParaNdis_InitializeContext(PARANDIS_ADAPTER *pContext, PNDIS_RESOURC
 
     pContext->bGuestChecksumSupported = AckFeature(pContext, VIRTIO_NET_F_GUEST_CSUM);
 
-    InitializeRSCState(pContext);
+    // Without mergeable buffers each RSC buffer would be a full 64 KiB packet,
+    // which a DMB cannot hold enough of.
+    if (pContext->bDmbPresent && !pContext->bUseMergedBuffers)
+    {
+        DPrintf(0, "DMB without mergeable RX buffers, RSC disabled");
+    }
+    else
+    {
+        InitializeRSCState(pContext);
+    }
 
     pContext->MaxPacketSize.nMaxFullSizeOS = pContext->MaxPacketSize.nMaxDataSize + ETH_HEADER_SIZE;
     pContext->MaxPacketSize.nMaxFullSizeHwTx = pContext->MaxPacketSize.nMaxFullSizeOS;
@@ -1035,7 +1062,9 @@ NDIS_STATUS ParaNdis_InitializeContext(PARANDIS_ADAPTER *pContext, PNDIS_RESOURC
         }
     }
 
-    pContext->bUseIndirect = AckFeature(pContext, VIRTIO_RING_F_INDIRECT_DESC);
+    // Indirect tables would have to live in the DMB as well; direct
+    // descriptors are enough for the DMB copy paths.
+    pContext->bUseIndirect = !pContext->bDmbPresent && AckFeature(pContext, VIRTIO_RING_F_INDIRECT_DESC);
     pContext->bAnyLayout = AckFeature(pContext, VIRTIO_F_ANY_LAYOUT);
     if (AckFeature(pContext, VIRTIO_F_VERSION_1))
     {
@@ -1044,7 +1073,9 @@ NDIS_STATUS ParaNdis_InitializeContext(PARANDIS_ADAPTER *pContext, PNDIS_RESOURC
 
         pContext->bAnyLayout = true;
         DPrintf(0, "Assuming VIRTIO_F_ANY_LAYOUT for V1 device");
-        if (AckFeature(pContext, VIRTIO_F_RING_PACKED))
+        // The packed ring is not validated against a device that can write the
+        // ring at will, so it is not used in DMB mode.
+        if (!pContext->bDmbPresent && AckFeature(pContext, VIRTIO_F_RING_PACKED))
         {
             DPrintf(0, "Using PACKED ring");
         }
@@ -1069,6 +1100,11 @@ NDIS_STATUS ParaNdis_InitializeContext(PARANDIS_ADAPTER *pContext, PNDIS_RESOURC
         {
             DPrintf(0, "virtio_set_features failed with %x", nt_status);
             status = NTStatusToNdisStatus(nt_status);
+        }
+        // The queues, buffers and their DMB budget are sized for this mode.
+        else if (!NT_SUCCESS(virtio_dmb_check_mode(&pContext->IODevice, &pContext->DmbMode)))
+        {
+            status = NDIS_STATUS_FAILURE;
         }
     }
 
@@ -1238,6 +1274,47 @@ static void PrepareRXLayout(PARANDIS_ADAPTER *pContext)
 }
 
 /**********************************************************
+Device Memory Buffer setup, before the first queue is created:
+splits the DMB between RX buffers, TX headers and TX payload pages:
+    RX buffers      up to 1/4 of the DMB
+    TX descriptors  up to 1/16 (one DMB headers page each)
+    TX copy pages   1/4
+leaving the rest for the rings, the control queue and slack.
+***********************************************************/
+static bool PrepareDmb(PARANDIS_ADAPTER *pContext)
+{
+    VirtIODevice *vdev = &pContext->IODevice;
+    ULONG dmbPages = (ULONG)(virtio_dmb_size(vdev) / PAGE_SIZE);
+    ULONG rxPagesPerBuffer = pContext->bUseMergedBuffers ? 1 : (ULONG)pContext->RxLayout.TotalAllocationsPerBuffer + 1;
+    ULONG rxLimit, txLimit;
+
+    // The smallest configuration: 16 RX buffers, 16 TX descriptors with a
+    // headers page each, one packet's worth of TX copy pages, and room for
+    // the rings and the control queue.
+    ULONG minPages = 16 * rxPagesPerBuffer + 16 + MAX_PACKET_PAGES + 16;
+    if (dmbPages < minPages)
+    {
+        DPrintf(0, "DMB of %u pages is too small, need %u", dmbPages, minPages);
+        return false;
+    }
+
+    rxLimit = max(16UL, (dmbPages / 4) / rxPagesPerBuffer);
+    txLimit = max(16UL, dmbPages / 16);
+    pContext->maxRxBufferPerQueue = min(pContext->maxRxBufferPerQueue, rxLimit);
+    pContext->maxFreeTxDescriptors = min(pContext->maxFreeTxDescriptors, txLimit);
+    pContext->nDmbTxPages = max((ULONG)MAX_PACKET_PAGES, dmbPages / 4);
+
+    DPrintf(0,
+            "DMB active: %u pages, RX buffers %u (%u pages each), TX descriptors %u, TX copy pages %u",
+            dmbPages,
+            pContext->maxRxBufferPerQueue,
+            rxPagesPerBuffer,
+            pContext->maxFreeTxDescriptors,
+            pContext->nDmbTxPages);
+    return true;
+}
+
+/**********************************************************
 Initializes VirtIO buffering and related stuff:
 Allocates RX and TX queues and buffers
 Parameters:
@@ -1267,6 +1344,11 @@ static NDIS_STATUS ParaNdis_VirtIONetInit(PARANDIS_ADAPTER *pContext)
     }
 
     PrepareRXLayout(pContext);
+
+    if (pContext->DmbMode.active && !PrepareDmb(pContext))
+    {
+        return NDIS_STATUS_RESOURCES;
+    }
 
     if (pContext->bControlQueueSupported && pContext->CXPath.Create(2 * pContext->nHardwareQueues))
     {
@@ -2368,6 +2450,10 @@ NDIS_STATUS ParaNdis_PowerOn(PARANDIS_ADAPTER *pContext)
      otherwise the device will not work properly */
     (void)virtio_get_features(&pContext->IODevice);
     NTSTATUS nt_status = virtio_set_features(&pContext->IODevice, pContext->u64GuestFeatures);
+    if (NT_SUCCESS(nt_status))
+    {
+        nt_status = virtio_dmb_check_mode(&pContext->IODevice, &pContext->DmbMode);
+    }
     if (!NT_SUCCESS(nt_status))
     {
         DPrintf(0, "virtio_set_features failed with %x", nt_status);

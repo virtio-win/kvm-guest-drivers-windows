@@ -519,7 +519,14 @@ void CParaNdisTX::NBLMappingDone(CNBL *NBLHolder)
 
 bool CParaNdisTX::AllocateExtraPages()
 {
-    for (ULONG j = 0; j < MAX_PACKET_PAGES; j++)
+    // Without a DMB these pages only serve packets with more fragments than
+    // a descriptor can hold. With a DMB every packet's payload is copied into
+    // them, so the pool is larger (sized in ParaNdis_VirtIONetInit) and lives
+    // in the DMB. The driver only writes these pages, so they are filled in
+    // place without a second copy.
+    ULONG nPages = m_Context->DmbMode.active ? m_Context->nDmbTxPages : MAX_PACKET_PAGES;
+
+    for (ULONG j = 0; j < nPages; j++)
     {
         auto Page = new (m_Context->MiniportHandle) CNdisSharedMemory();
         if (Page == nullptr)
@@ -527,7 +534,7 @@ bool CParaNdisTX::AllocateExtraPages()
             return false;
         }
         Page->Initialize(m_Context->MiniportHandle);
-        if (Page->Allocate(PAGE_SIZE))
+        if (m_Context->DmbMode.active ? Page->AllocateDmb(&m_Context->IODevice, PAGE_SIZE) : Page->Allocate(PAGE_SIZE))
         {
             m_ExtraPages.Push(Page);
         }
@@ -550,6 +557,10 @@ void CParaNdisTX::FreeExtraPages()
 
 bool CParaNdisTX::BorrowPages(CExtendedNBStorage *extraNBStorage, ULONG NeedPages)
 {
+    if (NeedPages > MAX_PACKET_PAGES)
+    {
+        return false;
+    }
     if (m_ExtraPages.GetCount() < NeedPages)
     {
         return false;
@@ -1106,6 +1117,15 @@ bool CNB::ScheduleBuildSGListForTx()
 {
     NETKVM_ASSERT(KeGetCurrentIrql() == DISPATCH_LEVEL);
 
+    if (m_Context->DmbMode.active)
+    {
+        // The device can only reach the DMB, so a DMA mapping of the packet
+        // is of no use: BindToDescriptor copies the payload into DMB pages.
+        // Complete the mapping step right away without a scatter/gather list.
+        MappingDone(nullptr);
+        return true;
+    }
+
     return NdisMAllocateNetBufferSGList(m_Context->DmaHandle, m_NB, this, NDIS_SG_LIST_WRITE_TO_DEVICE, nullptr, 0) ==
            NDIS_STATUS_SUCCESS;
 }
@@ -1231,6 +1251,20 @@ NBMappingStatus CNB::FillDescriptorSGList(CTXDescriptor &Descriptor, ULONG Parse
     {
         return NBMappingStatus::FAILURE;
     }
+
+    if (m_Context->DmbMode.active)
+    {
+        // Every packet's payload goes through the DMB copy pages. If none
+        // are free, NO_RESOURCE keeps the packet queued until a completion
+        // returns pages (backpressure, no drop).
+        auto res = AllocateAndFillCopySGL(ParsedHeadersLength);
+        if (res != NBMappingStatus::SUCCESS)
+        {
+            return res;
+        }
+        return MapCopyDataToVirtioSGL(Descriptor);
+    }
+
     if (Descriptor.HasRoom(m_SGL->NumberOfElements))
     {
         return MapDataToVirtioSGL(Descriptor, ParsedHeadersLength + NET_BUFFER_DATA_OFFSET(m_NB));
@@ -1363,7 +1397,7 @@ void CNB::Report(int level, bool Success)
 
 NBMappingStatus CNB::BindToDescriptor(CTXDescriptor &Descriptor)
 {
-    if (m_SGL == nullptr)
+    if (m_SGL == nullptr && !m_Context->DmbMode.active)
     {
         return NBMappingStatus::FAILURE;
     }
@@ -1511,6 +1545,14 @@ NBMappingStatus CNB::AllocateAndFillCopySGL(ULONG ParsedHeadersLength)
     // Calculate the number of pages needed for data, excluding protocol header length.
     ULONG DataLength = GetDataLength() - ParsedHeadersLength;
     ULONG Pages = (DataLength + PAGE_SIZE - 1) / PAGE_SIZE;
+
+    // A packet that can never fit the per-packet page array must fail
+    // rather than wait for pages forever.
+    if (Pages > MAX_PACKET_PAGES)
+    {
+        DPrintf(0, "packet needs %lu copy pages, more than %u", Pages, MAX_PACKET_PAGES);
+        return NBMappingStatus::FAILURE;
+    }
 
     m_ExtraNBStorage = (CExtendedNBStorage *)ParaNdis_AllocateMemory(m_Context, sizeof(CExtendedNBStorage));
 
