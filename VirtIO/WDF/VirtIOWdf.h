@@ -192,11 +192,22 @@ BOOLEAN VirtIOWdfDeviceDmaTxAsync(VirtIODevice *vdev, PVIRTIO_DMA_TRANSACTION_PA
                                   VirtIOWdfDmaTransactionCallback);
 BOOLEAN VirtIOWdfDeviceDmaRxAsync(VirtIODevice *vdev, PVIRTIO_DMA_TRANSACTION_PARAMS params,
                                   VirtIOWdfDmaTransactionCallback);
+/* As above, but report why a transfer did not start. STATUS_SUCCESS: the
+ * callback was called. In DMB mode, STATUS_DEVICE_BUSY: the DMB is full for
+ * now, and a completion of this device frees space; STATUS_INVALID_BUFFER_SIZE:
+ * the transfer is larger than virtio_dmb_max_mapping() and never fits.
+ * Any other status: the setup failed. */
+NTSTATUS VirtIOWdfDeviceDmaTxAsyncEx(VirtIODevice *vdev, PVIRTIO_DMA_TRANSACTION_PARAMS params,
+                                     VirtIOWdfDmaTransactionCallback);
+NTSTATUS VirtIOWdfDeviceDmaRxAsyncEx(VirtIODevice *vdev, PVIRTIO_DMA_TRANSACTION_PARAMS params,
+                                     VirtIOWdfDmaTransactionCallback);
 
 /* <= DISPATCH transaction = VIRTIO_DMA_TRANSACTION_PARAMS.transaction */
 void VirtIOWdfDeviceDmaTxComplete(VirtIODevice *vdev, WDFDMATRANSACTION transaction);
-/* <= DISPATCH transaction = VIRTIO_DMA_TRANSACTION_PARAMS.transaction */
-void VirtIOWdfDeviceDmaRxComplete(VirtIODevice *vdev, WDFDMATRANSACTION transaction, ULONG length);
+/* <= DISPATCH transaction = VIRTIO_DMA_TRANSACTION_PARAMS.transaction
+ * Returns the number of bytes that reached the caller's buffer, at most
+ * length. */
+ULONG VirtIOWdfDeviceDmaRxComplete(VirtIODevice *vdev, WDFDMATRANSACTION transaction, ULONG length);
 
 typedef struct virtio_dma_memory_sliced {
     PVOID (*get_slice)(struct virtio_dma_memory_sliced *, PHYSICAL_ADDRESS *ppa);
