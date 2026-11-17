@@ -201,6 +201,15 @@ if /I "!TAG!"=="SDV" (
     echo Static Driver Verifier build for %BUILD_FILE% succeeded.
   ) else (
     echo Skipping SDV for %BUILD_FILE%, configuration %TARGET_VS_CONFIG%. SDV is for WHCP_LEGACY targets ONLY.
+    if exist sdv (
+      echo Removing SDV artifacts before DVL generation.
+      rmdir /s /q "sdv"
+      if exist sdv (
+        echo ERROR: Could not remove SDV artifacts.
+        set "BUILD_FAILED=1"
+        goto :build_arch_done
+      )
+    )
     echo.
   )
   if exist "%CODEQL_BIN%" (

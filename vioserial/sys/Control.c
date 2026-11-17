@@ -94,7 +94,11 @@ VOID VIOSerialCtrlWorkHandler(IN WDFDEVICE Device)
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_PNP, "--> %s\n", __FUNCTION__);
 
     vq = pContext->c_ivq;
-    ASSERT(vq);
+    if (!vq)
+    {
+        /* No control queues on a device that lacks VIRTIO_CONSOLE_F_MULTIPORT. */
+        return;
+    }
 
     WdfSpinLockAcquire(pContext->CInVqLock);
     while ((buf = virtqueue_get_buf(vq, &len)))

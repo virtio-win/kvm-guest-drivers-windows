@@ -1104,7 +1104,8 @@ NDIS_STATUS ParaNdis_ExactSendFailureStatus(PARANDIS_ADAPTER *pContext)
     {
         status = NDIS_STATUS_MEDIA_DISCONNECTED;
     }
-    if (pContext->bSurprizeRemoved)
+    // A failed adapter should look as unavailable as a removed one.
+    if (pContext->bSurprizeRemoved || pContext->bAdapterFailed)
     {
         status = NDIS_STATUS_NOT_ACCEPTED;
     }
@@ -1114,7 +1115,10 @@ NDIS_STATUS ParaNdis_ExactSendFailureStatus(PARANDIS_ADAPTER *pContext)
 BOOLEAN ParaNdis_IsTxRxPossible(PARANDIS_ADAPTER *pContext)
 {
     BOOLEAN b;
-    b = !pContext->bSurprizeRemoved && pContext->fCurrentLinkState == MediaConnectStateConnected;
+    // Gates new sends the same way bSurprizeRemoved does; sends already in
+    // flight when the adapter failed are drained separately elsewhere.
+    b = !pContext->bSurprizeRemoved && !pContext->bAdapterFailed &&
+        pContext->fCurrentLinkState == MediaConnectStateConnected;
     return b;
 }
 

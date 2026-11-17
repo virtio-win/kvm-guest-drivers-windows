@@ -87,6 +87,46 @@ extern "C"
 #include "DebugData.h"
 }
 
+// Statistics are shared by independent RX/TX queues and the VF callback.
+// Keep all counter access interlocked, including reads on 32-bit systems.
+static FORCEINLINE void ParaNdis_StatAdd(ULONG64 &Counter, ULONG64 Value)
+{
+    InterlockedExchangeAdd64(reinterpret_cast<volatile LONG64 *>(&Counter), static_cast<LONG64>(Value));
+}
+
+static FORCEINLINE ULONG64 ParaNdis_StatRead(ULONG64 &Counter)
+{
+    return static_cast<ULONG64>(InterlockedCompareExchange64(reinterpret_cast<volatile LONG64 *>(&Counter), 0, 0));
+}
+
+// Each field is read atomically, but updates may occur between reads, so the
+// snapshot is not guaranteed to be consistent across counters.
+static FORCEINLINE NDIS_STATISTICS_INFO ParaNdis_StatisticsSnapshot(NDIS_STATISTICS_INFO &Statistics)
+{
+    NDIS_STATISTICS_INFO Snapshot = {};
+    Snapshot.Header = Statistics.Header;
+    Snapshot.SupportedStatistics = Statistics.SupportedStatistics;
+    Snapshot.ifInDiscards = ParaNdis_StatRead(Statistics.ifInDiscards);
+    Snapshot.ifInErrors = ParaNdis_StatRead(Statistics.ifInErrors);
+    Snapshot.ifHCInOctets = ParaNdis_StatRead(Statistics.ifHCInOctets);
+    Snapshot.ifHCInUcastPkts = ParaNdis_StatRead(Statistics.ifHCInUcastPkts);
+    Snapshot.ifHCInMulticastPkts = ParaNdis_StatRead(Statistics.ifHCInMulticastPkts);
+    Snapshot.ifHCInBroadcastPkts = ParaNdis_StatRead(Statistics.ifHCInBroadcastPkts);
+    Snapshot.ifHCOutOctets = ParaNdis_StatRead(Statistics.ifHCOutOctets);
+    Snapshot.ifHCOutUcastPkts = ParaNdis_StatRead(Statistics.ifHCOutUcastPkts);
+    Snapshot.ifHCOutMulticastPkts = ParaNdis_StatRead(Statistics.ifHCOutMulticastPkts);
+    Snapshot.ifHCOutBroadcastPkts = ParaNdis_StatRead(Statistics.ifHCOutBroadcastPkts);
+    Snapshot.ifOutErrors = ParaNdis_StatRead(Statistics.ifOutErrors);
+    Snapshot.ifOutDiscards = ParaNdis_StatRead(Statistics.ifOutDiscards);
+    Snapshot.ifHCInUcastOctets = ParaNdis_StatRead(Statistics.ifHCInUcastOctets);
+    Snapshot.ifHCInMulticastOctets = ParaNdis_StatRead(Statistics.ifHCInMulticastOctets);
+    Snapshot.ifHCInBroadcastOctets = ParaNdis_StatRead(Statistics.ifHCInBroadcastOctets);
+    Snapshot.ifHCOutUcastOctets = ParaNdis_StatRead(Statistics.ifHCOutUcastOctets);
+    Snapshot.ifHCOutMulticastOctets = ParaNdis_StatRead(Statistics.ifHCOutMulticastOctets);
+    Snapshot.ifHCOutBroadcastOctets = ParaNdis_StatRead(Statistics.ifHCOutBroadcastOctets);
+    return Snapshot;
+}
+
 #if !defined(_Function_class_)
 #define _Function_class_(x)
 #endif
@@ -519,6 +559,13 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
     BOOLEAN bMergeableBuffersConfigured = true;
     BOOLEAN bFastInit = false;
     BOOLEAN bSurprizeRemoved = false;
+    // Set by FailAdapter() to record that the adapter is in a failed state:
+    // processing of all RX/TX/CX queues is canceled, and all new requests are
+    // rejected. The adapter must be reset to restore its functionality.
+    // The flag must be a LONG instead of a BOOLEAN, because an interlocked
+    // operation is necessary to avoid a race condition when setting this flag
+    // to true.
+    volatile LONG bAdapterFailed = FALSE;
     BOOLEAN bUsingMSIX = false;
     BOOLEAN bUseIndirect = false;
     BOOLEAN bAnyLayout = false;
@@ -557,7 +604,7 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
     CGuestAnnouncePackets guestAnnouncePackets;
 
     /* send part */
-    NDIS_STATISTICS_INFO Statistics = {};
+    alignas(8) NDIS_STATISTICS_INFO Statistics = {};
     NDIS_STATISTICS_INFO VfStatistics = {};
     struct
     {
@@ -585,6 +632,8 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
         ULONG ctrlCommands;
         ULONG ctrlFailed;
         ULONG ctrlTimedOut;
+        ULONG guestAnnounceCount;            // number of virtio-net announce events observed (~1 per live migration)
+        LARGE_INTEGER lastGuestAnnounceTime; // NdisGetCurrentSystemTime of the last one (FILETIME units, for WMI)
     } extraStatistics = {};
 
     /* initial number of free Tx descriptor(from cfg) - max number of available Tx descriptors */
@@ -673,6 +722,14 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
     ULONG uMaxFragmentsInOneNB;
 
     VOID RaiseUnrecoverableError(PCSTR Message);
+
+    // Puts the adapter into a permanent failed state: sets bAdapterFailed,
+    // logs DiagnosticValue to the System Event Log, drains in-flight TX/CX
+    // work, and asks NDIS to remove the miniport (Code 43) - no device
+    // reset, unlike real surprise removal.
+    // CallerLine should be __LINE__ from the call site, so the log shows
+    // where the failure was detected.
+    VOID FailAdapter(PCSTR Message, ULONG DiagnosticValue, ULONG CallerLine);
 
     _PARANDIS_ADAPTER(const _PARANDIS_ADAPTER &) = delete;
     _PARANDIS_ADAPTER &operator=(const _PARANDIS_ADAPTER &) = delete;

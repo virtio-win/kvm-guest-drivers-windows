@@ -459,6 +459,7 @@ Handles NDIS6 specific OID, all the rest handled by common handler
 static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
 {
     union _tagtemp {
+        NDIS_STATISTICS_INFO Statistics;
         NDIS_LINK_SPEED LinkSpeed;
         NDIS_INTERRUPT_MODERATION_PARAMETERS InterruptModeration;
         NDIS_LINK_PARAMETERS LinkParameters;
@@ -485,8 +486,9 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
     switch (pOid->Oid)
     {
         case OID_GEN_STATISTICS:
-            pInfo = &pContext->Statistics;
-            ulSize = sizeof(pContext->Statistics);
+            u.Statistics = ParaNdis_StatisticsSnapshot(pContext->Statistics);
+            pInfo = &u.Statistics;
+            ulSize = sizeof(u.Statistics);
             break;
         case OID_GEN_SUPPORTED_GUIDS:
 #if NDIS_SUPPORT_NDIS61
@@ -516,6 +518,10 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
         case OID_VENDOR_3:
             pInfo = &u.WmiDiag;
             ulSize = sizeof(u.WmiDiag);
+            // NetKvm_Migration's uint32+uint64 layout leaves padding that the
+            // field assignments below never touch; zero it so it isn't leaked
+            // to the WMI caller along with the rest of this struct.
+            NdisZeroMemory(&u.WmiDiag, sizeof(u.WmiDiag));
             //----------------- RSS ----------------------------------------
             u.WmiDiag.rss.DeviceRssSupport = pContext->bRSSSupportedByDevicePersistent;
             u.WmiDiag.rss.DeviceHashSupport = pContext->bHashReportedByDevice;
@@ -542,6 +548,9 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
             u.WmiDiag.ctrl.Commands = pContext->extraStatistics.ctrlCommands;
             u.WmiDiag.ctrl.CommandsFailed = pContext->extraStatistics.ctrlFailed;
             u.WmiDiag.ctrl.CommandsTimedOut = (ULONG)pContext->extraStatistics.ctrlTimedOut;
+            //----------------- Migration ------------------------------------
+            u.WmiDiag.mig.AnnounceCount = pContext->extraStatistics.guestAnnounceCount;
+            u.WmiDiag.mig.LastAnnounceTime = (ULONGLONG)pContext->extraStatistics.lastGuestAnnounceTime.QuadPart;
             break;
         case OID_VENDOR_4:
             pInfo = &u.WmiReset;
@@ -551,7 +560,7 @@ static NDIS_STATUS ParaNdis_OidQuery(PARANDIS_ADAPTER *pContext, tOidDesc *pOid)
         case OID_VENDOR_5:
             pInfo = &u.WmiDevRss;
             ulSize = sizeof(u.WmiDevRss);
-            u.WmiDevRss.value = 2;
+            u.WmiDevRss.value = pContext->bRSSSupportedByDevice;
             break;
         case OID_GEN_INTERRUPT_MODERATION:
             u.InterruptModeration.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;

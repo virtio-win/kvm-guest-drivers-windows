@@ -297,7 +297,7 @@ class CStatisticsWrapper : public COidWrapperAsync
             if (!m_Initial)
             {
 #define UPDATE_FIELD(f)                                                                                                \
-    m_Adapter->Statistics.##f += (pNew->##f - pOld->##f);                                                              \
+    ParaNdis_StatAdd(m_Adapter->Statistics.##f, pNew->##f - pOld->##f);                                                \
     pOld->##f = pNew->##f;
                 UPDATE_FIELD(ifHCInOctets);
                 UPDATE_FIELD(ifHCInUcastOctets);

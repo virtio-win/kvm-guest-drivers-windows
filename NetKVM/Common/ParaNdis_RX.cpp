@@ -506,6 +506,13 @@ BOOLEAN CParaNdisRX::AllocateMore()
 {
     BOOLEAN result = false;
 
+    // Permanent failure, not "try again later": return false so the lazy
+    // allocation thread converges to n==0 and stops polling.
+    if (m_Context->bAdapterFailed)
+    {
+        return result;
+    }
+
     // if the queue is not ready, try again later
     if (!m_pVirtQueue->IsValid() || !m_Reinsert)
     {
@@ -521,6 +528,16 @@ BOOLEAN CParaNdisRX::AllocateMore()
     pRxNetDescriptor pBuffersDescriptor = CreateRxDescriptorOnInit();
 
     TPassiveSpinLocker autoLock(m_Lock);
+
+    // Re-checked under m_Lock: the check above is only a fast path.
+    if (m_Context->bAdapterFailed)
+    {
+        if (pBuffersDescriptor)
+        {
+            ParaNdis_FreeRxBufferDescriptor(m_Context, pBuffersDescriptor);
+        }
+        return result;
+    }
 
     if (pBuffersDescriptor)
     {
@@ -605,7 +622,8 @@ void CParaNdisRX::ReuseReceiveBufferNoLock(pRxNetDescriptor pBuffersDescriptor)
         DisassembleMergedPacket(pBuffersDescriptor);
     }
 
-    if (!m_Reinsert)
+    // Once failed, park the buffer instead of posting it to the untrustworthy ring.
+    if (!m_Reinsert || m_Context->bAdapterFailed)
     {
         InsertTailList(&m_NetReceiveBuffers, &pBuffersDescriptor->listEntry);
         m_NetNofReceiveBuffers++;
@@ -856,8 +874,8 @@ void CParaNdisRX::ProcessReceivedPacket(pRxNetDescriptor pBufferDescriptor, CCHA
     if (!packetAnalysisRC)
     {
         ReuseReceiveBufferNoLock(pBufferDescriptor);
-        m_Context->Statistics.ifInErrors++;
-        m_Context->Statistics.ifInDiscards++;
+        ParaNdis_StatAdd(m_Context->Statistics.ifInErrors, 1);
+        ParaNdis_StatAdd(m_Context->Statistics.ifInDiscards, 1);
         return;
     }
 
@@ -865,7 +883,7 @@ void CParaNdisRX::ProcessReceivedPacket(pRxNetDescriptor pBufferDescriptor, CCHA
     if (!ShallPassPacket(m_Context, &pBufferDescriptor->PacketInfo))
     {
         pBufferDescriptor->Queue->ReuseReceiveBufferNoLock(pBufferDescriptor);
-        m_Context->Statistics.ifInDiscards++;
+        ParaNdis_StatAdd(m_Context->Statistics.ifInDiscards, 1);
         m_Context->extraStatistics.framesFilteredOut++;
         return;
     }
@@ -927,38 +945,59 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
     pRxNetDescriptor pBufferDescriptor;
     unsigned int nFullLength;
 
-    TDPCSpinLocker autoLock(m_Lock);
+    // MAXULONG sentinel = "no error"; a real num_buffers value is always <= 65535.
+    ULONG invalidNumBuffers = MAXULONG;
 
-    if (m_Context->extraStatistics.minFreeRxBuffers > m_NetNofReceiveBuffers)
     {
-        m_Context->extraStatistics.minFreeRxBuffers = m_NetNofReceiveBuffers;
-    }
+        TDPCSpinLocker autoLock(m_Lock);
 
-    while (NULL != (pBufferDescriptor = (pRxNetDescriptor)m_VirtQueue.GetBuf(&nFullLength)))
-    {
-        RemoveEntryList(&pBufferDescriptor->listEntry);
-        m_NetNofReceiveBuffers--;
-
-        pRxNetDescriptor pProcessBuffer = pBufferDescriptor;
-
-        // Mergeable buffers: delegate to ProcessMergedBuffers (handles both single/multi-buffer)
-        if (m_Context->bUseMergedBuffers)
+        // Adapter already failed (maybe by another RX queue) - nothing to
+        // drain here, just stop.
+        if (m_Context->bAdapterFailed)
         {
-            pProcessBuffer = ProcessMergedBuffers(pBufferDescriptor, nFullLength);
-            if (!pProcessBuffer)
+            return;
+        }
+
+        if (m_Context->extraStatistics.minFreeRxBuffers > m_NetNofReceiveBuffers)
+        {
+            m_Context->extraStatistics.minFreeRxBuffers = m_NetNofReceiveBuffers;
+        }
+
+        // Rechecked every iteration: ProcessMergedBuffers() can fail mid-loop too.
+        while (invalidNumBuffers == MAXULONG && !m_Context->bAdapterFailed &&
+               NULL != (pBufferDescriptor = (pRxNetDescriptor)m_VirtQueue.GetBuf(&nFullLength)))
+        {
+            RemoveEntryList(&pBufferDescriptor->listEntry);
+            m_NetNofReceiveBuffers--;
+
+            pRxNetDescriptor pProcessBuffer = pBufferDescriptor;
+
+            // Mergeable buffers: delegate to ProcessMergedBuffers (handles both single/multi-buffer)
+            if (m_Context->bUseMergedBuffers)
             {
-                continue; // Assembly failed, buffer already reused
+                pProcessBuffer = ProcessMergedBuffers(pBufferDescriptor, nFullLength, &invalidNumBuffers);
+                if (!pProcessBuffer)
+                {
+                    continue; // Assembly failed or fatal, buffer already freed/reused
+                }
             }
-        }
-        else
-        {
-            // Non-mergeable: single buffer only, set data length
-            pProcessBuffer->PacketInfo.dataLength = nFullLength - m_Context->nVirtioHeaderSize;
-        }
+            else
+            {
+                // Non-mergeable: single buffer only, set data length
+                pProcessBuffer->PacketInfo.dataLength = nFullLength - m_Context->nVirtioHeaderSize;
+            }
 
-        // Unified processing path for both single and merged packets
-        // Note: For mergeable buffers, dataLength is already set in ProcessMergedBuffers
-        ProcessReceivedPacket(pProcessBuffer, nCurrCpuReceiveQueue);
+            // Unified processing path for both single and merged packets
+            // Note: For mergeable buffers, dataLength is already set in ProcessMergedBuffers
+            ProcessReceivedPacket(pProcessBuffer, nCurrCpuReceiveQueue);
+        }
+    } // m_Lock released here
+
+    if (invalidNumBuffers != MAXULONG)
+    {
+        // Called outside m_Lock: FailAdapter() takes TX's lock, which would
+        // nest RX-lock -> TX-lock otherwise - an order used nowhere else.
+        m_Context->FailAdapter(__FUNCTION__, invalidNumBuffers, __LINE__);
     }
 }
 
@@ -966,6 +1005,12 @@ void CParaNdisRX::PopulateQueue()
 {
     LIST_ENTRY TempList;
     TPassiveSpinLocker autoLock(m_Lock);
+
+    // Leave m_NetReceiveBuffers untouched instead of posting to the ring.
+    if (m_Context->bAdapterFailed)
+    {
+        return;
+    }
 
     InitializeListHead(&TempList);
 
@@ -975,6 +1020,7 @@ void CParaNdisRX::PopulateQueue()
         InsertTailList(&TempList, &pBufferDescriptor->listEntry);
     }
     m_NetNofReceiveBuffers = 0;
+
     while (!IsListEmpty(&TempList))
     {
         pRxNetDescriptor pBufferDescriptor = (pRxNetDescriptor)RemoveHeadList(&TempList);
@@ -996,6 +1042,14 @@ void CParaNdisRX::PopulateQueue()
 
 BOOLEAN CParaNdisRX::RestartQueue()
 {
+    // Once failed, report "no more work" instead of touching the ring -
+    // otherwise unconsumed buffers would make the DPC requeue forever
+    // (DPC watchdog bugcheck 0x133).
+    if (m_Context->bAdapterFailed)
+    {
+        return FALSE;
+    }
+
     return ParaNdis_SynchronizeWithInterrupt(m_Context, m_messageIndex, RestartQueueSynchronously, this);
 }
 
@@ -1028,8 +1082,14 @@ VOID ParaNdis_ResetRxClassification(PARANDIS_ADAPTER *pContext)
 // Handle mergeable buffer packets: fast path for single buffer, assembly for multi-buffer
 // Returns: original descriptor (single buffer), assembled descriptor (multi-buffer), or NULL (error)
 // Note: Caller must call ProcessReceivedPacket on returned descriptor
-pRxNetDescriptor CParaNdisRX::ProcessMergedBuffers(pRxNetDescriptor pFirstBuffer, UINT nFullLength)
+pRxNetDescriptor CParaNdisRX::ProcessMergedBuffers(pRxNetDescriptor pFirstBuffer,
+                                                   UINT nFullLength,
+                                                   ULONG *pInvalidNumBuffers)
 {
+    // MAXULONG is safe as "no error": numBuffers is a UINT16, so it can never
+    // reach it, but 0 is a real value this function can report as invalid.
+    *pInvalidNumBuffers = MAXULONG;
+
     // Access mergeable header to get num_buffers
     virtio_net_hdr_mrg_rxbuf *pMrgHeader = (virtio_net_hdr_mrg_rxbuf *)pFirstBuffer->PhysicalPages[pFirstBuffer->HeaderPage].Virtual;
     UINT16 numBuffers = pMrgHeader->num_buffers;
@@ -1043,6 +1103,25 @@ pRxNetDescriptor CParaNdisRX::ProcessMergedBuffers(pRxNetDescriptor pFirstBuffer
         return pFirstBuffer;
     }
 
+    // num_buffers is device-supplied and untrustworthy; outside [1,
+    // VIRTIO_NET_MAX_MRG_BUFS] is a protocol violation that leaves the ring
+    // state undefined. Fail the adapter (Code 43) instead of just dropping
+    // the packet, since only a hard reset can recover from it.
+    if (numBuffers == 0 || numBuffers > VIRTIO_NET_MAX_MRG_BUFS)
+    {
+        DPrintf(0,
+                "ERROR: num_buffers=%u is out of the valid range [1,%u] - VirtIO protocol violation",
+                numBuffers,
+                VIRTIO_NET_MAX_MRG_BUFS);
+        m_Context->Statistics.ifInErrors++;
+        m_Context->Statistics.ifInDiscards++;
+        // Don't repost to the untrustworthy ring; decrement capacity like
+        // ReuseReceiveBufferNoLock's free path does.
+        ParaNdis_FreeRxBufferDescriptor(m_Context, pFirstBuffer);
+        m_NetMaxReceiveBuffers--;
+        *pInvalidNumBuffers = numBuffers;
+        return NULL;
+    }
     // Multi-buffer packet: collect and assemble
     // Initialize merge context with first buffer
     m_MergeContext.BufferSequence[0] = pFirstBuffer;
