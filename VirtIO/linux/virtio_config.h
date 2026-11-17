@@ -72,6 +72,18 @@
  */
 #define VIRTIO_F_ORDER_PLATFORM      36
 
+/*
+ * Device Memory Buffer (DMB). Once the driver accepts VIRTIO_F_DMB, every
+ * address it hands the device (the ring addresses and every descriptor
+ * address) is a bus address into a shared memory region that belongs to the
+ * device, and the device accesses no other guest memory. This lets a guest
+ * keep the rest of its RAM private from the device backend.
+ *
+ * The number follows the proposal on virtio-comment; the virtio TC has not
+ * ratified it yet.
+ */
+#define VIRTIO_F_DMB                 44
+
 // if this number is not equal to desc size, queue creation fails
 #define SIZE_OF_SINGLE_INDIRECT_DESC 16
 

@@ -127,6 +127,28 @@ struct virtio_pci_notify_cap {
     __le32 notify_off_multiplier; /* Multiplier for queue_notify_off. */
 };
 
+/* Shared memory region capability (virtio 1.2) */
+#define VIRTIO_PCI_CAP_SHARED_MEMORY_CFG   8
+
+/* Read-only fields served behind virtio_pci_common_cfg when the device offers
+ * VIRTIO_F_DMB: the shared memory region id (shmid) of the Device Memory
+ * Buffer, and its memory type. The driver finds the region through the shared
+ * memory capability whose id matches, and declines the DMB for a memory type
+ * it does not support. */
+#define VIRTIO_PCI_COMMON_CFG_DMB_SHM_ID   0x40
+#define VIRTIO_PCI_COMMON_CFG_DMB_MEM_TYPE 0x42
+#define VIRTIO_DMB_MEM_TYPE_COHERENT       0
+
+/* A shared memory region capability uses the 64-bit form of the capability
+ * header (virtio 1.2, 4.1.4.7): the 32-bit offset and length in virtio_pci_cap
+ * are the low halves, and these two fields carry the high halves. The region
+ * id is virtio_pci_cap.padding[0]. */
+struct virtio_pci_cap64 {
+    struct virtio_pci_cap cap;
+    __le32 offset_hi;
+    __le32 length_hi;
+};
+
 /* Fields in VIRTIO_PCI_CAP_COMMON_CFG: */
 struct virtio_pci_common_cfg {
     /* About the whole device. */
@@ -196,6 +218,27 @@ typedef struct virtio_system_ops {
 
 struct virtio_device;
 typedef struct virtio_device VirtIODevice;
+
+/* Per-device Device Memory Buffer (DMB) state, owned by VirtIODmb.c and the
+ * modern transport. When "active", the virtqueue rings and every address the
+ * driver hands the device are byte offsets into this region. */
+typedef struct virtio_dmb {
+    bool present;        /* the device offers VIRTIO_F_DMB and its region checked out */
+    bool active;         /* VIRTIO_F_DMB was accepted by the device */
+    bool driver_capable; /* the driver handles the DMB, see virtio_dmb_opt_in() */
+    bool defer_bitmap;   /* see virtio_dmb_defer_bitmap() */
+    bool negotiated;     /* features were negotiated since virtio_device_initialize() */
+    bool cfg_reachable;  /* the common config mapping covers the DMB id / type fields */
+    u8 bar;              /* BAR holding the region, from the capability */
+    u64 bar_offset;
+    u64 size; /* usable bytes: whole pages, starting at bar_offset */
+    u8 *base; /* mapped CPU virtual address of the region */
+    size_t num_pages;
+    volatile LONG *bitmap;     /* one bit per page, set when in use; driver-private RAM */
+    volatile size_t hint;      /* page index where the next allocation search starts */
+    volatile LONG64 bytes_in;  /* bounced towards the device, for diagnostics */
+    volatile LONG64 bytes_out; /* bounced back from the device, for diagnostics */
+} VirtIODmb;
 
 struct virtio_device_ops {
     // read/write device config and read config generation counter
@@ -272,6 +315,9 @@ struct virtio_device {
     // are used, or to an external allocation otherwise
     VirtIOQueueInfo *info;
     VirtIOQueueInfo inline_info[MAX_QUEUES_PER_DEVICE_DEFAULT];
+
+    // Device Memory Buffer state, see VirtIODmb.h
+    VirtIODmb dmb;
 };
 
 /* Driver API: device init and shutdown
