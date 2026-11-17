@@ -196,4 +196,90 @@ void virtio_dmb_copy_in(VirtIODevice *vdev, void *dmb_va, const void *src, size_
  * Accounts the bytes for diagnostics. */
 void virtio_dmb_copy_out(VirtIODevice *vdev, void *dst, const void *dmb_va, size_t len);
 
+/*
+ * Request bounce: one DMB run per request.
+ *
+ * A request is up to VIRTIO_DMB_REQ_MAX_SEGS segments of driver-private
+ * memory, device-readable ones first. virtio_dmb_req_map() lays them out back
+ * to back in one run, copies the device-readable ones in, zeroes the
+ * device-writable ones and writes their presets, and builds the descriptors
+ * with DMB offsets. On completion the driver snapshots each device-writable
+ * segment with virtio_dmb_req_copy_out() or virtio_dmb_req_read(), which
+ * never copy more than was posted, and parses only the snapshot. The engine
+ * allocates nothing besides the run and never sleeps or logs, so it works at
+ * any IRQL, including from a crash dump driver.
+ */
+#define VIRTIO_DMB_REQ_MAX_SEGS 4
+
+struct VirtIOBufferDescriptor;
+
+typedef struct virtio_dmb_seg {
+    /* driver buffer. NULL for a device-readable segment the driver fills with
+     * virtio_dmb_req_write(), or a device-writable one it reads with
+     * virtio_dmb_req_read(); the engine zeroes either at map time */
+    void *va;
+    ULONG len; /* 0: the segment takes no descriptor */
+    bool to_device;
+    /* device-writable only: written over the zeroed area at map time, so a
+     * device that never writes it leaves this value (an error status) */
+    const void *preset;
+    ULONG preset_len;
+} VirtIODmbSeg;
+
+/* Per-request state. Zero it once; it stays reusable after release. */
+typedef struct virtio_dmb_req {
+    u8 *run;
+    size_t total;
+    u8 nseg;
+    struct {
+        void *va;
+        ULONG len;
+        ULONG off; /* byte offset of the segment in the run */
+        bool to_device;
+    } seg[VIRTIO_DMB_REQ_MAX_SEGS];
+} VirtIODmbReq;
+
+/* Map @nseg segments into one run and fill @sg[] with at most @max_sg
+ * descriptors, each at most @split bytes long (0: no limit). *out and *in get
+ * the device-readable and device-writable descriptor counts. Returns
+ * VIRTIO_DMB_TOO_BIG when the request can never be mapped: more descriptors
+ * than @max_sg, segments in the wrong order, or a run above
+ * virtio_dmb_max_mapping() plus one page for headers and status. Returns
+ * VIRTIO_DMB_FULL when the DMB has no room right now. */
+virtio_dmb_map_result virtio_dmb_req_map(VirtIODevice *vdev, VirtIODmbReq *req,
+                                         const VirtIODmbSeg *segs, unsigned nseg, ULONG split,
+                                         struct VirtIOBufferDescriptor *sg, unsigned max_sg,
+                                         unsigned *out, unsigned *in);
+
+static __inline bool virtio_dmb_req_mapped(const VirtIODmbReq *req)
+{
+    return req->run != NULL;
+}
+
+/* Copy @len bytes from @src to @offset of a segment, before the request is
+ * posted. Fails when the range is outside the segment. */
+bool virtio_dmb_req_write(VirtIODevice *vdev, VirtIODmbReq *req, unsigned seg, ULONG offset,
+                          const void *src, ULONG len);
+
+/* Snapshot up to @len bytes from @offset of a segment into @dst. The copy
+ * stops at the end of the segment; returns the bytes copied. */
+ULONG virtio_dmb_req_read(VirtIODevice *vdev, VirtIODmbReq *req, unsigned seg, ULONG offset,
+                          void *dst, ULONG len);
+
+/* virtio_dmb_req_read() of up to @len bytes from the start of a
+ * device-writable segment into its own buffer. Copies nothing for a
+ * device-readable segment, so a caller may run it over every segment. */
+ULONG virtio_dmb_req_copy_out(VirtIODevice *vdev, VirtIODmbReq *req, unsigned seg, ULONG len);
+
+/* Free the run. Does nothing for a request without one, so every path that
+ * finishes a request may call it. */
+void virtio_dmb_req_release(VirtIODevice *vdev, VirtIODmbReq *req);
+
+/* The largest payload a request can carry without VIRTIO_DMB_TOO_BIG when the
+ * payload takes at most @max_descs descriptors of at most @split bytes (0: no
+ * limit): at most virtio_dmb_max_mapping(), rounded down to whole pages, at
+ * least one page. The request's headers and status may add up to one more
+ * page. 0 if the DMB is not active. */
+ULONG virtio_dmb_max_transfer(VirtIODevice *vdev, ULONG split, unsigned max_descs);
+
 #endif /* _VIRTIO_DMB_H */

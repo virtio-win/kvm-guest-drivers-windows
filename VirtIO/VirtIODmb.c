@@ -444,3 +444,170 @@ void virtio_dmb_copy_out(VirtIODevice *vdev, void *dst, const void *dmb_va, size
     RtlCopyMemory(dst, dmb_va, len);
     InterlockedExchangeAdd64(&vdev->dmb.bytes_out, (LONG64)len);
 }
+
+/* A request may add one page of headers and status to the mapping limit. */
+static size_t dmb_req_limit(VirtIODevice *vdev)
+{
+    return virtio_dmb_max_mapping(vdev) + DMB_PAGE_SIZE;
+}
+
+static unsigned dmb_descs(ULONG len, ULONG split)
+{
+    if (len == 0) {
+        return 0;
+    }
+    if (split == 0) {
+        return 1;
+    }
+    /* Written so that a split near 2^32 cannot wrap. */
+    return (unsigned)(len / split + ((len % split) != 0));
+}
+
+virtio_dmb_map_result virtio_dmb_req_map(VirtIODevice *vdev, VirtIODmbReq *req,
+                                         const VirtIODmbSeg *segs, unsigned nseg, ULONG split,
+                                         struct VirtIOBufferDescriptor *sg, unsigned max_sg,
+                                         unsigned *out, unsigned *in)
+{
+    size_t limit = dmb_req_limit(vdev);
+    size_t total = 0;
+    unsigned descs = 0, n = 0, i;
+    bool writable = false;
+    u64 offset;
+    u8 *run;
+
+    *out = 0;
+    *in = 0;
+    if (req->run != NULL) {
+        /* Every path that does not post a request releases its run. */
+        ASSERT(!"virtio DMB: request already holds a run");
+        virtio_dmb_req_release(vdev, req);
+    }
+    if (!vdev->dmb.active || nseg > VIRTIO_DMB_REQ_MAX_SEGS) {
+        return VIRTIO_DMB_TOO_BIG;
+    }
+    for (i = 0; i < nseg; i++) {
+        if (segs[i].len == 0) {
+            continue;
+        }
+        if ((segs[i].to_device && writable) || segs[i].len > limit ||
+            (!segs[i].to_device && segs[i].preset_len > segs[i].len)) {
+            return VIRTIO_DMB_TOO_BIG;
+        }
+        writable = writable || !segs[i].to_device;
+        total += segs[i].len;
+        descs += dmb_descs(segs[i].len, split);
+        if (total > limit || descs > max_sg) {
+            return VIRTIO_DMB_TOO_BIG;
+        }
+    }
+    if (total == 0) {
+        return VIRTIO_DMB_TOO_BIG;
+    }
+
+    run = (u8 *)virtio_dmb_alloc(vdev, total, &offset);
+    if (run == NULL) {
+        return VIRTIO_DMB_FULL;
+    }
+    req->run = run;
+    req->total = total;
+    req->nseg = (u8)nseg;
+
+    total = 0;
+    for (i = 0; i < nseg; i++) {
+        ULONG done = 0;
+
+        req->seg[i].va = segs[i].va;
+        req->seg[i].len = segs[i].len;
+        req->seg[i].off = (ULONG)total;
+        req->seg[i].to_device = segs[i].to_device;
+        if (segs[i].len == 0) {
+            continue;
+        }
+        if (segs[i].to_device && segs[i].va != NULL) {
+            virtio_dmb_copy_in(vdev, run + total, segs[i].va, segs[i].len);
+            *out += dmb_descs(segs[i].len, split);
+        } else if (segs[i].to_device) {
+            /* The driver fills it with virtio_dmb_req_write(). */
+            RtlZeroMemory(run + total, segs[i].len);
+            *out += dmb_descs(segs[i].len, split);
+        } else {
+            /* Hand the driver zeroes, not stale bounce bytes, for any part
+             * the device does not write. */
+            RtlZeroMemory(run + total, segs[i].len);
+            if (segs[i].preset_len != 0) {
+                RtlCopyMemory(run + total, segs[i].preset, segs[i].preset_len);
+            }
+            *in += dmb_descs(segs[i].len, split);
+        }
+        while (done < segs[i].len) {
+            ULONG chunk = segs[i].len - done;
+
+            if (split != 0 && chunk > split) {
+                chunk = split;
+            }
+            sg[n].physAddr.QuadPart = (LONGLONG)(offset + total + done);
+            sg[n].length = chunk;
+            n++;
+            done += chunk;
+        }
+        total += segs[i].len;
+    }
+    return VIRTIO_DMB_MAPPED;
+}
+
+bool virtio_dmb_req_write(VirtIODevice *vdev, VirtIODmbReq *req, unsigned seg, ULONG offset,
+                          const void *src, ULONG len)
+{
+    if (req->run == NULL || seg >= req->nseg || offset > req->seg[seg].len ||
+        len > req->seg[seg].len - offset) {
+        return false;
+    }
+    virtio_dmb_copy_in(vdev, req->run + req->seg[seg].off + offset, src, len);
+    return true;
+}
+
+ULONG virtio_dmb_req_read(VirtIODevice *vdev, VirtIODmbReq *req, unsigned seg, ULONG offset,
+                          void *dst, ULONG len)
+{
+    if (req->run == NULL || seg >= req->nseg || dst == NULL || offset >= req->seg[seg].len) {
+        return 0;
+    }
+    if (len > req->seg[seg].len - offset) {
+        len = req->seg[seg].len - offset;
+    }
+    virtio_dmb_copy_out(vdev, dst, req->run + req->seg[seg].off + offset, len);
+    return len;
+}
+
+ULONG virtio_dmb_req_copy_out(VirtIODevice *vdev, VirtIODmbReq *req, unsigned seg, ULONG len)
+{
+    if (req->run == NULL || seg >= req->nseg || req->seg[seg].to_device) {
+        return 0;
+    }
+    return virtio_dmb_req_read(vdev, req, seg, 0, req->seg[seg].va, len);
+}
+
+void virtio_dmb_req_release(VirtIODevice *vdev, VirtIODmbReq *req)
+{
+    if (req->run == NULL) {
+        return;
+    }
+    virtio_dmb_free(vdev, req->run, req->total);
+    req->run = NULL;
+    req->total = 0;
+    req->nseg = 0;
+}
+
+ULONG virtio_dmb_max_transfer(VirtIODevice *vdev, ULONG split, unsigned max_descs)
+{
+    u64 limit = virtio_dmb_max_mapping(vdev);
+
+    if (!vdev->dmb.active) {
+        return 0;
+    }
+    if (split != 0 && (u64)split * max_descs < limit) {
+        limit = (u64)split * max_descs;
+    }
+    limit &= ~DMB_PAGE_MASK;
+    return (ULONG)max(limit, (u64)DMB_PAGE_SIZE);
+}
