@@ -2329,6 +2329,8 @@ VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod)
     m_u64GuestFeatures = 0;
     m_u32NumCapsets = 0;
     m_u32NumScanouts = 0;
+    RtlZeroMemory(&m_DmbMode, sizeof(m_DmbMode));
+    m_DmbFbSize = 0;
 
     KeInitializeEvent(&m_ConfigUpdateEvent, SynchronizationEvent, FALSE);
 }
@@ -2394,6 +2396,19 @@ NTSTATUS VioGpuAdapter::VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION *pDispInfo)
         VioGpuDbgBreak();
         return status;
     }
+
+    /* A restart starts the allocator with a fresh bitmap, so give back the
+     * DMB segments of the previous run first; they are allocated again
+     * below. */
+    if (m_FrameSegment.IsDmb())
+    {
+        m_FrameSegment.Close();
+    }
+    if (m_CursorSegment.IsDmb())
+    {
+        m_CursorSegment.Close();
+    }
+
     status = VirtIoDeviceInit();
     if (!NT_SUCCESS(status))
     {
@@ -2401,6 +2416,9 @@ NTSTATUS VioGpuAdapter::VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION *pDispInfo)
         VioGpuDbgBreak();
         return status;
     }
+    /* viogpudo keeps commands, the framebuffer and the cursor in the DMB when
+     * the device requires one, so it may accept VIRTIO_F_DMB. */
+    virtio_dmb_opt_in(&m_VioDev);
 
     m_u64HostFeatures = virtio_get_features(&m_VioDev);
     m_u64GuestFeatures = 0;
@@ -2420,6 +2438,12 @@ NTSTATUS VioGpuAdapter::VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION *pDispInfo)
         {
             DbgPrint(TRACE_LEVEL_FATAL, ("%s virtio_set_features failed with %x\n", __FUNCTION__, status));
             VioGpuDbgBreak();
+            break;
+        }
+
+        status = SetupDmb();
+        if (!NT_SUCCESS(status))
+        {
             break;
         }
 
@@ -2447,6 +2471,18 @@ NTSTATUS VioGpuAdapter::VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION *pDispInfo)
         if (m_u32NumScanouts > VIRTIO_GPU_MAX_SCANOUTS)
         {
             m_u32NumScanouts = VIRTIO_GPU_MAX_SCANOUTS;
+        }
+
+        /* The framebuffer and the cursor are memory the device reads at an
+         * address we hand it, so in DMB mode they come from the DMB, on every
+         * (re)initialization. */
+        if (m_DmbMode.active && m_DmbFbSize != 0 &&
+            (!m_FrameSegment.InitDmb(&m_VioDev, m_DmbFbSize) ||
+             !m_CursorSegment.InitDmb(&m_VioDev, POINTER_SIZE * POINTER_SIZE * 4)))
+        {
+            DbgPrint(TRACE_LEVEL_FATAL, ("%s cannot allocate the DMB segments\n", __FUNCTION__));
+            status = STATUS_INSUFFICIENT_RESOURCES;
+            break;
         }
 
         virtio_get_config(&m_VioDev, FIELD_OFFSET(GPU_CONFIG, num_capsets), &m_u32NumCapsets, sizeof(m_u32NumCapsets));
@@ -2509,6 +2545,46 @@ BOOLEAN VioGpuAdapter::AckFeature(UINT64 Feature)
         return TRUE;
     }
     return FALSE;
+}
+
+/* Part of the Device Memory Buffer the framebuffer must leave free for the
+ * rings, the cursor and the commands in flight. */
+#define VIOGPU_DMB_RESERVE (1u << 20)
+
+NTSTATUS VioGpuAdapter::SetupDmb(void)
+{
+    PAGED_CODE();
+
+    BOOLEAN fixed = m_DmbMode.fixed;
+    NTSTATUS status = virtio_dmb_check_mode(&m_VioDev, &m_DmbMode);
+
+    /* The mode list and the segment sizes follow from the first negotiation;
+     * check_mode refuses a restart that changes the DMB mode underneath
+     * them. */
+    if (!NT_SUCCESS(status) || fixed || !m_DmbMode.active)
+    {
+        return status;
+    }
+
+    /* The framebuffer takes what the reserve leaves; the smallest mode must
+     * fit. */
+    if (m_DmbMode.size < VIOGPU_DMB_RESERVE + (ULONGLONG)MIN_WIDTH_SIZE * MIN_HEIGHT_SIZE * 4)
+    {
+        DbgPrint(TRACE_LEVEL_FATAL, ("%s DMB of %llu bytes is too small\n", __FUNCTION__, m_DmbMode.size));
+        return STATUS_DEVICE_CONFIGURATION_ERROR;
+    }
+    m_DmbFbSize = (UINT)((m_DmbMode.size - VIOGPU_DMB_RESERVE) & ~((ULONGLONG)PAGE_SIZE - 1));
+    return STATUS_SUCCESS;
+}
+
+/* In DMB mode a mode fits when its framebuffer fits the DMB segment. */
+BOOLEAN VioGpuAdapter::ModeFitsDmb(_In_ ULONG xres, _In_ ULONG yres)
+{
+    PAGED_CODE();
+
+    ULONGLONG stride = ((ULONGLONG)xres * 4 + 3) & ~3ULL;
+
+    return !m_DmbMode.active || stride * yres <= m_DmbFbSize;
 }
 
 NTSTATUS VioGpuAdapter::VirtIoDeviceInit()
@@ -2687,6 +2763,13 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
     {
         DbgPrint(TRACE_LEVEL_FATAL, ("%s GetModeList failed with %x\n", __FUNCTION__, status));
         VioGpuDbgBreak();
+    }
+
+    if (m_DmbMode.active)
+    {
+        /* VioGpuAdapterInit already placed the framebuffer and the cursor
+         * segments in the DMB. */
+        return status;
     }
 
     PHYSICAL_ADDRESS fb_pa = m_PciResources.GetPciBar(0)->GetPA();
@@ -3297,7 +3380,7 @@ BOOLEAN VioGpuAdapter::UpdateModes(USHORT xres, USHORT yres, int &cnt)
     int idx = 0;
 
     DbgPrint(TRACE_LEVEL_INFORMATION, (" x_res: %d, y_res: %d\n", xres, yres));
-    if ((xres < MIN_WIDTH_SIZE) || (yres < MIN_HEIGHT_SIZE))
+    if ((xres < MIN_WIDTH_SIZE) || (yres < MIN_HEIGHT_SIZE) || !ModeFitsDmb(xres, yres))
     {
         return FALSE;
     }
@@ -3568,6 +3651,18 @@ void VioGpuAdapter::SetCustomDisplay(_In_ USHORT xres, _In_ USHORT yres)
     }
     tmpModeInfo.XResolution = m_pVioGpuDod->IsFlexResolution() ? xres : max(MIN_WIDTH_SIZE, xres);
     tmpModeInfo.YResolution = m_pVioGpuDod->IsFlexResolution() ? yres : max(MIN_HEIGHT_SIZE, yres);
+    if (!ModeFitsDmb(tmpModeInfo.XResolution, tmpModeInfo.YResolution))
+    {
+        DbgPrint(TRACE_LEVEL_WARNING,
+                 ("%s: (%dx%d) does not fit the DMB, using (%dx%d)\n",
+                  __FUNCTION__,
+                  tmpModeInfo.XResolution,
+                  tmpModeInfo.YResolution,
+                  NOM_WIDTH_SIZE,
+                  NOM_HEIGHT_SIZE));
+        tmpModeInfo.XResolution = NOM_WIDTH_SIZE;
+        tmpModeInfo.YResolution = NOM_HEIGHT_SIZE;
+    }
 
     DbgPrint(TRACE_LEVEL_FATAL,
              ("%s - %d (%dx%d)\n", __FUNCTION__, m_CustomModeIndex, tmpModeInfo.XResolution, tmpModeInfo.YResolution));

@@ -34,6 +34,7 @@ extern "C"
 {
 #include "virtio_pci.h"
 #include "virtio.h"
+#include "VirtIODmb.h"
 }
 
 #include "viogpu_pci.h"
