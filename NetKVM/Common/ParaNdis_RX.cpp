@@ -945,8 +945,10 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
     pRxNetDescriptor pBufferDescriptor;
     unsigned int nFullLength;
 
-    // MAXULONG sentinel = "no error"; a real num_buffers value is always <= 65535.
-    ULONG invalidNumBuffers = MAXULONG;
+    // MAXULONG sentinel = "no error". Otherwise the error code for FailAdapter(),
+    // set by ProcessMergedBuffers(): an invalid num_buffers (<= 65535) or a
+    // used length shorter than the virtio header.
+    ULONG fatalErrorValue = MAXULONG;
 
     {
         TDPCSpinLocker autoLock(m_Lock);
@@ -964,7 +966,7 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
         }
 
         // Rechecked every iteration: ProcessMergedBuffers() can fail mid-loop too.
-        while (invalidNumBuffers == MAXULONG && !m_Context->bAdapterFailed &&
+        while (fatalErrorValue == MAXULONG && !m_Context->bAdapterFailed &&
                NULL != (pBufferDescriptor = (pRxNetDescriptor)m_VirtQueue.GetBuf(&nFullLength)))
         {
             RemoveEntryList(&pBufferDescriptor->listEntry);
@@ -975,7 +977,7 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
             // Mergeable buffers: delegate to ProcessMergedBuffers (handles both single/multi-buffer)
             if (m_Context->bUseMergedBuffers)
             {
-                pProcessBuffer = ProcessMergedBuffers(pBufferDescriptor, nFullLength, &invalidNumBuffers);
+                pProcessBuffer = ProcessMergedBuffers(pBufferDescriptor, nFullLength, &fatalErrorValue);
                 if (!pProcessBuffer)
                 {
                     continue; // Assembly failed or fatal, buffer already freed/reused
@@ -993,11 +995,11 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
         }
     } // m_Lock released here
 
-    if (invalidNumBuffers != MAXULONG)
+    if (fatalErrorValue != MAXULONG)
     {
         // Called outside m_Lock: FailAdapter() takes TX's lock, which would
         // nest RX-lock -> TX-lock otherwise - an order used nowhere else.
-        m_Context->FailAdapter(__FUNCTION__, invalidNumBuffers, __LINE__);
+        m_Context->FailAdapter(__FUNCTION__, fatalErrorValue, __LINE__);
     }
 }
 
@@ -1079,16 +1081,44 @@ VOID ParaNdis_ResetRxClassification(PARANDIS_ADAPTER *pContext)
 // Merge Buffer Implementation Functions
 //
 
+// Bytes the device may write into a posted RX buffer.
+static ULONG ParaNdis_RxBufferPostedSize(pRxNetDescriptor p)
+{
+    ULONG size = 0;
+
+    for (ULONG i = 0; i < p->BufferSGLength; i++)
+    {
+        size += p->BufferSGArray[i].length;
+    }
+    return size;
+}
+
 // Handle mergeable buffer packets: fast path for single buffer, assembly for multi-buffer
 // Returns: original descriptor (single buffer), assembled descriptor (multi-buffer), or NULL (error)
 // Note: Caller must call ProcessReceivedPacket on returned descriptor
 pRxNetDescriptor CParaNdisRX::ProcessMergedBuffers(pRxNetDescriptor pFirstBuffer,
                                                    UINT nFullLength,
-                                                   ULONG *pInvalidNumBuffers)
+                                                   ULONG *pFatalErrorValue)
 {
-    // MAXULONG is safe as "no error": numBuffers is a UINT16, so it can never
-    // reach it, but 0 is a real value this function can report as invalid.
-    *pInvalidNumBuffers = MAXULONG;
+    // MAXULONG is safe as "no error": numBuffers is a UINT16 and a short used
+    // length is below the header size, so neither can reach it, but 0 is a real
+    // value this function can report as invalid.
+    *pFatalErrorValue = MAXULONG;
+
+    // The used length is device-supplied. Without a complete header neither
+    // the packet nor num_buffers can be trusted, so the remaining buffers of
+    // the packet cannot be found: handle it like an invalid num_buffers below
+    // (the length, always below the header size, is the diagnostic value).
+    if (nFullLength < m_Context->nVirtioHeaderSize)
+    {
+        DPrintf(0, "ERROR: used length %u is shorter than the virtio header - VirtIO protocol violation", nFullLength);
+        ParaNdis_StatAdd(m_Context->Statistics.ifInErrors, 1);
+        ParaNdis_StatAdd(m_Context->Statistics.ifInDiscards, 1);
+        ParaNdis_FreeRxBufferDescriptor(m_Context, pFirstBuffer);
+        m_NetMaxReceiveBuffers--;
+        *pFatalErrorValue = nFullLength;
+        return NULL;
+    }
 
     // Access mergeable header to get num_buffers
     virtio_net_hdr_mrg_rxbuf *pMrgHeader = (virtio_net_hdr_mrg_rxbuf *)pFirstBuffer->PhysicalPages[pFirstBuffer->HeaderPage].Virtual;
@@ -1099,6 +1129,14 @@ pRxNetDescriptor CParaNdisRX::ProcessMergedBuffers(pRxNetDescriptor pFirstBuffer
     // Fast path: single buffer packet (most common case)
     if (numBuffers == 1)
     {
+        if (nFullLength > ParaNdis_RxBufferPostedSize(pFirstBuffer))
+        {
+            DPrintf(0, "ERROR: used length %u of the RX buffer is out of range - dropping packet", nFullLength);
+            ParaNdis_StatAdd(m_Context->Statistics.ifInErrors, 1);
+            ParaNdis_StatAdd(m_Context->Statistics.ifInDiscards, 1);
+            ReuseReceiveBufferNoLock(pFirstBuffer);
+            return NULL;
+        }
         pFirstBuffer->PacketInfo.dataLength = nFullLength - m_Context->nVirtioHeaderSize;
         return pFirstBuffer;
     }
@@ -1119,7 +1157,7 @@ pRxNetDescriptor CParaNdisRX::ProcessMergedBuffers(pRxNetDescriptor pFirstBuffer
         // ReuseReceiveBufferNoLock's free path does.
         ParaNdis_FreeRxBufferDescriptor(m_Context, pFirstBuffer);
         m_NetMaxReceiveBuffers--;
-        *pInvalidNumBuffers = numBuffers;
+        *pFatalErrorValue = numBuffers;
         return NULL;
     }
     // Multi-buffer packet: collect and assemble
@@ -1141,6 +1179,32 @@ pRxNetDescriptor CParaNdisRX::ProcessMergedBuffers(pRxNetDescriptor pFirstBuffer
         DPrintf(0, "ERROR: Failed to collect all merge buffers");
         ReuseCollectedBuffers();
         return NULL;
+    }
+
+    // All buffers of the packet are off the ring now, so a bad length only
+    // drops this packet. The device must fill every buffer but the last
+    // completely (virtio 1.1+, 5.1.6.4.2): the MDL chain built later assumes
+    // it, as a shorter buffer would leave unwritten bytes inside the packet.
+    // The last buffer holds 1..posted size bytes of payload.
+    for (UINT i = 0; i < m_MergeContext.CollectedBuffers; i++)
+    {
+        ULONG len = m_MergeContext.BufferActualLengths[i];
+        ULONG posted = ParaNdis_RxBufferPostedSize(m_MergeContext.BufferSequence[i]);
+        BOOLEAN bLast = (i + 1 == m_MergeContext.CollectedBuffers);
+
+        if (bLast ? (len == 0 || len > posted) : (len != posted))
+        {
+            DPrintf(0,
+                    "ERROR: used length %u of merged RX buffer %u/%u (posted %u) is invalid - dropping packet",
+                    len,
+                    i + 1,
+                    m_MergeContext.CollectedBuffers,
+                    posted);
+            ParaNdis_StatAdd(m_Context->Statistics.ifInErrors, 1);
+            ParaNdis_StatAdd(m_Context->Statistics.ifInDiscards, 1);
+            ReuseCollectedBuffers();
+            return NULL;
+        }
     }
 
     // Assemble into single logical packet
