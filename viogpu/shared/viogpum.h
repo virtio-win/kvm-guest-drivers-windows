@@ -32,6 +32,7 @@
 #define VIOGPU_GET_DEVICE_ID         0x00
 #define VIOGPU_GET_CUSTOM_RESOLUTION 0x01
 #define VIOGPU_SET_CUSTOM_RESOLUTION 0x02
+#define VIOGPU_GET_SOURCE_RESOLUTION 0x03
 
 #pragma pack(1)
 typedef struct _VIOGPU_DISP_MODE
@@ -39,6 +40,17 @@ typedef struct _VIOGPU_DISP_MODE
     USHORT XResolution;
     USHORT YResolution;
 } VIOGPU_DISP_MODE, *PVIOGPU_DISP_MODE;
+#pragma pack()
+
+// VIOGPU_GET_SOURCE_RESOLUTION: the size the host wants for the display one VidPN source drives. SourceId is the
+// source as DISPLAYCONFIG_PATH_SOURCE_INFO.id names it. VIOGPU_GET_CUSTOM_RESOLUTION names no display: it is the size
+// for the one display connected, and fails with STATUS_NOT_SUPPORTED while several are.
+#pragma pack(1)
+typedef struct _VIOGPU_SOURCE_MODE
+{
+    ULONG SourceId;
+    VIOGPU_DISP_MODE Resolution;
+} VIOGPU_SOURCE_MODE, *PVIOGPU_SOURCE_MODE;
 #pragma pack()
 
 #pragma pack(1)
@@ -49,6 +61,7 @@ typedef struct _VIOGPU_ESCAPE
     union {
         ULONG Id;
         VIOGPU_DISP_MODE Resolution;
+        VIOGPU_SOURCE_MODE SourceMode;
     } DUMMYUNIONNAME;
 } VIOGPU_ESCAPE, *PVIOGPU_ESCAPE;
 #pragma pack()

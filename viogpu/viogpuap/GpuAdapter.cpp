@@ -228,11 +228,14 @@ bool GpuAdapter::GetCustomResolution(PVIOGPU_DISP_MODE pmode)
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
-    if (m_hAdapter && pmode)
+    if (m_hAdapter && pmode && m_PathIdx < GetNumbersOfPathArrayElements())
     {
+        // An adapter can drive several displays, so ask for the size of this display's source.
+        UINT32 SourceId = m_pDisplayPathInfo[m_PathIdx].sourceInfo.id;
         VIOGPU_ESCAPE data{0};
-        data.DataLength = sizeof(VIOGPU_DISP_MODE);
-        data.Type = VIOGPU_GET_CUSTOM_RESOLUTION;
+        data.DataLength = sizeof(VIOGPU_SOURCE_MODE);
+        data.Type = VIOGPU_GET_SOURCE_RESOLUTION;
+        data.SourceMode.SourceId = SourceId;
 
         D3DKMT_ESCAPE escape = {0};
         escape.hAdapter = m_hAdapter;
@@ -240,6 +243,24 @@ bool GpuAdapter::GetCustomResolution(PVIOGPU_DISP_MODE pmode)
         escape.PrivateDriverDataSize = sizeof(data);
 
         NTSTATUS status = D3DKMTEscape(&escape);
+        if (NT_SUCCESS(status))
+        {
+            pmode->XResolution = data.SourceMode.Resolution.XResolution;
+            pmode->YResolution = data.SourceMode.Resolution.YResolution;
+            PrintMessage(L"%ws source %d (%dx%d)\n", __FUNCTIONW__, SourceId, pmode->XResolution, pmode->YResolution);
+            return true;
+        }
+        PrintMessage(L"D3DKMTEscape source %d failed with status = 0x%0X\n", SourceId, status);
+        if (SourceId != 0)
+        {
+            return false;
+        }
+
+        // A driver without VIOGPU_GET_SOURCE_RESOLUTION has a single source, and this is its size.
+        data = {0};
+        data.DataLength = sizeof(VIOGPU_DISP_MODE);
+        data.Type = VIOGPU_GET_CUSTOM_RESOLUTION;
+        status = D3DKMTEscape(&escape);
         if (NT_SUCCESS(status))
         {
             pmode->XResolution = data.Resolution.XResolution;

@@ -3317,8 +3317,23 @@ NTSTATUS VioGpuAdapter::Escape(_In_ CONST DXGKARG_ESCAPE *pEscape)
                               size));
                     return STATUS_INVALID_BUFFER_SIZE;
                 }
-                pVioGpuEscape->Resolution.XResolution = (USHORT)m_ModeInfo[m_CustomModeIndex].VisScreenWidth;
-                pVioGpuEscape->Resolution.YResolution = (USHORT)m_ModeInfo[m_CustomModeIndex].VisScreenHeight;
+                // The escape names no display. It gets the size of the one display connected; with several, the
+                // helper would give every display that size, and it gets none.
+                ULONG Connected = m_ConnectedScanouts;
+                if (Connected == 0 || (Connected & (Connected - 1)) != 0)
+                {
+                    DbgPrint(TRACE_LEVEL_ERROR,
+                             ("%s connected scanouts 0x%x: no single size\n", __FUNCTION__, Connected));
+                    return STATUS_NOT_SUPPORTED;
+                }
+                UINT ScanoutId = 0;
+                while (!(Connected & (1UL << ScanoutId)))
+                {
+                    ScanoutId++;
+                }
+                USHORT ModeIndex = GetPreferredModeIndex(ScanoutId);
+                pVioGpuEscape->Resolution.XResolution = (USHORT)m_ModeInfo[ModeIndex].VisScreenWidth;
+                pVioGpuEscape->Resolution.YResolution = (USHORT)m_ModeInfo[ModeIndex].VisScreenHeight;
                 break;
             }
         case VIOGPU_SET_CUSTOM_RESOLUTION:
@@ -3354,6 +3369,38 @@ NTSTATUS VioGpuAdapter::Escape(_In_ CONST DXGKARG_ESCAPE *pEscape)
                 m_pVioGpuDod->SetRegisterConfigInfo();
                 SetCustomDisplay(0, pVioGpuEscape->Resolution.XResolution, pVioGpuEscape->Resolution.YResolution);
                 SetCurrentModeIndex(m_CurrentModeIndex);
+                break;
+            }
+        case VIOGPU_GET_SOURCE_RESOLUTION:
+            {
+                size = sizeof(VIOGPU_SOURCE_MODE);
+                if (pVioGpuEscape->DataLength < size ||
+                    pEscape->PrivateDriverDataSize < FIELD_OFFSET(VIOGPU_ESCAPE, SourceMode) + size)
+                {
+                    DbgPrint(TRACE_LEVEL_ERROR,
+                             ("%s buffer too small %d, should be at least %d\n",
+                              __FUNCTION__,
+                              pVioGpuEscape->DataLength,
+                              size));
+                    return STATUS_INVALID_BUFFER_SIZE;
+                }
+                UINT ScanoutId = 0;
+                if (!m_pVioGpuDod->GetSourceScanout(pVioGpuEscape->SourceMode.SourceId, &ScanoutId))
+                {
+                    DbgPrint(TRACE_LEVEL_ERROR,
+                             ("%s invalid source %d\n", __FUNCTION__, pVioGpuEscape->SourceMode.SourceId));
+                    return STATUS_INVALID_PARAMETER;
+                }
+                USHORT ModeIndex = GetPreferredModeIndex(ScanoutId);
+                pVioGpuEscape->SourceMode.Resolution.XResolution = (USHORT)m_ModeInfo[ModeIndex].VisScreenWidth;
+                pVioGpuEscape->SourceMode.Resolution.YResolution = (USHORT)m_ModeInfo[ModeIndex].VisScreenHeight;
+                DbgPrint(TRACE_LEVEL_INFORMATION,
+                         ("%s source %d scanout %d (%dx%d)\n",
+                          __FUNCTION__,
+                          pVioGpuEscape->SourceMode.SourceId,
+                          ScanoutId,
+                          pVioGpuEscape->SourceMode.Resolution.XResolution,
+                          pVioGpuEscape->SourceMode.Resolution.YResolution));
                 break;
             }
         default:

@@ -360,6 +360,16 @@ class VioGpuDod
     {
         return (m_PersistentDispMode0Width > 0) && (m_PersistentDispMode0Height > 0);
     }
+    // The scanout a VidPN source drives, or FALSE if there is no such source.
+    BOOLEAN GetSourceScanout(UINT SourceId, UINT *pScanoutId) const
+    {
+        if (SourceId >= m_NumSources)
+        {
+            return FALSE;
+        }
+        *pScanoutId = m_CurrentModes[SourceId].ScanoutId;
+        return TRUE;
+    }
 #pragma code_seg(pop)
 
     NTSTATUS StartDevice(_In_ DXGK_START_INFO *pDxgkStartInfo,
