@@ -2,7 +2,7 @@
 *                   @YanVugenfirer @kostyanf14
 
 # Driver custom owners
-/Balloon/           @vrozenfe @ybendito @kostyanf14 @YanVugenfirer
+/Balloon/           @vrozenfe @ybendito @kostyanf14 @YanVugenfirer @zpolach-rh
 # /Documentation/
 # /fwcfg/
 /fwcfg64/           @kostyanf14 @YanVugenfirer
@@ -17,6 +17,7 @@
 /viofs/             @kostyanf14 @YanVugenfirer @ybendito
 /viogpu/            @vrozenfe @YanVugenfirer @kostyanf14
 # /vioinput/
+/viomem/            @zpolach-rh @kostyanf14 @YanVugenfirer
 # /viorng/
 /vioscsi/           @vrozenfe @YanVugenfirer @kostyanf14
 /vioserial/         @vrozenfe @ybendito @kostyanf14 @YanVugenfirer
