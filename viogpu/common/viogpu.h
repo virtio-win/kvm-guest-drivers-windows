@@ -287,11 +287,13 @@ typedef struct virtio_gpu_resp_edid
 } GPU_RESP_EDID, *PGPU_RESP_EDID;
 #pragma pack()
 
-#define EDID_V1_BLOCK_SIZE 128
+#define EDID_V1_BLOCK_SIZE       128
 
-#define VIRTIO_GPU_F_VIRGL 0
-#define VIRTIO_GPU_F_EDID  1
+#define VIRTIO_GPU_F_VIRGL       0
+#define VIRTIO_GPU_F_EDID        1
+// The device has a valid max_cursor_size, and a cursor resource may be up to that size instead of exactly 64x64.
+#define VIRTIO_GPU_F_CURSOR_SIZE 6
 
-#define ISR_REASON_DISPLAY 1
-#define ISR_REASON_CURSOR  2
-#define ISR_REASON_CHANGE  4
+#define ISR_REASON_DISPLAY       1
+#define ISR_REASON_CURSOR        2
+#define ISR_REASON_CHANGE        4

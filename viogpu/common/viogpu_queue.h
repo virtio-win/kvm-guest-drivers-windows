@@ -37,6 +37,8 @@ typedef struct virtio_gpu_config
     u32 events_clear;
     u32 num_scanouts;
     u32 num_capsets;
+    u32 blob_alignment;
+    u32 max_cursor_size;
 } GPU_CONFIG, *PGPU_CONFIG;
 #pragma pack()
 

@@ -163,6 +163,10 @@ class VioGpuAdapter : IVioGpuPCI
     }
     PBYTE GetEdidData(UINT ScanoutId);
     ULONG GetEdidSize(UINT ScanoutId);
+    UINT GetCursorSize(void) const
+    {
+        return m_CursorSize;
+    }
     // The scanouts the driver presents, one VidPN source and one child each.
     UINT GetNumScanouts(void) const
     {
@@ -221,6 +225,8 @@ class VioGpuAdapter : IVioGpuPCI
     UINT64 m_u64GuestFeatures;
     UINT32 m_u32NumCapsets;
     UINT32 m_u32NumScanouts;
+    // Side of the square cursor resource: POINTER_SIZE, or larger with VIRTIO_GPU_F_CURSOR_SIZE.
+    UINT m_CursorSize;
     // Bit n is set while the host reports scanout n enabled (VIRTIO_GPU_CMD_GET_DISPLAY_INFO).
     volatile ULONG m_ConnectedScanouts;
     CtrlQueue m_CtrlQueue;

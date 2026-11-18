@@ -509,8 +509,8 @@ NTSTATUS VioGpuDod::QueryAdapterInfo(_In_ CONST DXGKARG_QUERYADAPTERINFO *pQuery
 
                 if (IsPointerEnabled())
                 {
-                    pDriverCaps->MaxPointerWidth = POINTER_SIZE;
-                    pDriverCaps->MaxPointerHeight = POINTER_SIZE;
+                    pDriverCaps->MaxPointerWidth = m_pHWDevice->GetCursorSize();
+                    pDriverCaps->MaxPointerHeight = m_pHWDevice->GetCursorSize();
                     pDriverCaps->PointerCaps.Color = 1;
                     pDriverCaps->PointerCaps.MaskedColor = 1;
                 }
@@ -2451,6 +2451,7 @@ VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod)
     m_ResolutionEvent = NULL;
     m_ResolutionEventHandle = NULL;
     m_u64HostFeatures = 0;
+    m_CursorSize = POINTER_SIZE;
     m_u64GuestFeatures = 0;
     m_u32NumCapsets = 0;
     // Until the host tells us otherwise, scanout 0 is enabled, as on a freshly reset device.
@@ -2569,6 +2570,7 @@ NTSTATUS VioGpuAdapter::VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION *pDispInfo)
         }
 
         AckFeature(VIRTIO_F_ACCESS_PLATFORM);
+        AckFeature(VIRTIO_GPU_F_CURSOR_SIZE);
 
         status = virtio_set_features(&m_VioDev, m_u64GuestFeatures);
         if (!NT_SUCCESS(status))
@@ -2600,6 +2602,19 @@ NTSTATUS VioGpuAdapter::VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION *pDispInfo)
                           sizeof(m_u32NumScanouts));
 
         virtio_get_config(&m_VioDev, FIELD_OFFSET(GPU_CONFIG, num_capsets), &m_u32NumCapsets, sizeof(m_u32NumCapsets));
+
+        // A larger cursor keeps the pointer in hardware on a high-DPI monitor, where Windows scales it up.
+        m_CursorSize = POINTER_SIZE;
+        if (virtio_is_feature_enabled(m_u64GuestFeatures, VIRTIO_GPU_F_CURSOR_SIZE))
+        {
+            UINT32 MaxCursorSize = 0;
+            virtio_get_config(&m_VioDev,
+                              FIELD_OFFSET(GPU_CONFIG, max_cursor_size),
+                              &MaxCursorSize,
+                              sizeof(MaxCursorSize));
+            m_CursorSize = min(max(MaxCursorSize, POINTER_SIZE), POINTER_SIZE_MAX);
+        }
+        DbgPrint(TRACE_LEVEL_INFORMATION, ("%s cursor size %d\n", __FUNCTION__, m_CursorSize));
     } while (0);
     if (status == STATUS_SUCCESS)
     {
@@ -2868,7 +2883,7 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
         return status;
     }
 
-    if (!m_CursorSegment.Init(POINTER_SIZE * POINTER_SIZE * 4, NULL))
+    if (!m_CursorSegment.Init(m_CursorSize * m_CursorSize * 4, NULL))
     {
         DbgPrint(TRACE_LEVEL_FATAL, ("%s failed to allocate Cursor memory segment\n", __FUNCTION__));
         status = STATUS_INSUFFICIENT_RESOURCES;
@@ -4072,12 +4087,12 @@ BOOLEAN VioGpuAdapter::CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPoin
               pSetPointerShape->XHot,
               pSetPointerShape->YHot));
 
-    size = POINTER_SIZE * POINTER_SIZE * 4;
+    size = m_CursorSize * m_CursorSize * 4;
     format = ColorFormat(D3DDDIFMT_A8R8G8B8);
     DbgPrint(TRACE_LEVEL_INFORMATION,
              ("---> %s - (%x -> %x)\n", __FUNCTION__, pCurrentMode->DispInfo.ColorFormat, format));
     resid = (UINT)m_Idr.GetId();
-    m_CtrlQueue.CreateResource(resid, format, POINTER_SIZE, POINTER_SIZE);
+    m_CtrlQueue.CreateResource(resid, format, m_CursorSize, m_CursorSize);
     obj = new (NonPagedPoolNx) VioGpuObj();
     if (!obj->Init(size, &m_CursorSegment))
     {
@@ -4120,18 +4135,18 @@ BOOLEAN VioGpuAdapter::UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPoin
         return FALSE;
     }
 
-    // The shape fills only part of the POINTER_SIZE square, and the host shows the whole square: clear it, or
-    // pixels of a bigger earlier shape, or of whatever the memory held, show around the pointer.
-    RtlZeroMemory(m_pCursorBuf->GetVirtualAddress(), POINTER_SIZE * POINTER_SIZE * 4);
+    // The shape fills only part of the cursor square, and the host shows the whole square: clear it, or pixels of
+    // a bigger earlier shape, or of whatever the memory held, show around the pointer.
+    RtlZeroMemory(m_pCursorBuf->GetVirtualAddress(), m_CursorSize * m_CursorSize * 4);
     BLT_INFO DstBltInfo;
     DstBltInfo.pBits = m_pCursorBuf->GetVirtualAddress();
-    DstBltInfo.Pitch = POINTER_SIZE * 4;
+    DstBltInfo.Pitch = m_CursorSize * 4;
     DstBltInfo.BitsPerPel = BPPFromPixelFormat(D3DDDIFMT_A8R8G8B8);
     DstBltInfo.Offset.x = 0;
     DstBltInfo.Offset.y = 0;
     DstBltInfo.Rotation = D3DKMDT_VPPR_IDENTITY;
-    DstBltInfo.Width = POINTER_SIZE;
-    DstBltInfo.Height = POINTER_SIZE;
+    DstBltInfo.Width = m_CursorSize;
+    DstBltInfo.Height = m_CursorSize;
 
     BLT_INFO SrcBltInfo;
     SrcBltInfo.pBits = (PVOID)pSetPointerShape->pPixels;
@@ -4154,7 +4169,7 @@ BOOLEAN VioGpuAdapter::UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPoin
 
     BltBits(&DstBltInfo, &SrcBltInfo, &Rect);
 
-    m_CtrlQueue.TransferToHost2D(m_pCursorBuf->GetId(), 0, POINTER_SIZE, POINTER_SIZE, 0, 0);
+    m_CtrlQueue.TransferToHost2D(m_pCursorBuf->GetId(), 0, m_CursorSize, m_CursorSize, 0, 0);
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
     return TRUE;
