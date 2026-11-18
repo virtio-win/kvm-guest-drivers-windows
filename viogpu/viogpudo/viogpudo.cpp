@@ -2434,6 +2434,8 @@ VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod)
         m_pFrameBuf[i] = NULL;
         m_FrameBufScanout[i] = i;
         m_bCursorHidden[i] = TRUE;
+        m_CursorX[i] = 0;
+        m_CursorY[i] = 0;
     }
     for (UINT i = 0; i < MAX_CHILDREN; i++)
     {
@@ -3145,7 +3147,20 @@ NTSTATUS VioGpuAdapter::SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSet
     NTSTATUS status = STATUS_UNSUCCESSFUL;
     KeAcquireGuardedMutex(&m_CursorMutex);
 
-    if (UpdateCursor(pSetPointerShape, pModeCur))
+    if (!UpdateCursor(pSetPointerShape, pModeCur))
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s Failed to create cursor\n", __FUNCTION__));
+    }
+    else if (m_bCursorHidden[pModeCur->ScanoutId])
+    {
+        // Windows sets the shape on every source, then hides the pointer on all but one; an UPDATE_CURSOR
+        // would show the sprite there in between. The image is uploaded, and the SetPointerPosition that
+        // shows the pointer re-attaches it with this hot spot.
+        m_CursorHotX = pSetPointerShape->XHot;
+        m_CursorHotY = pSetPointerShape->YHot;
+        status = STATUS_SUCCESS;
+    }
+    else
     {
         PGPU_UPDATE_CURSOR crsr;
         PGPU_VBUFFER vbuf;
@@ -3156,15 +3171,13 @@ NTSTATUS VioGpuAdapter::SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSet
         crsr->hdr.type = VIRTIO_GPU_CMD_UPDATE_CURSOR;
         crsr->resource_id = m_pCursorBuf->GetId();
         crsr->pos.scanout_id = pModeCur->ScanoutId;
-        crsr->pos.x = 0;
-        crsr->pos.y = 0;
+        crsr->pos.x = m_CursorX[pModeCur->ScanoutId];
+        crsr->pos.y = m_CursorY[pModeCur->ScanoutId];
         crsr->hot_x = pSetPointerShape->XHot;
         crsr->hot_y = pSetPointerShape->YHot;
-        // This UPDATE_CURSOR attaches the resource and shows the sprite, so any pending hide is over.
         // Remember the hot spot for the UPDATE_CURSOR that re-attaches the sprite after a later hide.
         m_CursorHotX = pSetPointerShape->XHot;
         m_CursorHotY = pSetPointerShape->YHot;
-        m_bCursorHidden[pModeCur->ScanoutId] = FALSE;
         ret = m_CursorQueue.QueueCursor(vbuf);
         DbgPrint(TRACE_LEVEL_INFORMATION, ("<--- %s vbuf = %p, ret = %d\n", __FUNCTION__, vbuf, ret));
         if (ret == 0)
@@ -3175,10 +3188,6 @@ NTSTATUS VioGpuAdapter::SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSet
         {
             VioGpuDbgBreak();
         }
-    }
-    else
-    {
-        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s Failed to create cursor\n", __FUNCTION__));
     }
 
     KeReleaseGuardedMutex(&m_CursorMutex);
@@ -3222,6 +3231,11 @@ NTSTATUS VioGpuAdapter::SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION
             crsr = (PGPU_UPDATE_CURSOR)m_CursorQueue.AllocCursor(&vbuf);
             RtlZeroMemory(crsr, sizeof(*crsr));
             crsr->pos.scanout_id = pModeCur->ScanoutId;
+            if (visible)
+            {
+                m_CursorX[pModeCur->ScanoutId] = pSetPointerPosition->X;
+                m_CursorY[pModeCur->ScanoutId] = pSetPointerPosition->Y;
+            }
 
             if (!visible)
             {

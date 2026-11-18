@@ -248,6 +248,9 @@ class VioGpuAdapter : IVioGpuPCI
     // Hot spot of the current shape, replayed by the UPDATE_CURSOR that re-attaches the sprite after a hide.
     UINT m_CursorHotX;
     UINT m_CursorHotY;
+    // Per scanout: the last position SetPointerPosition gave, for an UPDATE_CURSOR that changes the shape.
+    INT m_CursorX[MAX_VIEWS];
+    INT m_CursorY[MAX_VIEWS];
     VioGpuMemSegment m_CursorSegment;
     // Per VidPN source. Segment 0 is set up with the device; the others when their source first gets a mode.
     VioGpuMemSegment m_FrameSegment[MAX_VIEWS];
