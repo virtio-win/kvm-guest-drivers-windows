@@ -133,10 +133,43 @@ ViomemInit(IN WDFOBJECT WdfDevice)
             // Note: each bit represents one block of memory where size of block
             //	     is equal to block_size field of VIRTIO_MEM_CONFIG.
             //
-            ULONG bitmapSizeInBits = (ULONG)(configReqest.region_size / configReqest.block_size);
+            ULONGLONG blockCount;
+            ULONG bitmapSizeInBits;
+            ULONG bitmapSizeInBytes;
+
+            blockCount = configReqest.region_size / configReqest.block_size;
+
+            //
+            // RtlInitializeBitMap/RtlClearAllBits/RtlSetBits operate on ULONG
+            // units: the backing buffer must cover SizeOfBitMap rounded up to
+            // 32 bits.  The block count must therefore fit in ULONG; rejecting
+            // it here also keeps (blockCount + 31) from wrapping below.
+            //
+            if ((blockCount == 0) || (blockCount > MAXULONG))
+            {
+                TraceEvents(TRACE_LEVEL_ERROR,
+                            DBG_HW_ACCESS,
+                            "Invalid block count %I64u for region_size 0x%I64x block_size 0x%I64x\n",
+                            blockCount,
+                            configReqest.region_size,
+                            configReqest.block_size);
+                VirtIOWdfSetDriverFailed(&devCtx->VDevice);
+                status = STATUS_DEVICE_DATA_ERROR;
+                goto Exit;
+            }
+
+            bitmapSizeInBits = (ULONG)blockCount;
+
+            //
+            // Round up to whole ULONGs.  Bits/8 (floor) under-allocates
+            // whenever the block count is not a multiple of 32, and allocates
+            // zero bytes below eight blocks, so RtlClearAllBits can write past
+            // the pool block.
+            //
+            bitmapSizeInBytes = (ULONG)(((blockCount + 31) / 32) * sizeof(ULONG));
 
             devCtx->bitmapBuffer = (ULONG *)ExAllocatePoolZero(NonPagedPool,
-                                                               bitmapSizeInBits >> 3,
+                                                               bitmapSizeInBytes,
                                                                VIRTIO_MEM_POOL_TAG);
 
             //
