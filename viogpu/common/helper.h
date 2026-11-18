@@ -68,8 +68,9 @@ extern "C"
 #include "trace.h"
 }
 
-#define MAX_CHILDREN                       1
-#define MAX_VIEWS                          1
+// Upper bounds: the device's scanout count sets how many sources and children are used.
+#define MAX_CHILDREN                       16
+#define MAX_VIEWS                          16
 #define BITS_PER_BYTE                      8
 
 #define POINTER_SIZE                       64
