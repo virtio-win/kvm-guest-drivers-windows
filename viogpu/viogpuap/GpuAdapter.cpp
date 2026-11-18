@@ -29,10 +29,33 @@
 
 #include "pch.h"
 
+// Every adapter's thread applies a whole-system display configuration. Taking the snapshot and applying it
+// under one lock keeps one thread from applying a snapshot that predates another thread's change, which
+// would undo that change. A mutex rather than an SRW lock: Close terminates a thread that does not stop in
+// time, and the system releases the mutex of a thread that ended while it held it, so the others go on.
+static HANDLE DisplayConfigMutex = CreateMutex(NULL, FALSE, NULL);
+
+static void LockDisplayConfig(void)
+{
+    if (DisplayConfigMutex != NULL)
+    {
+        // WAIT_ABANDONED, when the previous owner was terminated, gives the lock all the same.
+        WaitForSingleObject(DisplayConfigMutex, INFINITE);
+    }
+}
+
+static void UnlockDisplayConfig(void)
+{
+    if (DisplayConfigMutex != NULL)
+    {
+        ReleaseMutex(DisplayConfigMutex);
+    }
+}
+
 GpuAdapter::GpuAdapter(const std::wstring LinkName)
-    : m_hThread(NULL), m_hStopEvent(NULL), m_hResolutionEvent(NULL), m_hDC(NULL), m_hAdapter(NULL), m_Index(-1),
-      m_PathArrayElements(0), m_ModeInfoArrayElements(0), m_pDisplayPathInfo(NULL), m_pDisplayModeInfo(NULL),
-      m_Flag(None)
+    : m_hThread(NULL), m_hStopEvent(NULL), m_hResolutionEvent(NULL), m_hDC(NULL), m_hAdapter(NULL), m_Id(0),
+      m_PathIdx(INVALID_PATH_IDX), m_PathArrayElements(0), m_ModeInfoArrayElements(0), m_pDisplayPathInfo(NULL),
+      m_pDisplayModeInfo(NULL), m_Flag(None)
 {
     m_DeviceName = LinkName;
     PrintMessage(L"%ws %ws\n", __FUNCTIONW__, m_DeviceName.c_str());
@@ -43,8 +66,9 @@ void GpuAdapter::UpdateDisplayConfig(void)
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
-    UINT32 filter = QDC_ALL_PATHS;
+    UINT32 filter = QDC_ONLY_ACTIVE_PATHS;
     ClearDisplayConfig();
+    m_PathIdx = INVALID_PATH_IDX;
 
     if (FAILED(HRESULT_FROM_WIN32(::GetDisplayConfigBufferSizes(filter,
                                                                 &m_PathArrayElements,
@@ -79,7 +103,7 @@ void GpuAdapter::UpdateDisplayConfig(void)
             {
                 if (wcscmp(m_DeviceName.c_str(), SourceName.viewGdiDeviceName) == 0)
                 {
-                    m_Index = PathIdx;
+                    m_PathIdx = PathIdx;
                     break;
                 }
             }
@@ -87,18 +111,14 @@ void GpuAdapter::UpdateDisplayConfig(void)
     }
 };
 
-DISPLAYCONFIG_MODE_INFO *GpuAdapter::GetDisplayConfig(UINT index)
+DISPLAYCONFIG_MODE_INFO *GpuAdapter::GetDisplayConfig(void)
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
-    if (index < GetNumbersOfPathArrayElements())
+    if (m_PathIdx < GetNumbersOfPathArrayElements())
     {
-        UINT idx = m_pDisplayPathInfo[index].sourceInfo.modeInfoIdx;
-        PrintMessage(L"%ws m_Index %d idx %d active %d\n",
-                     __FUNCTIONW__,
-                     index,
-                     idx,
-                     m_pDisplayPathInfo[index].flags & DISPLAYCONFIG_PATH_ACTIVE);
+        UINT idx = m_pDisplayPathInfo[m_PathIdx].sourceInfo.modeInfoIdx;
+        PrintMessage(L"%ws path %d mode %d\n", __FUNCTIONW__, m_PathIdx, idx);
         if (idx < GetNumbersOfModeInfoArrayElements())
         {
             return &m_pDisplayModeInfo[idx];
@@ -143,7 +163,7 @@ void GpuAdapter::Init()
         {
             std::wstring EventName = GLOBAL_OBJECTS;
             EventName += RESOLUTION_EVENT_NAME;
-            EventName += std::to_wstring(m_Index);
+            EventName += std::to_wstring(m_Id);
             m_hResolutionEvent = ::OpenEvent(EVENT_ALL_ACCESS | EVENT_MODIFY_STATE, FALSE, EventName.c_str());
             if (m_hResolutionEvent == NULL)
             {
@@ -183,7 +203,7 @@ bool GpuAdapter::QueryAdapterId()
         }
         else
         {
-            m_Index = data.Id;
+            m_Id = data.Id;
             return true;
         }
     }
@@ -194,7 +214,7 @@ bool GpuAdapter::GetCurrentResolution(PVIOGPU_DISP_MODE mode)
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
-    DISPLAYCONFIG_MODE_INFO *pConfig = GetDisplayConfig(m_Index);
+    DISPLAYCONFIG_MODE_INFO *pConfig = GetDisplayConfig();
     if (pConfig)
     {
         mode->XResolution = (USHORT)pConfig->sourceMode.width;
@@ -236,16 +256,25 @@ bool GpuAdapter::SetResolution(PVIOGPU_DISP_MODE mode)
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
-    int ix = m_pDisplayPathInfo[m_Index].sourceInfo.modeInfoIdx;
-    PrintMessage(L"%ws m_Index %d %d (%dx%d)\n", __FUNCTIONW__, m_Index, ix, mode->XResolution, mode->YResolution);
-    m_pDisplayModeInfo[ix].sourceMode.width = mode->XResolution;
-    m_pDisplayModeInfo[ix].sourceMode.height = mode->YResolution;
-    SetDisplayConfig(m_PathArrayElements,
-                     m_pDisplayPathInfo,
-                     m_ModeInfoArrayElements,
-                     m_pDisplayModeInfo,
-                     SDC_APPLY | SDC_USE_SUPPLIED_DISPLAY_CONFIG | SDC_ALLOW_CHANGES | SDC_SAVE_TO_DATABASE);
-    return true;
+    DISPLAYCONFIG_MODE_INFO *pConfig = GetDisplayConfig();
+    if (pConfig == NULL)
+    {
+        return false;
+    }
+    pConfig->sourceMode.width = mode->XResolution;
+    pConfig->sourceMode.height = mode->YResolution;
+    LONG result = SetDisplayConfig(m_PathArrayElements,
+                                   m_pDisplayPathInfo,
+                                   m_ModeInfoArrayElements,
+                                   m_pDisplayModeInfo,
+                                   SDC_APPLY | SDC_USE_SUPPLIED_DISPLAY_CONFIG | SDC_ALLOW_CHANGES | SDC_SAVE_TO_DATABASE);
+    PrintMessage(L"%ws %ws (%dx%d) SetDisplayConfig = %d\n",
+                 __FUNCTIONW__,
+                 m_DeviceName.c_str(),
+                 mode->XResolution,
+                 mode->YResolution,
+                 result);
+    return result == ERROR_SUCCESS;
 }
 
 void GpuAdapter::SyncResolution(void)
@@ -253,13 +282,21 @@ void GpuAdapter::SyncResolution(void)
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
     VIOGPU_DISP_MODE custom = {0};
+    VIOGPU_DISP_MODE current = {0};
+
+    LockDisplayConfig();
     UpdateDisplayConfig();
-    if (GetCustomResolution(&custom))
+    if (m_PathIdx == INVALID_PATH_IDX)
     {
-        VIOGPU_DISP_MODE current = {0};
-        GetCurrentResolution(&current);
+        // No active path: the display is not part of the desktop, so there is no mode to set.
+        PrintMessage(L"%ws %ws is not active\n", __FUNCTIONW__, m_DeviceName.c_str());
+    }
+    else if (GetCustomResolution(&custom) && GetCurrentResolution(&current) &&
+             (custom.XResolution != current.XResolution || custom.YResolution != current.YResolution))
+    {
         SetResolution(&custom);
     }
+    UnlockDisplayConfig();
 }
 
 void GpuAdapter::Run()
