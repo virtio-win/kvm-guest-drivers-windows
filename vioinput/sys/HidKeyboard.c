@@ -254,7 +254,7 @@ static NTSTATUS HIDKeyboardSendStatus(PINPUT_DEVICE pContext,
                                       ULONG uValue,
                                       WDFREQUEST Request)
 {
-    PVIRTIO_INPUT_EVENT_WITH_REQUEST pEvent;
+    PVIRTIO_INPUT_EVENT pEvent;
     NTSTATUS status;
     PHYSICAL_ADDRESS pa;
 
@@ -267,16 +267,19 @@ static NTSTATUS HIDKeyboardSendStatus(PINPUT_DEVICE pContext,
     }
     else
     {
-        pEvent->Event.type = uType;
-        pEvent->Event.code = uCode;
-        pEvent->Event.value = uValue;
-        pEvent->Request = Request;
+        ULONG slot = VIOInputStatusSlot(pContext, pEvent);
+
+        pEvent->type = uType;
+        pEvent->code = uCode;
+        pEvent->value = uValue;
+        pContext->StatusQRequest[slot] = Request;
 
         WdfSpinLockAcquire(pContext->StatusQLock);
-        status = VIOInputAddOutBuf(pContext->StatusQ, &pEvent->Event, pa);
+        status = VIOInputAddOutBuf(pContext->StatusQ, pEvent, pa);
         WdfSpinLockRelease(pContext->StatusQLock);
         if (!NT_SUCCESS(status))
         {
+            pContext->StatusQRequest[slot] = NULL;
             pContext->StatusQMemBlock->return_slice(pContext->StatusQMemBlock, pEvent);
         }
     }

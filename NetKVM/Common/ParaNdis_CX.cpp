@@ -21,7 +21,14 @@ CParaNdisCX::~CParaNdisCX()
     CLockedContext<CNdisSpinLock> autoLock(m_Lock);
     if (m_ControlData.Virtual != nullptr)
     {
-        ParaNdis_FreePhysicalMemory(m_Context, &m_ControlData);
+        if (m_ControlDataInDmb)
+        {
+            virtio_dmb_free(&m_Context->IODevice, m_ControlData.Virtual, m_ControlData.size);
+        }
+        else
+        {
+            ParaNdis_FreePhysicalMemory(m_Context, &m_ControlData);
+        }
     }
     m_CommandQueue.ForEachDetached([&](CQueuedCommand *e) { CQueuedCommand::Destroy(e, m_Context->MiniportHandle); });
 }
@@ -30,7 +37,22 @@ bool CParaNdisCX::Create(UINT DeviceQueueIndex)
 {
     m_queueIndex = (u16)DeviceQueueIndex;
 
-    if (!ParaNdis_InitialAllocatePhysicalMemory(m_Context, 512, &m_ControlData))
+    if (m_Context->DmbMode.active)
+    {
+        // With a DMB the command, its parameters and the ack byte all live in
+        // the DMB, addressed by offset. The driver reads back only the ack.
+        u64 offset = 0;
+        m_ControlData.Virtual = virtio_dmb_alloc(&m_Context->IODevice, 512, &offset);
+        if (m_ControlData.Virtual == nullptr)
+        {
+            DPrintf(0, "DMB allocation failed for the control queue %u", DeviceQueueIndex);
+            return false;
+        }
+        m_ControlData.Physical.QuadPart = (LONGLONG)offset;
+        m_ControlData.size = 512;
+        m_ControlDataInDmb = true;
+    }
+    else if (!ParaNdis_InitialAllocatePhysicalMemory(m_Context, 512, &m_ControlData))
     {
         DPrintf(0, "ParaNdis_InitialAllocatePhysicalMemory failed for %u", DeviceQueueIndex);
         m_ControlData.Virtual = nullptr;
@@ -56,6 +78,8 @@ void CParaNdisCX::FillSGArray(struct VirtIOBufferDescriptor sg[/*4*/], const Com
 
     ((virtio_net_ctrl_hdr *)pBase)->class_of_command = data.cls;
     ((virtio_net_ctrl_hdr *)pBase)->cmd = data.cmd;
+    m_LastCls = data.cls;
+    m_LastCmd = data.cmd;
     sg[0].physAddr = phBase;
     sg[0].length = sizeof(virtio_net_ctrl_hdr);
     offset += (USHORT)sg[0].length;
@@ -95,13 +119,12 @@ bool CParaNdisCX::GetResponse(UCHAR &Code, int MicrosecondsToWait, int LogLevel)
 {
     PUCHAR pBase = (PUCHAR)m_ControlData.Virtual;
     UINT len = 0;
-    auto ctl = (virtio_net_ctrl_hdr *)pBase;
-    UCHAR cls = ctl->class_of_command;
-    UCHAR cmd = ctl->cmd;
+    UCHAR cls = m_LastCls;
+    UCHAR cmd = m_LastCmd;
     void *p = NULL;
     int i = 0;
 
-    while (ReadyForControls() && i++ <= MicrosecondsToWait)
+    while (ReadyForControls() && !m_VirtQueue.IsBroken() && i++ <= MicrosecondsToWait)
     {
         UINT interval = 1;
         p = m_VirtQueue.GetBuf(&len);
@@ -121,7 +144,8 @@ bool CParaNdisCX::GetResponse(UCHAR &Code, int MicrosecondsToWait, int LogLevel)
     if (len == sizeof(virtio_net_ctrl_ack))
     {
         // the response status is probably OK or ERR
-        Code = *(virtio_net_ctrl_ack *)(pBase + m_ResultOffset);
+        // The ack is the only byte read back; read it once.
+        Code = *(volatile virtio_net_ctrl_ack *)(pBase + m_ResultOffset);
         m_Context->extraStatistics.ctrlFailed += Code != VIRTIO_NET_OK;
         switch (Code)
         {

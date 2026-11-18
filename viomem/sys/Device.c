@@ -56,6 +56,7 @@ ViomemDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
     WDF_INTERRUPT_CONFIG interruptConfig;
     WDF_OBJECT_ATTRIBUTES attributes;
     WDF_PNPPOWER_EVENT_CALLBACKS pnpPowerCallbacks;
+    UCHAR powerMinors[] = {IRP_MN_QUERY_POWER, IRP_MN_SET_POWER};
 
     UNREFERENCED_PARAMETER(Driver);
     PAGED_CODE();
@@ -71,6 +72,20 @@ ViomemDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
     pnpPowerCallbacks.EvtDeviceD0ExitPreInterruptsDisabled = ViomemEvtDeviceD0ExitPreInterruptsDisabled;
 
     WdfDeviceInitSetPnpPowerEventCallbacks(DeviceInit, &pnpPowerCallbacks);
+
+    status = WdfDeviceInitAssignWdmIrpPreprocessCallback(DeviceInit,
+                                                         ViomemEvtDeviceWdmPowerPreprocess,
+                                                         IRP_MJ_POWER,
+                                                         powerMinors,
+                                                         ARRAYSIZE(powerMinors));
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR,
+                    DBG_PNP,
+                    "WdfDeviceInitAssignWdmIrpPreprocessCallback failed with status 0x%08x\n",
+                    status);
+        return status;
+    }
 
     WDF_OBJECT_ATTRIBUTES_INIT_CONTEXT_TYPE(&attributes, DEVICE_CONTEXT);
     attributes.EvtCleanupCallback = ViomemEvtDeviceContextCleanup;
@@ -125,6 +140,14 @@ ViomemDeviceAdd(IN WDFDRIVER Driver, IN PWDFDEVICE_INIT DeviceInit)
         TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfSpinLockCreate failed 0x%x\n", status);
         return status;
     }
+
+    status = WdfWaitLockCreate(&attributes, &devCtx->PlugLock);
+    if (!NT_SUCCESS(status))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfWaitLockCreate failed 0x%x\n", status);
+        return status;
+    }
+    devCtx->HibernateAccepted = FALSE;
 
     KeInitializeEvent(&devCtx->WakeUpThread, SynchronizationEvent, FALSE);
 
@@ -181,43 +204,18 @@ ViomemEvtDevicePrepareHardware(IN WDFDEVICE Device,
         return status;
     }
 
+    /* Opt into the Device Memory Buffer. The request and response buffers
+     * are allocated in ViomemInit(), after feature negotiation, so they land
+     * in the DMB when the device accepted it. The addresses and block ranges
+     * a memory device plugs or unplugs are protocol addresses: they name
+     * guest memory the device must not reach, so they stay as the device
+     * reports them and only the request/response buffers that carry them use
+     * the DMB. */
+    VirtIOWdfDeviceDmbOptIn(&devCtx->VDevice);
+
     //
-    // Initialize memory for request, response, and bitmap.
+    // Initialize the bitmap.
     //
-
-    if (NT_SUCCESS(status))
-    {
-        devCtx->plugRequest = (virtio_mem_req *)VirtIOWdfDeviceAllocDmaMemory(&devCtx->VDevice.VIODevice,
-                                                                              PAGE_SIZE,
-                                                                              VIRTIO_MEM_POOL_TAG);
-    }
-
-    if (devCtx->plugRequest)
-    {
-        RtlZeroMemory(devCtx->plugRequest, sizeof(virtio_mem_req));
-    }
-    else
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "Failed to allocate MemStats block\n");
-        status = STATUS_INSUFFICIENT_RESOURCES;
-    }
-
-    if (NT_SUCCESS(status))
-    {
-        devCtx->MemoryResponse = (virtio_mem_resp *)VirtIOWdfDeviceAllocDmaMemory(&devCtx->VDevice.VIODevice,
-                                                                                  PAGE_SIZE,
-                                                                                  VIRTIO_MEM_POOL_TAG);
-    }
-
-    if (devCtx->MemoryResponse)
-    {
-        RtlZeroMemory(devCtx->MemoryResponse, sizeof(virtio_mem_resp));
-    }
-    else
-    {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "Failed to allocate MemoryResponse block\n");
-        status = STATUS_INSUFFICIENT_RESOURCES;
-    }
 
     RtlZeroMemory(&devCtx->memoryBitmapHandle, sizeof(RTL_BITMAP));
     devCtx->bitmapBuffer = NULL;
@@ -248,6 +246,8 @@ ViomemEvtDeviceReleaseHardware(IN WDFDEVICE Device, IN WDFCMRESLIST ResourcesTra
     devCtx = GetDeviceContext(Device);
 
     VirtIOWdfDeviceFreeDmaMemoryByTag(&devCtx->VDevice.VIODevice, VIRTIO_MEM_POOL_TAG);
+    devCtx->plugRequest = NULL;
+    devCtx->MemoryResponse = NULL;
 
     WdfObjectReleaseLock(Device);
 
@@ -422,6 +422,61 @@ ViomemEvtDeviceD0ExitPreInterruptsDisabled(IN WDFDEVICE Device, IN WDF_POWER_DEV
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "%s Return\n", __FUNCTION__);
 
     return STATUS_SUCCESS;
+}
+
+/* The memory we plug is not in the firmware memory map, and the device
+ * unplugs it on a system reset, so a hibernation image must not contain it.
+ * Before the system hibernates, hand every plugged block back and plug
+ * nothing until the system is back in S0, where the worker thread plugs the
+ * requested size again. If the memory manager keeps some of it, refuse. */
+NTSTATUS
+ViomemEvtDeviceWdmPowerPreprocess(IN WDFDEVICE Device, IN OUT PIRP Irp)
+{
+    PDEVICE_CONTEXT devCtx = GetDeviceContext(Device);
+    PIO_STACK_LOCATION stack = IoGetCurrentIrpStackLocation(Irp);
+    SYSTEM_POWER_STATE state = stack->Parameters.Power.State.SystemState;
+    NTSTATUS status;
+
+    if (stack->Parameters.Power.Type == SystemPowerState)
+    {
+        if (stack->MinorFunction == IRP_MN_QUERY_POWER && state == PowerSystemHibernate)
+        {
+            BOOLEAN unplugged;
+
+            WdfWaitLockAcquire(devCtx->PlugLock, NULL);
+            devCtx->HibernateAccepted = TRUE;
+            unplugged = ViomemRemoveAllPhysicalMemory(Device);
+            WdfWaitLockRelease(devCtx->PlugLock);
+
+            if (!unplugged)
+            {
+                TraceEvents(TRACE_LEVEL_WARNING, DBG_POWER, "plugged memory stays in use, refusing hibernation\n");
+                status = STATUS_UNSUCCESSFUL;
+                PoStartNextPowerIrp(Irp);
+                Irp->IoStatus.Status = status;
+                IoCompleteRequest(Irp, IO_NO_INCREMENT);
+                return status;
+            }
+        }
+        else if (stack->MinorFunction == IRP_MN_SET_POWER && state == PowerSystemWorking)
+        {
+            BOOLEAN wasAccepted;
+
+            WdfWaitLockAcquire(devCtx->PlugLock, NULL);
+            wasAccepted = devCtx->HibernateAccepted;
+            devCtx->HibernateAccepted = FALSE;
+            WdfWaitLockRelease(devCtx->PlugLock);
+
+            /* Pick up a plug request we deferred while hibernation was pending. */
+            if (wasAccepted)
+            {
+                KeSetEvent(&devCtx->WakeUpThread, EVENT_INCREMENT, FALSE);
+            }
+        }
+    }
+
+    IoSkipCurrentIrpStackLocation(Irp);
+    return WdfDeviceWdmDispatchPreprocessedIrp(Device, Irp);
 }
 
 BOOLEAN

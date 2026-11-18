@@ -147,6 +147,31 @@ VOID CompleteRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb);
 
 VOID FirmwareRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb);
 
+/* Device Memory Buffer bouncing. */
+
+/* Bounce the request through one DMB run (header, data-out, response,
+ * data-in), copy in the header and any data-out, and build srbExt->psgl[]
+ * with DMB offsets. VIRTIO_DMB_FULL: retry later; VIRTIO_DMB_TOO_BIG: fail. */
+virtio_dmb_map_result VioScsiDmbMapRequest(IN PVOID DeviceExtension, IN PSRB_TYPE Srb, IN PSRB_EXTENSION srbExt);
+
+/* Free the DMB run of a request the device will not complete. A no-op if the
+ * request holds no run. */
+VOID VioScsiDmbRelease(IN PVOID DeviceExtension, IN PSRB_EXTENSION srbExt);
+
+/* Copy the response and any data-in out of the DMB and free the run. A
+ * request without a run gets a failed response. */
+VOID VioScsiDmbCompleteRequest(IN PVOID DeviceExtension, IN PSRB_EXTENSION srbExt);
+
+/* Allocate the DMB control page for the event nodes and the TMF. */
+BOOLEAN
+VioScsiDmbAllocControl(IN PVOID DeviceExtension);
+
+/* Snapshot a completed event node's event out of the DMB and clear its slot. */
+VOID VioScsiDmbFetchEvent(IN PVOID DeviceExtension, IN PVirtIOSCSIEventNode EventNode);
+
+/* Snapshot the TMF response out of the DMB into cmd->resp.tmf. */
+VOID VioScsiDmbFetchTmfResponse(IN PVOID DeviceExtension, IN PVirtIOSCSICmd cmd);
+
 extern VirtIOSystemOps VioScsiSystemOps;
 
 #endif ___HELPER_H___

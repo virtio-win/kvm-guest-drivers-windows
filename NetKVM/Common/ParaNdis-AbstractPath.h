@@ -60,6 +60,11 @@ class CParaNdisAbstractPath
         return m_pVirtQueue->IsValid();
     }
 
+    bool IsQueueBroken() const
+    {
+        return m_pVirtQueue != nullptr && m_pVirtQueue->IsBroken();
+    }
+
     ULONG getCPUIndex();
 
     VOID SetLastInterruptTimestamp(LARGE_INTEGER timestamp)

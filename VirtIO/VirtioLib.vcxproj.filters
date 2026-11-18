@@ -13,6 +13,9 @@
     <ClCompile Include="VirtIORing.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="VirtIODmb.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="VirtIORing-Packed.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -43,6 +46,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="virtio_pci_common.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="VirtIODmb.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="virtio_ring.h">

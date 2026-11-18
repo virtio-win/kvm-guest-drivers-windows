@@ -34,6 +34,7 @@
 #include <Ntddk.h>
 #include <wdf.h>
 #include "kdebugprint.h"
+#include "VirtIODmb.h"
 
 typedef struct virtio_wdf_bar {
     SINGLE_LIST_ENTRY ListEntry;
@@ -79,6 +80,24 @@ typedef struct virtio_wdf_memory_block_context {
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIRTIO_WDF_MEMORY_BLOCK_CONTEXT, GetMemoryBlockContext)
 
+/* One allocation handed out from the Device Memory Buffer. In DMB mode the
+ * driver tracks these in place of the WDFCOMMONBUFFER collection, because a
+ * DMB run is a slice of the device region, not a common buffer. */
+typedef struct virtio_wdf_dmb_block {
+    LIST_ENTRY ListEntry;
+    PVOID VirtualAddress;
+    size_t Length;
+    ULONG groupTag;
+} VIRTIO_WDF_DMB_BLOCK, *PVIRTIO_WDF_DMB_BLOCK;
+
+/* A SCATTER_GATHER_LIST with room for exactly one element. */
+typedef struct virtio_wdf_dmb_sgl {
+    ULONG NumberOfElements;
+    ULONG_PTR Reserved;
+    SCATTER_GATHER_ELEMENT Elements[1];
+} VIRTIO_WDF_DMB_SGL;
+C_ASSERT(FIELD_OFFSET(VIRTIO_WDF_DMB_SGL, Elements) == FIELD_OFFSET(SCATTER_GATHER_LIST, Elements));
+
 typedef struct virtio_wdf_dma_transaction_context {
     VIRTIO_DMA_TRANSACTION_PARAMS parameters;
     VirtIOWdfDmaTransactionCallback callback;
@@ -86,6 +105,17 @@ typedef struct virtio_wdf_dma_transaction_context {
     PVOID buffer;
     LONG refCount;
     WDF_DMA_DIRECTION direction;
+    /* DMB bounce state, set when the transfer runs through the Device Memory
+     * Buffer: the request engine's run, the MDL chain a read is copied out
+     * along (a read into a buffer is copied by the engine), and the
+     * one-element list the callback gets. */
+    BOOLEAN bDmb;
+    VirtIODmbReq dmbReq;
+    PMDL dmbCopyMdl;
+    VIRTIO_WDF_DMB_SGL dmbSgl;
 } VIRTIO_WDF_DMA_TRANSACTION_CONTEXT, *PVIRTIO_WDF_DMA_TRANSACTION_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(VIRTIO_WDF_DMA_TRANSACTION_CONTEXT, GetDmaTransactionContext)
+
+/* Reclaim leftover DMB run trackers. Call after virtio_device_shutdown(). */
+void VirtIOWdfDmbShutdown(PVIRTIO_WDF_DRIVER pWdfDriver);

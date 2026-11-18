@@ -39,6 +39,7 @@
 #include "virtio_pci.h"
 #include "virtio.h"
 #include "virtio_ring.h"
+#include "VirtIODmb.h"
 
 typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
@@ -120,6 +121,11 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 #define VIRTIO_SCSI_QUEUE_LAST               VIRTIO_SCSI_REQUEST_QUEUE_0 + MAX_CPU
 
 #define VIRTIO_SCSI_MAX_BUSES_PER_HBA        1
+
+/* Device Memory Buffer layout of the control page */
+#define VIOSCSI_DMB_EVENT_NODES              8
+#define VIOSCSI_DMB_TMF_REQ_OFFSET           256
+#define VIOSCSI_DMB_TMF_RESP_OFFSET          320
 
 /* MSI messages and virtqueue indices are offset by 1, MSI 0 is not used */
 #define QUEUE_TO_MESSAGE(QueueId)            ((QueueId) + 1)
@@ -263,6 +269,10 @@ typedef struct _SRB_EXTENSION
     VRING_DESC_ALIAS desc_alias[VIRTIO_MAX_SG];
     ULONGLONG time;
     ULONG_PTR id;
+
+    /* Device Memory Buffer bounce of this request: the request header, any
+     * data-out, the response and any data-in (no run if not bounced). */
+    VirtIODmbReq dmb;
 } SRB_EXTENSION, *PSRB_EXTENSION;
 #pragma pack()
 
@@ -356,6 +366,15 @@ typedef struct _ADAPTER_EXTENSION
     ULONGLONG fw_ver;
     ULONG resp_time;
     BOOLEAN bRemoved;
+
+    /* Device Memory Buffer, fixed by VioScsiFindAdapter. When active, every
+     * request, the TMF and the event nodes go through the DMB and all device
+     * addresses are DMB offsets. */
+    VirtIODmbMode dmb_mode;
+    /* One DMB page for the event nodes and the TMF, allocated by
+     * VioScsiHwInitialize (NULL in dump mode). */
+    PUCHAR dmb_ctrl_va;
+    ULONGLONG dmb_ctrl_offset;
 
     struct
     {

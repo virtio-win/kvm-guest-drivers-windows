@@ -40,6 +40,7 @@
 #include <stddef.h>
 
 #include "virtio_pci_common.h"
+#include "VirtIODmb.h"
 
 NTSTATUS virtio_device_initialize(VirtIODevice *vdev, const VirtIOSystemOps *pSystemOps,
                                   PVOID DeviceContext, bool msix_used)
@@ -74,6 +75,8 @@ NTSTATUS virtio_device_initialize(VirtIODevice *vdev, const VirtIOSystemOps *pSy
 
 void virtio_device_shutdown(VirtIODevice *vdev)
 {
+    /* Frees the DMB bitmap; a run the driver frees afterwards is ignored. */
+    virtio_dmb_unmap(vdev);
     if (vdev->info && vdev->info != vdev->inline_info) {
         mem_free_nonpaged_block(vdev, vdev->info);
         vdev->info = NULL;
@@ -104,6 +107,20 @@ void virtio_device_ready(VirtIODevice *vdev)
 {
     unsigned status = vdev->device->get_status(vdev);
 
+    /* A driver that ignored a failed virtio_set_features() must not start
+     * the device: it would run with features the device never accepted, or
+     * hand guest physical addresses to a device that can only reach its
+     * DMB. Leave DRIVER_OK clear so the device stays stopped. */
+    if (status & VIRTIO_CONFIG_S_FAILED) {
+        DPrintf(0, "virtio: not setting DRIVER_OK on a FAILED device\n");
+        return;
+    }
+    if (virtio_dmb_is_required(vdev) && !virtio_dmb_is_active(vdev)) {
+        DPrintf(0, "virtio DMB: not setting DRIVER_OK, the device requires an inactive DMB\n");
+        virtio_add_status(vdev, VIRTIO_CONFIG_S_FAILED);
+        return;
+    }
+
     ASSERT(!(status & VIRTIO_CONFIG_S_DRIVER_OK));
     vdev->device->set_status(vdev, (u8)(status | VIRTIO_CONFIG_S_DRIVER_OK));
 }
@@ -118,6 +135,14 @@ NTSTATUS virtio_set_features(VirtIODevice *vdev, u64 features)
     unsigned char dev_status;
     NTSTATUS status;
 
+    /* VIRTIO_F_DMB is a transport feature the driver opts into; it changes
+     * which ring features are usable, so settle it first. */
+    status = virtio_dmb_negotiate(vdev, &features);
+    if (!NT_SUCCESS(status)) {
+        virtio_add_status(vdev, VIRTIO_CONFIG_S_FAILED);
+        return status;
+    }
+
     vdev->event_suppression_enabled = virtio_is_feature_enabled(features, VIRTIO_RING_F_EVENT_IDX);
     vdev->packed_ring = virtio_is_feature_enabled(features, VIRTIO_F_RING_PACKED);
 
@@ -127,14 +152,20 @@ NTSTATUS virtio_set_features(VirtIODevice *vdev, u64 features)
     }
 
     if (!virtio_is_feature_enabled(features, VIRTIO_F_VERSION_1)) {
-        return status;
+        return virtio_dmb_features_accepted(vdev, features);
     }
 
     virtio_add_status(vdev, VIRTIO_CONFIG_S_FEATURES_OK);
     dev_status = vdev->device->get_status(vdev);
     if (!(dev_status & VIRTIO_CONFIG_S_FEATURES_OK)) {
         DPrintf(0, "virtio: device refuses features: %x\n", dev_status);
+        virtio_add_status(vdev, VIRTIO_CONFIG_S_FAILED);
         status = STATUS_INVALID_PARAMETER;
+    } else {
+        status = virtio_dmb_features_accepted(vdev, features);
+        if (!NT_SUCCESS(status)) {
+            virtio_add_status(vdev, VIRTIO_CONFIG_S_FAILED);
+        }
     }
     return status;
 }

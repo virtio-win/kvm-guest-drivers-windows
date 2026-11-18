@@ -83,6 +83,13 @@ typedef struct _DEVICE_CONTEXT
     RTL_BITMAP memoryBitmapHandle;
     ULONG *bitmapBuffer;
 
+    /* Held by the worker thread while it changes the plugged memory and by
+     * the system hibernate query. HibernateAccepted is set by the hibernate
+     * query and cleared when the system returns to S0; the worker thread
+     * plugs nothing in between. */
+    WDFWAITLOCK PlugLock;
+    BOOLEAN HibernateAccepted;
+
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(DEVICE_CONTEXT, GetDeviceContext);
@@ -108,6 +115,7 @@ EVT_WDF_DEVICE_RELEASE_HARDWARE ViomemEvtDeviceReleaseHardware;
 EVT_WDF_DEVICE_D0_ENTRY ViomemEvtDeviceD0Entry;
 EVT_WDF_DEVICE_D0_EXIT ViomemEvtDeviceD0Exit;
 EVT_WDF_DEVICE_D0_EXIT_PRE_INTERRUPTS_DISABLED ViomemEvtDeviceD0ExitPreInterruptsDisabled;
+EVT_WDFDEVICE_WDM_IRP_PREPROCESS ViomemEvtDeviceWdmPowerPreprocess;
 EVT_WDF_INTERRUPT_ISR ViomemISR;
 EVT_WDF_INTERRUPT_DPC ViomemDPC;
 EVT_WDF_INTERRUPT_ENABLE ViomemEnableInterrupts;
@@ -147,5 +155,7 @@ NTSTATUS
 ViomemCloseWorkerThread(IN WDFDEVICE Device);
 
 VOID ViomemWorkerThread(IN PVOID pContext);
+
+BOOLEAN ViomemRemoveAllPhysicalMemory(IN WDFOBJECT Device);
 
 #endif // _PROTOTYPES_H_

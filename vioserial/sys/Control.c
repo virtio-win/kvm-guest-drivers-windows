@@ -104,7 +104,7 @@ VOID VIOSerialCtrlWorkHandler(IN WDFDEVICE Device)
     while ((buf = virtqueue_get_buf(vq, &len)))
     {
         WdfSpinLockRelease(pContext->CInVqLock);
-        buf->len = len;
+        buf->len = min(len, buf->size);
         buf->offset = 0;
         VIOSerialHandleCtrlMsg(Device, buf);
 
@@ -123,12 +123,21 @@ VOID VIOSerialCtrlWorkHandler(IN WDFDEVICE Device)
 VOID VIOSerialHandleCtrlMsg(IN WDFDEVICE Device, IN PPORT_BUFFER buf)
 {
     PPORTS_DEVICE pContext = GetPortsDevice(Device);
-    PVIRTIO_CONSOLE_CONTROL cpkt;
+    VIRTIO_CONSOLE_CONTROL ctrl;
+    PVIRTIO_CONSOLE_CONTROL cpkt = &ctrl;
     PVIOSERIAL_PORT port;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_PNP, "--> %s\n", __FUNCTION__);
 
-    cpkt = (PVIRTIO_CONSOLE_CONTROL)((ULONG_PTR)buf->va_buf + buf->offset);
+    if (buf->len - buf->offset < sizeof(VIRTIO_CONSOLE_CONTROL))
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "Short control packet (%u bytes)\n", (ULONG)(buf->len - buf->offset));
+        return;
+    }
+
+    /* The device may still write the buffer, so read the packet once and
+     * work on that copy. */
+    RtlCopyMemory(&ctrl, (PVOID)((ULONG_PTR)buf->va_buf + buf->offset), sizeof(ctrl));
 
     port = VIOSerialFindPortById(Device, cpkt->id);
 

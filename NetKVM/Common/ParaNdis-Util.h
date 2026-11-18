@@ -631,6 +631,8 @@ class CPool : public CNdisList<TEntryType, CLockedAccess, CCountingObject>, publ
     }
 };
 
+struct virtio_device;
+
 class CNdisSharedMemory : public CNdisAllocatable<CNdisSharedMemory, 'XTSM'>
 {
   public:
@@ -645,6 +647,11 @@ class CNdisSharedMemory : public CNdisAllocatable<CNdisSharedMemory, 'XTSM'>
 
     ~CNdisSharedMemory();
     bool Allocate(ULONG Size, bool IsCached = true);
+    // Allocate from the device's Device Memory Buffer instead of guest RAM.
+    // GetPA() then returns the DMB offset the device expects, not a GPA.
+    // The device can read and write this memory at any time, so use it only
+    // for data the driver writes and never reads back.
+    bool AllocateDmb(struct virtio_device *DmbDevice, ULONG Size);
 
     ULONG GetSize() const
     {
@@ -666,6 +673,7 @@ class CNdisSharedMemory : public CNdisAllocatable<CNdisSharedMemory, 'XTSM'>
     NDIS_PHYSICAL_ADDRESS m_PA = NDIS_PHYSICAL_ADDRESS();
     ULONG m_Size = 0;
     bool m_IsCached = false;
+    struct virtio_device *m_DmbDevice = nullptr;
 
     CNdisSharedMemory(const CNdisSharedMemory &) = delete;
     CNdisSharedMemory &operator=(const CNdisSharedMemory &) = delete;

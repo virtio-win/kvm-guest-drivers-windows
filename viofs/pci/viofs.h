@@ -94,6 +94,9 @@ typedef struct _VIRTIO_FS_REQUEST
     BOOLEAN Cancellable;
     struct VirtIOBufferDescriptor SGTable[VIRT_FS_MAX_QUEUE_SIZE];
     PMDL Mdl;
+    // Links the request into DmbWaitList while it waits for DMB space.
+    SINGLE_LIST_ENTRY DmbWaitEntry;
+    BOOLEAN DmbRetried;
 #endif
 } VIRTIO_FS_REQUEST, *PVIRTIO_FS_REQUEST;
 
@@ -126,6 +129,12 @@ typedef struct _DEVICE_CONTEXT
     WDFLOOKASIDE RequestsLookaside;
     SINGLE_LIST_ENTRY RequestsList;
     WDFSPINLOCK RequestsLock;
+
+    // Requests that found the Device Memory Buffer full, and the number of
+    // requests the device holds, whose completion frees DMB space. Both are
+    // protected by RequestsLock.
+    SINGLE_LIST_ENTRY DmbWaitList;
+    LONG RequestsOnRing;
 
 } DEVICE_CONTEXT, *PDEVICE_CONTEXT;
 
@@ -165,5 +174,9 @@ EVT_WDF_IO_IN_CALLER_CONTEXT VirtFsEvtIoInCallerContext;
 
 BOOLEAN VirtFsDequeueRequest(PDEVICE_CONTEXT Context, PVIRTIO_FS_REQUEST Req);
 BOOLEAN VirtFsDequeueWdfRequest(PDEVICE_CONTEXT Context, WDFREQUEST WdfRequest);
+#if VIRT_FS_DMAR
+VOID VirtFsResubmitDmbWaiters(PDEVICE_CONTEXT Context);
+VOID VirtFsFailDmbWaiters(PDEVICE_CONTEXT Context);
+#endif
 NTSTATUS AllocateVirtFSRequest(IN PDEVICE_CONTEXT Context, OUT PVIRTIO_FS_REQUEST *Request, PVOID InBuf);
 void FreeVirtFsRequest(IN PVIRTIO_FS_REQUEST Request);

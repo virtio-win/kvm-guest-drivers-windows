@@ -61,7 +61,7 @@ VIOSerialAllocateSinglePageBuffer(IN VirtIODevice *vdev, IN ULONG id)
     return buf;
 }
 
-size_t VIOSerialSendBuffers(IN PVIOSERIAL_PORT Port, IN PWRITE_BUFFER_ENTRY Entry)
+NTSTATUS VIOSerialSendBuffers(IN PVIOSERIAL_PORT Port, IN PWRITE_BUFFER_ENTRY Entry)
 {
     struct virtqueue *vq = GetOutQueue(Port);
     VIRTIO_DMA_TRANSACTION_PARAMS params;
@@ -71,7 +71,7 @@ size_t VIOSerialSendBuffers(IN PVIOSERIAL_PORT Port, IN PWRITE_BUFFER_ENTRY Entr
     params.param2 = Entry;
     params.buffer = Entry->OriginalWriteBuffer;
     params.size = (ULONG)Entry->OriginalWriteBufferSize;
-    return !!VirtIOWdfDeviceDmaTxAsync(vq->vdev, &params, DmaWriteCallback);
+    return VirtIOWdfDeviceDmaTxAsyncEx(vq->vdev, &params, DmaWriteCallback);
 }
 
 BOOLEAN
@@ -82,6 +82,7 @@ DmaWriteCallback(PVIRTIO_DMA_TRANSACTION_PARAMS params)
     PWRITE_BUFFER_ENTRY Entry = params->param2;
     struct virtqueue *vq = GetOutQueue(Port);
     struct VirtIOBufferDescriptor sg[QUEUE_DESCRIPTORS];
+    WDFREQUEST cancelled = NULL;
     int prepared = 0, ret;
     ULONG i = 0;
     if (!params->sgList || params->sgList->NumberOfElements > QUEUE_DESCRIPTORS)
@@ -103,6 +104,14 @@ DmaWriteCallback(PVIRTIO_DMA_TRANSACTION_PARAMS params)
         prepared = virtqueue_kick_prepare(vq);
         PushEntryList(&Port->WriteBuffersList, &Entry->ListEntry);
         Entry->dmaTransaction = params->transaction;
+
+        // The device reads a copy of the data, so the writer can cancel the
+        // request while the device holds the buffer.
+        if (WdfRequestMarkCancelableEx(Entry->Request, VIOSerialPortWriteRequestCancel) == STATUS_CANCELLED)
+        {
+            cancelled = Entry->Request;
+            Entry->Request = NULL;
+        }
     }
     else
     {
@@ -118,6 +127,11 @@ DmaWriteCallback(PVIRTIO_DMA_TRANSACTION_PARAMS params)
     {
         // notify can run without the lock held
         virtqueue_notify(vq);
+    }
+
+    if (cancelled != NULL)
+    {
+        WdfRequestComplete(cancelled, STATUS_CANCELLED);
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s ok\n", __FUNCTION__);
@@ -233,6 +247,12 @@ BOOLEAN VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
 
                 if (buffer == entry)
                 {
+                    // the cancel routine completes a cancelled request
+                    if (entry->Request != NULL && WdfRequestUnmarkCancelable(entry->Request) == STATUS_CANCELLED)
+                    {
+                        entry->Request = NULL;
+                    }
+
                     // remove from WriteBuffersList
                     iter->Next = entry->ListEntry.Next;
 
@@ -357,7 +377,9 @@ VIOSerialGetInBuf(IN PVIOSERIAL_PORT port)
         buf = virtqueue_get_buf(vq, &len);
         if (buf)
         {
-            buf->len = len;
+            /* len is the used length the device reported: never let it
+             * claim more data than the buffer holds. */
+            buf->len = min(len, buf->size);
             buf->offset = 0;
         }
     }

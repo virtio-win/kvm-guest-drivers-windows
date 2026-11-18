@@ -33,6 +33,7 @@
 
 #include <wdf.h>
 #include "virtio_pci.h"
+#include "VirtIODmb.h"
 
 /* Configures a virtqueue, see VirtIOWdfInitQueues. */
 typedef struct virtio_wdf_queue_param {
@@ -61,6 +62,13 @@ typedef struct virtio_wdf_driver {
     WDFDMAENABLER DmaEnabler;
     WDFCOLLECTION MemoryBlockCollection;
     WDFSPINLOCK DmaSpinlock;
+
+    /* Device Memory Buffer bookkeeping, used only once a driver has opted in
+     * and the device accepted VIRTIO_F_DMB: the runs handed out from the DMB,
+     * with their sizes and group tags. See VirtIOWdfDeviceDmbOptIn(). */
+    LIST_ENTRY DmbBlocks;
+    BOOLEAN DmbOptIn;
+    VirtIODmbMode DmbMode;
 
     BOOLEAN IsIoMmuActive;
 
@@ -187,11 +195,22 @@ BOOLEAN VirtIOWdfDeviceDmaTxAsync(VirtIODevice *vdev, PVIRTIO_DMA_TRANSACTION_PA
                                   VirtIOWdfDmaTransactionCallback);
 BOOLEAN VirtIOWdfDeviceDmaRxAsync(VirtIODevice *vdev, PVIRTIO_DMA_TRANSACTION_PARAMS params,
                                   VirtIOWdfDmaTransactionCallback);
+/* As above, but report why a transfer did not start. STATUS_SUCCESS: the
+ * callback was called. In DMB mode, STATUS_DEVICE_BUSY: the DMB is full for
+ * now, and a completion of this device frees space; STATUS_INVALID_BUFFER_SIZE:
+ * the transfer is larger than virtio_dmb_max_mapping() and never fits.
+ * Any other status: the setup failed. */
+NTSTATUS VirtIOWdfDeviceDmaTxAsyncEx(VirtIODevice *vdev, PVIRTIO_DMA_TRANSACTION_PARAMS params,
+                                     VirtIOWdfDmaTransactionCallback);
+NTSTATUS VirtIOWdfDeviceDmaRxAsyncEx(VirtIODevice *vdev, PVIRTIO_DMA_TRANSACTION_PARAMS params,
+                                     VirtIOWdfDmaTransactionCallback);
 
 /* <= DISPATCH transaction = VIRTIO_DMA_TRANSACTION_PARAMS.transaction */
 void VirtIOWdfDeviceDmaTxComplete(VirtIODevice *vdev, WDFDMATRANSACTION transaction);
-/* <= DISPATCH transaction = VIRTIO_DMA_TRANSACTION_PARAMS.transaction */
-void VirtIOWdfDeviceDmaRxComplete(VirtIODevice *vdev, WDFDMATRANSACTION transaction, ULONG length);
+/* <= DISPATCH transaction = VIRTIO_DMA_TRANSACTION_PARAMS.transaction
+ * Returns the number of bytes that reached the caller's buffer, at most
+ * length. */
+ULONG VirtIOWdfDeviceDmaRxComplete(VirtIODevice *vdev, WDFDMATRANSACTION transaction, ULONG length);
 
 typedef struct virtio_dma_memory_sliced {
     PVOID (*get_slice)(struct virtio_dma_memory_sliced *, PHYSICAL_ADDRESS *ppa);
@@ -209,3 +228,46 @@ typedef struct virtio_dma_memory_sliced {
 PVIRTIO_DMA_MEMORY_SLICED VirtIOWdfDeviceAllocDmaMemorySliced(VirtIODevice *vdev, size_t blockSize,
                                                               ULONG sliceSize);
 NTSTATUS VirtIOWdfDeviceCheckIOMMUActive(PVIRTIO_WDF_DRIVER pWdfDriver, WDFDEVICE wdfDev);
+
+/* Device Memory Buffer opt-in, for a KMDF driver that drives a device which
+ * may require the DMB (VIRTIO_F_DMB: the device reaches only a per-device
+ * buffer, never guest RAM).
+ *
+ * How a driver opts in:
+ *
+ *  1. Call VirtIOWdfDeviceDmbOptIn() once, after VirtIOWdfInitialize() and
+ *     before VirtIOWdfSetDriverFeatures() (or, for a driver that skips
+ *     SetDriverFeatures, before VirtIOWdfInitQueues/CB). A driver opts in
+ *     only once every direct guest-physical-address site of its own is gone,
+ *     because opting in promises the device sees nothing but the DMB. A
+ *     device that offers VIRTIO_F_DMB and finds no opt-in fails to
+ *     initialize; a device that does not offer it is unaffected.
+ *
+ *  2. Allocate device memory only after VirtIOWdfInitQueues/CB has run. On
+ *     a device that offers VIRTIO_F_DMB an earlier allocation fails, because
+ *     the DMB is not active before feature negotiation.
+ *
+ *  3. From then on nothing else changes for the common cases:
+ *     VirtIOWdfDeviceAllocDmaMemory(), ...Sliced(), the DmaTx/RxAsync bounce
+ *     and VirtIOWdfDeviceGetPhysicalAddress() all return DMB-backed memory
+ *     and DMB offsets automatically. The transport places the rings in the
+ *     DMB and allocates the bitmap. The driver still owns two duties the
+ *     DMB cannot discharge for it: read each device-written field once into
+ *     a local and validate it, and keep a bounced transfer within
+ *     VirtIOWdfDeviceDmbMaxMapping(), the size above which the bounce fails
+ *     with STATUS_INVALID_BUFFER_SIZE.
+ *
+ *  4. A protocol address a device type defines (a balloon page frame number,
+ *     a memory device's plug/unplug range) keeps its own meaning and does
+ *     NOT go in the DMB; only the buffer that carries it does, which it
+ *     already does through the allocators above.
+ *
+ * VirtIOWdfDeviceDmbActive() reports whether the device accepted the DMB; it
+ * is valid once features are negotiated (VirtIOWdfInitQueues/CB has run). A
+ * restart that negotiates a different DMB mode fails VirtIOWdfInitQueues/CB.
+ */
+void VirtIOWdfDeviceDmbOptIn(PVIRTIO_WDF_DRIVER pWdfDriver);
+BOOLEAN VirtIOWdfDeviceDmbActive(PVIRTIO_WDF_DRIVER pWdfDriver);
+/* Largest single transfer a driver should bounce through the DMB, so several
+ * can be in flight at once. 0 when the DMB is not active. */
+size_t VirtIOWdfDeviceDmbMaxMapping(PVIRTIO_WDF_DRIVER pWdfDriver);

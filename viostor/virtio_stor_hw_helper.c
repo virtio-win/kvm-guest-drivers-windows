@@ -31,6 +31,7 @@
  */
 #include "virtio_stor_hw_helper.h"
 #include "virtio_stor_utils.h"
+#include "VirtIODmb.h"
 #include <limits.h>
 
 #if defined(EVENT_TRACING)
@@ -43,6 +44,92 @@
         va = adaptExt->indirect ? srbExt->desc : NULL;                                                                 \
         pa = va ? StorPortGetPhysicalAddress(DeviceExtension, NULL, va, &len).QuadPart : 0;                            \
     }
+
+virtio_dmb_map_result VioStorDmbMapRequest(IN PVOID DeviceExtension,
+                                           IN PSRB_EXTENSION srbExt,
+                                           IN PVOID payloadVa,
+                                           IN ULONG payloadLen,
+                                           IN BOOLEAN payloadToDevice)
+{
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+    /* A device that completes the request without writing the status
+     * reports an error, not whatever the slot held before. */
+    static const UCHAR statusPreset = VIRTIO_BLK_S_IOERR;
+    VirtIODmbSeg segs[3] = {0};
+    virtio_dmb_map_result map;
+    unsigned out, in;
+
+    if (payloadLen > 0 && payloadVa == NULL)
+    {
+        return VIRTIO_DMB_TOO_BIG;
+    }
+    segs[0].va = &srbExt->vbr.out_hdr;
+    segs[0].len = sizeof(srbExt->vbr.out_hdr);
+    segs[0].to_device = TRUE;
+    segs[1].va = payloadVa;
+    segs[1].len = payloadLen;
+    segs[1].to_device = payloadToDevice;
+    segs[2].va = &srbExt->vbr.status;
+    segs[2].len = sizeof(srbExt->vbr.status);
+    segs[2].preset = &statusPreset;
+    segs[2].preset_len = sizeof(statusPreset);
+
+    map = virtio_dmb_req_map(&adaptExt->vdev,
+                             &srbExt->dmb,
+                             segs,
+                             ARRAYSIZE(segs),
+                             adaptExt->dmb_seg_size,
+                             srbExt->sg,
+                             adaptExt->dmb_max_descs,
+                             &out,
+                             &in);
+    srbExt->out = out;
+    srbExt->in = in;
+    return map;
+}
+
+VOID VioStorDmbRelease(IN PVOID DeviceExtension, IN PSRB_EXTENSION srbExt)
+{
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+
+    virtio_dmb_req_release(&adaptExt->vdev, &srbExt->dmb);
+}
+
+VOID VioStorDmbCompleteRequest(IN PVOID DeviceExtension, IN PSRB_EXTENSION srbExt)
+{
+    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
+
+    /* Read the status byte once; the completion path uses this copy. No run
+     * means no data reached the guest buffer. */
+    if (virtio_dmb_req_copy_out(&adaptExt->vdev, &srbExt->dmb, 2, sizeof(srbExt->vbr.status)) == 0)
+    {
+        srbExt->vbr.status = VIRTIO_BLK_S_IOERR;
+    }
+
+    /* Copy a device-written payload (read data, serial number) back into the
+     * driver buffer. The length is the driver's own request size, never a
+     * device-supplied value, so a hostile used.len cannot drive the copy. */
+    virtio_dmb_req_copy_out(&adaptExt->vdev, &srbExt->dmb, 1, MAXULONG);
+
+    virtio_dmb_req_release(&adaptExt->vdev, &srbExt->dmb);
+}
+
+/* Turns a failed DMB mapping into the request's final status: retry later
+ * when the DMB is momentarily full, fail when the request can never fit. */
+static VOID VioStorDmbCompleteUnmapped(IN PVOID DeviceExtension, IN PSRB_TYPE Srb, IN virtio_dmb_map_result result)
+{
+    if (result == VIRTIO_DMB_FULL)
+    {
+        RhelDbgPrint(TRACE_LEVEL_WARNING, " DMB full, busy.\n");
+        StorPortBusy(DeviceExtension, 2);
+        CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_BUSY);
+    }
+    else
+    {
+        RhelDbgPrint(TRACE_LEVEL_ERROR, " Request does not fit the DMB.\n");
+        CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_INVALID_REQUEST);
+    }
+}
 
 static ULONG GetSrbQueueNumber(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
 {
@@ -116,10 +203,22 @@ RhelDoFlush(PVOID DeviceExtension, PSRB_TYPE Srb, BOOLEAN resend, BOOLEAN bIsr)
     srbExt->out = 1;
     srbExt->in = 1;
 
-    srbExt->sg[0].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.out_hdr, &fragLen);
-    srbExt->sg[0].length = sizeof(srbExt->vbr.out_hdr);
-    srbExt->sg[1].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
-    srbExt->sg[1].length = sizeof(srbExt->vbr.status);
+    if (adaptExt->dmb_mode.active)
+    {
+        virtio_dmb_map_result map = VioStorDmbMapRequest(DeviceExtension, srbExt, NULL, 0, TRUE);
+        if (map != VIRTIO_DMB_MAPPED)
+        {
+            VioStorDmbCompleteUnmapped(DeviceExtension, Srb, map);
+            return TRUE;
+        }
+    }
+    else
+    {
+        srbExt->sg[0].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.out_hdr, &fragLen);
+        srbExt->sg[0].length = sizeof(srbExt->vbr.out_hdr);
+        srbExt->sg[1].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
+        srbExt->sg[1].length = sizeof(srbExt->vbr.status);
+    }
 
     if (!resend)
     {
@@ -129,6 +228,7 @@ RhelDoFlush(PVOID DeviceExtension, PSRB_TYPE Srb, BOOLEAN resend, BOOLEAN bIsr)
         {
             VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
 
+            VioStorDmbRelease(DeviceExtension, srbExt);
             SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
             CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_BUS_RESET);
             return TRUE;
@@ -150,6 +250,7 @@ RhelDoFlush(PVOID DeviceExtension, PSRB_TYPE Srb, BOOLEAN resend, BOOLEAN bIsr)
     {
         if (adaptExt->reset_in_progress_count)
         {
+            VioStorDmbRelease(DeviceExtension, srbExt);
             SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
             CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_BUS_RESET);
             return TRUE;
@@ -179,6 +280,7 @@ RhelDoFlush(PVOID DeviceExtension, PSRB_TYPE Srb, BOOLEAN resend, BOOLEAN bIsr)
         {
             VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
         }
+        VioStorDmbRelease(DeviceExtension, srbExt);
         RhelDbgPrint(TRACE_LEVEL_ERROR, " Can not add packet to queue %d.\n", QueueNumber);
         StorPortBusy(DeviceExtension, 2);
     }
@@ -211,6 +313,22 @@ RhelDoReadWrite(PVOID DeviceExtension, PSRB_TYPE Srb)
 
     QueueNumber = GetSrbQueueNumber(DeviceExtension, Srb);
 
+    if (adaptExt->dmb_mode.active)
+    {
+        /* Bounce the whole transfer through one DMB run: [out_hdr][data][status].
+         * STOR_MAP_ALL_BUFFERS_INCLUDING_READ_WRITE gives us the data VA. */
+        PVOID dataVa = SRB_DATA_BUFFER(Srb);
+        ULONG dataLen = SRB_DATA_TRANSFER_LENGTH(Srb);
+        BOOLEAN toDevice = (SRB_FLAGS(Srb) & SRB_FLAGS_DATA_OUT) != 0;
+
+        virtio_dmb_map_result map = VioStorDmbMapRequest(DeviceExtension, srbExt, dataVa, dataLen, toDevice);
+        if (map != VIRTIO_DMB_MAPPED)
+        {
+            VioStorDmbCompleteUnmapped(DeviceExtension, Srb, map);
+            return TRUE;
+        }
+    }
+
     for (ULONG i = 0; i < adaptExt->num_queues; ++i)
     {
         MessageId = QueueToMessageId(DeviceExtension, QueueNumber);
@@ -223,6 +341,7 @@ RhelDoReadWrite(PVOID DeviceExtension, PSRB_TYPE Srb)
         {
             VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
 
+            VioStorDmbRelease(DeviceExtension, srbExt);
             SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
             CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_BUS_RESET);
             return TRUE;
@@ -262,6 +381,8 @@ RhelDoReadWrite(PVOID DeviceExtension, PSRB_TYPE Srb)
 
     if (!result)
     {
+        /* The request never reached a queue; release its DMB run. */
+        VioStorDmbRelease(DeviceExtension, srbExt);
         RhelDbgPrint(TRACE_LEVEL_ERROR, " All queues full, calling StorPortBusy.\n");
         StorPortBusy(DeviceExtension, 2);
     }
@@ -367,12 +488,28 @@ RhelDoUnMap(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     srbExt->out = 2;
     srbExt->in = 1;
 
-    srbExt->sg[0].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.out_hdr, &fragLen);
-    srbExt->sg[0].length = sizeof(srbExt->vbr.out_hdr);
-    srbExt->sg[1].physAddr = MmGetPhysicalAddress(&srbExt->blk_discard[0]);
-    srbExt->sg[1].length = sizeof(blk_discard_write_zeroes) * BlockDescrCount;
-    srbExt->sg[2].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
-    srbExt->sg[2].length = sizeof(srbExt->vbr.status);
+    if (adaptExt->dmb_mode.active)
+    {
+        virtio_dmb_map_result map = VioStorDmbMapRequest(DeviceExtension,
+                                                         srbExt,
+                                                         &srbExt->blk_discard[0],
+                                                         sizeof(blk_discard_write_zeroes) * BlockDescrCount,
+                                                         TRUE);
+        if (map != VIRTIO_DMB_MAPPED)
+        {
+            VioStorDmbCompleteUnmapped(DeviceExtension, Srb, map);
+            return TRUE;
+        }
+    }
+    else
+    {
+        srbExt->sg[0].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.out_hdr, &fragLen);
+        srbExt->sg[0].length = sizeof(srbExt->vbr.out_hdr);
+        srbExt->sg[1].physAddr = MmGetPhysicalAddress(&srbExt->blk_discard[0]);
+        srbExt->sg[1].length = sizeof(blk_discard_write_zeroes) * BlockDescrCount;
+        srbExt->sg[2].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
+        srbExt->sg[2].length = sizeof(srbExt->vbr.status);
+    }
 
     QueueNumber = GetSrbQueueNumber(DeviceExtension, Srb);
     MessageId = QueueToMessageId(DeviceExtension, QueueNumber);
@@ -391,6 +528,7 @@ RhelDoUnMap(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     {
         VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
 
+        VioStorDmbRelease(DeviceExtension, srbExt);
         SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
         CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_BUS_RESET);
         return TRUE;
@@ -423,6 +561,7 @@ RhelDoUnMap(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     else
     {
         VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
+        VioStorDmbRelease(DeviceExtension, srbExt);
         RhelDbgPrint(TRACE_LEVEL_ERROR, " Can not add packet to queue %d.\n", QueueNumber);
         StorPortBusy(DeviceExtension, 2);
     }
@@ -468,12 +607,28 @@ RhelGetSerialNumber(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     srbExt->out = 1;
     srbExt->in = 2;
 
-    srbExt->sg[0].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.out_hdr, &fragLen);
-    srbExt->sg[0].length = sizeof(srbExt->vbr.out_hdr);
-    srbExt->sg[1].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &adaptExt->sn[0], &fragLen);
-    srbExt->sg[1].length = sizeof(adaptExt->sn);
-    srbExt->sg[2].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
-    srbExt->sg[2].length = sizeof(srbExt->vbr.status);
+    if (adaptExt->dmb_mode.active)
+    {
+        virtio_dmb_map_result map = VioStorDmbMapRequest(DeviceExtension,
+                                                         srbExt,
+                                                         &adaptExt->sn[0],
+                                                         sizeof(adaptExt->sn),
+                                                         FALSE);
+        if (map != VIRTIO_DMB_MAPPED)
+        {
+            VioStorDmbCompleteUnmapped(DeviceExtension, Srb, map);
+            return TRUE;
+        }
+    }
+    else
+    {
+        srbExt->sg[0].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.out_hdr, &fragLen);
+        srbExt->sg[0].length = sizeof(srbExt->vbr.out_hdr);
+        srbExt->sg[1].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &adaptExt->sn[0], &fragLen);
+        srbExt->sg[1].length = sizeof(adaptExt->sn);
+        srbExt->sg[2].physAddr = StorPortGetPhysicalAddress(DeviceExtension, NULL, &srbExt->vbr.status, &fragLen);
+        srbExt->sg[2].length = sizeof(srbExt->vbr.status);
+    }
 
     VioStorVQLock(DeviceExtension, MessageId, &LockHandle, FALSE);
 
@@ -481,6 +636,7 @@ RhelGetSerialNumber(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     {
         VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
 
+        VioStorDmbRelease(DeviceExtension, srbExt);
         SRB_SET_DATA_TRANSFER_LENGTH(Srb, 0);
         CompleteRequestWithStatus(DeviceExtension, Srb, SRB_STATUS_BUS_RESET);
         return TRUE;
@@ -513,6 +669,7 @@ RhelGetSerialNumber(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
     else
     {
         VioStorVQUnlock(DeviceExtension, MessageId, &LockHandle, FALSE);
+        VioStorDmbRelease(DeviceExtension, srbExt);
         RhelDbgPrint(TRACE_LEVEL_ERROR, " Can not add packet to queue %d.\n", QueueNumber);
         StorPortBusy(DeviceExtension, 2);
     }

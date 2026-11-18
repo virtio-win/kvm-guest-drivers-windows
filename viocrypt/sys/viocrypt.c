@@ -254,6 +254,15 @@ NTSTATUS VioCryptDevicePrepareHardware(IN WDFDEVICE Device,
     {
         Trace(TRACE_LEVEL_ERROR, "VirtIOWdfInitialize failed with %x\n", status);
     }
+    else
+    {
+        /* viocrypt is a stub: it creates the control queue and refuses every
+         * crypto request with STATUS_NOT_SUPPORTED. It still touches the
+         * device, so on a device that requires the DMB the control ring must
+         * live in the Device Memory Buffer. Opt in so the stub loads and
+         * keeps refusing cleanly instead of failing device init. */
+        VirtIOWdfDeviceDmbOptIn(&context->VDevice);
+    }
 
     return status;
 }

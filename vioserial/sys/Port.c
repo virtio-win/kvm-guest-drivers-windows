@@ -566,6 +566,7 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN size_t Leng
     PWRITE_BUFFER_ENTRY entry;
     WDFDEVICE Device;
     PDRIVER_CONTEXT Context;
+    PPORTS_DEVICE PortsDevice;
     WDFMEMORY EntryHandle;
 
     PAGED_CODE();
@@ -602,6 +603,14 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN size_t Leng
         return;
     }
 
+    /* A write is bounced through the Device Memory Buffer in one piece, so
+     * bound it to a share of that region and report a short write. */
+    PortsDevice = GetPortsDevice(Port->BusDevice);
+    if (VirtIOWdfDeviceDmbActive(&PortsDevice->VDevice))
+    {
+        Length = min(Length, VirtIOWdfDeviceDmbMaxMapping(&PortsDevice->VDevice));
+    }
+
     Context = GetDriverContext(WdfDeviceGetDriver(Device));
     status = WdfMemoryCreateFromLookaside(Context->WriteBufferLookaside, &EntryHandle);
     if (!NT_SUCCESS(status))
@@ -624,7 +633,8 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN size_t Leng
     entry->Request = Request;
     entry->dmaTransaction = NULL;
 
-    if (VIOSerialSendBuffers(Port, entry) == 0)
+    status = VIOSerialSendBuffers(Port, entry);
+    if (!NT_SUCCESS(status))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "Failed to send user's buffer.\n");
 
@@ -634,7 +644,33 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN size_t Leng
         }
         WdfObjectDelete(EntryHandle);
 
-        WdfRequestComplete(Request, Port->Removed ? STATUS_INVALID_DEVICE_STATE : STATUS_INSUFFICIENT_RESOURCES);
+        if (Port->Removed)
+        {
+            status = STATUS_INVALID_DEVICE_STATE;
+        }
+        else if (status == STATUS_DEVICE_BUSY)
+        {
+            /* The DMB is full. With a write of this port in flight, treat it
+             * like a full ring: block further writes until that write
+             * completes and let the writer retry. With none, no completion
+             * of ours makes room, so fail the write. */
+            WdfSpinLockAcquire(Port->OutVqLock);
+            if (Port->WriteBuffersList.Next != NULL)
+            {
+                Port->OutVqFull = TRUE;
+                status = STATUS_CANT_WAIT;
+            }
+            else
+            {
+                status = STATUS_INSUFFICIENT_RESOURCES;
+            }
+            WdfSpinLockRelease(Port->OutVqLock);
+        }
+        else
+        {
+            status = STATUS_INSUFFICIENT_RESOURCES;
+        }
+        WdfRequestComplete(Request, status);
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
@@ -1184,6 +1220,13 @@ static BOOLEAN VIOSerialDetachRequest(IN WDFQUEUE Queue, IN WDFREQUEST Request)
         }
     }
 
+    // A write in the list is cancelable. If it got cancelled already, the
+    // cancel routine completes it.
+    if (iter != NULL && WdfRequestUnmarkCancelable(Request) == STATUS_CANCELLED)
+    {
+        iter = NULL;
+    }
+
     WdfSpinLockRelease(pport->OutVqLock);
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE, "<-- %s\n", __FUNCTION__);
@@ -1198,69 +1241,35 @@ VOID VIOSerialPortWriteIoStop(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN ULONG
 
     TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "--> %s\n", __FUNCTION__);
 
-    if (ActionFlags & WdfRequestStopRequestCancelable)
+    // If the request cannot be found in the WriteBuffersList list, it was
+    // removed from it during DPC processing or cancelled, and gets completed
+    // in a moment. The framework waits for that completion.
+    if (!VIOSerialDetachRequest(Queue, Request))
     {
-        NTSTATUS status = WdfRequestUnmarkCancelable(Request);
-        __analysis_assume(status != STATUS_NOT_SUPPORTED);
-        if (status == STATUS_CANCELLED)
-        {
-            WdfRequestStopAcknowledge(Request, FALSE);
-            goto end_io_stop;
-        }
+        TraceEvents(TRACE_LEVEL_WARNING,
+                    DBG_WRITE,
+                    "Request 0x%p not found in the WriteBuffersList list, let the framework wait for its "
+                    "completion\n",
+                    Request);
     }
-
-    if (ActionFlags & WdfRequestStopActionSuspend)
+    else if (ActionFlags & WdfRequestStopActionSuspend)
     {
-        PSINGLE_LIST_ENTRY iter;
-
-        // If the request cannot be found in the WriteBuffersList list,
-        // it was removed from it during DPC processing and gets completed
-        // in a moment, thus, there is no need to acknowledge it here (the framework
-        // will wait for the completion).
-        //
-        // If the request is still in the list, §et us requeue it for next
-        // power up.
-        if (VIOSerialDetachRequest(Queue, Request))
-        {
-            TraceEvents(TRACE_LEVEL_WARNING,
-                        DBG_WRITE,
-                        "Request 0x%p found in the WriteBuffersList list, requeuing\n",
-                        Request);
-            WdfRequestStopAcknowledge(Request, TRUE);
-        }
-        else
-        {
-            TraceEvents(TRACE_LEVEL_WARNING,
-                        DBG_WRITE,
-                        "Request 0x%p not found in the WriteBuffersList list, let the framework wait for its "
-                        "completion\n",
-                        Request);
-        }
+        // Requeue the request for next power up.
+        TraceEvents(TRACE_LEVEL_WARNING,
+                    DBG_WRITE,
+                    "Request 0x%p found in the WriteBuffersList list, requeuing\n",
+                    Request);
+        WdfRequestStopAcknowledge(Request, TRUE);
     }
     else if (ActionFlags & WdfRequestStopActionPurge)
     {
-        PSINGLE_LIST_ENTRY iter;
-
-        WdfSpinLockAcquire(pport->OutVqLock);
-        iter = &pport->WriteBuffersList;
-        while ((iter = iter->Next) != NULL)
-        {
-            PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter, WRITE_BUFFER_ENTRY, ListEntry);
-            if (entry->Request == Request)
-            {
-                entry->Request = NULL;
-                break;
-            }
-        }
         WdfRequestComplete(Request, STATUS_OBJECT_NO_LONGER_EXISTS);
-        WdfSpinLockRelease(pport->OutVqLock);
     }
     else
     {
         WdfRequestComplete(Request, STATUS_UNSUCCESSFUL);
     }
 
-end_io_stop:
     TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "<-- %s\n", __FUNCTION__);
 }
 

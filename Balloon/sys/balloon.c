@@ -35,6 +35,43 @@
 #include "balloon.tmh"
 #endif
 
+/*
+ * Allocate the statistics block and the PFN table on the first D0 entry.
+ * This runs after feature negotiation, so on a device that accepted the
+ * Device Memory Buffer both blocks come from the DMB. They live until
+ * release-hardware frees them by tag.
+ */
+static NTSTATUS BalloonAllocDmaBlocks(IN PDEVICE_CONTEXT devCtx)
+{
+    if (devCtx->MemStats == NULL)
+    {
+        devCtx->MemStats = (PBALLOON_STAT)VirtIOWdfDeviceAllocDmaMemory(&devCtx->VDevice.VIODevice,
+                                                                        PAGE_SIZE,
+                                                                        BALLOON_MGMT_POOL_TAG);
+        if (devCtx->MemStats == NULL)
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_POWER, "Failed to allocate MemStats block\n");
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+        RtlFillMemory(devCtx->MemStats, sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR, -1);
+    }
+
+    /* use BALLOON_MGMT_POOL_TAG also for tagging common memory blocks */
+    if (devCtx->pfns_table == NULL)
+    {
+        devCtx->pfns_table = (PULONG)VirtIOWdfDeviceAllocDmaMemory(&devCtx->VDevice.VIODevice,
+                                                                   PAGE_SIZE,
+                                                                   BALLOON_MGMT_POOL_TAG);
+        if (devCtx->pfns_table == NULL)
+        {
+            TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "Failed to allocate PFNS_TABLE block\n");
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
+    }
+
+    return STATUS_SUCCESS;
+}
+
 NTSTATUS
 BalloonInit(IN WDFOBJECT WdfDevice)
 {
@@ -79,6 +116,10 @@ BalloonInit(IN WDFOBJECT WdfDevice)
     {
         // initialize 2 or 3 queues
         status = VirtIOWdfInitQueues(&devCtx->VDevice, nvqs, vqs, params);
+        if (NT_SUCCESS(status))
+        {
+            status = BalloonAllocDmaBlocks(devCtx);
+        }
         if (NT_SUCCESS(status))
         {
             devCtx->InfVirtQueue = vqs[0];

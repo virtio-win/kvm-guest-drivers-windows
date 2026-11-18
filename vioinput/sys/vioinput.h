@@ -66,6 +66,9 @@ typedef struct virtio_input_event
     unsigned long value;
 } VIRTIO_INPUT_EVENT, *PVIRTIO_INPUT_EVENT;
 
+// Status events are slices of one page.
+#define VIOINPUT_STATUS_SLOTS (PAGE_SIZE / sizeof(VIRTIO_INPUT_EVENT))
+
 struct _tagInputDevice;
 
 typedef struct _tagInputClassCommon
@@ -113,6 +116,11 @@ typedef struct _tagInputDevice
 
     PVIRTIO_DMA_MEMORY_SLICED EventQMemBlock;
     PVIRTIO_DMA_MEMORY_SLICED StatusQMemBlock;
+
+    // The request each status event completes, indexed by the event's slot
+    // in StatusQMemBlock. Kept here rather than next to the event, because
+    // the device can read and write the status block.
+    WDFREQUEST StatusQRequest[VIOINPUT_STATUS_SLOTS];
 
     WDFQUEUE IoctlQueue;
     WDFQUEUE HidQueue;
@@ -189,11 +197,12 @@ struct virtio_input_config
     union virtio_input_raw_cfg_data u;
 };
 
-typedef struct virtio_input_event_with_request
+// Slot of a status event in StatusQMemBlock. The event pointer comes back
+// from the status queue, which only returns pointers the driver posted.
+static __inline ULONG VIOInputStatusSlot(PINPUT_DEVICE pContext, PVIRTIO_INPUT_EVENT pEvent)
 {
-    VIRTIO_INPUT_EVENT Event;
-    WDFREQUEST Request;
-} VIRTIO_INPUT_EVENT_WITH_REQUEST, *PVIRTIO_INPUT_EVENT_WITH_REQUEST;
+    return (ULONG)(((PUCHAR)pEvent - (PUCHAR)pContext->StatusQMemBlock->va) / sizeof(VIRTIO_INPUT_EVENT));
+}
 
 // Event types
 #define EV_SYN             0x00

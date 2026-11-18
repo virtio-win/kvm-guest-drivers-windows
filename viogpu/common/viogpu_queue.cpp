@@ -49,6 +49,66 @@ static void NotifyEventCompleteCB(void *ctx)
     KeSetEvent((PKEVENT)ctx, IO_NO_INCREMENT, FALSE);
 }
 
+/* Bounce a command through one Device Memory Buffer run of the request engine,
+ * laid out as [buf][data_buf][resp_buf]. The command and its data go in, the
+ * response area is zeroed and preset to an error, and sg[] describes the parts
+ * by their DMB offsets. Returns FALSE when the command does not fit now. */
+BOOLEAN VioGpuQueue::BounceBuffer(PGPU_VBUFFER buf, VirtIOBufferDescriptor *sg, UINT *outcnt, UINT *incnt)
+{
+    GPU_CTRL_HDR unspec = {};
+    VirtIODmbSeg segs[3] = {};
+    unsigned out, in;
+
+    unspec.type = VIRTIO_GPU_RESP_ERR_UNSPEC;
+    segs[0].va = buf->buf;
+    segs[0].len = (ULONG)buf->size;
+    segs[0].to_device = true;
+    segs[1].va = buf->data_buf;
+    segs[1].len = buf->data_size;
+    segs[1].to_device = true;
+    segs[2].va = buf->resp_buf;
+    segs[2].len = (ULONG)buf->resp_size;
+    segs[2].preset = &unspec;
+    segs[2].preset_len = min(segs[2].len, (ULONG)sizeof(unspec));
+
+    if (virtio_dmb_req_map(m_pVIODevice, &buf->dmb, segs, ARRAYSIZE(segs), 0, sg, 3, &out, &in) != VIRTIO_DMB_MAPPED)
+    {
+        return FALSE;
+    }
+    *outcnt = out;
+    *incnt = in;
+    return TRUE;
+}
+
+/* Finish a bounced command: copy the response out once, into the driver's
+ * response buffer, and free the run. The copy length is our own response size,
+ * never the length the device reports. */
+void VioGpuQueue::UnbounceBuffer(PGPU_VBUFFER buf)
+{
+    virtio_dmb_req_copy_out(m_pVIODevice, &buf->dmb, 2, (ULONG)buf->resp_size);
+    virtio_dmb_req_release(m_pVIODevice, &buf->dmb);
+}
+
+/* Complete a command the device never received with an error response, so a
+ * waiter wakes up and an auto-release buffer goes back to the pool. */
+void VioGpuQueue::FailBuffer(PGPU_VBUFFER buf)
+{
+    virtio_dmb_req_release(m_pVIODevice, &buf->dmb);
+    if (buf->resp_buf != NULL && buf->resp_size >= (int)sizeof(GPU_CTRL_HDR))
+    {
+        RtlZeroMemory(buf->resp_buf, sizeof(GPU_CTRL_HDR));
+        ((PGPU_CTRL_HDR)buf->resp_buf)->type = VIRTIO_GPU_RESP_ERR_OUT_OF_MEMORY;
+    }
+    if (buf->complete_cb != NULL)
+    {
+        buf->complete_cb(buf->complete_ctx);
+    }
+    if (buf->auto_release)
+    {
+        ReleaseBuffer(buf);
+    }
+}
+
 VioGpuQueue::VioGpuQueue()
 {
     m_pBuf = NULL;
@@ -300,7 +360,8 @@ BOOLEAN CtrlQueue::GetEdidInfo(PGPU_VBUFFER buf, UINT id, PBYTE edid)
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
     PGPU_CMD_GET_EDID cmd = (PGPU_CMD_GET_EDID)buf->buf;
     PGPU_RESP_EDID resp = (PGPU_RESP_EDID)buf->resp_buf;
-    PUCHAR resp_edit = (PUCHAR)(resp->edid + (ULONGLONG)id * EDID_V1_BLOCK_SIZE);
+    /* The response carries the EDID of the scanout we asked for. */
+    PUCHAR resp_edit = (PUCHAR)resp->edid;
     if (resp->hdr.type != VIRTIO_GPU_RESP_OK_EDID)
     {
         DbgPrint(TRACE_LEVEL_VERBOSE, (" %s type = %x: disabled\n", __FUNCTION__, resp->hdr.type));
@@ -517,6 +578,32 @@ UINT CtrlQueue::QueueBuffer(PGPU_VBUFFER buf)
         return 0;
     }
 
+    if (IsDmbActive())
+    {
+        int rc;
+
+        if (buf->resp_size > PAGE_SIZE || !BounceBuffer(buf, sg, &outcnt, &incnt))
+        {
+            DbgPrint(TRACE_LEVEL_ERROR, ("<--> %s cannot bounce the command through the DMB\n", __FUNCTION__));
+            FailBuffer(buf);
+            return 0;
+        }
+        Lock(&SavedIrql);
+        rc = AddBuf(&sg[0], outcnt, incnt, buf, NULL, 0);
+        if (rc >= 0)
+        {
+            Kick();
+        }
+        Unlock(SavedIrql);
+        if (rc < 0)
+        {
+            DbgPrint(TRACE_LEVEL_ERROR, ("<--> %s cannot queue the command: %d\n", __FUNCTION__, rc));
+            FailBuffer(buf);
+            return 0;
+        }
+        return (UINT)rc;
+    }
+
     if (BuildSGElement(&sg[outcnt + incnt], (PVOID)buf->buf, buf->size))
     {
         outcnt++;
@@ -583,6 +670,10 @@ PGPU_VBUFFER CtrlQueue::DequeueBuffer(_Out_ UINT *len)
     if (buf == NULL)
     {
         *len = 0;
+    }
+    else
+    {
+        UnbounceBuffer(buf);
     }
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 
@@ -851,6 +942,7 @@ VioGpuMemSegment::VioGpuMemSegment(void)
     m_bSystemMemory = FALSE;
     m_bMapped = FALSE;
     m_Size = 0;
+    m_pDmbDev = NULL;
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
@@ -950,6 +1042,48 @@ BOOLEAN VioGpuMemSegment::Init(_In_ UINT size, _In_opt_ PPHYSICAL_ADDRESS pPAddr
     return TRUE;
 }
 
+/* Allocate the segment from the Device Memory Buffer. Its scatter/gather list
+ * holds DMB offsets, which is what the device takes as backing addresses. */
+BOOLEAN VioGpuMemSegment::InitDmb(_In_ VirtIODevice *pVIODevice, _In_ UINT size)
+{
+    PAGED_CODE();
+
+    UINT pages = BYTES_TO_PAGES(size);
+    UINT sglsize = sizeof(SCATTER_GATHER_LIST) + (sizeof(SCATTER_GATHER_ELEMENT) * pages);
+    u64 offset = 0;
+
+    ASSERT(size);
+    ASSERT(m_pVAddr == NULL);
+    size = pages * PAGE_SIZE;
+
+    m_pVAddr = virtio_dmb_alloc(pVIODevice, size, &offset);
+    if (m_pVAddr == NULL)
+    {
+        DbgPrint(TRACE_LEVEL_FATAL, ("%s cannot allocate %x bytes from the DMB\n", __FUNCTION__, size));
+        return FALSE;
+    }
+    m_pSGList = reinterpret_cast<PSCATTER_GATHER_LIST>(new (NonPagedPoolNx) BYTE[sglsize]);
+    if (m_pSGList == NULL)
+    {
+        virtio_dmb_free(pVIODevice, m_pVAddr, size);
+        m_pVAddr = NULL;
+        return FALSE;
+    }
+    RtlZeroMemory(m_pVAddr, size);
+    RtlZeroMemory(m_pSGList, sglsize);
+    for (UINT i = 0; i < pages; ++i)
+    {
+        m_pSGList->Elements[i].Address.QuadPart = (LONGLONG)(offset + (ULONGLONG)i * PAGE_SIZE);
+        m_pSGList->Elements[i].Length = PAGE_SIZE;
+    }
+    m_pSGList->NumberOfElements = pages;
+    m_pDmbDev = pVIODevice;
+    m_bSystemMemory = FALSE;
+    m_bMapped = FALSE;
+    m_Size = size;
+    return TRUE;
+}
+
 PHYSICAL_ADDRESS VioGpuMemSegment::GetPhysicalAddress(void)
 {
     PAGED_CODE();
@@ -957,7 +1091,15 @@ PHYSICAL_ADDRESS VioGpuMemSegment::GetPhysicalAddress(void)
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
     PHYSICAL_ADDRESS pa = {0};
-    if (m_pVAddr && MmIsAddressValid(m_pVAddr))
+    if (IsDmb())
+    {
+        /* A DMB segment is one run; the device knows it by its offset. */
+        if (m_pSGList && m_pSGList->NumberOfElements)
+        {
+            pa = m_pSGList->Elements[0].Address;
+        }
+    }
+    else if (m_pVAddr && MmIsAddressValid(m_pVAddr))
     {
         pa = MmGetPhysicalAddress(m_pVAddr);
     }
@@ -972,6 +1114,20 @@ void VioGpuMemSegment::Close(void)
     PAGED_CODE();
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
+
+    if (m_pDmbDev != NULL)
+    {
+        if (m_pVAddr != NULL)
+        {
+            virtio_dmb_free(m_pDmbDev, m_pVAddr, m_Size);
+        }
+        m_pVAddr = NULL;
+        m_pDmbDev = NULL;
+        m_Size = 0;
+        delete[] reinterpret_cast<PBYTE>(m_pSGList);
+        m_pSGList = NULL;
+        return;
+    }
 
     if (m_pMdl)
     {
@@ -1076,11 +1232,35 @@ UINT CrsrQueue::QueueCursor(PGPU_VBUFFER buf)
     UINT res = 0;
     KIRQL SavedIrql;
 
-    VirtIOBufferDescriptor sg[1];
+    VirtIOBufferDescriptor sg[3];
     int outcnt = 0;
     UINT ret = 0;
 
     ASSERT(buf->size <= PAGE_SIZE);
+    if (IsDmbActive())
+    {
+        UINT dmbOut = 0, dmbIn = 0;
+        int rc;
+
+        if (!BounceBuffer(buf, sg, &dmbOut, &dmbIn))
+        {
+            DbgPrint(TRACE_LEVEL_ERROR, ("<--> %s cannot bounce the cursor through the DMB\n", __FUNCTION__));
+            FailBuffer(buf);
+            return res;
+        }
+        Lock(&SavedIrql);
+        rc = AddBuf(&sg[0], dmbOut, dmbIn, buf, NULL, 0);
+        if (rc >= 0)
+        {
+            Kick();
+        }
+        Unlock(SavedIrql);
+        if (rc < 0)
+        {
+            FailBuffer(buf);
+        }
+        return res;
+    }
     if (BuildSGElement(&sg[outcnt], (PVOID)buf->buf, buf->size))
     {
         outcnt++;
@@ -1108,6 +1288,10 @@ PGPU_VBUFFER CrsrQueue::DequeueCursor(_Out_ UINT *len)
     if (buf == NULL)
     {
         *len = 0;
+    }
+    else
+    {
+        UnbounceBuffer(buf);
     }
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s buf %p len = %u\n", __FUNCTION__, buf, *len));
     return buf;

@@ -177,6 +177,8 @@ class VioGpuAdapter : IVioGpuPCI
     void ThreadWorkRoutine(void);
     void ConfigChanged(void);
     NTSTATUS VirtIoDeviceInit(void);
+    NTSTATUS SetupDmb(void);
+    BOOLEAN ModeFitsDmb(_In_ ULONG xres, _In_ ULONG yres);
     VOID CreateResolutionEvent(VOID);
     VOID NotifyResolutionEvent(VOID);
     VOID CloseResolutionEvent(VOID);
@@ -218,6 +220,10 @@ class VioGpuAdapter : IVioGpuPCI
     UINT m_CursorHotY;
     VioGpuMemSegment m_CursorSegment;
     VioGpuMemSegment m_FrameSegment;
+    // Device Memory Buffer mode, fixed by the first VioGpuAdapterInit. In DMB mode every command, the
+    // framebuffer and the cursor live in the DMB, and the framebuffer segment takes m_DmbFbSize bytes of it.
+    VirtIODmbMode m_DmbMode;
+    UINT m_DmbFbSize;
     volatile ULONG m_PendingWorks;
     KEVENT m_ConfigUpdateEvent;
     PETHREAD m_pWorkThread;

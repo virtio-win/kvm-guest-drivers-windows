@@ -26,6 +26,12 @@ class CParaNdisCX : public CParaNdisTemplatePath<CVirtQueue>, public CPlacementA
 
   protected:
     tCompletePhysicalAddress m_ControlData;
+    // m_ControlData is in the Device Memory Buffer, not shared guest RAM.
+    bool m_ControlDataInDmb = false;
+    // Class and command of the last command written to m_ControlData, kept
+    // here because the device can rewrite m_ControlData.
+    UCHAR m_LastCls = 0;
+    UCHAR m_LastCmd = 0;
     KDPC m_DPC;
     // updated under m_Lock
     ULONG m_ResultOffset = 0;

@@ -168,8 +168,11 @@ _IRQL_requires_max_(DISPATCH_LEVEL) VOID VIOSockEvtVqProcess(IN PDEVICE_CONTEXT 
             }
             else
             {
-                ASSERT(pEvt->id == VIRTIO_VSOCK_EVENT_TRANSPORT_RESET);
-                if (pEvt->id == VIRTIO_VSOCK_EVENT_TRANSPORT_RESET)
+                // read the device-written id once
+                ULONG32 id = *(volatile ULONG32 *)&pEvt->id;
+
+                ASSERT(id == VIRTIO_VSOCK_EVENT_TRANSPORT_RESET);
+                if (id == VIRTIO_VSOCK_EVENT_TRANSPORT_RESET)
                 {
                     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_HW_ACCESS, "Reset event occurred\n");
                     ++pContext->EvtRstOccured;

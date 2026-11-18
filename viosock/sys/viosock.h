@@ -151,8 +151,9 @@ typedef struct _DEVICE_CONTEXT
 
     WDFSPINLOCK RxLock;
     _Guarded_by_(RxLock) PVIOSOCK_VQ RxVq;
-    PVOID RxPktVA; // contiguous array of VIOSOCK_RX_PKT
+    PVOID RxPktVA; // contiguous array of VIOSOCK_RX_DEV_PKT, the device-visible part of each packet
     PHYSICAL_ADDRESS RxPktPA;
+    struct _VIOSOCK_RX_PKT *RxPkts;                   // driver-private part of each packet, RxPktNum entries
     _Guarded_by_(RxLock) SINGLE_LIST_ENTRY RxPktList; // postponed requests
     ULONG RxPktNum;
     ULONG RxCbBuffersNum;
@@ -164,8 +165,10 @@ typedef struct _DEVICE_CONTEXT
 
     WDFSPINLOCK TxLock;
     _Guarded_by_(TxLock) PVIOSOCK_VQ TxVq;
-    _Guarded_by_(TxLock) PVIRTIO_DMA_MEMORY_SLICED TxPktSliced;
-    LONG TxPktNum; // Num of slices in TxPktSliced
+    PVOID TxPktVA;                  // contiguous array of VIOSOCK_TX_DEV_PKT, the device-visible part of each packet
+    struct _VIOSOCK_TX_PKT *TxPkts; // driver-private part of each packet, TxPktNum entries
+    _Guarded_by_(TxLock) SINGLE_LIST_ENTRY TxPktFree;
+    LONG TxPktNum; // Num of entries in TxPkts
     _Guarded_by_(TxLock) LONG TxQueuedReply;
     _Guarded_by_(TxLock) LIST_ENTRY TxList;
     _Guarded_by_(TxLock) VIOSOCK_TIMER TxTimer;

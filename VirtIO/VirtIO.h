@@ -5,6 +5,10 @@
 
 #define scatterlist VirtIOBufferDescriptor
 
+#ifndef EIO
+#define EIO 5
+#endif
+
 struct VirtIOBufferDescriptor {
     PHYSICAL_ADDRESS physAddr;
     ULONG length;
@@ -53,27 +57,51 @@ struct virtqueue {
     proc_virtqueue_is_interrupt_enabled is_interrupt_enabled;
     proc_virtqueue_has_buf has_buf;
     proc_virtqueue_shutdown shutdown;
+    /* Set when the device wrote an invalid value into the ring. A broken
+     * queue hands out no buffers, accepts none and reports itself empty, so
+     * completion loops terminate. Cleared when the queue is set up again. */
+    volatile bool broken;
 };
+
+/* Marks the queue broken; see struct virtqueue. */
+void virtqueue_mark_broken(struct virtqueue *vq, const char *reason, unsigned int value);
+
+static inline bool virtqueue_is_broken(struct virtqueue *vq)
+{
+    return vq->broken;
+}
 
 static inline int virtqueue_add_buf(struct virtqueue *vq, struct scatterlist sg[],
                                     unsigned int out_num, unsigned int in_num, void *opaque,
                                     void *va_indirect, ULONGLONG phys_indirect)
 {
+    if (vq->broken) {
+        return -EIO;
+    }
     return vq->add_buf(vq, sg, out_num, in_num, opaque, va_indirect, phys_indirect);
 }
 
 static inline bool virtqueue_kick_prepare(struct virtqueue *vq)
 {
+    if (vq->broken) {
+        return false;
+    }
     return vq->kick_prepare(vq);
 }
 
 static inline void virtqueue_kick_always(struct virtqueue *vq)
 {
+    if (vq->broken) {
+        return;
+    }
     vq->kick_always(vq);
 }
 
 static inline void *virtqueue_get_buf(struct virtqueue *vq, unsigned int *len)
 {
+    if (vq->broken) {
+        return NULL;
+    }
     return vq->get_buf(vq, len);
 }
 
@@ -82,13 +110,21 @@ static inline void virtqueue_disable_cb(struct virtqueue *vq)
     vq->disable_cb(vq);
 }
 
+/* Returns true when no used buffer is pending, which a broken queue always
+ * reports so that a "do { ... } while (!virtqueue_enable_cb(vq))" loop ends. */
 static inline bool virtqueue_enable_cb(struct virtqueue *vq)
 {
+    if (vq->broken) {
+        return true;
+    }
     return vq->enable_cb(vq);
 }
 
 static inline bool virtqueue_enable_cb_delayed(struct virtqueue *vq)
 {
+    if (vq->broken) {
+        return true;
+    }
     return vq->enable_cb_delayed(vq);
 }
 
@@ -104,6 +140,9 @@ static inline BOOLEAN virtqueue_is_interrupt_enabled(struct virtqueue *vq)
 
 static inline BOOLEAN virtqueue_has_buf(struct virtqueue *vq)
 {
+    if (vq->broken) {
+        return FALSE;
+    }
     return vq->has_buf(vq);
 }
 

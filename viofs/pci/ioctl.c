@@ -221,6 +221,106 @@ void FailFsRequest(IN PDEVICE_CONTEXT Context, IN PVIRTIO_FS_REQUEST Request)
     FreeVirtFsRequest(Request);
 }
 
+// A request that found the DMB full waits for DMB space while the device holds
+// other requests, whose completion frees some.
+static BOOLEAN VirtFsDeferRequest(IN PDEVICE_CONTEXT Context, IN PVIRTIO_FS_REQUEST Request)
+{
+    BOOLEAN deferred = FALSE;
+
+    WdfSpinLockAcquire(Context->RequestsLock);
+    if (Context->RequestsOnRing > 0)
+    {
+        Request->DmbRetried = FALSE;
+        PushEntryList(&Context->DmbWaitList, &Request->DmbWaitEntry);
+        deferred = TRUE;
+    }
+    WdfSpinLockRelease(Context->RequestsLock);
+    return deferred;
+}
+
+static BOOLEAN VirtioFsTxTransactionCallback(PVIRTIO_DMA_TRANSACTION_PARAMS Params);
+
+// Called when a request that holds no transfer found the DMB full. With
+// nothing on the ring, the space the last completion freed is all there is,
+// so try once more and fail the request if it still does not fit.
+static VOID VirtFsDmbFull(IN PDEVICE_CONTEXT Context, IN PVIRTIO_FS_REQUEST Request)
+{
+    if (VirtFsDeferRequest(Context, Request))
+    {
+        return;
+    }
+    if (!Request->DmbRetried)
+    {
+        Request->DmbRetried = TRUE;
+        if (NT_SUCCESS(VirtIOWdfDeviceDmaTxAsyncEx(&Context->VDevice.VIODevice,
+                                                   &Request->H2D_Params,
+                                                   VirtioFsTxTransactionCallback)))
+        {
+            return;
+        }
+    }
+    FailFsRequest(Context, Request);
+}
+
+static SINGLE_LIST_ENTRY VirtFsTakeDmbWaiters(IN PDEVICE_CONTEXT Context)
+{
+    SINGLE_LIST_ENTRY list;
+
+    WdfSpinLockAcquire(Context->RequestsLock);
+    list = Context->DmbWaitList;
+    Context->DmbWaitList.Next = NULL;
+    WdfSpinLockRelease(Context->RequestsLock);
+    return list;
+}
+
+// Called after the device returned requests: submit the waiters again.
+VOID VirtFsResubmitDmbWaiters(IN PDEVICE_CONTEXT Context)
+{
+    SINGLE_LIST_ENTRY list = VirtFsTakeDmbWaiters(Context);
+    PSINGLE_LIST_ENTRY entry;
+
+    while ((entry = PopEntryList(&list)) != NULL)
+    {
+        PVIRTIO_FS_REQUEST fs_req = CONTAINING_RECORD(entry, VIRTIO_FS_REQUEST, DmbWaitEntry);
+        BOOLEAN cancelled;
+        NTSTATUS status;
+
+        WdfSpinLockAcquire(Context->RequestsLock);
+        cancelled = (fs_req->Request == NULL);
+        WdfSpinLockRelease(Context->RequestsLock);
+
+        if (cancelled)
+        {
+            FailFsRequest(Context, fs_req);
+            continue;
+        }
+        status = VirtIOWdfDeviceDmaTxAsyncEx(&Context->VDevice.VIODevice,
+                                             &fs_req->H2D_Params,
+                                             VirtioFsTxTransactionCallback);
+        if (status == STATUS_DEVICE_BUSY)
+        {
+            VirtFsDmbFull(Context, fs_req);
+        }
+        else if (!NT_SUCCESS(status))
+        {
+            FailFsRequest(Context, fs_req);
+        }
+    }
+}
+
+// Called when the queues go away: no waiter can be submitted any more.
+VOID VirtFsFailDmbWaiters(IN PDEVICE_CONTEXT Context)
+{
+    SINGLE_LIST_ENTRY list = VirtFsTakeDmbWaiters(Context);
+    PSINGLE_LIST_ENTRY entry;
+
+    while ((entry = PopEntryList(&list)) != NULL)
+    {
+        FailFsRequest(Context, CONTAINING_RECORD(entry, VIRTIO_FS_REQUEST, DmbWaitEntry));
+    }
+    InterlockedExchange(&Context->RequestsOnRing, 0);
+}
+
 static FORCEINLINE ULONG FragmentSize(PHYSICAL_ADDRESS Addr, ULONG Length, BOOLEAN DoSplit)
 {
     if (!DoSplit)
@@ -310,11 +410,13 @@ static BOOLEAN VirtioFsRxTransactionCallback(PVIRTIO_DMA_TRANSACTION_PARAMS Para
     sgNumIn = PopulateSG(fs_req->SGTable, fs_req->H2D_Params.sgList, context->SplitToPages);
     sgNumOut = PopulateSG(fs_req->SGTable + sgNumIn, fs_req->D2H_Params.sgList, context->SplitToPages);
     // push buffers to virtqueue
+    InterlockedIncrement(&context->RequestsOnRing);
     WdfSpinLockAcquire(fs_req->VQ_Lock);
     int ret = virtqueue_add_buf(fs_req->VQ, fs_req->SGTable, sgNumIn, sgNumOut, fs_req, indirect_va, indirect_pa);
     WdfSpinLockRelease(fs_req->VQ_Lock);
     if (ret < 0)
     {
+        InterlockedDecrement(&context->RequestsOnRing);
         FailFsRequest(context, fs_req);
     }
     else
@@ -333,9 +435,22 @@ static BOOLEAN VirtioFsTxTransactionCallback(PVIRTIO_DMA_TRANSACTION_PARAMS Para
     fs_req->H2D_Params.sgList = Params->sgList;
     fs_req->H2D_Params.transaction = Params->transaction;
 
-    if (!VirtIOWdfDeviceDmaRxAsync(&context->VDevice.VIODevice, &fs_req->D2H_Params, VirtioFsRxTransactionCallback))
+    NTSTATUS status = VirtIOWdfDeviceDmaRxAsyncEx(&context->VDevice.VIODevice,
+                                                  &fs_req->D2H_Params,
+                                                  VirtioFsRxTransactionCallback);
+    if (!NT_SUCCESS(status))
     {
-        FailFsRequest(context, fs_req);
+        if (status == STATUS_DEVICE_BUSY)
+        {
+            // Give back the Tx bounce while the request waits for space.
+            VirtIOWdfDeviceDmaTxComplete(&context->VDevice.VIODevice, fs_req->H2D_Params.transaction);
+            fs_req->H2D_Params.transaction = NULL;
+            VirtFsDmbFull(context, fs_req);
+        }
+        else
+        {
+            FailFsRequest(context, fs_req);
+        }
     }
     return TRUE;
 }
@@ -344,6 +459,7 @@ static NTSTATUS VirtFsEnqueueRequest(IN PDEVICE_CONTEXT Context, IN PVIRTIO_FS_R
 {
     int vq_index;
     NTSTATUS status = STATUS_UNSUCCESSFUL;
+    NTSTATUS txStatus;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_IOCTL, "--> %!FUNC!");
 
@@ -359,9 +475,36 @@ static NTSTATUS VirtFsEnqueueRequest(IN PDEVICE_CONTEXT Context, IN PVIRTIO_FS_R
     PushEntryList(&Context->RequestsList, &Request->ListEntry);
     WdfSpinLockRelease(Context->RequestsLock);
 
-    // initiate TX part of the DMA mapping
-    if (VirtIOWdfDeviceDmaTxAsync(&Context->VDevice.VIODevice, &Request->H2D_Params, VirtioFsTxTransactionCallback))
+    Request->DmbRetried = FALSE;
+    if (VirtIOWdfDeviceDmbActive(&Context->VDevice))
     {
+        // Each direction is bounced in one piece. The FUSE_INIT reply limits
+        // requests to this size, so a larger one never fits.
+        size_t limit = VirtIOWdfDeviceDmbMaxMapping(&Context->VDevice);
+
+        if (Request->H2D_Params.size > limit || Request->D2H_Params.size > limit)
+        {
+            TraceEvents(TRACE_LEVEL_ERROR,
+                        DBG_IOCTL,
+                        "Request of %u/%u bytes exceeds the DMB mapping limit",
+                        Request->H2D_Params.size,
+                        Request->D2H_Params.size);
+            return STATUS_INVALID_PARAMETER;
+        }
+    }
+
+    // initiate TX part of the DMA mapping
+    txStatus = VirtIOWdfDeviceDmaTxAsyncEx(&Context->VDevice.VIODevice,
+                                           &Request->H2D_Params,
+                                           VirtioFsTxTransactionCallback);
+    if (NT_SUCCESS(txStatus))
+    {
+        status = STATUS_PENDING;
+    }
+    else if (txStatus == STATUS_DEVICE_BUSY)
+    {
+        // VirtFsDmbFull() defers, resubmits or fails the request itself.
+        VirtFsDmbFull(Context, Request);
         status = STATUS_PENDING;
     }
     return status;

@@ -57,6 +57,10 @@ typedef struct virtio_gpu_vbuffer
     void *complete_ctx;
 
     bool auto_release;
+
+    /* Device Memory Buffer run of a queued command, laid out as
+     * [buf][data_buf][resp_buf]; no run when the command is not bounced. */
+    VirtIODmbReq dmb;
 } GPU_VBUFFER, *PGPU_VBUFFER;
 // #pragma pack()
 
@@ -103,6 +107,11 @@ class VioGpuMemSegment
         return m_pSGList;
     }
     BOOLEAN Init(_In_ UINT size, _In_opt_ PPHYSICAL_ADDRESS pPAddr);
+    BOOLEAN InitDmb(_In_ VirtIODevice *pVIODevice, _In_ UINT size);
+    BOOLEAN IsDmb(void)
+    {
+        return m_pDmbDev != NULL;
+    }
     BOOLEAN IsSystemMemory(void)
     {
         return m_bSystemMemory;
@@ -116,6 +125,8 @@ class VioGpuMemSegment
     PVOID m_pVAddr;
     PMDL m_pMdl;
     SIZE_T m_Size;
+    /* Set when the segment lives in the Device Memory Buffer of this device. */
+    VirtIODevice *m_pDmbDev;
 };
 
 class VioGpuObj
@@ -208,6 +219,17 @@ class VioGpuQueue
     void ReleaseBuffer(PGPU_VBUFFER buf);
 
   protected:
+    BOOLEAN IsDmbActive(void)
+    {
+        return m_pVIODevice != NULL && virtio_dmb_is_active(m_pVIODevice);
+    }
+    BOOLEAN BounceBuffer(_In_ PGPU_VBUFFER buf,
+                         _Out_writes_(3) VirtIOBufferDescriptor *sg,
+                         _Out_ UINT *outcnt,
+                         _Out_ UINT *incnt);
+    void UnbounceBuffer(_In_ PGPU_VBUFFER buf);
+    void FailBuffer(_In_ PGPU_VBUFFER buf);
+
     _IRQL_requires_max_(DISPATCH_LEVEL) _IRQL_saves_global_(OldIrql,
                                                             Irql) _IRQL_raises_(DISPATCH_LEVEL) void Lock(KIRQL *Irql);
     _IRQL_requires_(DISPATCH_LEVEL) _IRQL_restores_global_(OldIrql, Irql) void Unlock(KIRQL Irql);

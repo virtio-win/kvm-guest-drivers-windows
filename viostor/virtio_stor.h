@@ -39,6 +39,7 @@
 #include "virtio_pci.h"
 #include "virtio.h"
 #include "virtio_ring.h"
+#include "VirtIODmb.h"
 #include "virtio_stor_utils.h"
 
 typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
@@ -263,6 +264,18 @@ typedef struct _ADAPTER_EXTENSION
     ULONG reset_in_progress_count;
     volatile LONG rr_queue_index;
     ULONGLONG fw_ver;
+    /* Set once a broken virtqueue has been logged, cleared by HwInitialize. */
+    volatile LONG vq_broken_logged;
+
+    /* Device Memory Buffer mode, fixed by VirtIoFindAdapter. When active,
+     * each request is bounced through a DMB run and all device addresses are
+     * DMB offsets. */
+    VirtIODmbMode dmb_mode;
+    BOOLEAN dmb_announced;
+    /* Longest descriptor and descriptor count of one DMB request, from
+     * size_max / seg_max (0 = no size_max limit). */
+    ULONG dmb_seg_size;
+    ULONG dmb_max_descs;
 #ifdef DBG
     LONG srb_cnt;
     LONG inqueue_cnt;
@@ -288,6 +301,10 @@ typedef struct _SRB_EXTENSION
     VIO_SG sg[VIRTIO_MAX_SG];
     VRING_DESC_ALIAS desc[VIRTIO_MAX_SG];
     blk_discard_write_zeroes blk_discard[MAX_DISCARD_SEGMENTS];
+
+    /* Device Memory Buffer bounce of this request: [out_hdr][payload][status]
+     * (no run if the request is not bounced). */
+    VirtIODmbReq dmb;
 } SRB_EXTENSION, *PSRB_EXTENSION;
 
 BOOLEAN

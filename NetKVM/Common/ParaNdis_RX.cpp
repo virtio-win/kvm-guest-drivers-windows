@@ -150,11 +150,132 @@ static bool IsRegionInside(const tCompletePhysicalAddress &a1, const tCompletePh
     return p1 >= p2 && p1 <= p2 + a2.size;
 }
 
+// Record the capacity offered to the device and, when the DMB is active,
+// move the device side of the buffer into the DMB: allocate one DMB run the
+// size of the whole SG list, remember the private VA behind each SG entry and
+// point the SG entries at the run. Called once per descriptor after its SG
+// list is built.
+static bool ParaNdis_RxAttachDmb(PARANDIS_ADAPTER *pContext, pRxNetDescriptor p)
+{
+    ULONG total = 0;
+    ULONG i;
+    u64 offset = 0;
+
+    for (i = 0; i < p->BufferSGLength; i++)
+    {
+        total += p->BufferSGArray[i].length;
+    }
+    p->BufferCapacity = total;
+
+    if (!pContext->DmbMode.active)
+    {
+        return true;
+    }
+
+    p->DmbSgVA = (PVOID *)ParaNdis_AllocateMemory(pContext, sizeof(PVOID) * p->BufferSGLength);
+    if (p->DmbSgVA == NULL)
+    {
+        return false;
+    }
+
+    for (i = 0; i < p->BufferSGLength; i++)
+    {
+        LONGLONG pa = p->BufferSGArray[i].physAddr.QuadPart;
+        USHORT j;
+
+        p->DmbSgVA[i] = NULL;
+        for (j = 0; j < p->NumPages; j++)
+        {
+            const tCompletePhysicalAddress &page = p->PhysicalPages[j];
+            if (pa >= page.Physical.QuadPart && pa + p->BufferSGArray[i].length <= page.Physical.QuadPart + page.size)
+            {
+                p->DmbSgVA[i] = RtlOffsetToPointer(page.Virtual, pa - page.Physical.QuadPart);
+                break;
+            }
+        }
+        if (p->DmbSgVA[i] == NULL)
+        {
+            DPrintf(0, "ERROR: RX SG entry %u is outside the descriptor's pages", i);
+            return false;
+        }
+    }
+
+    p->DmbShadow.Virtual = virtio_dmb_alloc(&pContext->IODevice, total, &offset);
+    if (p->DmbShadow.Virtual == NULL)
+    {
+        DPrintf(1, "DMB exhausted for an RX buffer of %u bytes", total);
+        return false;
+    }
+    // Start from zeroes so a device that reports more than it wrote hands
+    // the driver zeroes, not whatever the DMB pages held before.
+    RtlZeroMemory(p->DmbShadow.Virtual, total);
+    p->DmbShadow.Physical.QuadPart = (LONGLONG)offset;
+    p->DmbShadow.size = total;
+
+    for (i = 0; i < p->BufferSGLength; i++)
+    {
+        p->BufferSGArray[i].physAddr.QuadPart = (LONGLONG)offset;
+        offset += p->BufferSGArray[i].length;
+    }
+    return true;
+}
+
+// Make a used buffer safe to read. The used length comes from the device and
+// is clamped to what the descriptor offered (and up to MinLength, which the
+// caller picks so a short header is never read as stale data). In DMB mode
+// the first Length bytes are then copied out of the DMB into the private
+// pages, so the driver and the stack never parse memory the device can still
+// change.
+static void ParaNdis_RxSyncForCpu(PARANDIS_ADAPTER *pContext, pRxNetDescriptor p, UINT &Length, UINT MinLength)
+{
+    ULONG remaining;
+    PUCHAR src;
+
+    if (Length > p->BufferCapacity)
+    {
+        Length = p->BufferCapacity;
+    }
+    if (Length < MinLength)
+    {
+        Length = min(MinLength, p->BufferCapacity);
+    }
+
+    if (p->DmbShadow.Virtual == NULL)
+    {
+        return;
+    }
+
+    remaining = Length;
+    src = (PUCHAR)p->DmbShadow.Virtual;
+    for (ULONG i = 0; i < p->BufferSGLength && remaining > 0; i++)
+    {
+        ULONG chunk = min(remaining, p->BufferSGArray[i].length);
+        virtio_dmb_copy_out(&pContext->IODevice, p->DmbSgVA[i], src, chunk);
+        src += p->BufferSGArray[i].length;
+        remaining -= chunk;
+    }
+
+    // Scrub what was consumed, so the shadow is zero again when the buffer
+    // is reposted and a later short write cannot surface this packet.
+    RtlZeroMemory(p->DmbShadow.Virtual, Length);
+}
+
 static void ParaNdis_FreeRxBufferDescriptor(PARANDIS_ADAPTER *pContext, pRxNetDescriptor p)
 {
     ULONG i;
 
     ParaNdis_UnbindRxBufferFromPacket(p);
+
+    if (p->DmbShadow.Virtual)
+    {
+        virtio_dmb_free(&pContext->IODevice, p->DmbShadow.Virtual, p->DmbShadow.size);
+        p->DmbShadow.Virtual = NULL;
+    }
+    if (p->DmbSgVA)
+    {
+        NdisFreeMemory(p->DmbSgVA, 0, 0);
+        p->DmbSgVA = NULL;
+    }
 
     // Free pre-allocated full page MDL (for mergeable buffers)
     if (p->FullPageMDL)
@@ -361,6 +482,11 @@ pRxNetDescriptor CParaNdisRX::CreateMergeableRxDescriptorOnInit()
         goto error_exit;
     }
 
+    if (!ParaNdis_RxAttachDmb(m_Context, p))
+    {
+        goto error_exit;
+    }
+
     return p;
 
 error_exit:
@@ -493,6 +619,11 @@ pRxNetDescriptor CParaNdisRX::CreateRxDescriptorOnInit()
     }
 
     p->NumOwnedPages = p->NumPages;
+
+    if (!ParaNdis_RxAttachDmb(m_Context, p))
+    {
+        goto error_exit;
+    }
 
     return p;
 
@@ -970,6 +1101,9 @@ VOID CParaNdisRX::ProcessRxRing(CCHAR nCurrCpuReceiveQueue)
             RemoveEntryList(&pBufferDescriptor->listEntry);
             m_NetNofReceiveBuffers--;
 
+            // The first buffer of a packet always carries the virtio header.
+            ParaNdis_RxSyncForCpu(m_Context, pBufferDescriptor, nFullLength, m_Context->nVirtioHeaderSize);
+
             pRxNetDescriptor pProcessBuffer = pBufferDescriptor;
 
             // Mergeable buffers: delegate to ProcessMergedBuffers (handles both single/multi-buffer)
@@ -1182,6 +1316,8 @@ BOOLEAN CParaNdisRX::CollectRemainingMergeBuffers()
 
         RemoveEntryList(&pBufferDescriptor->listEntry);
         m_NetNofReceiveBuffers--;
+
+        ParaNdis_RxSyncForCpu(m_Context, pBufferDescriptor, nFullLength, 0);
 
         DPrintf(5,
                 "Collected buffer %u/%u: length=%u bytes",
