@@ -76,6 +76,9 @@ extern "C"
 
 #define MIN_WIDTH_SIZE                     640
 #define MIN_HEIGHT_SIZE                    480
+// The largest mode taken from a display's EDID, in each dimension; Linux's virtio-gpu driver uses the same.
+#define MAX_WIDTH_SIZE                     8192
+#define MAX_HEIGHT_SIZE                    8192
 
 #define NOM_WIDTH_SIZE                     1024
 #define NOM_HEIGHT_SIZE                    768
