@@ -4120,6 +4120,9 @@ BOOLEAN VioGpuAdapter::UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPoin
         return FALSE;
     }
 
+    // The shape fills only part of the POINTER_SIZE square, and the host shows the whole square: clear it, or
+    // pixels of a bigger earlier shape, or of whatever the memory held, show around the pointer.
+    RtlZeroMemory(m_pCursorBuf->GetVirtualAddress(), POINTER_SIZE * POINTER_SIZE * 4);
     BLT_INFO DstBltInfo;
     DstBltInfo.pBits = m_pCursorBuf->GetVirtualAddress();
     DstBltInfo.Pitch = POINTER_SIZE * 4;
@@ -4151,7 +4154,7 @@ BOOLEAN VioGpuAdapter::UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPoin
 
     BltBits(&DstBltInfo, &SrcBltInfo, &Rect);
 
-    m_CtrlQueue.TransferToHost2D(m_pCursorBuf->GetId(), 0, pSetPointerShape->Width, pSetPointerShape->Height, 0, 0);
+    m_CtrlQueue.TransferToHost2D(m_pCursorBuf->GetId(), 0, POINTER_SIZE, POINTER_SIZE, 0, 0);
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
     return TRUE;
