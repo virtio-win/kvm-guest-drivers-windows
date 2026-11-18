@@ -2436,6 +2436,8 @@ VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod)
         m_bCursorHidden[i] = TRUE;
         m_CursorX[i] = 0;
         m_CursorY[i] = 0;
+        m_ShownHotX[i] = 0;
+        m_ShownHotY[i] = 0;
     }
     for (UINT i = 0; i < MAX_CHILDREN; i++)
     {
@@ -3183,11 +3185,17 @@ NTSTATUS VioGpuAdapter::SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSet
         crsr = (PGPU_UPDATE_CURSOR)m_CursorQueue.AllocCursor(&vbuf);
         RtlZeroMemory(crsr, sizeof(*crsr));
 
+        UINT s = pModeCur->ScanoutId;
+        m_CursorX[s] += (INT)m_ShownHotX[s] - (INT)pSetPointerShape->XHot;
+        m_CursorY[s] += (INT)m_ShownHotY[s] - (INT)pSetPointerShape->YHot;
+        m_ShownHotX[s] = pSetPointerShape->XHot;
+        m_ShownHotY[s] = pSetPointerShape->YHot;
+
         crsr->hdr.type = VIRTIO_GPU_CMD_UPDATE_CURSOR;
         crsr->resource_id = m_pCursorBuf->GetId();
-        crsr->pos.scanout_id = pModeCur->ScanoutId;
-        crsr->pos.x = m_CursorX[pModeCur->ScanoutId];
-        crsr->pos.y = m_CursorY[pModeCur->ScanoutId];
+        crsr->pos.scanout_id = s;
+        crsr->pos.x = m_CursorX[s];
+        crsr->pos.y = m_CursorY[s];
         crsr->hot_x = pSetPointerShape->XHot;
         crsr->hot_y = pSetPointerShape->YHot;
         // Remember the hot spot for the UPDATE_CURSOR that re-attaches the sprite after a later hide.
@@ -3218,10 +3226,12 @@ NTSTATUS VioGpuAdapter::SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION
     KeAcquireGuardedMutex(&m_CursorMutex);
     if (m_pCursorBuf != NULL)
     {
-        // Out-of-range coordinates are treated as invisible, as before.
-        BOOLEAN visible = pSetPointerPosition->Flags.Visible && pSetPointerPosition->X >= 0 &&
-                          pSetPointerPosition->Y >= 0 && (UINT)pSetPointerPosition->X <= pModeCur->SrcModeWidth &&
-                          (UINT)pSetPointerPosition->Y <= pModeCur->SrcModeHeight;
+        // The position is the image's top left, which is off the screen for a pointer with its hot spot near the
+        // top or left edge; the device takes it as a signed value. A sprite entirely off the source is hidden.
+        INT size = (INT)m_CursorSize;
+        BOOLEAN visible = pSetPointerPosition->Flags.Visible && pSetPointerPosition->X > -size &&
+                          pSetPointerPosition->Y > -size && pSetPointerPosition->X < (INT)pModeCur->SrcModeWidth &&
+                          pSetPointerPosition->Y < (INT)pModeCur->SrcModeHeight;
 
         DbgPrint(TRACE_LEVEL_VERBOSE,
                  ("---> %s (%d - %d) Visible = %d Value = %x VidPnSourceId = %d hidden = %d\n",
@@ -3271,6 +3281,8 @@ NTSTATUS VioGpuAdapter::SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION
                 crsr->pos.y = pSetPointerPosition->Y;
                 crsr->hot_x = m_CursorHotX;
                 crsr->hot_y = m_CursorHotY;
+                m_ShownHotX[pModeCur->ScanoutId] = m_CursorHotX;
+                m_ShownHotY[pModeCur->ScanoutId] = m_CursorHotY;
                 m_bCursorHidden[pModeCur->ScanoutId] = FALSE;
             }
             else
