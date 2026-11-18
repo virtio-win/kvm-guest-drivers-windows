@@ -623,6 +623,8 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN size_t Leng
     entry->OriginalWriteBufferSize = Length;
     entry->Request = Request;
     entry->dmaTransaction = NULL;
+    entry->PendingChunks = 0;
+    entry->Failed = FALSE;
 
     if (VIOSerialSendBuffers(Port, entry) == 0)
     {
@@ -630,7 +632,7 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN size_t Leng
 
         if (entry->dmaTransaction)
         {
-            VirtIOWdfDeviceDmaTxComplete(GetOutQueue(Port)->vdev, entry->dmaTransaction);
+            VirtIOWdfDeviceDmaTxCompleteFinal(GetOutQueue(Port)->vdev, entry->dmaTransaction);
         }
         WdfObjectDelete(EntryHandle);
 
@@ -670,10 +672,10 @@ VOID VIOSerialPortWriteRequestCancel(IN WDFREQUEST Request)
     iter = &Port->WriteBuffersList;
     while ((iter = iter->Next) != NULL)
     {
-        PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter, WRITE_BUFFER_ENTRY, ListEntry);
-        if (entry->Request == Request)
+        PWRITE_DMA_CHUNK chunk = CONTAINING_RECORD(iter, WRITE_DMA_CHUNK, ListEntry);
+        if (chunk->Parent->Request == Request)
         {
-            entry->Request = NULL;
+            chunk->Parent->Request = NULL;
             break;
         }
     }
@@ -1176,10 +1178,10 @@ static BOOLEAN VIOSerialDetachRequest(IN WDFQUEUE Queue, IN WDFREQUEST Request)
     iter = &pport->WriteBuffersList;
     while ((iter = iter->Next) != NULL)
     {
-        PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter, WRITE_BUFFER_ENTRY, ListEntry);
-        if (entry->Request == Request)
+        PWRITE_DMA_CHUNK chunk = CONTAINING_RECORD(iter, WRITE_DMA_CHUNK, ListEntry);
+        if (chunk->Parent->Request == Request)
         {
-            entry->Request = NULL;
+            chunk->Parent->Request = NULL;
             break;
         }
     }
@@ -1218,7 +1220,7 @@ VOID VIOSerialPortWriteIoStop(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN ULONG
         // in a moment, thus, there is no need to acknowledge it here (the framework
         // will wait for the completion).
         //
-        // If the request is still in the list, §et us requeue it for next
+        // If the request is still in the list, let us requeue it for next
         // power up.
         if (VIOSerialDetachRequest(Queue, Request))
         {
@@ -1245,15 +1247,19 @@ VOID VIOSerialPortWriteIoStop(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN ULONG
         iter = &pport->WriteBuffersList;
         while ((iter = iter->Next) != NULL)
         {
-            PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter, WRITE_BUFFER_ENTRY, ListEntry);
-            if (entry->Request == Request)
+            PWRITE_DMA_CHUNK chunk = CONTAINING_RECORD(iter, WRITE_DMA_CHUNK, ListEntry);
+            if (chunk->Parent->Request == Request)
             {
-                entry->Request = NULL;
+                chunk->Parent->Request = NULL;
                 break;
             }
         }
-        WdfRequestComplete(Request, STATUS_OBJECT_NO_LONGER_EXISTS);
         WdfSpinLockRelease(pport->OutVqLock);
+
+        if (iter != NULL)
+        {
+            WdfRequestComplete(Request, STATUS_OBJECT_NO_LONGER_EXISTS);
+        }
     }
     else
     {
@@ -1347,14 +1353,28 @@ VIOSerialPortEvtDeviceD0Exit(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE Targ
     iter = PopEntryList(&Port->WriteBuffersList);
     while (iter != NULL)
     {
-        PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter, WRITE_BUFFER_ENTRY, ListEntry);
+        PWRITE_DMA_CHUNK chunk = CONTAINING_RECORD(iter, WRITE_DMA_CHUNK, ListEntry);
+        PWRITE_BUFFER_ENTRY entry = chunk->Parent;
 
-        if (entry->dmaTransaction)
+        ExFreePoolWithTag(chunk, VIOSERIAL_DRIVER_MEMORY_TAG);
+
+        while (entry->PendingBatches.Next != NULL)
         {
-            VirtIOWdfDeviceDmaTxComplete(GetOutQueue(Port)->vdev, entry->dmaTransaction);
+            PSINGLE_LIST_ENTRY pe = PopEntryList(&entry->PendingBatches);
+            PWRITE_DMA_CHUNK pending = CONTAINING_RECORD(pe, WRITE_DMA_CHUNK, PendingEntry);
+            ExFreePoolWithTag(pending, VIOSERIAL_DRIVER_MEMORY_TAG);
+            InterlockedDecrement(&entry->PendingChunks);
         }
 
-        WdfObjectDelete(entry->EntryHandle);
+        if (InterlockedDecrement(&entry->PendingChunks) == 0)
+        {
+            if (entry->dmaTransaction)
+            {
+                VirtIOWdfDeviceDmaTxCompleteFinal(GetOutQueue(Port)->vdev, entry->dmaTransaction);
+                entry->dmaTransaction = NULL;
+            }
+            WdfObjectDelete(entry->EntryHandle);
+        }
 
         iter = PopEntryList(&Port->WriteBuffersList);
     };

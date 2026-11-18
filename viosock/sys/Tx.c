@@ -168,7 +168,7 @@ _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxVqCleanup(IN PDEVICE_CO
     {
         pPkt = CONTAINING_RECORD(CurrentItem, VIOSOCK_TX_PKT, ListEntry);
 
-        VirtIOWdfDeviceDmaTxComplete(&pContext->VDevice.VIODevice, pPkt->Transaction);
+        VirtIOWdfDeviceDmaTxCompleteFinal(&pContext->VDevice.VIODevice, pPkt->Transaction);
         if (pPkt->Request != WDF_NO_HANDLE)
         {
             WdfRequestCompleteWithInformation(pPkt->Request, STATUS_INVALID_DEVICE_STATE, pPkt->Header.len);
@@ -355,7 +355,7 @@ _Requires_lock_not_held_(pContext->TxLock) VOID VIOSockTxVqProcess(IN PDEVICE_CO
     {
         pPkt = CONTAINING_RECORD(CurrentItem, VIOSOCK_TX_PKT, ListEntry);
 
-        VirtIOWdfDeviceDmaTxComplete(&pContext->VDevice.VIODevice, pPkt->Transaction);
+        VirtIOWdfDeviceDmaTxCompleteFinal(&pContext->VDevice.VIODevice, pPkt->Transaction);
         if (pPkt->Request != WDF_NO_HANDLE)
         {
             WdfRequestCompleteWithInformation(pPkt->Request, STATUS_SUCCESS, pPkt->Header.len);
@@ -395,7 +395,7 @@ _IRQL_requires_max_(DISPATCH_LEVEL) static BOOLEAN VIOSockTxDequeueCallback(IN P
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_HW_ACCESS, "VIOSockTxPktInsert failed\n");
 
-        VirtIOWdfDeviceDmaTxComplete(&pContext->VDevice.VIODevice, pParams->transaction);
+        VirtIOWdfDeviceDmaTxCompleteFinal(&pContext->VDevice.VIODevice, pParams->transaction);
         WdfRequestComplete(pParams->req, STATUS_INSUFFICIENT_RESOURCES);
     }
     else
@@ -477,7 +477,7 @@ _Requires_lock_not_held_(pContext->TxLock) static VOID VIOSockTxDequeue(PDEVICE_
                     {
                         if (params.transaction)
                         {
-                            VirtIOWdfDeviceDmaTxComplete(&pContext->VDevice.VIODevice, params.transaction);
+                            VirtIOWdfDeviceDmaTxCompleteFinal(&pContext->VDevice.VIODevice, params.transaction);
                         }
                         status = STATUS_INSUFFICIENT_RESOURCES;
                     }
@@ -651,8 +651,11 @@ static VOID VIOSockTxEnqueueCancel(IN WDFREQUEST Request)
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "--> %s\n", __FUNCTION__);
 
     WdfSpinLockAcquire(pContext->TxLock);
-    RemoveEntryList(&pTxEntry->ListEntry);
-    InterlockedDecrement(&pContext->TxEnqueued);
+    if (!IsListEmpty(&pTxEntry->ListEntry))
+    {
+        RemoveEntryList(&pTxEntry->ListEntry);
+        InterlockedDecrement(&pContext->TxEnqueued);
+    }
     VIOSockTxPutCredit(pSocket, pTxEntry->len);
 
     if (VIOSockTimerEntryIsSet(&pTxEntry->TimerEntry))
@@ -1018,7 +1021,7 @@ VOID VIOSockTxTimerFunc(WDFTIMER Timer)
 {
     PDEVICE_CONTEXT pContext = GetDeviceContext(WdfTimerGetParentObject(Timer));
     PLIST_ENTRY CurrentEntry;
-    LONGLONG MinRemainingTicks = MAXLONGLONG;
+    LONGLONG MinDeadline = MAXLONGLONG;
     LIST_ENTRY CompletionList;
     BOOLEAN SetTimer = FALSE, bAlwaysTrue = TRUE;
 
@@ -1065,16 +1068,16 @@ VOID VIOSockTxTimerFunc(WDFTIMER Timer)
                     VIOSockTimerDeref(&pContext->TxTimer, FALSE);
                 }
             }
-            else if (llRemainingTicks < MinRemainingTicks)
+            else if (pTxEntry->TimerEntry.Deadline < MinDeadline)
             {
-                MinRemainingTicks = llRemainingTicks;
+                MinDeadline = pTxEntry->TimerEntry.Deadline;
             }
         }
     }
 
-    if (MinRemainingTicks != MAXLONGLONG)
+    if (MinDeadline != MAXLONGLONG)
     {
-        VIOSockTimerSetDeadline(&pContext->TxTimer, VIOSockTimerTicksToDeadline(MinRemainingTicks));
+        VIOSockTimerSetDeadline(&pContext->TxTimer, MinDeadline);
     }
 
     WdfSpinLockRelease(pContext->TxLock);

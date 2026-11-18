@@ -790,7 +790,7 @@ static VOID VIOSockSelectWorkitem(IN WDFWORKITEM Workitem)
     {
         LIST_ENTRY CompletionList;
         WDFREQUEST Request;
-        LONGLONG MinRemainingTicks = MAXLONGLONG;
+        LONGLONG MinDeadline = MAXLONGLONG;
         PLIST_ENTRY CurrentItem;
         BOOLEAN bRemove;
 
@@ -849,9 +849,9 @@ static VOID VIOSockSelectWorkitem(IN WDFWORKITEM Workitem)
                         // It is a success value, just return empty fd sets
                         pPkt->Status = STATUS_TIMEOUT;
                     }
-                    else if (llRemainingTicks < MinRemainingTicks)
+                    else if (pPkt->TimerEntry.Deadline < MinDeadline)
                     {
-                        MinRemainingTicks = llRemainingTicks;
+                        MinDeadline = pPkt->TimerEntry.Deadline;
                     }
                 }
             }
@@ -881,9 +881,9 @@ static VOID VIOSockSelectWorkitem(IN WDFWORKITEM Workitem)
             }
         }
 
-        if (MinRemainingTicks != MAXLONGLONG)
+        if (MinDeadline != MAXLONGLONG)
         {
-            VIOSockTimerSetDeadline(&pContext->SelectTimer, VIOSockTimerTicksToDeadline(MinRemainingTicks));
+            VIOSockTimerSetDeadline(&pContext->SelectTimer, MinDeadline);
         }
 
         WdfWaitLockRelease(pContext->SelectLock);

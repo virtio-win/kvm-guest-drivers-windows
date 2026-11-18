@@ -1608,7 +1608,7 @@ VOID VIOSockReadTimerFunc(WDFTIMER Timer)
 {
     static LONG lCounter;
     PSOCKET_CONTEXT pSocket = GetSocketContext(WdfTimerGetParentObject(Timer));
-    LONGLONG MinRemainingTicks = MAXLONGLONG;
+    LONGLONG MinDeadline = MAXLONGLONG;
     WDFREQUEST PrevTagRequest = WDF_NO_HANDLE, TagRequest = WDF_NO_HANDLE, Request;
     NTSTATUS status;
     LIST_ENTRY CompletionList;
@@ -1668,9 +1668,9 @@ VOID VIOSockReadTimerFunc(WDFTIMER Timer)
                 }
                 else
                 {
-                    if (llRemainingTicks < MinRemainingTicks)
+                    if (pRequest->TimerEntry.Deadline < MinDeadline)
                     {
-                        MinRemainingTicks = llRemainingTicks;
+                        MinDeadline = pRequest->TimerEntry.Deadline;
                     }
 
                     pRequest->Counter = lCounter;
@@ -1691,10 +1691,10 @@ VOID VIOSockReadTimerFunc(WDFTIMER Timer)
         }
     } while (NT_SUCCESS(status));
 
-    if (MinRemainingTicks != MAXLONGLONG)
+    if (MinDeadline != MAXLONGLONG)
     {
         WdfSpinLockAcquire(pSocket->RxLock);
-        VIOSockTimerSetDeadline(&pSocket->ReadTimer, VIOSockTimerTicksToDeadline(MinRemainingTicks));
+        VIOSockTimerSetDeadline(&pSocket->ReadTimer, MinDeadline);
         WdfSpinLockRelease(pSocket->RxLock);
     }
 

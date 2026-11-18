@@ -2140,11 +2140,18 @@ VOID VioScsiSaveInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
                                  SerialPage->PageLength);
                     if (SerialPage->PageLength > 0 && adaptExt->ser_num == NULL)
                     {
-                        int ln = min(64, SerialPage->PageLength);
-                        ULONG Status = StorPortAllocatePool(DeviceExtension,
-                                                            ln + 1,
-                                                            VIOSCSI_POOL_TAG,
-                                                            (PVOID *)&adaptExt->ser_num);
+                        int available_payload = (int)dataLen - (int)sizeof(VPD_SERIAL_NUMBER_PAGE);
+                        int ln;
+                        ULONG Status;
+                        if (available_payload <= 0)
+                        {
+                            break;
+                        }
+                        ln = min(64, min(SerialPage->PageLength, available_payload));
+                        Status = StorPortAllocatePool(DeviceExtension,
+                                                      ln + 1,
+                                                      VIOSCSI_POOL_TAG,
+                                                      (PVOID *)&adaptExt->ser_num);
                         if (NT_SUCCESS(Status))
                         {
                             StorPortMoveMemory(adaptExt->ser_num, SerialPage->SerialNumber, ln);
@@ -2164,8 +2171,9 @@ VOID VioScsiSaveInquiryData(IN PVOID DeviceExtension, IN OUT PSRB_TYPE Srb)
                     if (dataLen >= sizeof(VPD_IDENTIFICATION_PAGE))
                     {
                         size_t available = dataLen - sizeof(VPD_IDENTIFICATION_PAGE);
-                        // IdentificationPage->PageLength is a UCHAR, so the result is always <= 255 and fits USHORT.
-                        PageLength = (USHORT)min(available, IdentificationPage->PageLength);
+                        USHORT fullPageLength = ((USHORT)((PUCHAR)IdentificationPage)[2] << 8) |
+                                                (USHORT)((PUCHAR)IdentificationPage)[3];
+                        PageLength = (USHORT)min(available, fullPageLength);
                         RhelDbgPrint(TRACE_LEVEL_VERBOSE,
                                      " Identification page's length: 0x%x\n",
                                      IdentificationPage->PageLength);
