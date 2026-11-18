@@ -3391,6 +3391,11 @@ NTSTATUS VioGpuAdapter::Escape(_In_ CONST DXGKARG_ESCAPE *pEscape)
                              ("%s invalid source %d\n", __FUNCTION__, pVioGpuEscape->SourceMode.SourceId));
                     return STATUS_INVALID_PARAMETER;
                 }
+                if (!(m_ConnectedScanouts & (1UL << ScanoutId)))
+                {
+                    // The host has unplugged the scanout and Windows is about to drop the display.
+                    return STATUS_DEVICE_NOT_CONNECTED;
+                }
                 USHORT ModeIndex = GetPreferredModeIndex(ScanoutId);
                 pVioGpuEscape->SourceMode.Resolution.XResolution = (USHORT)m_ModeInfo[ModeIndex].VisScreenWidth;
                 pVioGpuEscape->SourceMode.Resolution.YResolution = (USHORT)m_ModeInfo[ModeIndex].VisScreenHeight;

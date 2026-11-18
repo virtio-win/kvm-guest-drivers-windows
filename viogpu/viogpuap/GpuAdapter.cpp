@@ -29,10 +29,10 @@
 
 #include "pch.h"
 
-// Every adapter's thread applies a whole-system display configuration. Taking the snapshot and applying it
-// under one lock keeps one thread from applying a snapshot that predates another thread's change, which
-// would undo that change. A mutex rather than an SRW lock: Close terminates a thread that does not stop in
-// time, and the system releases the mutex of a thread that ended while it held it, so the others go on.
+// One display's sync at a time: its snapshot of the display configuration, which finds the display's path,
+// source and current mode, stays current until its mode change is made. A mutex rather than an SRW lock: Close
+// terminates a thread that does not stop in time, and the system releases the mutex of a thread that ended while
+// it held it, so the others go on.
 static HANDLE DisplayConfigMutex = CreateMutex(NULL, FALSE, NULL);
 
 static void LockDisplayConfig(void)
@@ -251,12 +251,13 @@ bool GpuAdapter::GetCustomResolution(PVIOGPU_DISP_MODE pmode)
             return true;
         }
         PrintMessage(L"D3DKMTEscape source %d failed with status = 0x%0X\n", SourceId, status);
-        if (SourceId != 0)
+        if (status != STATUS_INVALID_PARAMETER || SourceId != 0)
         {
             return false;
         }
 
-        // A driver without VIOGPU_GET_SOURCE_RESOLUTION has a single source, and this is its size.
+        // A driver without VIOGPU_GET_SOURCE_RESOLUTION rejects it as an unknown escape. It has a single
+        // source, and this is its size.
         data = {0};
         data.DataLength = sizeof(VIOGPU_DISP_MODE);
         data.Type = VIOGPU_GET_CUSTOM_RESOLUTION;
@@ -277,25 +278,21 @@ bool GpuAdapter::SetResolution(PVIOGPU_DISP_MODE mode)
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
-    DISPLAYCONFIG_MODE_INFO *pConfig = GetDisplayConfig();
-    if (pConfig == NULL)
-    {
-        return false;
-    }
-    pConfig->sourceMode.width = mode->XResolution;
-    pConfig->sourceMode.height = mode->YResolution;
-    LONG result = SetDisplayConfig(m_PathArrayElements,
-                                   m_pDisplayPathInfo,
-                                   m_ModeInfoArrayElements,
-                                   m_pDisplayModeInfo,
-                                   SDC_APPLY | SDC_USE_SUPPLIED_DISPLAY_CONFIG | SDC_ALLOW_CHANGES | SDC_SAVE_TO_DATABASE);
-    PrintMessage(L"%ws %ws (%dx%d) SetDisplayConfig = %d\n",
+    // Change this display's mode and nothing else. Applying a snapshot of every path would also apply the
+    // snapshot's topology, and switch off a monitor that Windows attached after the snapshot was taken.
+    DEVMODEW dm = {};
+    dm.dmSize = sizeof(dm);
+    dm.dmPelsWidth = mode->XResolution;
+    dm.dmPelsHeight = mode->YResolution;
+    dm.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT;
+    LONG result = ChangeDisplaySettingsExW(m_DeviceName.c_str(), &dm, NULL, CDS_UPDATEREGISTRY, NULL);
+    PrintMessage(L"%ws %ws (%dx%d) ChangeDisplaySettingsEx = %d\n",
                  __FUNCTIONW__,
                  m_DeviceName.c_str(),
                  mode->XResolution,
                  mode->YResolution,
                  result);
-    return result == ERROR_SUCCESS;
+    return result == DISP_CHANGE_SUCCESSFUL;
 }
 
 void GpuAdapter::SyncResolution(void)
