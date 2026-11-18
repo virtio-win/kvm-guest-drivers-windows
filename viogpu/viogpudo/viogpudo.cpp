@@ -3289,14 +3289,12 @@ BOOLEAN VioGpuAdapter::GetEdids(void)
 
     PGPU_VBUFFER vbuf = NULL;
 
-    for (UINT32 i = 0; i < m_u32NumScanouts; i++)
+    // The driver presents scanout 0 (see SetScanout), so its EDID is the one that describes the display.
+    if (m_CtrlQueue.AskEdidInfo(&vbuf, 0) && m_CtrlQueue.GetEdidInfo(vbuf, 0, m_EDIDs))
     {
-        if (m_CtrlQueue.AskEdidInfo(&vbuf, i) && m_CtrlQueue.GetEdidInfo(vbuf, i, m_EDIDs))
-        {
-            m_bEDID = TRUE;
-        }
-        m_CtrlQueue.ReleaseBuffer(vbuf);
+        m_bEDID = TRUE;
     }
+    m_CtrlQueue.ReleaseBuffer(vbuf);
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
     return TRUE;
