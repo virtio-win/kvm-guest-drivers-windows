@@ -247,7 +247,7 @@ class CtrlQueue : public VioGpuQueue
     BOOLEAN GetDisplayInfo(PGPU_VBUFFER buf, UINT id, PULONG xres, PULONG yres);
     BOOLEAN AskDisplayInfo(PGPU_VBUFFER *buf);
     BOOLEAN AskEdidInfo(PGPU_VBUFFER *buf, UINT id);
-    BOOLEAN GetEdidInfo(PGPU_VBUFFER buf, UINT id, PBYTE edid);
+    BOOLEAN GetEdidInfo(PGPU_VBUFFER buf, UINT id, PBYTE edid, ULONG size, PULONG copied);
 
   private:
     volatile LONG m_FenceIdr;

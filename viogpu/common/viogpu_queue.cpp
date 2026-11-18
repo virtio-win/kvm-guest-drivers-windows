@@ -293,7 +293,7 @@ BOOLEAN CtrlQueue::AskEdidInfo(PGPU_VBUFFER *buf, UINT id)
     return TRUE;
 }
 
-BOOLEAN CtrlQueue::GetEdidInfo(PGPU_VBUFFER buf, UINT id, PBYTE edid)
+BOOLEAN CtrlQueue::GetEdidInfo(PGPU_VBUFFER buf, UINT id, PBYTE edid, ULONG size, PULONG copied)
 {
     PAGED_CODE();
 
@@ -313,7 +313,11 @@ BOOLEAN CtrlQueue::GetEdidInfo(PGPU_VBUFFER buf, UINT id, PBYTE edid)
         return FALSE;
     }
 
-    RtlCopyMemory(edid, resp_edit, EDID_RAW_BLOCK_SIZE);
+    // As many bytes as the host says it returned; the rest of the caller's buffer is cleared.
+    ULONG count = min(min(size, resp->size), (ULONG)sizeof(resp->edid));
+    RtlCopyMemory(edid, resp_edit, count);
+    RtlZeroMemory(edid + count, size - count);
+    *copied = count;
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
     return TRUE;
