@@ -245,6 +245,7 @@ class CtrlQueue : public VioGpuQueue
     void DetachBacking(UINT id);
 
     BOOLEAN GetDisplayInfo(PGPU_VBUFFER buf, UINT id, PULONG xres, PULONG yres);
+    BOOLEAN GetEnabledScanouts(PGPU_VBUFFER buf, UINT count, PULONG enabled);
     BOOLEAN AskDisplayInfo(PGPU_VBUFFER *buf);
     BOOLEAN AskEdidInfo(PGPU_VBUFFER *buf, UINT id);
     BOOLEAN GetEdidInfo(PGPU_VBUFFER buf, UINT id, PBYTE edid);

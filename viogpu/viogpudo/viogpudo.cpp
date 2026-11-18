@@ -373,8 +373,9 @@ NTSTATUS VioGpuDod::QueryChildRelations(_Out_writes_bytes_(ChildRelationsSize) D
     for (UINT ChildIndex = 0; ChildIndex < ChildRelationsCount; ++ChildIndex)
     {
         pChildRelations[ChildIndex].ChildDeviceType = TypeVideoOutput;
-        pChildRelations[ChildIndex].ChildCapabilities.HpdAwareness = IsVgaDevice() ? HpdAwarenessAlwaysConnected
-                                                                                   : HpdAwarenessInterruptible;
+        // The host can enable and disable a scanout at any time and raises VIRTIO_GPU_EVENT_DISPLAY when it
+        // does, so the output is hot-pluggable on a VGA device too.
+        pChildRelations[ChildIndex].ChildCapabilities.HpdAwareness = HpdAwarenessInterruptible;
         pChildRelations[ChildIndex].ChildCapabilities.Type.VideoOutput.InterfaceTechnology = IsVgaDevice() ? D3DKMDT_VOT_INTERNAL
                                                                                                            : D3DKMDT_VOT_HD15;
         pChildRelations[ChildIndex].ChildCapabilities.Type.VideoOutput.MonitorOrientationAwareness = D3DKMDT_MOA_NONE;
@@ -400,7 +401,8 @@ NTSTATUS VioGpuDod::QueryChildStatus(_Inout_ DXGK_CHILD_STATUS *pChildStatus, _I
     {
         case StatusConnection:
             {
-                pChildStatus->HotPlug.Connected = IsDriverActive();
+                pChildStatus->HotPlug.Connected = IsDriverActive() && m_pHWDevice &&
+                                                  m_pHWDevice->IsChildConnected(pChildStatus->ChildUid);
                 return STATUS_SUCCESS;
             }
 
@@ -2328,6 +2330,8 @@ VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod)
     m_u64HostFeatures = 0;
     m_u64GuestFeatures = 0;
     m_u32NumCapsets = 0;
+    // Until the host tells us otherwise, scanout 0 is enabled, as on a freshly reset device.
+    m_ConnectedScanouts = 1;
     m_u32NumScanouts = 0;
 
     KeInitializeEvent(&m_ConfigUpdateEvent, SynchronizationEvent, FALSE);
@@ -3209,19 +3213,29 @@ BOOLEAN VioGpuAdapter::GetDisplayInfo(void)
     PGPU_VBUFFER vbuf = NULL;
     ULONG xres = 0;
     ULONG yres = 0;
+    ULONG enabled = 0;
 
-    for (UINT32 i = 0; i < m_u32NumScanouts; i++)
+    if (m_CtrlQueue.AskDisplayInfo(&vbuf))
     {
-        if (m_CtrlQueue.AskDisplayInfo(&vbuf))
+        if (m_CtrlQueue.GetEnabledScanouts(vbuf, m_u32NumScanouts, &enabled))
+        {
+            m_ConnectedScanouts = enabled;
+            DbgPrint(TRACE_LEVEL_INFORMATION, ("---> %s enabled scanouts 0x%x\n", __FUNCTION__, enabled));
+        }
+        for (UINT32 i = 0; i < m_u32NumScanouts; i++)
         {
             m_CtrlQueue.GetDisplayInfo(vbuf, i, &xres, &yres);
-            m_CtrlQueue.ReleaseBuffer(vbuf);
             if (xres && yres)
             {
-                DbgPrint(TRACE_LEVEL_INFORMATION, ("---> %s (%dx%d)\n", __FUNCTION__, xres, yres));
-                SetCustomDisplay((USHORT)xres, (USHORT)yres);
-                return TRUE;
+                break;
             }
+        }
+        m_CtrlQueue.ReleaseBuffer(vbuf);
+        if (xres && yres)
+        {
+            DbgPrint(TRACE_LEVEL_INFORMATION, ("---> %s (%dx%d)\n", __FUNCTION__, xres, yres));
+            SetCustomDisplay((USHORT)xres, (USHORT)yres);
+            return TRUE;
         }
     }
     xres = NOM_WIDTH_SIZE;
@@ -3794,7 +3808,11 @@ void VioGpuAdapter::ThreadWorkRoutine(void)
             break;
         }
         ConfigChanged();
-        NotifyResolutionEvent();
+        // viogpuap applies the host's size to a connected output; an unplugged one has no size to apply.
+        if (IsChildConnected(0))
+        {
+            NotifyResolutionEvent();
+        }
     }
 }
 
@@ -3805,12 +3823,18 @@ void VioGpuAdapter::ConfigChanged(void)
     virtio_get_config(&m_VioDev, FIELD_OFFSET(GPU_CONFIG, events_read), &events_read, sizeof(m_u32NumScanouts));
     if (events_read & VIRTIO_GPU_EVENT_DISPLAY)
     {
+        BOOLEAN wasConnected = IsChildConnected(0);
         GetDisplayInfo();
         events_clear |= VIRTIO_GPU_EVENT_DISPLAY;
         virtio_set_config(&m_VioDev, FIELD_OFFSET(GPU_CONFIG, events_clear), &events_clear, sizeof(m_u32NumScanouts));
-        //        UpdateChildStatus(FALSE);
         //        ProcessEdid();
-        UpdateChildStatus(TRUE);
+        BOOLEAN connected = IsChildConnected(0);
+        DbgPrint(TRACE_LEVEL_FATAL, ("<--> %s child 0 connected %d -> %d\n", __FUNCTION__, wasConnected, connected));
+        // A connected output is re-announced on every display change, so Windows picks up a new size.
+        if (connected || wasConnected)
+        {
+            UpdateChildStatus(connected);
+        }
     }
 }
 

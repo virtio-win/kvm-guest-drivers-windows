@@ -195,6 +195,28 @@ BOOLEAN CtrlQueue::GetDisplayInfo(PGPU_VBUFFER buf, UINT id, PULONG xres, PULONG
     return TRUE;
 }
 
+BOOLEAN CtrlQueue::GetEnabledScanouts(PGPU_VBUFFER buf, UINT count, PULONG enabled)
+{
+    PAGED_CODE();
+
+    PGPU_RESP_DISP_INFO resp = (PGPU_RESP_DISP_INFO)buf->resp_buf;
+    if (resp->hdr.type != VIRTIO_GPU_RESP_OK_DISPLAY_INFO)
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, (" %s type = %x\n", __FUNCTION__, resp->hdr.type));
+        return FALSE;
+    }
+
+    *enabled = 0;
+    for (UINT id = 0; id < count && id < VIRTIO_GPU_MAX_SCANOUTS; id++)
+    {
+        if (resp->pmodes[id].enabled)
+        {
+            *enabled |= 1UL << id;
+        }
+    }
+    return TRUE;
+}
+
 BOOLEAN CtrlQueue::AskDisplayInfo(PGPU_VBUFFER *buf)
 {
     PAGED_CODE();

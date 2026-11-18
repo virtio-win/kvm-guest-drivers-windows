@@ -149,6 +149,11 @@ class VioGpuAdapter : IVioGpuPCI
     {
         return m_Id;
     }
+    // Child n drives scanout n. It is connected while the host reports the scanout enabled.
+    BOOLEAN IsChildConnected(ULONG ChildUid) const
+    {
+        return ChildUid < m_u32NumScanouts && (m_ConnectedScanouts & (1UL << ChildUid)) != 0;
+    }
     PBYTE GetEdidData(void);
     PBYTE GetCTA861Data(void);
 
@@ -197,6 +202,8 @@ class VioGpuAdapter : IVioGpuPCI
     UINT64 m_u64GuestFeatures;
     UINT32 m_u32NumCapsets;
     UINT32 m_u32NumScanouts;
+    // Bit n is set while the host reports scanout n enabled (VIRTIO_GPU_CMD_GET_DISPLAY_INFO).
+    volatile ULONG m_ConnectedScanouts;
     CtrlQueue m_CtrlQueue;
     CrsrQueue m_CursorQueue;
     VioGpuBuf m_GpuBuf;
