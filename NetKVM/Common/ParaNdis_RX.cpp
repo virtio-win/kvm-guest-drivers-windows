@@ -1207,6 +1207,27 @@ pRxNetDescriptor CParaNdisRX::ProcessMergedBuffers(pRxNetDescriptor pFirstBuffer
         }
     }
 
+    // MRG_RXBUF can be negotiated while the RX descriptors are not mergeable
+    // ones (no FullPageMDL): without ANY_LAYOUT, or when the RX buffer fits in
+    // one allocation (RSC off and an MTU up to about 4 KB). Such a descriptor
+    // holds a full frame of the configured MTU, and the device must fill every
+    // buffer but the last, so a packet spread over several of them is larger
+    // than the MTU: drop it, as ShallPassPacket() drops oversized frames.
+    for (UINT i = 0; i < m_MergeContext.CollectedBuffers; i++)
+    {
+        if (m_MergeContext.BufferSequence[i]->FullPageMDL == NULL)
+        {
+            DPrintf(1,
+                    "Dropping %u-byte packet spread over %u non-mergeable RX buffers",
+                    m_MergeContext.TotalPacketLength,
+                    m_MergeContext.CollectedBuffers);
+            ParaNdis_StatAdd(m_Context->Statistics.ifInDiscards, 1);
+            m_Context->extraStatistics.framesFilteredOut++;
+            ReuseCollectedBuffers();
+            return NULL;
+        }
+    }
+
     // Assemble into single logical packet
     return AssembleMergedPacket();
 }
