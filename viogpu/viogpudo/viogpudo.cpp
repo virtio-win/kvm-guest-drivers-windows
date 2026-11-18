@@ -4133,8 +4133,14 @@ BOOLEAN VioGpuAdapter::UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPoin
     }
 
     // The device has to see the new image before SetPointerShape sends UPDATE_CURSOR on the cursor queue.
-    // The two virtqueues are not ordered against each other, so wait for the transfer to complete.
-    m_CtrlQueue.TransferToHost2D(m_pCursorBuf->GetId(), 0, POINTER_SIZE, POINTER_SIZE, 0, 0, TRUE);
+    // The two virtqueues are not ordered against each other, so wait for the transfer to complete. When it
+    // does not complete, fail: SetPointerShape then sends no UPDATE_CURSOR, which would show an old or
+    // partial image, and Windows draws this pointer itself.
+    if (!m_CtrlQueue.TransferToHost2D(m_pCursorBuf->GetId(), 0, POINTER_SIZE, POINTER_SIZE, 0, 0, TRUE))
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s cursor image upload did not complete\n", __FUNCTION__));
+        return FALSE;
+    }
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
     return TRUE;
