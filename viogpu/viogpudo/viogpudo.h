@@ -49,6 +49,12 @@ typedef struct
 
 #pragma pack(pop)
 
+// virtio-gpu has no vertical blank, so the driver reports one at a fixed rate: Windows offers a display-only
+// driver's modes at a real refresh rate only if the driver reports VSync (DxgkDdiControlInterrupt).
+#define VIOGPU_REFRESH_RATE  60
+#define VIOGPU_VSYNC_PERIOD  (10000000LL / VIOGPU_REFRESH_RATE) // in 100 ns units
+#define VIOGPU_NOMINAL_LINES 1080 // the scan lines GetScanLine counts for a target without a path
+
 typedef struct _CURRENT_MODE
 {
     DXGK_DISPLAY_INFORMATION DispInfo;
@@ -296,6 +302,15 @@ class VioGpuDod
     USHORT m_PersistentDispMode0Width;
     USHORT m_PersistentDispMode0Height;
 
+    // VSync: a periodic timer while Windows has it enabled; m_VSyncTime is the interrupt time of the last one.
+    // It goes to every target with a committed path: m_PathTarget is each source's (-1 for none), as the
+    // last CommitVidPn left it, and m_VSyncTargets their union as a bitmask, the one thing VSyncNotify reads.
+    PEX_TIMER m_VSyncTimer;
+    volatile LONG m_VSyncEnabled;
+    volatile LONG64 m_VSyncTime;
+    INT m_PathTarget[MAX_VIEWS];
+    volatile LONG m_VSyncTargets;
+
   public:
     VioGpuDod(_In_ DEVICE_OBJECT *pPhysicalDeviceObject);
     ~VioGpuDod(void);
@@ -431,6 +446,8 @@ class VioGpuDod
                             _In_ INT PositionX,
                             _In_ INT PositionY);
     NTSTATUS SetRegisterConfigInfo(void);
+    NTSTATUS ControlInterrupt(_In_ CONST DXGK_INTERRUPT_TYPE InterruptType, _In_ BOOLEAN Enable);
+    NTSTATUS GetScanLine(_Inout_ DXGKARG_GETSCANLINE *pGetScanLine);
 
     PDXGKRNL_INTERFACE GetDxgkInterface(void)
     {
@@ -438,6 +455,11 @@ class VioGpuDod
     }
 
   private:
+    void StartVSyncTimer(void);
+    void StopVSyncTimer(void);
+    void UpdateVSyncTargets(void);
+    static EXT_CALLBACK VSyncTimerCallback;
+    static KSYNCHRONIZE_ROUTINE VSyncNotify;
     BOOLEAN CheckHardware();
     void InitCurrentModes(void);
     NTSTATUS CommitSource(D3DKMDT_HVIDPN hVidPn,

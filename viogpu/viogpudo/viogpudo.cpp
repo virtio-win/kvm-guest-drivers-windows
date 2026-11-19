@@ -44,7 +44,7 @@ static UINT g_InstanceId = 0;
 PAGED_CODE_SEG_BEGIN
 VioGpuDod::VioGpuDod(_In_ DEVICE_OBJECT *pPhysicalDeviceObject)
     : m_pPhysicalDevice(pPhysicalDeviceObject), m_MonitorPowerState(PowerDeviceD0), m_AdapterPowerState(PowerDeviceD0),
-      m_pHWDevice(NULL)
+      m_pHWDevice(NULL), m_VSyncTimer(NULL), m_VSyncEnabled(0), m_VSyncTime(0), m_VSyncTargets(0)
 {
     PAGED_CODE();
 
@@ -65,6 +65,11 @@ VioGpuDod::~VioGpuDod(void)
 {
     PAGED_CODE();
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s 0x%p\n", __FUNCTION__, m_pHWDevice));
+    if (m_VSyncTimer != NULL)
+    {
+        ExDeleteTimer(m_VSyncTimer, TRUE, TRUE, NULL);
+        m_VSyncTimer = NULL;
+    }
     delete m_pHWDevice;
     m_pHWDevice = NULL;
 }
@@ -254,6 +259,25 @@ NTSTATUS VioGpuDod::StartDevice(_In_ DXGK_START_INFO *pDxgkStartInfo,
     }
     *pNumberOfViews = m_NumSources;
     *pNumberOfChildren = m_NumSources;
+
+    // Windows enables VSync again through ControlInterrupt after a start. Until the first commit, source 0 shows
+    // the POST display on target 0.
+    m_VSyncEnabled = 0;
+    for (UINT SourceId = 0; SourceId < MAX_VIEWS; ++SourceId)
+    {
+        m_PathTarget[SourceId] = -1;
+    }
+    m_PathTarget[0] = 0;
+    UpdateVSyncTargets();
+    if (m_VSyncTimer == NULL)
+    {
+        m_VSyncTimer = ExAllocateTimer(VSyncTimerCallback, this, EX_TIMER_HIGH_RESOLUTION);
+        if (m_VSyncTimer == NULL)
+        {
+            DbgPrint(TRACE_LEVEL_ERROR, ("%s: no VSync timer\n", __FUNCTION__));
+            return STATUS_NO_MEMORY;
+        }
+    }
     m_Flags.DriverStarted = TRUE;
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
     return STATUS_SUCCESS;
@@ -263,6 +287,13 @@ NTSTATUS VioGpuDod::StopDevice(VOID)
 {
     PAGED_CODE();
 
+    // Waits for a running callback, so no VSync reaches the device once it is stopped.
+    if (m_VSyncTimer != NULL)
+    {
+        ExDeleteTimer(m_VSyncTimer, TRUE, TRUE, NULL);
+        m_VSyncTimer = NULL;
+    }
+    m_VSyncEnabled = 0;
     m_Flags.DriverStarted = FALSE;
     return STATUS_SUCCESS;
 }
@@ -376,9 +407,111 @@ NTSTATUS VioGpuDod::SetPowerState(_In_ ULONG HardwareUid,
             m_AdapterPowerState = DevicePowerState;
         }
 
+        // VSync stops before the device goes down and starts again once it is back up.
+        if (DevicePowerState != PowerDeviceD0)
+        {
+            StopVSyncTimer();
+        }
         Status = m_pHWDevice->SetPowerState(&m_DeviceInfo, DevicePowerState, m_CurrentModes, m_NumSources);
+        if (DevicePowerState == PowerDeviceD0 && m_VSyncEnabled)
+        {
+            StartVSyncTimer();
+        }
         return Status;
     }
+    return STATUS_SUCCESS;
+}
+
+void VioGpuDod::StartVSyncTimer(void)
+{
+    PAGED_CODE();
+
+    if (m_VSyncTimer != NULL)
+    {
+        ULONG64 Qpc;
+        InterlockedExchange64(&m_VSyncTime, (LONG64)KeQueryInterruptTimePrecise(&Qpc));
+        ExSetTimer(m_VSyncTimer, -VIOGPU_VSYNC_PERIOD, VIOGPU_VSYNC_PERIOD, NULL);
+    }
+}
+
+void VioGpuDod::StopVSyncTimer(void)
+{
+    PAGED_CODE();
+
+    if (m_VSyncTimer != NULL)
+    {
+        ExCancelTimer(m_VSyncTimer, NULL);
+    }
+}
+
+NTSTATUS VioGpuDod::ControlInterrupt(_In_ CONST DXGK_INTERRUPT_TYPE InterruptType, _In_ BOOLEAN Enable)
+{
+    PAGED_CODE();
+
+    if (InterruptType != DXGK_INTERRUPT_CRTC_VSYNC && InterruptType != DXGK_INTERRUPT_DISPLAYONLY_VSYNC)
+    {
+        return STATUS_NOT_IMPLEMENTED;
+    }
+    DbgPrint(TRACE_LEVEL_INFORMATION, ("<--> %s VSync %s\n", __FUNCTION__, Enable ? "on" : "off"));
+    if (InterlockedExchange(&m_VSyncEnabled, Enable ? 1 : 0) == (Enable ? 1 : 0))
+    {
+        return STATUS_SUCCESS;
+    }
+    if (!Enable)
+    {
+        StopVSyncTimer();
+    }
+    else if (IsHardwareInit())
+    {
+        StartVSyncTimer();
+    }
+    return STATUS_SUCCESS;
+}
+
+// Records which targets the committed paths drive. VSyncNotify runs at the device's interrupt level, under
+// DxgkCbSynchronizeExecution, and reads this mask rather than m_CurrentModes.
+void VioGpuDod::UpdateVSyncTargets(void)
+{
+    PAGED_CODE();
+
+    LONG Targets = 0;
+    for (UINT SourceId = 0; SourceId < MAX_VIEWS; ++SourceId)
+    {
+        if (m_PathTarget[SourceId] >= 0 && m_PathTarget[SourceId] < MAX_CHILDREN)
+        {
+            Targets |= 1L << m_PathTarget[SourceId];
+        }
+    }
+    InterlockedExchange(&m_VSyncTargets, Targets);
+}
+
+NTSTATUS VioGpuDod::GetScanLine(_Inout_ DXGKARG_GETSCANLINE *pGetScanLine)
+{
+    PAGED_CODE();
+
+    // The target's height in lines: its source's height, which a rotated path keeps in its unrotated size, as it
+    // keeps the target's. A target without a committed path still counts lines, so a caller waiting for the blank
+    // does not wait forever.
+    UINT Lines = VIOGPU_NOMINAL_LINES;
+    for (UINT SourceId = 0; SourceId < m_NumSources; ++SourceId)
+    {
+        if (m_PathTarget[SourceId] == (INT)pGetScanLine->VidPnTargetId)
+        {
+            if (m_CurrentModes[SourceId].DispInfo.Height != 0)
+            {
+                Lines = m_CurrentModes[SourceId].DispInfo.Height;
+            }
+            break;
+        }
+    }
+
+    // The scanout is drawn over the first 90% of a period and is in its vertical blank for the rest.
+    ULONG64 Qpc;
+    LONG64 Elapsed = (LONG64)KeQueryInterruptTimePrecise(&Qpc) - InterlockedCompareExchange64(&m_VSyncTime, 0, 0);
+    LONG64 Phase = Elapsed > 0 ? Elapsed % VIOGPU_VSYNC_PERIOD : 0;
+    LONG64 BlankStart = VIOGPU_VSYNC_PERIOD * 9 / 10;
+    pGetScanLine->InVerticalBlank = Phase >= BlankStart;
+    pGetScanLine->ScanLine = Phase < BlankStart ? (UINT)(Lines * Phase / BlankStart) : 0;
     return STATUS_SUCCESS;
 }
 
@@ -975,11 +1108,14 @@ VOID VioGpuDod::BuildVideoSignalInfo(D3DKMDT_VIDEO_SIGNAL_INFO *pVideoSignalInfo
     pVideoSignalInfo->TotalSize.cy = pModeInfo->VisScreenHeight;
     pVideoSignalInfo->ActiveSize = pVideoSignalInfo->TotalSize;
 
-    pVideoSignalInfo->VSyncFreq.Numerator = D3DKMDT_FREQUENCY_NOTSPECIFIED;
-    pVideoSignalInfo->VSyncFreq.Denominator = D3DKMDT_FREQUENCY_NOTSPECIFIED;
-    pVideoSignalInfo->HSyncFreq.Numerator = D3DKMDT_FREQUENCY_NOTSPECIFIED;
-    pVideoSignalInfo->HSyncFreq.Denominator = D3DKMDT_FREQUENCY_NOTSPECIFIED;
-    pVideoSignalInfo->PixelRate = D3DKMDT_FREQUENCY_NOTSPECIFIED;
+    // The driver reports VSync at VIOGPU_REFRESH_RATE, and a display-only driver that does must give real
+    // frequencies; without them Windows makes up 64 Hz.
+    pVideoSignalInfo->VSyncFreq.Numerator = VIOGPU_REFRESH_RATE;
+    pVideoSignalInfo->VSyncFreq.Denominator = 1;
+    pVideoSignalInfo->HSyncFreq.Numerator = pVideoSignalInfo->TotalSize.cy * VIOGPU_REFRESH_RATE;
+    pVideoSignalInfo->HSyncFreq.Denominator = 1;
+    pVideoSignalInfo->PixelRate = (SIZE_T)pVideoSignalInfo->TotalSize.cx * pVideoSignalInfo->TotalSize.cy *
+                                  VIOGPU_REFRESH_RATE;
     pVideoSignalInfo->ScanLineOrdering = D3DDDI_VSSLO_PROGRESSIVE;
 }
 
@@ -1101,11 +1237,8 @@ NTSTATUS VioGpuDod::AddSingleMonitorMode(_In_ CONST DXGKARG_RECOMMENDMONITORMODE
                                                                                                          pMonitorSourceMode);
         UNREFERENCED_PARAMETER(TempStatus);
         NT_ASSERT(NT_SUCCESS(TempStatus));
-        // The monitor's EDID may already list the preferred size; the other modes still have to be added.
-        if (Status != STATUS_GRAPHICS_MODE_ALREADY_IN_MODESET)
-        {
-            return Status;
-        }
+        // The monitor's EDID may already list the preferred size, and whatever went wrong with it, the other
+        // modes still have to be added.
     }
 
     for (UINT Idx = 0; Idx < m_pHWDevice->GetModeCount(); ++Idx)
@@ -1767,6 +1900,7 @@ NTSTATUS VioGpuDod::CommitSource(D3DKMDT_HVIDPN hVidPn,
     if (pPinnedVidPnSourceModeInfo == NULL)
     {
         m_pHWDevice->DisableSource(&m_CurrentModes[SourceId]);
+        m_PathTarget[SourceId] = -1;
         Status = STATUS_SUCCESS;
         goto CommitSourceExit;
     }
@@ -1805,6 +1939,10 @@ NTSTATUS VioGpuDod::CommitSource(D3DKMDT_HVIDPN hVidPn,
         if (NT_SUCCESS(Status))
         {
             Status = SetSourceModeAndPath(pPinnedVidPnSourceModeInfo, pVidPnPresentPath);
+            if (NT_SUCCESS(Status))
+            {
+                m_PathTarget[SourceId] = (INT)pVidPnPresentPath->VidPnTargetId;
+            }
         }
 
         NTSTATUS TempStatus = pVidPnTopologyInterface->pfnReleasePathInfo(hVidPnTopology, pVidPnPresentPath);
@@ -1819,6 +1957,7 @@ NTSTATUS VioGpuDod::CommitSource(D3DKMDT_HVIDPN hVidPn,
     }
 
 CommitSourceExit:
+    UpdateVSyncTargets();
     if ((pVidPnSourceModeSetInterface != NULL) && (hVidPnSourceModeSet != 0) && (pPinnedVidPnSourceModeInfo != NULL))
     {
         NTSTATUS TempStatus = pVidPnSourceModeSetInterface->pfnReleaseModeInfo(hVidPnSourceModeSet,
@@ -2038,6 +2177,50 @@ BOOLEAN VioGpuDod::InterruptRoutine(_In_ ULONG MessageNumber)
         return m_pHWDevice ? m_pHWDevice->InterruptRoutine(&m_DxgkInterface, MessageNumber) : FALSE;
     }
     return FALSE;
+}
+
+// The VSync timer's callback, at DISPATCH_LEVEL. DxgkCbNotifyInterrupt may only be called at the device's
+// interrupt level, so the notification runs under DxgkCbSynchronizeExecution, like a real ISR. With MSI it
+// synchronizes with message 1, the control queue's, which is the display interrupt.
+VOID VioGpuDod::VSyncTimerCallback(_In_ PEX_TIMER Timer, _In_opt_ PVOID Context)
+{
+    UNREFERENCED_PARAMETER(Timer);
+    VioGpuDod *pVioGpuDod = reinterpret_cast<VioGpuDod *>(Context);
+    ULONG64 Qpc;
+    BOOLEAN Ret;
+
+    InterlockedExchange64(&pVioGpuDod->m_VSyncTime, (LONG64)KeQueryInterruptTimePrecise(&Qpc));
+    if (!pVioGpuDod->IsHardwareInit())
+    {
+        return;
+    }
+    pVioGpuDod->m_DxgkInterface.DxgkCbSynchronizeExecution(pVioGpuDod->m_DxgkInterface.DeviceHandle,
+                                                           VSyncNotify,
+                                                           pVioGpuDod,
+                                                           pVioGpuDod->m_pHWDevice->IsMSIEnabled() ? 1 : 0,
+                                                           &Ret);
+}
+
+BOOLEAN VioGpuDod::VSyncNotify(_In_opt_ PVOID Context)
+{
+    VioGpuDod *pVioGpuDod = reinterpret_cast<VioGpuDod *>(Context);
+    LONG Targets = InterlockedCompareExchange(&pVioGpuDod->m_VSyncTargets, 0, 0);
+
+    for (UINT TargetId = 0; TargetId < MAX_CHILDREN; ++TargetId)
+    {
+        if (Targets & (1L << TargetId))
+        {
+            DXGKARGCB_NOTIFY_INTERRUPT_DATA Notify = {};
+            Notify.InterruptType = DXGK_INTERRUPT_DISPLAYONLY_VSYNC;
+            Notify.DisplayOnlyVsync.VidPnTargetId = TargetId;
+            pVioGpuDod->m_DxgkInterface.DxgkCbNotifyInterrupt(pVioGpuDod->m_DxgkInterface.DeviceHandle, &Notify);
+        }
+    }
+    if (Targets != 0)
+    {
+        pVioGpuDod->m_DxgkInterface.DxgkCbQueueDpc(pVioGpuDod->m_DxgkInterface.DeviceHandle);
+    }
+    return TRUE;
 }
 
 VOID VioGpuDod::ResetDevice(VOID)
