@@ -989,7 +989,7 @@ NTSTATUS VioGpuDod::AddSingleMonitorMode(_In_ CONST DXGKARG_RECOMMENDMONITORMODE
     pMonitorSourceMode->ColorCoeffDynamicRanges.FirstChannel = 8;
     pMonitorSourceMode->ColorCoeffDynamicRanges.SecondChannel = 8;
     pMonitorSourceMode->ColorCoeffDynamicRanges.ThirdChannel = 8;
-    pMonitorSourceMode->ColorCoeffDynamicRanges.FourthChannel = 8;
+    pMonitorSourceMode->ColorCoeffDynamicRanges.FourthChannel = 0;
 
     Status = pRecommendMonitorModes->pMonitorSourceModeSetInterface->pfnAddMode(pRecommendMonitorModes->hMonitorSourceModeSet,
                                                                                 pMonitorSourceMode);
@@ -1044,7 +1044,7 @@ NTSTATUS VioGpuDod::AddSingleMonitorMode(_In_ CONST DXGKARG_RECOMMENDMONITORMODE
         pMonitorSourceMode->ColorCoeffDynamicRanges.FirstChannel = 8;
         pMonitorSourceMode->ColorCoeffDynamicRanges.SecondChannel = 8;
         pMonitorSourceMode->ColorCoeffDynamicRanges.ThirdChannel = 8;
-        pMonitorSourceMode->ColorCoeffDynamicRanges.FourthChannel = 8;
+        pMonitorSourceMode->ColorCoeffDynamicRanges.FourthChannel = 0;
         if (pVbeModeInfo->VisScreenWidth == NOM_WIDTH_SIZE && pVbeModeInfo->VisScreenHeight == NOM_HEIGHT_SIZE)
         {
             pMonitorSourceMode->Preference = D3DKMDT_MP_PREFERRED;
