@@ -241,9 +241,9 @@ BOOLEAN CtrlQueue::GetEnabledScanouts(PGPU_VBUFFER buf, UINT count, PULONG enabl
     return TRUE;
 }
 
-// Sends a command and waits for the host's answer. FALSE when it could not be sent or the host did not answer within
-// a second: the buffer is no longer the caller's then.
-BOOLEAN CtrlQueue::QueueAndWait(PGPU_VBUFFER vbuf)
+// Sends a command and waits up to Timeout (relative, in 100 ns units; a second by default) for the host's answer.
+// FALSE when it could not be sent or the host did not answer in time: the buffer is no longer the caller's then.
+BOOLEAN CtrlQueue::QueueAndWait(PGPU_VBUFFER vbuf, LONGLONG Timeout)
 {
     PAGED_CODE();
 
@@ -267,9 +267,9 @@ BOOLEAN CtrlQueue::QueueAndWait(PGPU_VBUFFER vbuf)
         return FALSE;
     }
 
-    LARGE_INTEGER Timeout;
-    Timeout.QuadPart = -10000000LL;
-    if (KeWaitForSingleObject(&pWait->Event, Executive, KernelMode, FALSE, &Timeout) == STATUS_TIMEOUT &&
+    LARGE_INTEGER Wait;
+    Wait.QuadPart = Timeout;
+    if (KeWaitForSingleObject(&pWait->Event, Executive, KernelMode, FALSE, &Wait) == STATUS_TIMEOUT &&
         InterlockedCompareExchange(&pWait->State, SYNC_ABANDONED, SYNC_PENDING) == SYNC_PENDING)
     {
         DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s the host did not answer\n", __FUNCTION__));
@@ -449,6 +449,39 @@ void CtrlQueue::TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT hei
     QueueBuffer(vbuf);
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+}
+
+// Uploads a resource's backing at its top left and waits for the host to have done it. The command is fenced, so
+// that a host that renders asynchronously answers only once the upload is complete.
+BOOLEAN CtrlQueue::TransferToHost2DAndWait(UINT res_id, UINT width, UINT height, LONGLONG Timeout)
+{
+    PAGED_CODE();
+
+    PGPU_RES_TRANSF_TO_HOST_2D cmd;
+    PGPU_VBUFFER vbuf;
+    cmd = (PGPU_RES_TRANSF_TO_HOST_2D)AllocCmd(&vbuf, sizeof(*cmd));
+    RtlZeroMemory(cmd, sizeof(*cmd));
+
+    cmd->hdr.type = VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D;
+    cmd->hdr.flags = VIRTIO_GPU_FLAG_FENCE;
+    cmd->hdr.fence_id = (ULONGLONG)InterlockedIncrement(&m_FenceIdr);
+    cmd->resource_id = res_id;
+    cmd->r.width = width;
+    cmd->r.height = height;
+
+    if (!QueueAndWait(vbuf, Timeout))
+    {
+        return FALSE;
+    }
+    // An error answer, as for a resource the host does not have, uploaded nothing.
+    UINT32 Type = ((PGPU_CTRL_HDR)vbuf->resp_buf)->type;
+    ReleaseBuffer(vbuf);
+    if (Type != VIRTIO_GPU_RESP_OK_NODATA)
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s resource %d: answer 0x%x\n", __FUNCTION__, res_id, Type));
+        return FALSE;
+    }
+    return TRUE;
 }
 
 void CtrlQueue::AttachBacking(UINT res_id, PGPU_MEM_ENTRY ents, UINT nents)

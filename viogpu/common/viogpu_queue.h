@@ -245,7 +245,7 @@ class CtrlQueue : public VioGpuQueue
     PVOID AllocCmdResp(PGPU_VBUFFER *buf, int cmd_sz, PVOID resp_buf, int resp_sz);
 
     BOOLEAN QueueBuffer(PGPU_VBUFFER buf);
-    BOOLEAN QueueAndWait(PGPU_VBUFFER buf);
+    BOOLEAN QueueAndWait(PGPU_VBUFFER buf, LONGLONG Timeout = -10000000LL);
     PGPU_VBUFFER DequeueBuffer(_Out_ UINT *len);
 
     void CreateResource(UINT res_id, UINT format, UINT width, UINT height);
@@ -253,6 +253,7 @@ class CtrlQueue : public VioGpuQueue
     void SetScanout(UINT scan_id, UINT res_id, UINT width, UINT height, UINT x, UINT y);
     void ResFlush(UINT res_id, UINT width, UINT height, UINT x, UINT y);
     void TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT height, UINT x, UINT y);
+    BOOLEAN TransferToHost2DAndWait(UINT res_id, UINT width, UINT height, LONGLONG Timeout);
     void AttachBacking(UINT res_id, PGPU_MEM_ENTRY ents, UINT nents);
     void DetachBacking(UINT id);
 

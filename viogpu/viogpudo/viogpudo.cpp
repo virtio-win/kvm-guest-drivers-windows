@@ -4392,7 +4392,14 @@ BOOLEAN VioGpuAdapter::UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPoin
 
     BltBits(&DstBltInfo, &SrcBltInfo, &Rect);
 
-    m_CtrlQueue.TransferToHost2D(m_pCursorBuf->GetId(), 0, m_CursorSize, m_CursorSize, 0, 0);
+    // The image must have reached the host before UPDATE_CURSOR on the cursor queue shows it: the two queues are
+    // not ordered against each other, and QEMU may well handle the cursor queue first. A host that does not finish
+    // the upload in time gets no hardware cursor for this shape, and Windows draws it.
+    if (!m_CtrlQueue.TransferToHost2DAndWait(m_pCursorBuf->GetId(), m_CursorSize, m_CursorSize, -1000000LL))
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s the cursor image upload did not complete\n", __FUNCTION__));
+        return FALSE;
+    }
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
     return TRUE;
