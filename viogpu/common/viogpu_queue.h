@@ -57,6 +57,11 @@ typedef struct virtio_gpu_vbuffer
     void *complete_ctx;
 
     bool auto_release;
+    bool use_indirect;
+
+    // Indirect descriptor table (PVOID since we only need to allocate/free, not access fields)
+    PVOID desc;
+    PHYSICAL_ADDRESS desc_pa;
 } GPU_VBUFFER, *PGPU_VBUFFER;
 // #pragma pack()
 
@@ -72,9 +77,11 @@ class VioGpuBuf
     PGPU_VBUFFER GetBuf(_In_ int size, _In_ int resp_size, _In_opt_ void *resp_buf);
     void FreeBuf(_In_ PGPU_VBUFFER pbuf);
     BOOLEAN Init(_In_ UINT cnt);
+    BOOLEAN AllocateIndirectDescriptors(_In_ PGPU_VBUFFER pbuf, _In_ SIZE_T dataSize);
 
   private:
     void Close(void);
+    void DeleteBuffer(_In_ PGPU_VBUFFER pbuf);
 
   private:
     LIST_ENTRY m_FreeBufs;
@@ -83,6 +90,26 @@ class VioGpuBuf
     UINT m_uCount;
     UINT m_uCountMin = 0;
 };
+
+// Contiguous memory allocation fallback chain: 1MB -> 64KB -> 32KB -> 16KB -> 4KB
+//
+// Why these specific sizes:
+// - 1MB:  Segment Heap internal segment size; optimal for large allocations
+// - 64KB: VirtualAlloc allocation granularity on all Windows platforms
+// - 32KB: Intermediate fallback for moderate fragmentation
+// - 16KB: Final fallback with safe SGL margin (8K res: 8192 entries, 50% headroom)
+// - 4KB:  Page size, minimum allocation unit
+//
+// 8KB is SKIPPED: Windows Buddy System merges adjacent free blocks,
+// so if 16KB fails, isolated 8KB fragments are unlikely.
+// Also 8KB leaves only 0.78% SGL margin (16256/16384 entries) - too risky for production use.
+//
+static const SIZE_T g_ContiguousBlockSizes[] = {1024 * 1024, 64 * 1024, 32 * 1024, 16 * 1024, PAGE_SIZE};
+#define CONTIGUOUS_BLOCK_SIZE_COUNT    ARRAYSIZE(g_ContiguousBlockSizes)
+
+// QEMU hard limit for nr_entries in virtio_gpu_create_mapping_iov()
+// Reference: https://github.com/qemu/qemu/blob/master/hw/display/virtio-gpu.c
+#define VIRTIO_GPU_MAX_BACKING_ENTRIES 16384
 
 class VioGpuMemSegment
 {
@@ -102,20 +129,35 @@ class VioGpuMemSegment
     {
         return m_pSGList;
     }
-    BOOLEAN Init(_In_ UINT size, _In_opt_ PPHYSICAL_ADDRESS pPAddr);
+    BOOLEAN Init(_In_ UINT size, _In_opt_ CPciBar *pBar = NULL, _In_ BOOLEAN singleBlock = FALSE);
     BOOLEAN IsSystemMemory(void)
     {
         return m_bSystemMemory;
     }
     void Close(void);
+    BOOLEAN Merge(SIZE_T targetSize, CPciBar *pBar, SIZE_T fixedBlockSize = 0);
+    void TakeFrom(VioGpuMemSegment &other);
 
   private:
+    BOOLEAN ExpandSystemMemory(SIZE_T targetSize, SIZE_T fixedBlockSize = 0);
+    BOOLEAN ShrinkSystemMemory(SIZE_T targetSize);
+    BOOLEAN RebuildMapping();
+    BOOLEAN RebuildSGList();
+    void CleanMapping();
+    void CleanSGList();
+    BOOLEAN AllocateBar(PHYSICAL_ADDRESS pAddr, SIZE_T size, PVOID *pVAddr, PMDL *pMdl, PSCATTER_GATHER_LIST *pSGList);
+    void CloseBar();
+    void CloseSystemMemory();
     BOOLEAN m_bSystemMemory;
     BOOLEAN m_bMapped;
     PSCATTER_GATHER_LIST m_pSGList;
     PVOID m_pVAddr;
     PMDL m_pMdl;
     SIZE_T m_Size;
+    // Multi-block allocation support
+    PVOID *m_pBlocks;      // Array of block virtual addresses
+    SIZE_T *m_pBlockSizes; // Array of block sizes (may vary due to fallback)
+    UINT m_nBlocks;        // Number of allocated blocks
 };
 
 class VioGpuObj
@@ -237,12 +279,15 @@ class CtrlQueue : public VioGpuQueue
     PGPU_VBUFFER DequeueBuffer(_Out_ UINT *len);
 
     void CreateResource(UINT res_id, UINT format, UINT width, UINT height);
-    void DestroyResource(UINT id);
+    BOOLEAN CreateResourceSync(UINT res_id, UINT format, UINT width, UINT height);
+    void DestroyResource(UINT res_id);
+    void DestroyResourceSync(UINT res_id);
     void SetScanout(UINT scan_id, UINT res_id, UINT width, UINT height, UINT x, UINT y);
     void ResFlush(UINT res_id, UINT width, UINT height, UINT x, UINT y);
     void TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT height, UINT x, UINT y);
-    void AttachBacking(UINT res_id, PGPU_MEM_ENTRY ents, UINT nents);
-    void DetachBacking(UINT id);
+    BOOLEAN AttachBacking(UINT res_id, PGPU_MEM_ENTRY ents, UINT nents);
+    void DetachBacking(UINT res_id);
+    void DetachBackingSync(UINT res_id);
 
     BOOLEAN GetDisplayInfo(PGPU_VBUFFER buf, UINT id, PULONG xres, PULONG yres);
     BOOLEAN AskDisplayInfo(PGPU_VBUFFER *buf);
