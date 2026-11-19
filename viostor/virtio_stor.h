@@ -97,6 +97,8 @@ typedef struct VirtIOBufferDescriptor VIO_SG, *PVIO_SG;
 
 #define VIOBLK_POOL_TAG                    'BoiV'
 
+#define MAX_SUPPORTED_PAGE_CODES           6
+
 #pragma pack(1)
 typedef struct virtio_blk_config
 {
