@@ -511,8 +511,8 @@ NTSTATUS VioGpuDod::QueryAdapterInfo(_In_ CONST DXGKARG_QUERYADAPTERINFO *pQuery
                 {
                     pDriverCaps->MaxPointerWidth = m_pHWDevice->GetCursorSize();
                     pDriverCaps->MaxPointerHeight = m_pHWDevice->GetCursorSize();
+                    // Only 32-bit color shapes: Windows draws monochrome and masked-color pointers itself.
                     pDriverCaps->PointerCaps.Color = 1;
-                    pDriverCaps->PointerCaps.MaskedColor = 1;
                 }
                 pDriverCaps->SupportNonVGA = IsVgaDevice();
                 pDriverCaps->SupportSmoothRotation = TRUE;
@@ -3153,9 +3153,11 @@ NTSTATUS VioGpuAdapter::SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSet
               pSetPointerShape->XHot,
               pSetPointerShape->YHot));
 
-    if (pSetPointerShape->Flags.Monochrome)
+    if (!pSetPointerShape->Flags.Color)
     {
-        VioGpuDbgBreak();
+        // Not in PointerCaps: Windows draws these shapes itself.
+        DbgPrint(TRACE_LEVEL_ERROR,
+                 ("<--- %s unsupported shape type %x\n", __FUNCTION__, pSetPointerShape->Flags.Value));
         return STATUS_UNSUCCESSFUL;
     }
 
@@ -4147,6 +4149,12 @@ BOOLEAN VioGpuAdapter::UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPoin
         return FALSE;
     }
 
+    if (!pSetPointerShape->Flags.Color)
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s Invalid cursor color %d\n", __FUNCTION__, pSetPointerShape->Flags.Value));
+        return FALSE;
+    }
+
     // The shape fills only part of the cursor square, and the host shows the whole square: clear it, or pixels of
     // a bigger earlier shape, or of whatever the memory held, show around the pointer.
     RtlZeroMemory(m_pCursorBuf->GetVirtualAddress(), m_CursorSize * m_CursorSize * 4);
@@ -4163,16 +4171,7 @@ BOOLEAN VioGpuAdapter::UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPoin
     BLT_INFO SrcBltInfo;
     SrcBltInfo.pBits = (PVOID)pSetPointerShape->pPixels;
     SrcBltInfo.Pitch = pSetPointerShape->Pitch;
-    if (pSetPointerShape->Flags.Color)
-    {
-        SrcBltInfo.BitsPerPel = BPPFromPixelFormat(D3DDDIFMT_A8R8G8B8);
-    }
-    else
-    {
-        VioGpuDbgBreak();
-        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s Invalid cursor color %d\n", __FUNCTION__, pSetPointerShape->Flags.Value));
-        return FALSE;
-    }
+    SrcBltInfo.BitsPerPel = BPPFromPixelFormat(D3DDDIFMT_A8R8G8B8);
     SrcBltInfo.Offset.x = 0;
     SrcBltInfo.Offset.y = 0;
     SrcBltInfo.Rotation = pCurrentMode->Rotation;
