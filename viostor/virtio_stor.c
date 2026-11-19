@@ -114,7 +114,7 @@ VOID FORCEINLINE DeviceChangeNotification(IN PVOID DeviceExtension, IN BOOLEAN b
 
 BOOLEAN
 FORCEINLINE
-SetSenseInfo(IN PVOID DeviceExtension, IN PSRB_TYPE Srb);
+SetSenseInfo(IN PSRB_TYPE Srb, IN PSENSE_INFO SenseInfo);
 
 BOOLEAN
 FORCEINLINE
@@ -1180,10 +1180,18 @@ VirtIoStartIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
                 if (CHECKBIT(adaptExt->features, VIRTIO_BLK_F_RO))
                 {
                     UCHAR SrbStatus = SRB_STATUS_ERROR;
-                    adaptExt->sense_info.senseKey = SCSI_SENSE_DATA_PROTECT;
-                    adaptExt->sense_info.additionalSenseCode = SCSI_ADSENSE_WRITE_PROTECT;
-                    adaptExt->sense_info.additionalSenseCodeQualifier = SCSI_SENSEQ_SPACE_ALLOC_FAILED_WRITE_PROTECT; // SCSI_ADSENSE_NO_SENSE;
-                    if (SetSenseInfo(DeviceExtension, (PSRB_TYPE)Srb))
+                    SENSE_INFO senseInfo = {0};
+
+                    /*
+                     * Local to this SRB, not adaptExt->sense_info - two SRBs
+                     * hitting this branch (or the SCSIOP_VERIFY one) on
+                     * different queues at the same time must not share
+                     * mutable state.
+                     */
+                    senseInfo.senseKey = SCSI_SENSE_DATA_PROTECT;
+                    senseInfo.additionalSenseCode = SCSI_ADSENSE_WRITE_PROTECT;
+                    senseInfo.additionalSenseCodeQualifier = SCSI_SENSEQ_SPACE_ALLOC_FAILED_WRITE_PROTECT; // SCSI_ADSENSE_NO_SENSE;
+                    if (SetSenseInfo((PSRB_TYPE)Srb, &senseInfo))
                     {
                         SrbStatus |= SRB_STATUS_AUTOSENSE_VALID;
                     }
@@ -1224,11 +1232,14 @@ VirtIoStartIo(IN PVOID DeviceExtension, IN PSCSI_REQUEST_BLOCK Srb)
                 UCHAR SrbStatus = RhelScsiVerify(DeviceExtension, (PSRB_TYPE)Srb);
                 if (SrbStatus == SRB_STATUS_INVALID_REQUEST)
                 {
+                    SENSE_INFO senseInfo = {0};
+
                     SrbStatus = SRB_STATUS_ERROR;
-                    adaptExt->sense_info.senseKey = SCSI_SENSE_ILLEGAL_REQUEST;
-                    adaptExt->sense_info.additionalSenseCode = SCSI_ADSENSE_INVALID_CDB;
-                    adaptExt->sense_info.additionalSenseCodeQualifier = 0;
-                    if (SetSenseInfo(DeviceExtension, (PSRB_TYPE)Srb))
+                    /* Local to this SRB - see the SCSIOP_WRITE branch above. */
+                    senseInfo.senseKey = SCSI_SENSE_ILLEGAL_REQUEST;
+                    senseInfo.additionalSenseCode = SCSI_ADSENSE_INVALID_CDB;
+                    senseInfo.additionalSenseCodeQualifier = 0;
+                    if (SetSenseInfo((PSRB_TYPE)Srb, &senseInfo))
                     {
                         SrbStatus |= SRB_STATUS_AUTOSENSE_VALID;
                     }
@@ -2176,7 +2187,7 @@ VOID CompleteRequestWithStatus(IN PVOID DeviceExtension, IN PSRB_TYPE Srb, IN UC
             UCHAR OpCode = cdb->CDB6GENERIC.OperationCode;
             if ((OpCode != SCSIOP_INQUIRY) && (OpCode != SCSIOP_REPORT_LUNS))
             {
-                if (SetSenseInfo(DeviceExtension, Srb))
+                if (SetSenseInfo(Srb, &adaptExt->sense_info))
                 {
                     status = SRB_STATUS_ERROR | SRB_STATUS_AUTOSENSE_VALID;
                     adaptExt->check_condition = FALSE;
@@ -2208,9 +2219,8 @@ VOID FORCEINLINE DeviceChangeNotification(IN PVOID DeviceExtension, IN BOOLEAN b
 
 BOOLEAN
 FORCEINLINE
-SetSenseInfo(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
+SetSenseInfo(IN PSRB_TYPE Srb, IN PSENSE_INFO SenseInfo)
 {
-    PADAPTER_EXTENSION adaptExt = (PADAPTER_EXTENSION)DeviceExtension;
     PSENSE_DATA senseInfoBuffer = NULL;
     UCHAR senseInfoBufferLength = 0;
     SRB_GET_SENSE_INFO_BUFFER(Srb, senseInfoBuffer);
@@ -2220,17 +2230,17 @@ SetSenseInfo(IN PVOID DeviceExtension, IN PSRB_TYPE Srb)
         UCHAR ScsiStatus = SCSISTAT_CHECK_CONDITION;
         senseInfoBuffer->ErrorCode = SCSI_SENSE_ERRORCODE_FIXED_CURRENT;
         senseInfoBuffer->Valid = 1;
-        senseInfoBuffer->SenseKey = adaptExt->sense_info.senseKey;
+        senseInfoBuffer->SenseKey = SenseInfo->senseKey;
         senseInfoBuffer->AdditionalSenseLength = sizeof(SENSE_DATA) -
                                                  FIELD_OFFSET(SENSE_DATA, AdditionalSenseLength); // 0xb ??
-        senseInfoBuffer->AdditionalSenseCode = adaptExt->sense_info.additionalSenseCode;
-        senseInfoBuffer->AdditionalSenseCodeQualifier = adaptExt->sense_info.additionalSenseCodeQualifier;
+        senseInfoBuffer->AdditionalSenseCode = SenseInfo->additionalSenseCode;
+        senseInfoBuffer->AdditionalSenseCodeQualifier = SenseInfo->additionalSenseCodeQualifier;
         SRB_SET_SCSI_STATUS(((PSRB_TYPE)Srb), ScsiStatus);
         RhelDbgPrint(TRACE_LEVEL_INFORMATION,
                      " senseKey = 0x%x asc = 0x%x ascq = 0x%x\n",
-                     adaptExt->sense_info.senseKey,
-                     adaptExt->sense_info.additionalSenseCode,
-                     adaptExt->sense_info.additionalSenseCodeQualifier);
+                     SenseInfo->senseKey,
+                     SenseInfo->additionalSenseCode,
+                     SenseInfo->additionalSenseCodeQualifier);
         return TRUE;
     }
     RhelDbgPrint(TRACE_LEVEL_ERROR,
