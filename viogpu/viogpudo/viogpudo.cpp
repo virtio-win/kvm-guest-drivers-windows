@@ -3823,10 +3823,12 @@ void VioGpuAdapter::ConfigChanged(void)
     virtio_get_config(&m_VioDev, FIELD_OFFSET(GPU_CONFIG, events_read), &events_read, sizeof(m_u32NumScanouts));
     if (events_read & VIRTIO_GPU_EVENT_DISPLAY)
     {
-        BOOLEAN wasConnected = IsChildConnected(0);
-        GetDisplayInfo();
+        // Cleared before the display info is read, not after: a change the host makes meanwhile raises the event
+        // again, where clearing it afterwards would lose it.
         events_clear |= VIRTIO_GPU_EVENT_DISPLAY;
         virtio_set_config(&m_VioDev, FIELD_OFFSET(GPU_CONFIG, events_clear), &events_clear, sizeof(m_u32NumScanouts));
+        BOOLEAN wasConnected = IsChildConnected(0);
+        GetDisplayInfo();
         //        ProcessEdid();
         BOOLEAN connected = IsChildConnected(0);
         DbgPrint(TRACE_LEVEL_FATAL, ("<--> %s child 0 connected %d -> %d\n", __FUNCTION__, wasConnected, connected));
