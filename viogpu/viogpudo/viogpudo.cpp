@@ -3376,7 +3376,6 @@ NTSTATUS VioGpuAdapter::SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSet
     {
         PGPU_UPDATE_CURSOR crsr;
         PGPU_VBUFFER vbuf;
-        UINT ret = 0;
         crsr = (PGPU_UPDATE_CURSOR)m_CursorQueue.AllocCursor(&vbuf);
         RtlZeroMemory(crsr, sizeof(*crsr));
 
@@ -3396,15 +3395,9 @@ NTSTATUS VioGpuAdapter::SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSet
         // Remember the hot spot for the UPDATE_CURSOR that re-attaches the sprite after a later hide.
         m_CursorHotX = pSetPointerShape->XHot;
         m_CursorHotY = pSetPointerShape->YHot;
-        ret = m_CursorQueue.QueueCursor(vbuf);
-        DbgPrint(TRACE_LEVEL_INFORMATION, ("<--- %s vbuf = %p, ret = %d\n", __FUNCTION__, vbuf, ret));
-        if (ret == 0)
+        if (m_CursorQueue.QueueCursor(vbuf))
         {
             status = STATUS_SUCCESS;
-        }
-        else
-        {
-            VioGpuDbgBreak();
         }
     }
 
@@ -3447,10 +3440,10 @@ NTSTATUS VioGpuAdapter::SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION
         {
             PGPU_UPDATE_CURSOR crsr;
             PGPU_VBUFFER vbuf;
-            UINT ret = 0;
+            UINT s = pModeCur->ScanoutId;
             crsr = (PGPU_UPDATE_CURSOR)m_CursorQueue.AllocCursor(&vbuf);
             RtlZeroMemory(crsr, sizeof(*crsr));
-            crsr->pos.scanout_id = pModeCur->ScanoutId;
+            crsr->pos.scanout_id = s;
             if (visible)
             {
                 m_CursorX[pModeCur->ScanoutId] = pSetPointerPosition->X;
@@ -3463,7 +3456,6 @@ NTSTATUS VioGpuAdapter::SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION
                 // attached: a parked sprite stays visible in the top left corner of the display.
                 crsr->hdr.type = VIRTIO_GPU_CMD_UPDATE_CURSOR;
                 crsr->resource_id = 0;
-                m_bCursorHidden[pModeCur->ScanoutId] = TRUE;
             }
             else if (m_bCursorHidden[pModeCur->ScanoutId])
             {
@@ -3476,9 +3468,6 @@ NTSTATUS VioGpuAdapter::SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION
                 crsr->pos.y = pSetPointerPosition->Y;
                 crsr->hot_x = m_CursorHotX;
                 crsr->hot_y = m_CursorHotY;
-                m_ShownHotX[pModeCur->ScanoutId] = m_CursorHotX;
-                m_ShownHotY[pModeCur->ScanoutId] = m_CursorHotY;
-                m_bCursorHidden[pModeCur->ScanoutId] = FALSE;
             }
             else
             {
@@ -3488,15 +3477,18 @@ NTSTATUS VioGpuAdapter::SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION
                 crsr->pos.y = pSetPointerPosition->Y;
             }
 
-            ret = m_CursorQueue.QueueCursor(vbuf);
-            DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s vbuf = %p, ret = %d\n", __FUNCTION__, vbuf, ret));
-            if (ret == 0)
+            // The sprite's state changes only with a command that reached the device: one that did not is sent
+            // again with the next position.
+            BOOLEAN WasHidden = m_bCursorHidden[s];
+            if (m_CursorQueue.QueueCursor(vbuf))
             {
+                m_bCursorHidden[s] = !visible;
+                if (visible && WasHidden)
+                {
+                    m_ShownHotX[s] = m_CursorHotX;
+                    m_ShownHotY[s] = m_CursorHotY;
+                }
                 status = STATUS_SUCCESS;
-            }
-            else
-            {
-                VioGpuDbgBreak();
             }
         }
     }
@@ -3964,6 +3956,9 @@ PAGED_CODE_SEG_END
 
 BOOLEAN VioGpuAdapter::ResetToVgaMode(void)
 {
+    // The bugcheck flow: the commands below must neither wait for room in the queue nor free under a spin lock.
+    m_CtrlQueue.SetNoWait(TRUE);
+    m_CursorQueue.SetNoWait(TRUE);
     for (UINT SourceId = 0; SourceId < MAX_VIEWS; SourceId++)
     {
         DestroyFrameBufferObj(SourceId, TRUE, TRUE);
@@ -4194,11 +4189,13 @@ VOID VioGpuAdapter::DpcRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface)
                               resp->ctx_id,
                               pcmd->type));
                 }
+                // A waiter the callback wakes may free the buffer at once: whether to free it is read first.
+                bool release = pvbuf->auto_release;
                 if (pvbuf->complete_cb != NULL)
                 {
                     pvbuf->complete_cb(pvbuf->complete_ctx);
                 }
-                if (pvbuf->auto_release)
+                if (release)
                 {
                     m_CtrlQueue.ReleaseBuffer(pvbuf);
                 }

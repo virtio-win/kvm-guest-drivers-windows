@@ -208,6 +208,14 @@ class VioGpuQueue
         m_pBuf = pbuf;
     }
     void ReleaseBuffer(PGPU_VBUFFER buf);
+    BOOLEAN AddBufWait(_In_ struct VirtIOBufferDescriptor sg[], _In_ UINT out_num, _In_ UINT in_num, _In_ void *data);
+    void DropBuffer(PGPU_VBUFFER buf);
+    // For the bugcheck flow: a full ring is not waited for, and the buffer of a command that is not sent is left
+    // allocated rather than freed under a spin lock.
+    void SetNoWait(BOOLEAN NoWait)
+    {
+        m_bNoWait = NoWait;
+    }
 
   protected:
     _IRQL_requires_max_(DISPATCH_LEVEL) _IRQL_saves_global_(OldIrql,
@@ -219,6 +227,7 @@ class VioGpuQueue
     VirtIODevice *m_pVIODevice;
     UINT m_Index;
     KSPIN_LOCK m_SpinLock;
+    volatile BOOLEAN m_bNoWait;
 
   protected:
     VioGpuBuf *m_pBuf;
@@ -235,7 +244,8 @@ class CtrlQueue : public VioGpuQueue
     PVOID AllocCmd(PGPU_VBUFFER *buf, int sz);
     PVOID AllocCmdResp(PGPU_VBUFFER *buf, int cmd_sz, PVOID resp_buf, int resp_sz);
 
-    UINT QueueBuffer(PGPU_VBUFFER buf);
+    BOOLEAN QueueBuffer(PGPU_VBUFFER buf);
+    BOOLEAN QueueAndWait(PGPU_VBUFFER buf);
     PGPU_VBUFFER DequeueBuffer(_Out_ UINT *len);
 
     void CreateResource(UINT res_id, UINT format, UINT width, UINT height);
@@ -260,6 +270,6 @@ class CrsrQueue : public VioGpuQueue
 {
   public:
     PVOID AllocCursor(PGPU_VBUFFER *buf);
-    UINT QueueCursor(PGPU_VBUFFER buf);
+    BOOLEAN QueueCursor(PGPU_VBUFFER buf);
     PGPU_VBUFFER DequeueCursor(_Out_ UINT *len);
 };
