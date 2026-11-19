@@ -211,6 +211,7 @@ class VioGpuAdapter : IVioGpuPCI
     BOOLEAN GpuObjectAttach(UINT res_id, VioGpuObj *obj);
     void static ThreadWork(_In_ PVOID Context);
     void ThreadWorkRoutine(void);
+    void StopWorkThread(void);
     void ConfigChanged(void);
     NTSTATUS VirtIoDeviceInit(void);
     VOID CreateResolutionEvent(VOID);
@@ -292,7 +293,7 @@ class VioGpuAdapter : IVioGpuPCI
     volatile ULONG m_PendingWorks;
     KEVENT m_ConfigUpdateEvent;
     PETHREAD m_pWorkThread;
-    BOOLEAN m_bStopWorkThread;
+    volatile BOOLEAN m_bStopWorkThread;
     PKEVENT m_ResolutionEvent;
     HANDLE m_ResolutionEventHandle;
     // Per source: an auto-reset event that stays set until the source's helper thread waits on it, where the pulse of
@@ -426,6 +427,10 @@ class VioGpuDod
                          _In_ DXGKRNL_INTERFACE *pDxgkInterface,
                          _Out_ ULONG *pNumberOfViews,
                          _Out_ ULONG *pNumberOfChildren);
+    NTSTATUS StartAdapter(_In_ DXGK_START_INFO *pDxgkStartInfo,
+                          _In_ DXGKRNL_INTERFACE *pDxgkInterface,
+                          _Out_ ULONG *pNumberOfViews,
+                          _Out_ ULONG *pNumberOfChildren);
     NTSTATUS StopDevice(VOID);
     VOID ResetDevice(VOID);
     NTSTATUS DispatchIoRequest(_In_ ULONG VidPnSourceId, _In_ VIDEO_REQUEST_PACKET *pVideoRequestPacket);
