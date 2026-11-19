@@ -2675,6 +2675,8 @@ VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod)
     m_u32NumScanouts = 0;
 
     KeInitializeEvent(&m_ConfigUpdateEvent, SynchronizationEvent, FALSE);
+    m_DisplayChangePending = FALSE;
+    KeInitializeMutex(&m_DeviceMutex, 0);
 }
 
 VioGpuAdapter::~VioGpuAdapter(void)
@@ -2856,7 +2858,13 @@ NTSTATUS VioGpuAdapter::SetPowerState(DXGK_DEVICE_INFO *pDeviceInfo,
         case PowerDeviceUnspecified:
         case PowerDeviceD0:
             {
+                // The host raises no display interrupt while the device is down, and may have changed its displays:
+                // the display info is read again.
+                KeWaitForSingleObject(&m_DeviceMutex, Executive, KernelMode, FALSE, NULL);
                 VioGpuAdapterInit(&pCurrentModes[0].DispInfo);
+                m_DisplayChangePending = TRUE;
+                KeReleaseMutex(&m_DeviceMutex, FALSE);
+                KeSetEvent(&m_ConfigUpdateEvent, IO_NO_INCREMENT, FALSE);
             }
             break;
         case PowerDeviceD1:
@@ -2876,7 +2884,9 @@ NTSTATUS VioGpuAdapter::SetPowerState(DXGK_DEVICE_INFO *pDeviceInfo,
                     m_bCursorHidden[i] = TRUE;
                 }
                 KeReleaseGuardedMutex(&m_CursorMutex);
+                KeWaitForSingleObject(&m_DeviceMutex, Executive, KernelMode, FALSE, NULL);
                 VioGpuAdapterClose();
+                KeReleaseMutex(&m_DeviceMutex, FALSE);
             }
             break;
     }
@@ -3748,11 +3758,15 @@ BOOLEAN VioGpuAdapter::GetDisplayInfo(void)
 
     if (m_CtrlQueue.AskDisplayInfo(&vbuf))
     {
-        if (m_CtrlQueue.GetEnabledScanouts(vbuf, m_u32NumScanouts, &enabled))
+        if (!m_CtrlQueue.GetEnabledScanouts(vbuf, m_u32NumScanouts, &enabled))
         {
-            m_ConnectedScanouts = enabled;
-            DbgPrint(TRACE_LEVEL_INFORMATION, ("---> %s enabled scanouts 0x%x\n", __FUNCTION__, enabled));
+            // An error answer says nothing about the displays: as without an answer, everything stays as it was.
+            m_CtrlQueue.ReleaseBuffer(vbuf);
+            DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s the host answered with an error\n", __FUNCTION__));
+            return FALSE;
         }
+        m_ConnectedScanouts = enabled;
+        DbgPrint(TRACE_LEVEL_INFORMATION, ("---> %s enabled scanouts 0x%x\n", __FUNCTION__, enabled));
         // Each scanout's size goes to its slot, the preferred mode of the target with the same number; a disabled
         // scanout gets the nominal one.
         for (UINT i = 0; i < GetNumScanouts(); i++)
@@ -3772,13 +3786,11 @@ BOOLEAN VioGpuAdapter::GetDisplayInfo(void)
             }
         }
         m_CtrlQueue.ReleaseBuffer(vbuf);
-        return found;
+        DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s %s\n", __FUNCTION__, found ? "sizes" : "no sizes"));
+        return TRUE;
     }
-    for (UINT i = 0; i < GetNumScanouts(); i++)
-    {
-        SetCustomDisplay(i, NOM_WIDTH_SIZE, NOM_HEIGHT_SIZE);
-    }
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+    // No answer: the sizes and the connected scanouts stay as they were.
+    DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s no answer from the host\n", __FUNCTION__));
     return FALSE;
 }
 
@@ -3806,16 +3818,19 @@ void VioGpuAdapter::FixEdid(void)
     EdidSetChecksum(buf);
 }
 
-// Reads a scanout's EDID from the host. A host that does not answer leaves the scanout the EDID it had.
-void VioGpuAdapter::ReadEdid(UINT ScanoutId)
+// Reads a scanout's EDID from the host. FALSE when the host offers EDIDs but gave none, without an answer or with an
+// error answer: the scanout keeps the EDID it had. An EDID that is not valid counts as read, and leaves the scanout
+// the built-in one.
+BOOLEAN VioGpuAdapter::ReadEdid(UINT ScanoutId)
 {
     PAGED_CODE();
 
     if (!virtio_is_feature_enabled(m_u64HostFeatures, VIRTIO_GPU_F_EDID) || ScanoutId >= MAX_CHILDREN)
     {
-        return;
+        return TRUE;
     }
 
+    BOOLEAN Read = FALSE;
     PGPU_VBUFFER vbuf = NULL;
     BYTE Edid[EDID_MAX_SIZE];
     ULONG Copied = 0;
@@ -3827,6 +3842,7 @@ void VioGpuAdapter::ReadEdid(UINT ScanoutId)
         RtlCopyMemory(m_EDIDs[ScanoutId], Edid, Size);
         m_EdidSize[ScanoutId] = Size;
         KeReleaseGuardedMutex(&m_EdidMutex);
+        Read = TRUE;
         DbgPrint(TRACE_LEVEL_INFORMATION,
                  ("%s: scanout %d: %s EDID, %d bytes, %d extension(s) announced\n",
                   __FUNCTION__,
@@ -3839,6 +3855,7 @@ void VioGpuAdapter::ReadEdid(UINT ScanoutId)
     {
         m_CtrlQueue.ReleaseBuffer(vbuf);
     }
+    return Read;
 }
 
 // Returns the index of the mode of this size after the scanouts' slots, adding it if it is new. -1 if the table is
@@ -4033,7 +4050,8 @@ NTSTATUS VioGpuAdapter::BuildModeList(DXGK_DISPLAY_INFORMATION *pDispInfo)
 
     DbgPrint(TRACE_LEVEL_INFORMATION, ("ModeCount filtered %d\n", m_ModeCount));
 
-    GetDisplayInfo();
+    // Without an answer, the config-change thread asks again a second after it starts.
+    m_DisplayChangePending = !GetDisplayInfo();
 
     if (m_pVioGpuDod->IsPersistentDispMode0Set())
     {
@@ -4203,18 +4221,26 @@ void VioGpuAdapter::ThreadWorkRoutine(void)
 {
     KeSetPriorityThread(KeGetCurrentThread(), LOW_REALTIME_PRIORITY);
 
+    // A display change not fully handled, as one the host did not answer about, is handled again a second later, the
+    // one at start as well.
+    LARGE_INTEGER Retry;
+    Retry.QuadPart = -10000000LL;
+    BOOLEAN Pending = m_DisplayChangePending;
     for (;;)
     {
-        KeWaitForSingleObject(&m_ConfigUpdateEvent, Executive, KernelMode, FALSE, NULL);
+        KeWaitForSingleObject(&m_ConfigUpdateEvent, Executive, KernelMode, FALSE, Pending ? &Retry : NULL);
 
         if (m_bStopWorkThread)
         {
             PsTerminateSystemThread(STATUS_SUCCESS);
             break;
         }
-        ConfigChanged();
+        // A powered-down device is not asked; the change waits until it is back.
+        KeWaitForSingleObject(&m_DeviceMutex, Executive, KernelMode, FALSE, NULL);
+        Pending = m_pVioGpuDod->IsHardwareInit() ? !ConfigChanged() : TRUE;
+        KeReleaseMutex(&m_DeviceMutex, FALSE);
         // viogpuap applies the host's sizes to connected outputs; an unplugged one has no size to apply.
-        if (m_ConnectedScanouts != 0)
+        if (!Pending && !m_bStopWorkThread && m_ConnectedScanouts != 0)
         {
             NotifyResolutionEvent();
         }
@@ -4222,7 +4248,8 @@ void VioGpuAdapter::ThreadWorkRoutine(void)
 }
 
 // Stops the config-change thread and waits for it, while the device still runs: the thread uses the device, the
-// mode table and the resolution event. Every wait in the thread is bounded.
+// mode table and the resolution event. Every wait in the thread is bounded, but for m_DeviceMutex, which the power
+// path holds only while it closes or opens the device.
 void VioGpuAdapter::StopWorkThread(void)
 {
     PAGED_CODE();
@@ -4238,7 +4265,9 @@ void VioGpuAdapter::StopWorkThread(void)
     m_pWorkThread = NULL;
 }
 
-void VioGpuAdapter::ConfigChanged(void)
+// Handles a display change. FALSE when it is not done, the host not having answered, or not given the EDID of a
+// display it plugged in: the change is left pending, to be handled again.
+BOOLEAN VioGpuAdapter::ConfigChanged(void)
 {
     DbgPrint(TRACE_LEVEL_FATAL, ("<--> %s\n", __FUNCTION__));
     UINT32 events_read, events_clear = 0;
@@ -4246,11 +4275,19 @@ void VioGpuAdapter::ConfigChanged(void)
     if (events_read & VIRTIO_GPU_EVENT_DISPLAY)
     {
         // Cleared before the display info is read, not after: a change the host makes meanwhile raises the event
-        // again, where clearing it afterwards would lose it.
+        // again, where clearing it afterwards would lose it. The change stays pending here until it is read.
         events_clear |= VIRTIO_GPU_EVENT_DISPLAY;
         virtio_set_config(&m_VioDev, FIELD_OFFSET(GPU_CONFIG, events_clear), &events_clear, sizeof(m_u32NumScanouts));
+        m_DisplayChangePending = TRUE;
+    }
+    if (m_DisplayChangePending)
+    {
         ULONG wasConnected = m_ConnectedScanouts;
-        GetDisplayInfo();
+        if (!GetDisplayInfo())
+        {
+            return FALSE;
+        }
+        m_DisplayChangePending = FALSE;
         ULONG connected = m_ConnectedScanouts;
         // The display on a scanout may be another one now, with another EDID: Windows reads it after the
         // announcement below, and gets the modes it brings.
@@ -4258,9 +4295,18 @@ void VioGpuAdapter::ConfigChanged(void)
         {
             if (connected & (1UL << child))
             {
-                ReadEdid(child);
+                BOOLEAN PluggedIn = !(wasConnected & (1UL << child));
+                if (!ReadEdid(child) && PluggedIn)
+                {
+                    // The EDID left is the unplugged display's. The new one gets the built-in EDID, which Windows
+                    // keeps for it until it is plugged in again; the EDID read again a second later brings its modes.
+                    KeAcquireGuardedMutex(&m_EdidMutex);
+                    m_EdidSize[child] = 0;
+                    KeReleaseGuardedMutex(&m_EdidMutex);
+                    m_DisplayChangePending = TRUE;
+                }
                 AddScanoutModes(child);
-                if (!(wasConnected & (1UL << child)))
+                if (PluggedIn)
                 {
                     // Windows may give a display it knows the mode it had last: the host's size is new to it.
                     KeAcquireGuardedMutex(&m_HostModeMutex);
@@ -4280,6 +4326,7 @@ void VioGpuAdapter::ConfigChanged(void)
             }
         }
     }
+    return !m_DisplayChangePending;
 }
 
 VOID VioGpuAdapter::DpcRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface)

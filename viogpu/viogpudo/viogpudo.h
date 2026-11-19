@@ -194,7 +194,7 @@ class VioGpuAdapter : IVioGpuPCI
     BOOLEAN GetDisplayInfo(void);
     void ProcessEdid(void);
     void FixEdid(void);
-    void ReadEdid(UINT ScanoutId);
+    BOOLEAN ReadEdid(UINT ScanoutId);
     PBYTE GetEdidData(UINT ScanoutId);
     ULONG GetEdidSize(UINT ScanoutId);
     INT AddMode(USHORT xres, USHORT yres);
@@ -212,7 +212,7 @@ class VioGpuAdapter : IVioGpuPCI
     void static ThreadWork(_In_ PVOID Context);
     void ThreadWorkRoutine(void);
     void StopWorkThread(void);
-    void ConfigChanged(void);
+    BOOLEAN ConfigChanged(void);
     NTSTATUS VirtIoDeviceInit(void);
     VOID CreateResolutionEvent(VOID);
     VOID NotifyResolutionEvent(VOID);
@@ -292,6 +292,12 @@ class VioGpuAdapter : IVioGpuPCI
     UINT m_FrameSegmentSize;
     volatile ULONG m_PendingWorks;
     KEVENT m_ConfigUpdateEvent;
+    // A display change not fully handled yet: its display info, or the EDID of a display it plugged in, is still to
+    // be read. The config-change thread and the power path change it under m_DeviceMutex.
+    BOOLEAN m_DisplayChangePending;
+    // Held by the config-change thread while it handles a display change, and by the power path while it closes the
+    // device: the device is not closed under a change being handled.
+    KMUTEX m_DeviceMutex;
     PETHREAD m_pWorkThread;
     volatile BOOLEAN m_bStopWorkThread;
     PKEVENT m_ResolutionEvent;
