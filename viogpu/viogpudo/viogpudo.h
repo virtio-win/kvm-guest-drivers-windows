@@ -44,7 +44,8 @@ typedef struct
     UINT FlexResolution : 1;
     UINT UsePhysicalMemory : 1;
     UINT UsePresentProgress : 1;
-    UINT Unused : 25;
+    UINT UseFreshResourceId : 1;
+    UINT Unused : 24;
 } DRIVER_STATUS_FLAG;
 
 #pragma pack(pop)
@@ -168,7 +169,7 @@ class VioGpuAdapter : IVioGpuPCI
     NTSTATUS UpdateChildStatus(BOOLEAN connect);
     void SetCustomDisplay(_In_ USHORT xres, _In_ USHORT yres);
     BOOLEAN CreateFrameBufferObj(PVIDEO_MODE_INFORMATION pModeInfo, CURRENT_MODE *pCurrentMode);
-    void DestroyFrameBufferObj(BOOLEAN bReset, BOOLEAN bKeepBuffer);
+    void DestroyFrameBufferObj(BOOLEAN bKeepBuffer);
     BOOLEAN CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape, _In_ CONST CURRENT_MODE *pCurrentMode);
     BOOLEAN UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape, _In_ CONST CURRENT_MODE *pCurrentMode);
     void DestroyCursor(void);
@@ -303,6 +304,14 @@ class VioGpuDod
     void SetUsePresentProgress(BOOLEAN enable)
     {
         m_Flags.UsePresentProgress = enable;
+    }
+    BOOLEAN IsUseFreshResourceId() const
+    {
+        return m_Flags.UseFreshResourceId;
+    }
+    void SetUseFreshResourceId(BOOLEAN enable)
+    {
+        m_Flags.UseFreshResourceId = enable;
     }
     void SetPersistentDispMode0Width(USHORT res)
     {
