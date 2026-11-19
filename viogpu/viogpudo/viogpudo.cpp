@@ -3668,12 +3668,14 @@ void VioGpuAdapter::DestroyFrameBufferObj(BOOLEAN bReset, BOOLEAN bKeepBuffer)
     if (m_pFrameBuf != NULL)
     {
         resid = (UINT)m_pFrameBuf->GetId();
-        m_CtrlQueue.DetachBacking(resid);
-        m_CtrlQueue.DestroyResource(resid);
+        // Take the resource off the scanout before freeing it: a host that is still
+        // scanning out a freed resource may keep its texture alive.
         if (bReset == TRUE)
         {
             m_CtrlQueue.SetScanout(0, 0, 0, 0, 0, 0);
         }
+        m_CtrlQueue.DetachBacking(resid);
+        m_CtrlQueue.DestroyResource(resid);
 
         if (bKeepBuffer)
         {
