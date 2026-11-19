@@ -2660,6 +2660,15 @@ NTSTATUS VioGpuAdapter::SetPowerState(DXGK_DEVICE_INFO *pDeviceInfo,
                 {
                     DisableSource(&pCurrentModes[i]);
                 }
+                // The device forgets the cursor resource and its sprites with the reset below. The next shape
+                // creates the resource again, and the next visible position attaches it.
+                KeAcquireGuardedMutex(&m_CursorMutex);
+                DestroyCursor();
+                for (UINT i = 0; i < MAX_VIEWS; i++)
+                {
+                    m_bCursorHidden[i] = TRUE;
+                }
+                KeReleaseGuardedMutex(&m_CursorMutex);
                 VioGpuAdapterClose();
             }
             break;
