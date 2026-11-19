@@ -139,9 +139,13 @@ class VioGpuAdapter : IVioGpuPCI
     }
     PDXGKRNL_INTERFACE GetDxgkInterface(void);
 
-    PVIDEO_MODE_INFORMATION GetModeInfo(UINT idx)
+    // A copy of a mode: the config-change thread rewrites the scanouts' slots under m_HostModeMutex.
+    VIDEO_MODE_INFORMATION GetModeSnapshot(UINT idx)
     {
-        return &m_ModeInfo[idx];
+        KeAcquireGuardedMutex(&m_HostModeMutex);
+        VIDEO_MODE_INFORMATION Mode = m_ModeInfo[idx];
+        KeReleaseGuardedMutex(&m_HostModeMutex);
+        return Mode;
     }
     USHORT GetCurrentModeIndex(void)
     {
@@ -217,7 +221,8 @@ class VioGpuAdapter : IVioGpuPCI
     VioGpuDod *m_pVioGpuDod;
     // The modes: first one slot per scanout for the size the host asks for on it, then the modes of the EDIDs.
     // Modes of displays plugged in later are appended up to m_ModeCapacity; nothing moves or goes away, so the
-    // DDIs can read the table while the config-change thread adds to it.
+    // DDIs can read the table while the config-change thread adds to it. The scanouts' slots are rewritten in place,
+    // under m_HostModeMutex: the DDIs read modes with GetModeSnapshot.
     PVIDEO_MODE_INFORMATION m_ModeInfo;
     volatile ULONG m_ModeCount;
     ULONG m_ModeCapacity;
@@ -250,6 +255,12 @@ class VioGpuAdapter : IVioGpuPCI
     // Per scanout: the source whose framebuffer was set on it last, or -1. Only that source takes it off
     // again; another source may have been set on the scanout since.
     INT m_ScanoutOwner[MAX_CHILDREN];
+    // Per scanout: changes with each change of the host's size and each plug-in (VIOGPU_SOURCE_MODE.Generation), to
+    // the next value of m_HostModeSerial, so that no two scanouts share one. The size in the scanout's slot and its
+    // generation change together under m_HostModeMutex, which the DDIs that read the slots take as well.
+    ULONG m_HostModeGeneration[MAX_CHILDREN];
+    ULONG m_HostModeSerial;
+    KGUARDED_MUTEX m_HostModeMutex;
     VioGpuObj *m_pCursorBuf;
     // Serializes SetPointerShape against SetPointerPosition: dxgkrnl calls the two pointer DDIs from
     // different threads without synchronizing them. A concurrent MOVE_CURSOR can then interleave with the
@@ -284,6 +295,10 @@ class VioGpuAdapter : IVioGpuPCI
     BOOLEAN m_bStopWorkThread;
     PKEVENT m_ResolutionEvent;
     HANDLE m_ResolutionEventHandle;
+    // Per source: an auto-reset event that stays set until the source's helper thread waits on it, where the pulse of
+    // m_ResolutionEvent is lost on a thread that is not waiting at that moment.
+    PKEVENT m_SourceEvents[MAX_VIEWS];
+    HANDLE m_SourceEventHandles[MAX_VIEWS];
 };
 
 class VioGpuDod

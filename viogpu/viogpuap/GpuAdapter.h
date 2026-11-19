@@ -78,9 +78,9 @@ class GpuAdapter
     }
     bool GetCurrentResolution(PVIOGPU_DISP_MODE mode);
     DISPLAYCONFIG_MODE_INFO *GetDisplayConfig(void);
-    bool GetCustomResolution(PVIOGPU_DISP_MODE mode);
+    bool GetCustomResolution(PVIOGPU_DISP_MODE mode, PULONG pGeneration);
     bool SetResolution(PVIOGPU_DISP_MODE mode);
-    void SyncResolution(void);
+    bool SyncResolution(void);
     void UpdateDisplayConfig(void);
     void ClearDisplayConfig(void);
 
@@ -90,7 +90,11 @@ class GpuAdapter
   private:
     HANDLE m_hThread;
     HANDLE m_hStopEvent;
+    // The driver's event for this display's source, which stays set until Run waits on it; with a driver that has
+    // none, the device's event, which the driver pulses.
     HANDLE m_hResolutionEvent;
+    // The generation of the host's size that this display has (VIOGPU_SOURCE_MODE.Generation), 0 for none.
+    ULONG m_AppliedGeneration;
     HDC m_hDC;
     D3DKMT_HANDLE m_hAdapter;
     // The driver's adapter id (VIOGPU_GET_DEVICE_ID), which names its resolution event.

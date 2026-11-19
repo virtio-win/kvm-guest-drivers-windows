@@ -1001,7 +1001,8 @@ NTSTATUS VioGpuDod::AddSingleSourceMode(_In_ CONST DXGK_VIDPNSOURCEMODESET_INTER
     for (ULONG idx = 0; idx < m_pHWDevice->GetModeCount(); ++idx)
     {
         D3DKMDT_VIDPN_SOURCE_MODE *pVidPnSourceModeInfo = NULL;
-        PVIDEO_MODE_INFORMATION pModeInfo = m_pHWDevice->GetModeInfo(idx);
+        VIDEO_MODE_INFORMATION Mode = m_pHWDevice->GetModeSnapshot(idx);
+        PVIDEO_MODE_INFORMATION pModeInfo = &Mode;
         // There is no scaling, so a pinned target mode allows only a source mode of the same size.
         if (pPinnedTargetSize != NULL &&
             (pModeInfo->VisScreenWidth != pPinnedTargetSize->cx || pModeInfo->VisScreenHeight != pPinnedTargetSize->cy))
@@ -1116,12 +1117,14 @@ NTSTATUS VioGpuDod::AddSingleTargetMode(_In_ CONST DXGK_VIDPNTARGETMODESET_INTER
 
     // There is no scaling, so a pinned source mode allows only a target mode of the same size. Otherwise every mode
     // is offered, and the size the host asks for on this scanout is the preferred one.
-    PVIDEO_MODE_INFORMATION pPreferred = m_pHWDevice->GetModeInfo(m_pHWDevice->GetPreferredModeIndex(TargetId));
+    VIDEO_MODE_INFORMATION PreferredMode = m_pHWDevice->GetModeSnapshot(m_pHWDevice->GetPreferredModeIndex(TargetId));
+    PVIDEO_MODE_INFORMATION pPreferred = &PreferredMode;
     BOOLEAN PreferredAdded = FALSE;
 
     for (UINT ModeIndex = 0; ModeIndex < m_pHWDevice->GetModeCount(); ++ModeIndex)
     {
-        PVIDEO_MODE_INFORMATION pModeInfo = m_pHWDevice->GetModeInfo(ModeIndex);
+        VIDEO_MODE_INFORMATION Mode = m_pHWDevice->GetModeSnapshot(ModeIndex);
+        PVIDEO_MODE_INFORMATION pModeInfo = &Mode;
         if (pVidPnPinnedSourceModeInfo != NULL &&
             (pModeInfo->VisScreenWidth != (ULONG)pVidPnPinnedSourceModeInfo->Format.Graphics.PrimSurfSize.cx ||
              pModeInfo->VisScreenHeight != (ULONG)pVidPnPinnedSourceModeInfo->Format.Graphics.PrimSurfSize.cy))
@@ -1193,7 +1196,8 @@ NTSTATUS VioGpuDod::AddSingleMonitorMode(_In_ CONST DXGKARG_RECOMMENDMONITORMODE
         return Status;
     }
 
-    pVbeModeInfo = m_pHWDevice->GetModeInfo(m_pHWDevice->GetPreferredModeIndex(pRecommendMonitorModes->VideoPresentTargetId));
+    VIDEO_MODE_INFORMATION Mode = m_pHWDevice->GetModeSnapshot(m_pHWDevice->GetPreferredModeIndex(pRecommendMonitorModes->VideoPresentTargetId));
+    pVbeModeInfo = &Mode;
 
     BuildVideoSignalInfo(&pMonitorSourceMode->VideoSignalInfo, pVbeModeInfo);
 
@@ -1229,7 +1233,8 @@ NTSTATUS VioGpuDod::AddSingleMonitorMode(_In_ CONST DXGKARG_RECOMMENDMONITORMODE
 
     for (UINT Idx = 0; Idx < m_pHWDevice->GetModeCount(); ++Idx)
     {
-        pVbeModeInfo = m_pHWDevice->GetModeInfo(Idx);
+        Mode = m_pHWDevice->GetModeSnapshot(Idx);
+        pVbeModeInfo = &Mode;
 
         Status = pRecommendMonitorModes->pMonitorSourceModeSetInterface->pfnCreateNewModeInfo(pRecommendMonitorModes->hMonitorSourceModeSet,
                                                                                               &pMonitorSourceMode);
@@ -2600,14 +2605,19 @@ VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod)
         m_CursorY[i] = 0;
         m_ShownHotX[i] = 0;
         m_ShownHotY[i] = 0;
+        m_SourceEvents[i] = NULL;
+        m_SourceEventHandles[i] = NULL;
     }
     for (UINT i = 0; i < MAX_CHILDREN; i++)
     {
         m_ScanoutOwner[i] = -1;
+        m_HostModeGeneration[i] = 0;
     }
+    m_HostModeSerial = 0;
     m_FrameSegmentSize = 0;
     KeInitializeGuardedMutex(&m_CursorMutex);
     KeInitializeGuardedMutex(&m_EdidMutex);
+    KeInitializeGuardedMutex(&m_HostModeMutex);
     m_ModeCapacity = 0;
     m_CursorHotX = 0;
     m_CursorHotY = 0;
@@ -2927,6 +2937,28 @@ VOID VioGpuAdapter::CreateResolutionEvent(VOID)
     }
     KeClearEvent(m_ResolutionEvent);
     ObReferenceObject(m_ResolutionEvent);
+
+    for (UINT SourceId = 0; SourceId < GetNumScanouts(); SourceId++)
+    {
+        status = RtlUnicodeStringPrintf(&EventName,
+                                        L"%ws%ws%ws_%u",
+                                        BASE_NAMED_OBJECTS,
+                                        RESOLUTION_EVENT_NAME,
+                                        DeviceNumber.Buffer,
+                                        SourceId);
+        if (!NT_SUCCESS(status))
+        {
+            break;
+        }
+        m_SourceEvents[SourceId] = IoCreateSynchronizationEvent(&EventName, &m_SourceEventHandles[SourceId]);
+        if (m_SourceEvents[SourceId] == NULL)
+        {
+            DbgPrint(TRACE_LEVEL_ERROR, ("%s: no event for source %d\n", __FUNCTION__, SourceId));
+            continue;
+        }
+        KeClearEvent(m_SourceEvents[SourceId]);
+        ObReferenceObject(m_SourceEvents[SourceId]);
+    }
 }
 
 VOID VioGpuAdapter::NotifyResolutionEvent(VOID)
@@ -2938,6 +2970,13 @@ VOID VioGpuAdapter::NotifyResolutionEvent(VOID)
         DbgPrint(TRACE_LEVEL_ERROR, ("NotifyResolutionEvent\n"));
         KeSetEvent(m_ResolutionEvent, IO_NO_INCREMENT, FALSE);
         KeClearEvent(m_ResolutionEvent);
+    }
+    for (UINT SourceId = 0; SourceId < MAX_VIEWS; SourceId++)
+    {
+        if (m_SourceEvents[SourceId] != NULL)
+        {
+            KeSetEvent(m_SourceEvents[SourceId], IO_NO_INCREMENT, FALSE);
+        }
     }
 }
 
@@ -2955,6 +2994,20 @@ VOID VioGpuAdapter::CloseResolutionEvent(VOID)
     {
         ObDereferenceObject(m_ResolutionEvent);
         m_ResolutionEvent = NULL;
+    }
+
+    for (UINT SourceId = 0; SourceId < MAX_VIEWS; SourceId++)
+    {
+        if (m_SourceEventHandles[SourceId] != NULL)
+        {
+            ZwClose(m_SourceEventHandles[SourceId]);
+            m_SourceEventHandles[SourceId] = NULL;
+        }
+        if (m_SourceEvents[SourceId] != NULL)
+        {
+            ObDereferenceObject(m_SourceEvents[SourceId]);
+            m_SourceEvents[SourceId] = NULL;
+        }
     }
 }
 
@@ -3559,9 +3612,9 @@ NTSTATUS VioGpuAdapter::Escape(_In_ CONST DXGKARG_ESCAPE *pEscape)
                 {
                     ScanoutId++;
                 }
-                USHORT ModeIndex = GetPreferredModeIndex(ScanoutId);
-                pVioGpuEscape->Resolution.XResolution = (USHORT)m_ModeInfo[ModeIndex].VisScreenWidth;
-                pVioGpuEscape->Resolution.YResolution = (USHORT)m_ModeInfo[ModeIndex].VisScreenHeight;
+                VIDEO_MODE_INFORMATION Mode = GetModeSnapshot(GetPreferredModeIndex(ScanoutId));
+                pVioGpuEscape->Resolution.XResolution = (USHORT)Mode.VisScreenWidth;
+                pVioGpuEscape->Resolution.YResolution = (USHORT)Mode.VisScreenHeight;
                 break;
             }
         case VIOGPU_SET_CUSTOM_RESOLUTION:
@@ -3625,15 +3678,19 @@ NTSTATUS VioGpuAdapter::Escape(_In_ CONST DXGKARG_ESCAPE *pEscape)
                     return STATUS_DEVICE_NOT_CONNECTED;
                 }
                 USHORT ModeIndex = GetPreferredModeIndex(ScanoutId);
+                KeAcquireGuardedMutex(&m_HostModeMutex);
                 pVioGpuEscape->SourceMode.Resolution.XResolution = (USHORT)m_ModeInfo[ModeIndex].VisScreenWidth;
                 pVioGpuEscape->SourceMode.Resolution.YResolution = (USHORT)m_ModeInfo[ModeIndex].VisScreenHeight;
+                pVioGpuEscape->SourceMode.Generation = m_HostModeGeneration[ScanoutId];
+                KeReleaseGuardedMutex(&m_HostModeMutex);
                 DbgPrint(TRACE_LEVEL_INFORMATION,
-                         ("%s source %d scanout %d (%dx%d)\n",
+                         ("%s source %d scanout %d (%dx%d) generation %d\n",
                           __FUNCTION__,
                           pVioGpuEscape->SourceMode.SourceId,
                           ScanoutId,
                           pVioGpuEscape->SourceMode.Resolution.XResolution,
-                          pVioGpuEscape->SourceMode.Resolution.YResolution));
+                          pVioGpuEscape->SourceMode.Resolution.YResolution,
+                          pVioGpuEscape->SourceMode.Generation));
                 break;
             }
         default:
@@ -3876,8 +3933,17 @@ void VioGpuAdapter::SetCustomDisplay(_In_ UINT ScanoutId, _In_ USHORT xres, _In_
               tmpModeInfo.XResolution,
               tmpModeInfo.YResolution));
 
-    SetVideoModeInfo(m_CustomModeIndex + ScanoutId, &tmpModeInfo);
     GrowFrameSegment(tmpModeInfo.XResolution, tmpModeInfo.YResolution);
+    KeAcquireGuardedMutex(&m_HostModeMutex);
+    PVIDEO_MODE_INFORMATION pSlot = &m_ModeInfo[m_CustomModeIndex + ScanoutId];
+    BOOLEAN Changed = pSlot->VisScreenWidth != tmpModeInfo.XResolution ||
+                      pSlot->VisScreenHeight != tmpModeInfo.YResolution;
+    SetVideoModeInfo(m_CustomModeIndex + ScanoutId, &tmpModeInfo);
+    if (Changed && ScanoutId < MAX_CHILDREN)
+    {
+        m_HostModeGeneration[ScanoutId] = ++m_HostModeSerial;
+    }
+    KeReleaseGuardedMutex(&m_HostModeMutex);
 }
 
 NTSTATUS VioGpuAdapter::BuildModeList(DXGK_DISPLAY_INFORMATION *pDispInfo)
@@ -4142,6 +4208,13 @@ void VioGpuAdapter::ConfigChanged(void)
             {
                 ReadEdid(child);
                 AddScanoutModes(child);
+                if (!(wasConnected & (1UL << child)))
+                {
+                    // Windows may give a display it knows the mode it had last: the host's size is new to it.
+                    KeAcquireGuardedMutex(&m_HostModeMutex);
+                    m_HostModeGeneration[child] = ++m_HostModeSerial;
+                    KeReleaseGuardedMutex(&m_HostModeMutex);
+                }
             }
         }
         DbgPrint(TRACE_LEVEL_FATAL,
