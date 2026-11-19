@@ -398,8 +398,6 @@ ULONG EdidGetModes(const UCHAR *edid, ULONG size, PVIOGPU_DISP_MODE modes, ULONG
     return list.Count;
 }
 
-VIOGPU_DISP_MODE gpu_disp_modes[64] = {0};
-
 // clang-format off
 UCHAR g_gpu_edid[EDID_V1_BLOCK_SIZE] = {
     0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF ,0xFF, 0x00, // Header

@@ -54,6 +54,7 @@ typedef struct
 #define VIOGPU_REFRESH_RATE  60
 #define VIOGPU_VSYNC_PERIOD  (10000000LL / VIOGPU_REFRESH_RATE) // in 100 ns units
 #define VIOGPU_NOMINAL_LINES 1080 // the scan lines GetScanLine counts for a target without a path
+#define VIOGPU_MAX_MODES     128  // the mode table's room for modes, besides one slot per scanout
 
 typedef struct _CURRENT_MODE
 {
@@ -86,7 +87,6 @@ class VioGpuAdapter : IVioGpuPCI
   public:
     VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod);
     ~VioGpuAdapter(void);
-    NTSTATUS SetCurrentMode(ULONG Mode, CURRENT_MODE *pCurrentMode);
     NTSTATUS SetFrameBuffer(PVIDEO_MODE_INFORMATION pModeInfo, CURRENT_MODE *pCurrentMode);
     ULONG GetModeCount(void)
     {
@@ -132,19 +132,16 @@ class VioGpuAdapter : IVioGpuPCI
     {
         return m_PciResources.GetPciBar(0)->GetPA();
     }
+    // The largest frame buffer the driver accepts: segment 0's size at start, raised for each larger mode added since.
     SIZE_T GetFrameSegmentSize(void)
     {
-        return m_FrameSegment[0].GetSize();
+        return m_FrameSegmentSize;
     }
     PDXGKRNL_INTERFACE GetDxgkInterface(void);
 
     PVIDEO_MODE_INFORMATION GetModeInfo(UINT idx)
     {
         return &m_ModeInfo[idx];
-    }
-    USHORT GetModeNumber(USHORT idx)
-    {
-        return (USHORT)m_ModeInfo[idx].ModeIndex;
     }
     USHORT GetCurrentModeIndex(void)
     {
@@ -167,8 +164,7 @@ class VioGpuAdapter : IVioGpuPCI
     {
         return ChildUid < m_u32NumScanouts && (m_ConnectedScanouts & (1UL << ChildUid)) != 0;
     }
-    PBYTE GetEdidData(UINT ScanoutId);
-    ULONG GetEdidSize(UINT ScanoutId);
+    NTSTATUS CopyEdid(UINT ScanoutId, ULONG Offset, PVOID pBuffer, _Inout_ ULONG *pLength);
     UINT GetCursorSize(void) const
     {
         return m_CursorSize;
@@ -192,11 +188,14 @@ class VioGpuAdapter : IVioGpuPCI
     NTSTATUS BuildModeList(DXGK_DISPLAY_INFORMATION *pDispInfo);
     BOOLEAN AckFeature(UINT64 Feature);
     BOOLEAN GetDisplayInfo(void);
-    int ProcessEdid(void);
+    void ProcessEdid(void);
     void FixEdid(void);
-    BOOLEAN GetEdids(void);
-    int AddEdidModes(void);
-    BOOLEAN UpdateModes(USHORT xres, USHORT yres, int &cnt);
+    void ReadEdid(UINT ScanoutId);
+    PBYTE GetEdidData(UINT ScanoutId);
+    ULONG GetEdidSize(UINT ScanoutId);
+    INT AddMode(USHORT xres, USHORT yres);
+    void AddScanoutModes(UINT ScanoutId);
+    void GrowFrameSegment(ULONG xres, ULONG yres);
     NTSTATUS UpdateChildStatus(UINT ChildUid, BOOLEAN connect);
     void SetCustomDisplay(_In_ UINT ScanoutId, _In_ USHORT xres, _In_ USHORT yres);
     BOOLEAN CreateFrameBufferObj(PVIDEO_MODE_INFORMATION pModeInfo, CURRENT_MODE *pCurrentMode);
@@ -216,14 +215,20 @@ class VioGpuAdapter : IVioGpuPCI
 
   private:
     VioGpuDod *m_pVioGpuDod;
+    // The modes: first one slot per scanout for the size the host asks for on it, then the modes of the EDIDs.
+    // Modes of displays plugged in later are appended up to m_ModeCapacity; nothing moves or goes away, so the
+    // DDIs can read the table while the config-change thread adds to it.
     PVIDEO_MODE_INFORMATION m_ModeInfo;
-    ULONG m_ModeCount;
+    volatile ULONG m_ModeCount;
+    ULONG m_ModeCapacity;
     USHORT m_CurrentModeIndex;
     USHORT m_CustomModeIndex;
     ULONG m_Id;
     // Each scanout's EDID, and the valid part of it (EdidValidSize; 0 when the host gave none).
+    // The config-change thread rewrites them when a display is plugged in; m_EdidMutex guards both.
     BYTE m_EDIDs[MAX_CHILDREN][EDID_MAX_SIZE];
     ULONG m_EdidSize[MAX_CHILDREN];
+    KGUARDED_MUTEX m_EdidMutex;
 
     VirtIODevice m_VioDev;
     CPciResources m_PciResources;
@@ -268,7 +273,9 @@ class VioGpuAdapter : IVioGpuPCI
     UINT m_ShownHotX[MAX_VIEWS];
     UINT m_ShownHotY[MAX_VIEWS];
     VioGpuMemSegment m_CursorSegment;
-    // Per VidPN source. Segment 0 is set up with the device; the others when their source first gets a mode.
+    // Per VidPN source. Segment 0 is set up with the device, at m_FrameSegmentSize; the others when their source first
+    // gets a mode, at that mode's size. A segment is allocated again, at the new mode's size, when its source gets a
+    // mode that does not fit.
     VioGpuMemSegment m_FrameSegment[MAX_VIEWS];
     UINT m_FrameSegmentSize;
     volatile ULONG m_PendingWorks;

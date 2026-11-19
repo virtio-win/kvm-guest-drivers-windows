@@ -1010,16 +1010,21 @@ void VioGpuMemSegment::Close(void)
         m_pMdl = NULL;
     }
 
-    if (m_bSystemMemory)
+    if (m_pVAddr != NULL)
     {
-        delete[] reinterpret_cast<PBYTE>(m_pVAddr);
-    }
-    else
-    {
-        UnmapFrameBuffer(m_pVAddr, (ULONG)m_Size);
-        m_bMapped = FALSE;
+        if (m_bSystemMemory)
+        {
+            delete[] reinterpret_cast<PBYTE>(m_pVAddr);
+        }
+        else
+        {
+            UnmapFrameBuffer(m_pVAddr, (ULONG)m_Size);
+        }
     }
     m_pVAddr = NULL;
+    m_bSystemMemory = FALSE;
+    m_bMapped = FALSE;
+    m_Size = 0;
 
     delete[] reinterpret_cast<PBYTE>(m_pSGList);
     m_pSGList = NULL;
