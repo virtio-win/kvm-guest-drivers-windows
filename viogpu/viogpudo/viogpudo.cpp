@@ -476,6 +476,12 @@ NTSTATUS VioGpuDod::QueryAdapterInfo(_In_ CONST DXGKARG_QUERYADAPTERINFO *pQuery
                 RtlZeroMemory(pDriverCaps, pQueryAdapterInfo->OutputDataSize /*sizeof(DXGK_DRIVERCAPS)*/);
                 pDriverCaps->WDDMVersion = DXGKDDI_WDDMv1_2;
                 pDriverCaps->HighestAcceptableAddress.QuadPart = (ULONG64)-1;
+                // DXGKCB_NOTIFY_INTERRUPT requires the message the ISR notifies dxgkrnl from: the control queue's.
+                // Without MSI it is the line, message 0, as zeroed above.
+                if (m_pHWDevice != NULL && m_pHWDevice->IsMSIEnabled())
+                {
+                    pDriverCaps->InterruptMessageNumber = VIRTIO_GPU_MSIX_CTRL_VECTOR;
+                }
 
                 if (IsPointerEnabled())
                 {
@@ -3720,13 +3726,13 @@ BOOLEAN VioGpuAdapter::InterruptRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface, 
     {
         switch (MessageNumber)
         {
-            case 0:
+            case VIRTIO_GPU_MSIX_CONFIG_VECTOR:
                 intReason = ISR_REASON_CHANGE;
                 break;
-            case 1:
+            case VIRTIO_GPU_MSIX_CTRL_VECTOR:
                 intReason = ISR_REASON_DISPLAY;
                 break;
-            case 2:
+            case VIRTIO_GPU_MSIX_CURSOR_VECTOR:
                 intReason = ISR_REASON_CURSOR;
                 break;
             default:

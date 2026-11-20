@@ -232,17 +232,11 @@ u16 vdev_get_msix_vector(void *context, int queue)
     IVioGpuPCI *pdev = static_cast<IVioGpuPCI *>(context);
     u16 vector = VIRTIO_MSI_NO_VECTOR;
 
-    if (queue >= 0)
+    // The cursor queue, queue 1, follows the control queue, queue 0.
+    C_ASSERT(VIRTIO_GPU_MSIX_CURSOR_VECTOR == VIRTIO_GPU_MSIX_CTRL_VECTOR + 1);
+    if (pdev->IsMSIEnabled())
     {
-        /* queue interrupt */
-        if (pdev->IsMSIEnabled())
-        {
-            vector = (u16)(queue + 1);
-        }
-    }
-    else
-    {
-        vector = VIRTIO_GPU_MSIX_CONFIG_VECTOR;
+        vector = (queue >= 0) ? (u16)(VIRTIO_GPU_MSIX_CTRL_VECTOR + queue) : (u16)VIRTIO_GPU_MSIX_CONFIG_VECTOR;
     }
     return vector;
 }

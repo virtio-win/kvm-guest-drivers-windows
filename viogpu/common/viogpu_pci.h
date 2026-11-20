@@ -3,7 +3,13 @@
 #define REDHAT_PCI_VENDOR_ID          0x1AF4
 
 #define PORT_MASK                     0xFFFF
+
+// With MSI the device gets one message per cause: configuration changes, then each queue in queue order, a queue's
+// being the control queue's plus the queue's index. They are the MessageNumber values of the ISR. Without MSI there is
+// one line, and no vector is set.
 #define VIRTIO_GPU_MSIX_CONFIG_VECTOR 0
+#define VIRTIO_GPU_MSIX_CTRL_VECTOR   1
+#define VIRTIO_GPU_MSIX_CURSOR_VECTOR 2
 
 class CPciBar
 {
