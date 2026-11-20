@@ -3003,6 +3003,11 @@ NTSTATUS VioGpuAdapter::SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSet
         PGPU_VBUFFER vbuf;
         UINT ret = 0;
         crsr = (PGPU_UPDATE_CURSOR)m_CursorQueue.AllocCursor(&vbuf);
+        if (crsr == NULL)
+        {
+            KeReleaseGuardedMutex(&m_CursorMutex);
+            return STATUS_INSUFFICIENT_RESOURCES;
+        }
         RtlZeroMemory(crsr, sizeof(*crsr));
 
         crsr->hdr.type = VIRTIO_GPU_CMD_UPDATE_CURSOR;
@@ -3071,6 +3076,11 @@ NTSTATUS VioGpuAdapter::SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION
             PGPU_VBUFFER vbuf;
             UINT ret = 0;
             crsr = (PGPU_UPDATE_CURSOR)m_CursorQueue.AllocCursor(&vbuf);
+            if (crsr == NULL)
+            {
+                KeReleaseGuardedMutex(&m_CursorMutex);
+                return STATUS_INSUFFICIENT_RESOURCES;
+            }
             RtlZeroMemory(crsr, sizeof(*crsr));
 
             if (!visible)
@@ -3290,7 +3300,11 @@ BOOLEAN VioGpuAdapter::GetEdids(void)
 
     for (UINT32 i = 0; i < m_u32NumScanouts; i++)
     {
-        if (m_CtrlQueue.AskEdidInfo(&vbuf, i) && m_CtrlQueue.GetEdidInfo(vbuf, i, m_EDIDs))
+        if (!m_CtrlQueue.AskEdidInfo(&vbuf, i))
+        {
+            continue;
+        }
+        if (m_CtrlQueue.GetEdidInfo(vbuf, i, m_EDIDs))
         {
             m_bEDID = TRUE;
         }
@@ -3679,12 +3693,18 @@ void VioGpuAdapter::DestroyFrameBufferObj(BOOLEAN bReset, BOOLEAN bKeepBuffer)
 
     if (m_pFrameBuf != NULL)
     {
+        // Above DISPATCH_LEVEL, in the bugcheck flow, nothing is sent and nothing allocated: the device reset that
+        // follows destroys the resource and disables the scanout.
+        BOOLEAN bugcheck = (KeGetCurrentIrql() > DISPATCH_LEVEL);
         resid = (UINT)m_pFrameBuf->GetId();
-        m_CtrlQueue.DetachBacking(resid);
-        m_CtrlQueue.DestroyResource(resid);
-        if (bReset == TRUE)
+        if (!bugcheck)
         {
-            m_CtrlQueue.SetScanout(0, 0, 0, 0, 0, 0);
+            m_CtrlQueue.DetachBacking(resid);
+            m_CtrlQueue.DestroyResource(resid);
+            if (bReset == TRUE)
+            {
+                m_CtrlQueue.SetScanout(0, 0, 0, 0, 0, 0);
+            }
         }
 
         if (bKeepBuffer)
@@ -3697,7 +3717,10 @@ void VioGpuAdapter::DestroyFrameBufferObj(BOOLEAN bReset, BOOLEAN bKeepBuffer)
             delete m_pFrameBuf;
         }
         m_pFrameBuf = NULL;
-        m_Idr.PutId(resid);
+        if (!bugcheck)
+        {
+            m_Idr.PutId(resid);
+        }
     }
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
@@ -3724,8 +3747,12 @@ void VioGpuAdapter::VioGpuAdapterClose()
         }
         m_CtrlQueue.Close();
         m_CursorQueue.Close();
-        virtio_delete_queues(&m_VioDev);
-        virtio_device_shutdown(&m_VioDev);
+        // In the bugcheck flow the reset is all: memory may not be freed above DISPATCH_LEVEL.
+        if (KeGetCurrentIrql() <= DISPATCH_LEVEL)
+        {
+            virtio_delete_queues(&m_VioDev);
+            virtio_device_shutdown(&m_VioDev);
+        }
     }
     DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s\n", __FUNCTION__));
 }

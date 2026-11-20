@@ -100,10 +100,8 @@ _IRQL_requires_max_(DISPATCH_LEVEL) _IRQL_saves_global_(OldIrql, Irql) _IRQL_rai
     }
     else
     {
-        // This is possible situation in case of bugcheck.
-        // DxgkDdiSystemDisplayEnable can be called at any IRQL.
-        // We need to allocate buffer for several command during this proccess.
-        // VioGpuDbgBreak();
+        // Only the bugcheck flow gets here: DxgkDdiSystemDisplayEnable, which may run at any IRQL, closes the queues.
+        // No spin lock may be taken there, and nothing runs alongside.
     }
     *Irql = SavedIrql;
 
@@ -124,10 +122,8 @@ _IRQL_requires_(DISPATCH_LEVEL) _IRQL_restores_global_(OldIrql, Irql) void VioGp
     }
     else
     {
-        // This is possible situation in case of bugcheck.
-        // DxgkDdiSystemDisplayEnable can be called at any IRQL.
-        // We need to allocate buffer for several command during this proccess.
-        // VioGpuDbgBreak();
+        // Only the bugcheck flow gets here: DxgkDdiSystemDisplayEnable, which may run at any IRQL, closes the queues.
+        // No spin lock may be taken there, and nothing runs alongside.
     }
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
@@ -216,6 +212,11 @@ BOOLEAN CtrlQueue::AskDisplayInfo(PGPU_VBUFFER *buf)
     }
 
     cmd = (PGPU_CTRL_HDR)AllocCmdResp(&vbuf, sizeof(GPU_CTRL_HDR), resp_buf, sizeof(GPU_RESP_DISP_INFO));
+    if (cmd == NULL)
+    {
+        delete[] reinterpret_cast<PBYTE>(resp_buf);
+        return FALSE;
+    }
     RtlZeroMemory(cmd, sizeof(GPU_CTRL_HDR));
 
     cmd->type = VIRTIO_GPU_CMD_GET_DISPLAY_INFO;
@@ -263,6 +264,11 @@ BOOLEAN CtrlQueue::AskEdidInfo(PGPU_VBUFFER *buf, UINT id)
         return FALSE;
     }
     cmd = (PGPU_CMD_GET_EDID)AllocCmdResp(&vbuf, sizeof(GPU_CMD_GET_EDID), resp_buf, sizeof(GPU_RESP_EDID));
+    if (cmd == NULL)
+    {
+        delete[] reinterpret_cast<PBYTE>(resp_buf);
+        return FALSE;
+    }
     RtlZeroMemory(cmd, sizeof(GPU_CMD_GET_EDID));
 
     cmd->hdr.type = VIRTIO_GPU_CMD_GET_EDID;
@@ -327,6 +333,10 @@ void CtrlQueue::CreateResource(UINT res_id, UINT format, UINT width, UINT height
     PGPU_RES_CREATE_2D cmd;
     PGPU_VBUFFER vbuf;
     cmd = (PGPU_RES_CREATE_2D)AllocCmd(&vbuf, sizeof(*cmd));
+    if (cmd == NULL)
+    {
+        return;
+    }
     RtlZeroMemory(cmd, sizeof(*cmd));
 
     cmd->hdr.type = VIRTIO_GPU_CMD_RESOURCE_CREATE_2D;
@@ -349,6 +359,10 @@ void CtrlQueue::ResFlush(UINT res_id, UINT width, UINT height, UINT x, UINT y)
     PGPU_RES_FLUSH cmd;
     PGPU_VBUFFER vbuf;
     cmd = (PGPU_RES_FLUSH)AllocCmd(&vbuf, sizeof(*cmd));
+    if (cmd == NULL)
+    {
+        return;
+    }
     RtlZeroMemory(cmd, sizeof(*cmd));
 
     cmd->hdr.type = VIRTIO_GPU_CMD_RESOURCE_FLUSH;
@@ -371,6 +385,10 @@ void CtrlQueue::TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT hei
     PGPU_RES_TRANSF_TO_HOST_2D cmd;
     PGPU_VBUFFER vbuf;
     cmd = (PGPU_RES_TRANSF_TO_HOST_2D)AllocCmd(&vbuf, sizeof(*cmd));
+    if (cmd == NULL)
+    {
+        return;
+    }
     RtlZeroMemory(cmd, sizeof(*cmd));
 
     cmd->hdr.type = VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D;
@@ -395,6 +413,11 @@ void CtrlQueue::AttachBacking(UINT res_id, PGPU_MEM_ENTRY ents, UINT nents)
     PGPU_RES_ATTACH_BACKING cmd;
     PGPU_VBUFFER vbuf;
     cmd = (PGPU_RES_ATTACH_BACKING)AllocCmd(&vbuf, sizeof(*cmd));
+    if (cmd == NULL)
+    {
+        delete[] reinterpret_cast<PBYTE>(ents);
+        return;
+    }
     RtlZeroMemory(cmd, sizeof(*cmd));
 
     cmd->hdr.type = VIRTIO_GPU_CMD_RESOURCE_ATTACH_BACKING;
@@ -418,6 +441,10 @@ void CtrlQueue::DestroyResource(UINT res_id)
     PGPU_RES_UNREF cmd;
     PGPU_VBUFFER vbuf;
     cmd = (PGPU_RES_UNREF)AllocCmd(&vbuf, sizeof(*cmd));
+    if (cmd == NULL)
+    {
+        return;
+    }
     RtlZeroMemory(cmd, sizeof(*cmd));
 
     cmd->hdr.type = VIRTIO_GPU_CMD_RESOURCE_UNREF;
@@ -435,6 +462,10 @@ void CtrlQueue::DetachBacking(UINT res_id)
     PGPU_RES_DETACH_BACKING cmd;
     PGPU_VBUFFER vbuf;
     cmd = (PGPU_RES_DETACH_BACKING)AllocCmd(&vbuf, sizeof(*cmd));
+    if (cmd == NULL)
+    {
+        return;
+    }
     RtlZeroMemory(cmd, sizeof(*cmd));
 
     cmd->hdr.type = VIRTIO_GPU_CMD_RESOURCE_DETACH_BACKING;
@@ -451,7 +482,6 @@ PVOID CtrlQueue::AllocCmdResp(PGPU_VBUFFER *buf, int cmd_sz, PVOID resp_buf, int
 
     PGPU_VBUFFER vbuf;
     vbuf = m_pBuf->GetBuf(cmd_sz, resp_sz, resp_buf);
-    ASSERT(vbuf);
     *buf = vbuf;
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
@@ -469,7 +499,6 @@ PVOID CtrlQueue::AllocCmd(PGPU_VBUFFER *buf, int sz)
     }
 
     PGPU_VBUFFER vbuf = m_pBuf->GetBuf(sz, sizeof(GPU_CTRL_HDR), NULL);
-    ASSERT(vbuf);
     *buf = vbuf;
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s  vbuf = %p\n", __FUNCTION__, vbuf));
@@ -484,6 +513,10 @@ void CtrlQueue::SetScanout(UINT scan_id, UINT res_id, UINT width, UINT height, U
     PGPU_SET_SCANOUT cmd;
     PGPU_VBUFFER vbuf;
     cmd = (PGPU_SET_SCANOUT)AllocCmd(&vbuf, sizeof(*cmd));
+    if (cmd == NULL)
+    {
+        return;
+    }
     RtlZeroMemory(cmd, sizeof(*cmd));
 
     cmd->hdr.type = VIRTIO_GPU_CMD_SET_SCANOUT;
@@ -609,10 +642,9 @@ BOOLEAN VioGpuBuf::Init(_In_ UINT cnt)
     for (UINT i = 0; i < cnt; ++i)
     {
         PGPU_VBUFFER pvbuf = reinterpret_cast<PGPU_VBUFFER>(new (NonPagedPoolNx) BYTE[VBUFFER_SIZE]);
-        // FIXME
-        RtlZeroMemory(pvbuf, VBUFFER_SIZE);
         if (pvbuf)
         {
+            RtlZeroMemory(pvbuf, VBUFFER_SIZE);
             KeAcquireSpinLock(&m_SpinLock, &OldIrql);
             InsertTailList(&m_FreeBufs, &pvbuf->list_entry);
             ++m_uCount;
@@ -686,39 +718,41 @@ PGPU_VBUFFER VioGpuBuf::GetBuf(_In_ int size, _In_ int resp_size, _In_opt_ void 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
     PGPU_VBUFFER pbuf = NULL;
-    PLIST_ENTRY pListItem = NULL;
-    KIRQL SavedIrql = KeGetCurrentIrql();
+    BOOLEAN Allocated = FALSE;
+    KIRQL OldIrql;
 
-    if (SavedIrql < DISPATCH_LEVEL)
+    // Above DISPATCH_LEVEL, where only the bugcheck flow runs, neither the pool's spin lock nor the system's pool may
+    // be used. No command is sent there: the bugcheck flow resets the device right after, and the reset drops every
+    // resource and scanout on its own.
+    if (KeGetCurrentIrql() > DISPATCH_LEVEL)
     {
-        KeAcquireSpinLock(&m_SpinLock, &SavedIrql);
+        return NULL;
     }
-    else if (SavedIrql == DISPATCH_LEVEL)
+    if (size > MAX_INLINE_CMD_SIZE || (resp_size > MAX_INLINE_RESP_SIZE && resp_buf == NULL))
     {
-        KeAcquireSpinLockAtDpcLevel(&m_SpinLock);
-    }
-    else
-    {
-        // This is possible situation in case of bugcheck.
-        // DxgkDdiSystemDisplayEnable can be called at any IRQL.
-        // We need to allocate buffer for several command during this proccess.
-        // VioGpuDbgBreak();
+        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s no room for %d and %d bytes\n", __FUNCTION__, size, resp_size));
+        return NULL;
     }
 
-    if (IsListEmpty(&m_FreeBufs))
+    KeAcquireSpinLock(&m_SpinLock, &OldIrql);
+    if (!IsListEmpty(&m_FreeBufs))
+    {
+        pbuf = CONTAINING_RECORD(RemoveHeadList(&m_FreeBufs), GPU_VBUFFER, list_entry);
+    }
+    KeReleaseSpinLock(&m_SpinLock, OldIrql);
+
+    if (pbuf == NULL)
     {
         pbuf = reinterpret_cast<PGPU_VBUFFER>(new (NonPagedPoolNx) BYTE[VBUFFER_SIZE]);
-        ++m_uCount;
-    }
-    else
-    {
-        pListItem = RemoveHeadList(&m_FreeBufs);
-        pbuf = CONTAINING_RECORD(pListItem, GPU_VBUFFER, list_entry);
+        if (pbuf == NULL)
+        {
+            DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s no memory for a command buffer\n", __FUNCTION__));
+            return NULL;
+        }
+        Allocated = TRUE;
     }
 
-    ASSERT(pbuf);
     memset(pbuf, 0, VBUFFER_SIZE);
-    ASSERT(size <= MAX_INLINE_CMD_SIZE);
 
     pbuf->buf = (char *)((ULONG_PTR)pbuf + sizeof(*pbuf));
     pbuf->size = size;
@@ -733,24 +767,14 @@ PGPU_VBUFFER VioGpuBuf::GetBuf(_In_ int size, _In_ int resp_size, _In_opt_ void 
     {
         pbuf->resp_buf = (char *)resp_buf;
     }
-    ASSERT(pbuf->resp_buf);
-    InsertTailList(&m_InUseBufs, &pbuf->list_entry);
 
-    if (SavedIrql < DISPATCH_LEVEL)
+    KeAcquireSpinLock(&m_SpinLock, &OldIrql);
+    if (Allocated)
     {
-        KeReleaseSpinLock(&m_SpinLock, SavedIrql);
+        ++m_uCount;
     }
-    else if (SavedIrql == DISPATCH_LEVEL)
-    {
-        KeReleaseSpinLockFromDpcLevel(&m_SpinLock);
-    }
-    else
-    {
-        // This is possible situation in case of bugcheck.
-        // DxgkDdiSystemDisplayEnable can be called at any IRQL.
-        // We need to allocate buffer for several command during this proccess.
-        // VioGpuDbgBreak();
-    }
+    InsertTailList(&m_InUseBufs, &pbuf->list_entry);
+    KeReleaseSpinLock(&m_SpinLock, OldIrql);
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s buf = %p\n", __FUNCTION__, pbuf));
 
@@ -764,25 +788,23 @@ void VioGpuBuf::FreeBuf(_In_ PGPU_VBUFFER pbuf)
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s buf = %p\n", __FUNCTION__, pbuf));
     KeAcquireSpinLock(&m_SpinLock, &OldIrql);
 
-    if (!IsListEmpty(&m_InUseBufs))
+    BOOLEAN Found = FALSE;
+    for (PLIST_ENTRY le = m_InUseBufs.Flink; le != &m_InUseBufs; le = le->Flink)
     {
-        PLIST_ENTRY leCurrent = m_InUseBufs.Flink;
-        PGPU_VBUFFER pvbuf = CONTAINING_RECORD(leCurrent, GPU_VBUFFER, list_entry);
-        while (leCurrent && pvbuf)
+        if (le == &pbuf->list_entry)
         {
-            if (pvbuf == pbuf)
-            {
-                RemoveEntryList(leCurrent);
-                pvbuf = NULL;
-                break;
-            }
-
-            leCurrent = leCurrent->Flink;
-            if (leCurrent)
-            {
-                pvbuf = CONTAINING_RECORD(leCurrent, GPU_VBUFFER, list_entry);
-            }
+            RemoveEntryList(le);
+            Found = TRUE;
+            break;
         }
+    }
+    if (!Found)
+    {
+        // Freed twice, or never handed out: neither list may take it again.
+        KeReleaseSpinLock(&m_SpinLock, OldIrql);
+        DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s buf = %p is not in use\n", __FUNCTION__, pbuf));
+        ASSERT(Found);
+        return;
     }
     if (pbuf->resp_buf && pbuf->resp_size > MAX_INLINE_RESP_SIZE)
     {
@@ -1057,7 +1079,6 @@ PVOID CrsrQueue::AllocCursor(PGPU_VBUFFER *buf)
 
     PGPU_VBUFFER vbuf;
     vbuf = m_pBuf->GetBuf(sizeof(GPU_UPDATE_CURSOR), 0, NULL);
-    ASSERT(vbuf);
     *buf = vbuf;
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s  vbuf = %p\n", __FUNCTION__, vbuf));
