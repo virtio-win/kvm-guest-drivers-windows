@@ -451,9 +451,12 @@ BOOLEAN CtrlQueue::TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT 
     LARGE_INTEGER timeout = {0};
     timeout.QuadPart = Int32x32To64(100, -10000);
     BOOLEAN done = (KeWaitForSingleObject(&pCtx->Event, Executive, KernelMode, FALSE, &timeout) != STATUS_TIMEOUT);
+    // The device's answer, read before the buffer is released: a transfer it refused is not an upload.
+    ULONG respType = 0;
     if (done)
     {
         // Completed: the DPC no longer touches the buffer once the callback has signaled the event.
+        respType = ((PGPU_CTRL_HDR)vbuf->resp_buf)->type;
         ReleaseBuffer(vbuf);
     }
     else
@@ -466,6 +469,7 @@ BOOLEAN CtrlQueue::TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT 
         {
             // The completion ran between the timeout and here, before it could see TimedOut: release the
             // buffer it left, and count the transfer as done.
+            respType = ((PGPU_CTRL_HDR)vbuf->resp_buf)->type;
             ReleaseBuffer(vbuf);
             done = TRUE;
         }
@@ -474,6 +478,11 @@ BOOLEAN CtrlQueue::TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT 
     if (!done)
     {
         DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s transfer wait timed out\n", __FUNCTION__));
+        return FALSE;
+    }
+    if (respType != VIRTIO_GPU_RESP_OK_NODATA)
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s transfer refused, response 0x%x\n", __FUNCTION__, respType));
         return FALSE;
     }
 
