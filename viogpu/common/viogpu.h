@@ -328,6 +328,10 @@ typedef struct _COLOR_CHARACTERISTICS
 #define VIRTIO_GPU_F_VIRGL 0
 #define VIRTIO_GPU_F_EDID  1
 
+/* The causes the ISR records for the DPC (m_PendingWorks): the driver's own, not bits of the ISR status register. */
 #define ISR_REASON_DISPLAY 1
 #define ISR_REASON_CURSOR  2
 #define ISR_REASON_CHANGE  4
+
+/* The bit of the ISR status register that reports used buffers in a queue; VIRTIO_PCI_ISR_CONFIG is the other. */
+#define VIOGPU_ISR_QUEUE   0x1

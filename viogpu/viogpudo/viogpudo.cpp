@@ -3737,20 +3737,25 @@ BOOLEAN VioGpuAdapter::InterruptRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface, 
     }
     else
     {
-        UNREFERENCED_PARAMETER(MessageNumber);
+        // The line may be shared. The ISR status register has one bit per cause. The bits accumulate until the driver
+        // reads the register, which returns and clears them all and lowers the line, so one read can report both.
         UCHAR isrstat = virtio_read_isr_status(&m_VioDev);
-
-        switch (isrstat)
+        // A device that is gone reads all ones. Only bits 0 and 1 are defined, so a live device does not report all
+        // ones: the interrupt is another device's on the shared line.
+        if (isrstat == 0xFF)
         {
-            case 1:
-                intReason = (ISR_REASON_DISPLAY | ISR_REASON_CURSOR);
-                break;
-            case 3:
-                intReason = ISR_REASON_CHANGE;
-                break;
-            default:
-                serviced = FALSE;
+            return FALSE;
         }
+
+        if (isrstat & VIOGPU_ISR_QUEUE)
+        {
+            intReason |= ISR_REASON_DISPLAY | ISR_REASON_CURSOR;
+        }
+        if (isrstat & VIRTIO_PCI_ISR_CONFIG)
+        {
+            intReason |= ISR_REASON_CHANGE;
+        }
+        serviced = (intReason != 0);
     }
 
     if (serviced)
