@@ -49,6 +49,32 @@ static void NotifyEventCompleteCB(void *ctx)
     KeSetEvent((PKEVENT)ctx, IO_NO_INCREMENT, FALSE);
 }
 
+// Shared by a waiter and the completion of one command. Each holds a reference, and whoever drops the last one
+// frees the context. When the waiter gave up first, that is the completion, which then also releases the
+// command buffer: a late completion neither signals freed memory nor leaks the event and the buffer.
+typedef struct _GPU_WAIT_CTX
+{
+    KEVENT Event;
+    volatile LONG Refs;
+    BOOLEAN TimedOut; // written by the waiter before it drops its reference
+    PGPU_VBUFFER pBuf;
+    VioGpuQueue *pQueue;
+} GPU_WAIT_CTX, *PGPU_WAIT_CTX;
+
+static void WaitCtxCompleteCB(void *ctx)
+{
+    PGPU_WAIT_CTX pCtx = (PGPU_WAIT_CTX)ctx;
+    KeSetEvent(&pCtx->Event, IO_NO_INCREMENT, FALSE);
+    if (InterlockedDecrement(&pCtx->Refs) == 0)
+    {
+        if (pCtx->TimedOut)
+        {
+            pCtx->pQueue->ReleaseBuffer(pCtx->pBuf);
+        }
+        delete[] reinterpret_cast<PBYTE>(pCtx);
+    }
+}
+
 VioGpuQueue::VioGpuQueue()
 {
     m_pBuf = NULL;
@@ -363,7 +389,7 @@ void CtrlQueue::ResFlush(UINT res_id, UINT width, UINT height, UINT x, UINT y)
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
-void CtrlQueue::TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT height, UINT x, UINT y)
+BOOLEAN CtrlQueue::TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT height, UINT x, UINT y, BOOLEAN wait)
 {
     PAGED_CODE();
 
@@ -381,9 +407,87 @@ void CtrlQueue::TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT hei
     cmd->r.x = x;
     cmd->r.y = y;
 
-    QueueBuffer(vbuf);
+    if (!wait)
+    {
+        QueueBuffer(vbuf);
+        DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+        return TRUE;
+    }
+
+    // Fence the transfer: the device may answer an unfenced command before it has processed it, while a
+    // fenced one is answered only once it is done, which is what the waiter relies on. The virtio-gpu
+    // specification asks for this when a cursor resource is prepared.
+    cmd->hdr.flags |= VIRTIO_GPU_FLAG_FENCE;
+    cmd->hdr.fence_id = (ULONGLONG)InterlockedIncrement(&m_FenceIdr);
+
+    // Wait until the device has completed the transfer, for 100 ms at most so that a device that stops
+    // answering cannot block the caller. The wait context lives in pool memory, shared with the completion
+    // (see GPU_WAIT_CTX), so a completion that arrives after the timeout is still handled safely.
+    PGPU_WAIT_CTX pCtx = reinterpret_cast<PGPU_WAIT_CTX>(new (NonPagedPoolNx) BYTE[sizeof(GPU_WAIT_CTX)]);
+    if (pCtx == NULL)
+    {
+        ReleaseBuffer(vbuf);
+        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s cannot allocate the wait context\n", __FUNCTION__));
+        return FALSE;
+    }
+    KeInitializeEvent(&pCtx->Event, NotificationEvent, FALSE);
+    pCtx->Refs = 2;
+    pCtx->TimedOut = FALSE;
+    pCtx->pBuf = vbuf;
+    pCtx->pQueue = this;
+    vbuf->complete_cb = WaitCtxCompleteCB;
+    vbuf->complete_ctx = pCtx;
+    vbuf->auto_release = false;
+
+    if (QueueBuffer(vbuf) != 0)
+    {
+        // Not queued, so no completion will come: both references are ours.
+        delete[] reinterpret_cast<PBYTE>(pCtx);
+        ReleaseBuffer(vbuf);
+        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s cannot queue the transfer\n", __FUNCTION__));
+        return FALSE;
+    }
+
+    LARGE_INTEGER timeout = {0};
+    timeout.QuadPart = Int32x32To64(100, -10000);
+    BOOLEAN done = (KeWaitForSingleObject(&pCtx->Event, Executive, KernelMode, FALSE, &timeout) != STATUS_TIMEOUT);
+    // The device's answer, read before the buffer is released: a transfer it refused is not an upload.
+    ULONG respType = 0;
+    if (done)
+    {
+        // Completed: the DPC no longer touches the buffer once the callback has signaled the event.
+        respType = ((PGPU_CTRL_HDR)vbuf->resp_buf)->type;
+        ReleaseBuffer(vbuf);
+    }
+    else
+    {
+        pCtx->TimedOut = TRUE;
+    }
+    if (InterlockedDecrement(&pCtx->Refs) == 0)
+    {
+        if (!done)
+        {
+            // The completion ran between the timeout and here, before it could see TimedOut: release the
+            // buffer it left, and count the transfer as done.
+            respType = ((PGPU_CTRL_HDR)vbuf->resp_buf)->type;
+            ReleaseBuffer(vbuf);
+            done = TRUE;
+        }
+        delete[] reinterpret_cast<PBYTE>(pCtx);
+    }
+    if (!done)
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s transfer wait timed out\n", __FUNCTION__));
+        return FALSE;
+    }
+    if (respType != VIRTIO_GPU_RESP_OK_NODATA)
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s transfer refused, response 0x%x\n", __FUNCTION__, respType));
+        return FALSE;
+    }
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+    return TRUE;
 }
 
 void CtrlQueue::AttachBacking(UINT res_id, PGPU_MEM_ENTRY ents, UINT nents)
