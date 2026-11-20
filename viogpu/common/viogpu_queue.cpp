@@ -414,6 +414,12 @@ BOOLEAN CtrlQueue::TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT 
         return TRUE;
     }
 
+    // Fence the transfer: the device may answer an unfenced command before it has processed it, while a
+    // fenced one is answered only once it is done, which is what the waiter relies on. The virtio-gpu
+    // specification asks for this when a cursor resource is prepared.
+    cmd->hdr.flags |= VIRTIO_GPU_FLAG_FENCE;
+    cmd->hdr.fence_id = (ULONGLONG)InterlockedIncrement(&m_FenceIdr);
+
     // Wait until the device has completed the transfer, for 100 ms at most so that a device that stops
     // answering cannot block the caller. The wait context lives in pool memory, shared with the completion
     // (see GPU_WAIT_CTX), so a completion that arrives after the timeout is still handled safely.
