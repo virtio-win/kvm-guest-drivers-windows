@@ -1913,10 +1913,17 @@ PAGED_CODE_SEG_END
 #pragma code_seg(push)
 #pragma code_seg()
 
+// Every DPC calls DxgkCbNotifyDpc. DXGKCB_NOTIFY_INTERRUPT requires it from the DPC an ISR queues after notifying
+// dxgkrnl, with no exception for a device closed in between, and one DPC can stand for several ISRs (one is queued per
+// adapter at a time), so a DPC cannot tell whether such an ISR queued it. Only the adapter's own work depends on the
+// device's state.
 VOID VioGpuDod::DpcRoutine(VOID)
 {
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-    m_pHWDevice->DpcRoutine(&m_DxgkInterface);
+    if (IsHardwareInit() && m_pHWDevice != NULL)
+    {
+        m_pHWDevice->DpcRoutine(&m_DxgkInterface);
+    }
     m_DxgkInterface.DxgkCbNotifyDpc((HANDLE)m_DxgkInterface.DeviceHandle);
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
