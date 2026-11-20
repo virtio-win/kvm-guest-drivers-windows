@@ -260,7 +260,8 @@ void GpuAdaptersMgr::AddAdapter(const wchar_t *name)
 
     for (Iterator it = Adapters.begin(); it != Adapters.end(); it++)
     {
-        if (_wcsnicmp((*it)->m_DeviceName.c_str(), name, (*it)->m_DeviceName.size()) == 0)
+        // The whole name: compared up to the length of a known one, \\.\DISPLAY1 also matched \\.\DISPLAY19.
+        if (_wcsicmp((*it)->m_DeviceName.c_str(), name) == 0)
         {
             (*it)->SetStatus(Active);
             return;
