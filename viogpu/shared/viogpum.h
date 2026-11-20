@@ -32,6 +32,7 @@
 #define VIOGPU_GET_DEVICE_ID         0x00
 #define VIOGPU_GET_CUSTOM_RESOLUTION 0x01
 #define VIOGPU_SET_CUSTOM_RESOLUTION 0x02
+#define VIOGPU_GET_SOURCE_RESOLUTION 0x03
 
 #pragma pack(1)
 typedef struct _VIOGPU_DISP_MODE
@@ -39,6 +40,22 @@ typedef struct _VIOGPU_DISP_MODE
     USHORT XResolution;
     USHORT YResolution;
 } VIOGPU_DISP_MODE, *PVIOGPU_DISP_MODE;
+#pragma pack()
+
+// VIOGPU_GET_SOURCE_RESOLUTION: the size the host wants for the display one VidPN source drives. SourceId is the
+// source as DISPLAYCONFIG_PATH_SOURCE_INFO.id names it. It fails with STATUS_INVALID_PARAMETER for an unknown source,
+// as a driver without this escape does for the escape itself, and with STATUS_DEVICE_NOT_CONNECTED while the host has
+// the source's scanout unplugged. Generation changes with each change of that size and each display plugged in, to a
+// value no scanout of the device has had before, from 1: a helper applies a size whose generation it has not applied
+// yet, and leaves a size the user chose alone otherwise. VIOGPU_GET_CUSTOM_RESOLUTION names no display: it is the
+// size for the one display connected, and fails with STATUS_NOT_SUPPORTED while several are.
+#pragma pack(1)
+typedef struct _VIOGPU_SOURCE_MODE
+{
+    ULONG SourceId;
+    VIOGPU_DISP_MODE Resolution;
+    ULONG Generation;
+} VIOGPU_SOURCE_MODE, *PVIOGPU_SOURCE_MODE;
 #pragma pack()
 
 #pragma pack(1)
@@ -49,10 +66,15 @@ typedef struct _VIOGPU_ESCAPE
     union {
         ULONG Id;
         VIOGPU_DISP_MODE Resolution;
+        VIOGPU_SOURCE_MODE SourceMode;
     } DUMMYUNIONNAME;
 } VIOGPU_ESCAPE, *PVIOGPU_ESCAPE;
 #pragma pack()
 
 #define BASE_NAMED_OBJECTS    L"\\BaseNamedObjects\\"
 #define GLOBAL_OBJECTS        L"Global\\"
+// The driver's resolution events, under the global namespace, made by the first VIOGPU_GET_DEVICE_ID:
+// RESOLUTION_EVENT_NAME<device id>, which the driver pulses, and RESOLUTION_EVENT_NAME<device id>_<VidPN source id>,
+// an auto-reset event per source that stays set until a wait on it returns, and so wakes one thread. The driver
+// signals all of them once it has handled a display change that leaves a display connected.
 #define RESOLUTION_EVENT_NAME L"VioGpuResolutionEvent"

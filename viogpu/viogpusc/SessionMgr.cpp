@@ -205,13 +205,20 @@ DWORD CSessionMgr::SessionChange(DWORD evtype, PVOID evdata)
         return ERROR_INVALID_FUNCTION;
     }
 
-    if (!pSession->Init())
+    PrintMessage(L"%ws evtype = %u\n", __FUNCTIONW__, evtype);
+
+    // viogpuap runs in the session on the console, and only once: a session that leaves the console stops its
+    // viogpuap, and any other event starts one if the session has none running. Several would each set every
+    // display's size on a display change, racing one another.
+    if (evtype == WTS_CONSOLE_DISCONNECT || evtype == WTS_SESSION_LOGOFF)
+    {
+        pSession->Stop();
+    }
+    else if (!pSession->Init())
     {
         PrintMessage(L"Cannot init the session %d\n", SessionId);
         return ERROR_INVALID_FUNCTION;
     }
-
-    PrintMessage(L"%ws evtype = %u\n", __FUNCTIONW__, evtype);
 
     SESSION_STATUS CurrentStatus = pSession->GetStatus();
 

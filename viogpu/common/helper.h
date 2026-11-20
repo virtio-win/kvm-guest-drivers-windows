@@ -68,14 +68,19 @@ extern "C"
 #include "trace.h"
 }
 
-#define MAX_CHILDREN                       1
-#define MAX_VIEWS                          1
+// Upper bounds: the device's scanout count sets how many sources and children are used.
+#define MAX_CHILDREN                       16
+#define MAX_VIEWS                          16
 #define BITS_PER_BYTE                      8
 
 #define POINTER_SIZE                       64
+#define POINTER_SIZE_MAX                   256
 
 #define MIN_WIDTH_SIZE                     640
 #define MIN_HEIGHT_SIZE                    480
+// The largest mode taken from a display's EDID, in each dimension; Linux's virtio-gpu driver uses the same.
+#define MAX_WIDTH_SIZE                     8192
+#define MAX_HEIGHT_SIZE                    8192
 
 #define NOM_WIDTH_SIZE                     1024
 #define NOM_HEIGHT_SIZE                    768

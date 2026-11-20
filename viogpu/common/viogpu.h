@@ -275,59 +275,25 @@ typedef struct virtio_gpu_cmd_get_edid
 } GPU_CMD_GET_EDID, *PGPU_CMD_GET_EDID;
 #pragma pack()
 
-/* VIRTIO_GPU_RESP_OK_EDID */
+/* VIRTIO_GPU_RESP_OK_EDID: the base block and up to seven extensions */
+#define EDID_MAX_SIZE 1024
 #pragma pack(1)
 typedef struct virtio_gpu_resp_edid
 {
     GPU_CTRL_HDR hdr;
     ULONG size;
     ULONG padding;
-    UCHAR edid[1024];
+    UCHAR edid[EDID_MAX_SIZE];
 } GPU_RESP_EDID, *PGPU_RESP_EDID;
 #pragma pack()
 
-#define EDID_V1_BLOCK_SIZE  128
-#define EDID_RAW_BLOCK_SIZE 256
+#define EDID_V1_BLOCK_SIZE       128
 
-#pragma pack(push)
-#pragma pack(1)
+#define VIRTIO_GPU_F_VIRGL       0
+#define VIRTIO_GPU_F_EDID        1
+// The device has a valid max_cursor_size, and a cursor resource may be up to that size instead of exactly 64x64.
+#define VIRTIO_GPU_F_CURSOR_SIZE 6
 
-typedef struct _FEATURES_SUPPORT
-{
-    UCHAR DefaultGTF : 1;
-    UCHAR PreferredTimingNode : 1;
-    UCHAR StandardDefaultColorSpace : 1;
-    UCHAR DisplayType : 2;
-    UCHAR ActiveOff : 1;
-    UCHAR Suspend : 1;
-    UCHAR Standby : 1;
-} FEATURES_SUPPORT, *PFEATURES_SUPPORT;
-
-typedef struct _COLOR_CHARACTERISTICS
-{
-    UCHAR GreenYLow : 2;
-    UCHAR GreenXLow : 2;
-    UCHAR RedYLow : 2;
-    UCHAR RedXLow : 2;
-    UCHAR WhiteYLow : 2;
-    UCHAR WhiteXLow : 2;
-    UCHAR BlueYLow : 2;
-    UCHAR BlueXLow : 2;
-    UCHAR RedX;
-    UCHAR RedY;
-    UCHAR GreenX;
-    UCHAR GreenY;
-    UCHAR BlueX;
-    UCHAR BlueY;
-    UCHAR WhiteX;
-    UCHAR WhiteY;
-} COLOR_CHARACTERISTICS, *PCOLOR_CHARACTERISTICS;
-
-#pragma pack(pop)
-
-#define VIRTIO_GPU_F_VIRGL 0
-#define VIRTIO_GPU_F_EDID  1
-
-#define ISR_REASON_DISPLAY 1
-#define ISR_REASON_CURSOR  2
-#define ISR_REASON_CHANGE  4
+#define ISR_REASON_DISPLAY       1
+#define ISR_REASON_CURSOR        2
+#define ISR_REASON_CHANGE        4

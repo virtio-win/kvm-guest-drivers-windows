@@ -49,6 +49,13 @@ typedef struct
 
 #pragma pack(pop)
 
+// virtio-gpu has no vertical blank, so the driver reports one at a fixed rate: Windows offers a display-only
+// driver's modes at a real refresh rate only if the driver reports VSync (DxgkDdiControlInterrupt).
+#define VIOGPU_REFRESH_RATE  60
+#define VIOGPU_VSYNC_PERIOD  (10000000LL / VIOGPU_REFRESH_RATE) // in 100 ns units
+#define VIOGPU_NOMINAL_LINES 1080 // the scan lines GetScanLine counts for a target without a path
+#define VIOGPU_MAX_MODES     128  // the mode table's room for modes, besides one slot per scanout
+
 typedef struct _CURRENT_MODE
 {
     DXGK_DISPLAY_INFORMATION DispInfo;
@@ -68,6 +75,9 @@ typedef struct _CURRENT_MODE
 
     PVOID FrameBuffer;
     PVOID RamFrameBuffer;
+    // The VidPN source this mode belongs to, and the scanout (VidPN target) its path drives.
+    UINT SourceId;
+    UINT ScanoutId;
 } CURRENT_MODE;
 
 class VioGpuDod;
@@ -77,14 +87,15 @@ class VioGpuAdapter : IVioGpuPCI
   public:
     VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod);
     ~VioGpuAdapter(void);
-    NTSTATUS SetCurrentMode(ULONG Mode, CURRENT_MODE *pCurrentMode);
+    NTSTATUS SetFrameBuffer(PVIDEO_MODE_INFORMATION pModeInfo, CURRENT_MODE *pCurrentMode);
     ULONG GetModeCount(void)
     {
         return m_ModeCount;
     }
     NTSTATUS SetPowerState(DXGK_DEVICE_INFO *pDeviceInfo,
                            DEVICE_POWER_STATE DevicePowerState,
-                           CURRENT_MODE *pCurrentMode);
+                           CURRENT_MODE *pCurrentModes,
+                           UINT NumModes);
     NTSTATUS HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMATION *pDispInfo);
     NTSTATUS HWClose(void);
     NTSTATUS ExecutePresentDisplayOnly(_In_ BYTE *DstAddr,
@@ -99,6 +110,8 @@ class VioGpuAdapter : IVioGpuPCI
                                        _In_ D3DKMDT_VIDPN_PRESENT_PATH_ROTATION Rotation,
                                        _In_ const CURRENT_MODE *pModeCur);
     VOID BlackOutScreen(CURRENT_MODE *pCurrentMod);
+    // Destroys the source's framebuffer and disables the scanout it was shown on.
+    VOID DisableSource(CURRENT_MODE *pCurrentMode);
     BOOLEAN InterruptRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface, _In_ ULONG MessageNumber);
     VOID DpcRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface);
     VOID ResetDevice(VOID);
@@ -119,19 +132,20 @@ class VioGpuAdapter : IVioGpuPCI
     {
         return m_PciResources.GetPciBar(0)->GetPA();
     }
+    // The largest frame buffer the driver accepts: segment 0's size at start, raised for each larger mode added since.
     SIZE_T GetFrameSegmentSize(void)
     {
-        return m_FrameSegment.GetSize();
+        return m_FrameSegmentSize;
     }
     PDXGKRNL_INTERFACE GetDxgkInterface(void);
 
-    PVIDEO_MODE_INFORMATION GetModeInfo(UINT idx)
+    // A copy of a mode: the config-change thread rewrites the scanouts' slots under m_HostModeMutex.
+    VIDEO_MODE_INFORMATION GetModeSnapshot(UINT idx)
     {
-        return &m_ModeInfo[idx];
-    }
-    USHORT GetModeNumber(USHORT idx)
-    {
-        return (USHORT)m_ModeInfo[idx].ModeIndex;
+        KeAcquireGuardedMutex(&m_HostModeMutex);
+        VIDEO_MODE_INFORMATION Mode = m_ModeInfo[idx];
+        KeReleaseGuardedMutex(&m_HostModeMutex);
+        return Mode;
     }
     USHORT GetCurrentModeIndex(void)
     {
@@ -149,8 +163,26 @@ class VioGpuAdapter : IVioGpuPCI
     {
         return m_Id;
     }
-    PBYTE GetEdidData(void);
-    PBYTE GetCTA861Data(void);
+    // Child n drives scanout n. It is connected while the host reports the scanout enabled.
+    BOOLEAN IsChildConnected(ULONG ChildUid) const
+    {
+        return ChildUid < m_u32NumScanouts && (m_ConnectedScanouts & (1UL << ChildUid)) != 0;
+    }
+    NTSTATUS CopyEdid(UINT ScanoutId, ULONG Offset, PVOID pBuffer, _Inout_ ULONG *pLength);
+    UINT GetCursorSize(void) const
+    {
+        return m_CursorSize;
+    }
+    // The scanouts the driver presents, one VidPN source and one child each.
+    UINT GetNumScanouts(void) const
+    {
+        return max(1u, min((UINT)m_u32NumScanouts, (UINT)MAX_VIEWS));
+    }
+    // The mode the host asks for on a scanout: its size from VIRTIO_GPU_CMD_GET_DISPLAY_INFO.
+    USHORT GetPreferredModeIndex(UINT ScanoutId) const
+    {
+        return (USHORT)(m_CustomModeIndex + (ScanoutId < GetNumScanouts() ? ScanoutId : 0));
+    }
 
   protected:
   private:
@@ -160,22 +192,27 @@ class VioGpuAdapter : IVioGpuPCI
     NTSTATUS BuildModeList(DXGK_DISPLAY_INFORMATION *pDispInfo);
     BOOLEAN AckFeature(UINT64 Feature);
     BOOLEAN GetDisplayInfo(void);
-    int ProcessEdid(void);
+    void ProcessEdid(void);
     void FixEdid(void);
-    BOOLEAN GetEdids(void);
-    int AddEdidModes(void);
-    BOOLEAN UpdateModes(USHORT xres, USHORT yres, int &cnt);
-    NTSTATUS UpdateChildStatus(BOOLEAN connect);
-    void SetCustomDisplay(_In_ USHORT xres, _In_ USHORT yres);
+    BOOLEAN ReadEdid(UINT ScanoutId);
+    PBYTE GetEdidData(UINT ScanoutId);
+    ULONG GetEdidSize(UINT ScanoutId);
+    INT AddMode(USHORT xres, USHORT yres);
+    void AddScanoutModes(UINT ScanoutId);
+    void GrowFrameSegment(ULONG xres, ULONG yres);
+    NTSTATUS UpdateChildStatus(UINT ChildUid, BOOLEAN connect);
+    void SetCustomDisplay(_In_ UINT ScanoutId, _In_ USHORT xres, _In_ USHORT yres);
     BOOLEAN CreateFrameBufferObj(PVIDEO_MODE_INFORMATION pModeInfo, CURRENT_MODE *pCurrentMode);
-    void DestroyFrameBufferObj(BOOLEAN bReset, BOOLEAN bKeepBuffer);
+    void DestroyFrameBufferObj(UINT SourceId, BOOLEAN bReset, BOOLEAN bKeepBuffer);
+    void ReleaseFrameBufferObj(VioGpuObj *pObj, BOOLEAN bKeepBuffer);
     BOOLEAN CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape, _In_ CONST CURRENT_MODE *pCurrentMode);
     BOOLEAN UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape, _In_ CONST CURRENT_MODE *pCurrentMode);
     void DestroyCursor(void);
     BOOLEAN GpuObjectAttach(UINT res_id, VioGpuObj *obj);
     void static ThreadWork(_In_ PVOID Context);
     void ThreadWorkRoutine(void);
-    void ConfigChanged(void);
+    void StopWorkThread(void);
+    BOOLEAN ConfigChanged(void);
     NTSTATUS VirtIoDeviceInit(void);
     VOID CreateResolutionEvent(VOID);
     VOID NotifyResolutionEvent(VOID);
@@ -183,13 +220,21 @@ class VioGpuAdapter : IVioGpuPCI
 
   private:
     VioGpuDod *m_pVioGpuDod;
+    // The modes: first one slot per scanout for the size the host asks for on it, then the modes of the EDIDs.
+    // Modes of displays plugged in later are appended up to m_ModeCapacity; nothing moves or goes away, so the
+    // DDIs can read the table while the config-change thread adds to it. The scanouts' slots are rewritten in place,
+    // under m_HostModeMutex: the DDIs read modes with GetModeSnapshot.
     PVIDEO_MODE_INFORMATION m_ModeInfo;
-    ULONG m_ModeCount;
+    volatile ULONG m_ModeCount;
+    ULONG m_ModeCapacity;
     USHORT m_CurrentModeIndex;
     USHORT m_CustomModeIndex;
     ULONG m_Id;
-    BYTE m_EDIDs[EDID_RAW_BLOCK_SIZE];
-    BOOLEAN m_bEDID;
+    // Each scanout's EDID, and the valid part of it (EdidValidSize; 0 when the host gave none).
+    // The config-change thread rewrites them when a display is plugged in; m_EdidMutex guards both.
+    BYTE m_EDIDs[MAX_CHILDREN][EDID_MAX_SIZE];
+    ULONG m_EdidSize[MAX_CHILDREN];
+    KGUARDED_MUTEX m_EdidMutex;
 
     VirtIODevice m_VioDev;
     CPciResources m_PciResources;
@@ -197,11 +242,26 @@ class VioGpuAdapter : IVioGpuPCI
     UINT64 m_u64GuestFeatures;
     UINT32 m_u32NumCapsets;
     UINT32 m_u32NumScanouts;
+    // Side of the square cursor resource: POINTER_SIZE, or larger with VIRTIO_GPU_F_CURSOR_SIZE.
+    UINT m_CursorSize;
+    // Bit n is set while the host reports scanout n enabled (VIRTIO_GPU_CMD_GET_DISPLAY_INFO).
+    volatile ULONG m_ConnectedScanouts;
     CtrlQueue m_CtrlQueue;
     CrsrQueue m_CursorQueue;
     VioGpuBuf m_GpuBuf;
     VioGpuIdr m_Idr;
-    VioGpuObj *m_pFrameBuf;
+    // Per VidPN source: its framebuffer resource and the scanout that resource is set on.
+    VioGpuObj *m_pFrameBuf[MAX_VIEWS];
+    UINT m_FrameBufScanout[MAX_VIEWS];
+    // Per scanout: the source whose framebuffer was set on it last, or -1. Only that source takes it off
+    // again; another source may have been set on the scanout since.
+    INT m_ScanoutOwner[MAX_CHILDREN];
+    // Per scanout: changes with each change of the host's size and each plug-in (VIOGPU_SOURCE_MODE.Generation), to
+    // the next value of m_HostModeSerial, so that no two scanouts share one. The size in the scanout's slot and its
+    // generation change together under m_HostModeMutex, which the DDIs that read the slots take as well.
+    ULONG m_HostModeGeneration[MAX_CHILDREN];
+    ULONG m_HostModeSerial;
+    KGUARDED_MUTEX m_HostModeMutex;
     VioGpuObj *m_pCursorBuf;
     // Serializes SetPointerShape against SetPointerPosition: dxgkrnl calls the two pointer DDIs from
     // different threads without synchronizing them. A concurrent MOVE_CURSOR can then interleave with the
@@ -212,18 +272,40 @@ class VioGpuAdapter : IVioGpuPCI
     // Pointer visibility, guarded by m_CursorMutex. Windows hides the hardware cursor (Flags.Visible = 0)
     // whenever it draws the pointer itself, for instance while DWM composes it into the primary during a
     // window move or resize loop, and shows it again afterwards.
-    BOOLEAN m_bCursorHidden;
+    // Per scanout: QEMU keeps a cursor for each one.
+    BOOLEAN m_bCursorHidden[MAX_VIEWS];
     // Hot spot of the current shape, replayed by the UPDATE_CURSOR that re-attaches the sprite after a hide.
     UINT m_CursorHotX;
     UINT m_CursorHotY;
+    // Per scanout: where the sprite's top left is, and the hot spot of the image it shows. Windows gives the
+    // position of the image's top left, and does not give a new one when a shape with another hot spot replaces
+    // the image; the driver moves the sprite so the hot spot stays put.
+    INT m_CursorX[MAX_VIEWS];
+    INT m_CursorY[MAX_VIEWS];
+    UINT m_ShownHotX[MAX_VIEWS];
+    UINT m_ShownHotY[MAX_VIEWS];
     VioGpuMemSegment m_CursorSegment;
-    VioGpuMemSegment m_FrameSegment;
+    // Per VidPN source. Segment 0 is set up with the device, at m_FrameSegmentSize; the others when their source first
+    // gets a mode, at that mode's size. A segment is allocated again, at the new mode's size, when its source gets a
+    // mode that does not fit.
+    VioGpuMemSegment m_FrameSegment[MAX_VIEWS];
+    UINT m_FrameSegmentSize;
     volatile ULONG m_PendingWorks;
     KEVENT m_ConfigUpdateEvent;
+    // A display change not fully handled yet: its display info, or the EDID of a display it plugged in, is still to
+    // be read. The config-change thread and the power path change it under m_DeviceMutex.
+    BOOLEAN m_DisplayChangePending;
+    // Held by the config-change thread while it handles a display change, and by the power path while it closes the
+    // device: the device is not closed under a change being handled.
+    KMUTEX m_DeviceMutex;
     PETHREAD m_pWorkThread;
-    BOOLEAN m_bStopWorkThread;
+    volatile BOOLEAN m_bStopWorkThread;
     PKEVENT m_ResolutionEvent;
     HANDLE m_ResolutionEventHandle;
+    // Per source: an auto-reset event that stays set until the source's helper thread waits on it, where the pulse of
+    // m_ResolutionEvent is lost on a thread that is not waiting at that moment.
+    PKEVENT m_SourceEvents[MAX_VIEWS];
+    HANDLE m_SourceEventHandles[MAX_VIEWS];
 };
 
 class VioGpuDod
@@ -237,7 +319,9 @@ class VioGpuDod
     DEVICE_POWER_STATE m_AdapterPowerState;
     DRIVER_STATUS_FLAG m_Flags;
 
-    CURRENT_MODE m_CurrentMode;
+    // One per VidPN source; m_NumSources of them are in use.
+    CURRENT_MODE m_CurrentModes[MAX_VIEWS];
+    UINT m_NumSources;
 
     DXGK_DISPLAY_INFORMATION m_SystemDisplayInfo;
 
@@ -246,6 +330,15 @@ class VioGpuDod
 
     USHORT m_PersistentDispMode0Width;
     USHORT m_PersistentDispMode0Height;
+
+    // VSync: a periodic timer while Windows has it enabled; m_VSyncTime is the interrupt time of the last one.
+    // It goes to every target with a committed path: m_PathTarget is each source's (-1 for none), as the
+    // last CommitVidPn left it, and m_VSyncTargets their union as a bitmask, the one thing VSyncNotify reads.
+    PEX_TIMER m_VSyncTimer;
+    volatile LONG m_VSyncEnabled;
+    volatile LONG64 m_VSyncTime;
+    INT m_PathTarget[MAX_VIEWS];
+    volatile LONG m_VSyncTargets;
 
   public:
     VioGpuDod(_In_ DEVICE_OBJECT *pPhysicalDeviceObject);
@@ -324,12 +417,26 @@ class VioGpuDod
     {
         return (m_PersistentDispMode0Width > 0) && (m_PersistentDispMode0Height > 0);
     }
+    // The scanout a VidPN source drives, or FALSE if there is no such source.
+    BOOLEAN GetSourceScanout(UINT SourceId, UINT *pScanoutId) const
+    {
+        if (SourceId >= m_NumSources)
+        {
+            return FALSE;
+        }
+        *pScanoutId = m_CurrentModes[SourceId].ScanoutId;
+        return TRUE;
+    }
 #pragma code_seg(pop)
 
     NTSTATUS StartDevice(_In_ DXGK_START_INFO *pDxgkStartInfo,
                          _In_ DXGKRNL_INTERFACE *pDxgkInterface,
                          _Out_ ULONG *pNumberOfViews,
                          _Out_ ULONG *pNumberOfChildren);
+    NTSTATUS StartAdapter(_In_ DXGK_START_INFO *pDxgkStartInfo,
+                          _In_ DXGKRNL_INTERFACE *pDxgkInterface,
+                          _Out_ ULONG *pNumberOfViews,
+                          _Out_ ULONG *pNumberOfChildren);
     NTSTATUS StopDevice(VOID);
     VOID ResetDevice(VOID);
     NTSTATUS DispatchIoRequest(_In_ ULONG VidPnSourceId, _In_ VIDEO_REQUEST_PACKET *pVideoRequestPacket);
@@ -372,6 +479,8 @@ class VioGpuDod
                             _In_ INT PositionX,
                             _In_ INT PositionY);
     NTSTATUS SetRegisterConfigInfo(void);
+    NTSTATUS ControlInterrupt(_In_ CONST DXGK_INTERRUPT_TYPE InterruptType, _In_ BOOLEAN Enable);
+    NTSTATUS GetScanLine(_Inout_ DXGKARG_GETSCANLINE *pGetScanLine);
 
     PDXGKRNL_INTERFACE GetDxgkInterface(void)
     {
@@ -379,7 +488,18 @@ class VioGpuDod
     }
 
   private:
+    void StartVSyncTimer(void);
+    void StopVSyncTimer(void);
+    void UpdateVSyncTargets(void);
+    static EXT_CALLBACK VSyncTimerCallback;
+    static KSYNCHRONIZE_ROUTINE VSyncNotify;
     BOOLEAN CheckHardware();
+    void InitCurrentModes(void);
+    NTSTATUS CommitSource(D3DKMDT_HVIDPN hVidPn,
+                          CONST DXGK_VIDPN_INTERFACE *pVidPnInterface,
+                          D3DKMDT_HVIDPNTOPOLOGY hVidPnTopology,
+                          CONST DXGK_VIDPNTOPOLOGY_INTERFACE *pVidPnTopologyInterface,
+                          D3DDDI_VIDEO_PRESENT_SOURCE_ID SourceId);
     NTSTATUS WriteRegistryString(_In_ HANDLE DevInstRegKeyHandle, _In_ PCWSTR pszwValueName, _In_ PCSTR pszValue);
     NTSTATUS WriteRegistryDWORD(_In_ HANDLE DevInstRegKeyHandle, _In_ PCWSTR pszwValueName, _In_ PDWORD pdwValue);
     NTSTATUS ReadRegistryDWORD(_In_ HANDLE DevInstRegKeyHandle, _In_ PCWSTR pszwValueName, _Inout_ PDWORD pdwValue);
@@ -388,11 +508,16 @@ class VioGpuDod
     NTSTATUS AddSingleMonitorMode(_In_ CONST DXGKARG_RECOMMENDMONITORMODES *CONST pRecommendMonitorModes);
     NTSTATUS AddSingleSourceMode(_In_ CONST DXGK_VIDPNSOURCEMODESET_INTERFACE *pVidPnSourceModeSetInterface,
                                  D3DKMDT_HVIDPNSOURCEMODESET hVidPnSourceModeSet,
-                                 D3DDDI_VIDEO_PRESENT_SOURCE_ID SourceId);
+                                 D3DDDI_VIDEO_PRESENT_SOURCE_ID SourceId,
+                                 _In_opt_ CONST D3DKMDT_2DREGION *pPinnedTargetSize);
+    BOOLEAN GetPinnedTargetSize(D3DKMDT_HVIDPN hVidPn,
+                                _In_ CONST DXGK_VIDPN_INTERFACE *pVidPnInterface,
+                                D3DDDI_VIDEO_PRESENT_TARGET_ID TargetId,
+                                _Out_ D3DKMDT_2DREGION *pSize);
     NTSTATUS AddSingleTargetMode(_In_ CONST DXGK_VIDPNTARGETMODESET_INTERFACE *pVidPnTargetModeSetInterface,
                                  D3DKMDT_HVIDPNTARGETMODESET hVidPnTargetModeSet,
                                  _In_opt_ CONST D3DKMDT_VIDPN_SOURCE_MODE *pVidPnPinnedSourceModeInfo,
-                                 D3DDDI_VIDEO_PRESENT_SOURCE_ID SourceId);
+                                 D3DDDI_VIDEO_PRESENT_TARGET_ID TargetId);
     NTSTATUS IsVidPnSourceModeFieldsValid(CONST D3DKMDT_VIDPN_SOURCE_MODE *pSourceMode) const;
     NTSTATUS IsVidPnPathFieldsValid(CONST D3DKMDT_VIDPN_PRESENT_PATH *pPath) const;
     NTSTATUS SetRegisterInfo(_In_ ULONG Id, _In_ DWORD MemSize);

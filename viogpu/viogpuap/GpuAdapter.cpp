@@ -29,10 +29,33 @@
 
 #include "pch.h"
 
+// One display's sync at a time: its snapshot of the display configuration, which finds the display's path,
+// source and current mode, stays current until its mode change is made. A mutex rather than an SRW lock: Close
+// terminates a thread that does not stop in time, and the system releases the mutex of a thread that ended while
+// it held it, so the others go on.
+static HANDLE DisplayConfigMutex = CreateMutex(NULL, FALSE, NULL);
+
+static void LockDisplayConfig(void)
+{
+    if (DisplayConfigMutex != NULL)
+    {
+        // WAIT_ABANDONED, when the previous owner was terminated, gives the lock all the same.
+        WaitForSingleObject(DisplayConfigMutex, INFINITE);
+    }
+}
+
+static void UnlockDisplayConfig(void)
+{
+    if (DisplayConfigMutex != NULL)
+    {
+        ReleaseMutex(DisplayConfigMutex);
+    }
+}
+
 GpuAdapter::GpuAdapter(const std::wstring LinkName)
-    : m_hThread(NULL), m_hStopEvent(NULL), m_hResolutionEvent(NULL), m_hDC(NULL), m_hAdapter(NULL), m_Index(-1),
-      m_PathArrayElements(0), m_ModeInfoArrayElements(0), m_pDisplayPathInfo(NULL), m_pDisplayModeInfo(NULL),
-      m_Flag(None)
+    : m_hThread(NULL), m_hStopEvent(NULL), m_hResolutionEvent(NULL), m_AppliedGeneration(0), m_hDC(NULL),
+      m_hAdapter(NULL), m_Id(0), m_PathIdx(INVALID_PATH_IDX), m_PathArrayElements(0), m_ModeInfoArrayElements(0),
+      m_pDisplayPathInfo(NULL), m_pDisplayModeInfo(NULL), m_Flag(None)
 {
     m_DeviceName = LinkName;
     PrintMessage(L"%ws %ws\n", __FUNCTIONW__, m_DeviceName.c_str());
@@ -43,8 +66,9 @@ void GpuAdapter::UpdateDisplayConfig(void)
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
-    UINT32 filter = QDC_ALL_PATHS;
+    UINT32 filter = QDC_ONLY_ACTIVE_PATHS;
     ClearDisplayConfig();
+    m_PathIdx = INVALID_PATH_IDX;
 
     if (FAILED(HRESULT_FROM_WIN32(::GetDisplayConfigBufferSizes(filter,
                                                                 &m_PathArrayElements,
@@ -79,7 +103,7 @@ void GpuAdapter::UpdateDisplayConfig(void)
             {
                 if (wcscmp(m_DeviceName.c_str(), SourceName.viewGdiDeviceName) == 0)
                 {
-                    m_Index = PathIdx;
+                    m_PathIdx = PathIdx;
                     break;
                 }
             }
@@ -87,18 +111,14 @@ void GpuAdapter::UpdateDisplayConfig(void)
     }
 };
 
-DISPLAYCONFIG_MODE_INFO *GpuAdapter::GetDisplayConfig(UINT index)
+DISPLAYCONFIG_MODE_INFO *GpuAdapter::GetDisplayConfig(void)
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
-    if (index < GetNumbersOfPathArrayElements())
+    if (m_PathIdx < GetNumbersOfPathArrayElements())
     {
-        UINT idx = m_pDisplayPathInfo[index].sourceInfo.modeInfoIdx;
-        PrintMessage(L"%ws m_Index %d idx %d active %d\n",
-                     __FUNCTIONW__,
-                     index,
-                     idx,
-                     m_pDisplayPathInfo[index].flags & DISPLAYCONFIG_PATH_ACTIVE);
+        UINT idx = m_pDisplayPathInfo[m_PathIdx].sourceInfo.modeInfoIdx;
+        PrintMessage(L"%ws path %d mode %d\n", __FUNCTIONW__, m_PathIdx, idx);
         if (idx < GetNumbersOfModeInfoArrayElements())
         {
             return &m_pDisplayModeInfo[idx];
@@ -143,8 +163,19 @@ void GpuAdapter::Init()
         {
             std::wstring EventName = GLOBAL_OBJECTS;
             EventName += RESOLUTION_EVENT_NAME;
-            EventName += std::to_wstring(m_Index);
-            m_hResolutionEvent = ::OpenEvent(EVENT_ALL_ACCESS | EVENT_MODIFY_STATE, FALSE, EventName.c_str());
+            EventName += std::to_wstring(m_Id);
+            // The source's own event stays set until this thread waits on it. A driver without one has only the
+            // device's event, which it pulses: a change made while this thread is busy is then missed.
+            std::wstring SourceEventName = EventName + L"_" + std::to_wstring(openAdapter.VidPnSourceId);
+            m_hResolutionEvent = ::OpenEvent(SYNCHRONIZE, FALSE, SourceEventName.c_str());
+            if (m_hResolutionEvent == NULL)
+            {
+                PrintMessage(L"Cannot open event %ws Error = %d, using %ws.\n",
+                             SourceEventName.c_str(),
+                             GetLastError(),
+                             EventName.c_str());
+                m_hResolutionEvent = ::OpenEvent(EVENT_ALL_ACCESS | EVENT_MODIFY_STATE, FALSE, EventName.c_str());
+            }
             if (m_hResolutionEvent == NULL)
             {
                 PrintMessage(L"Cannot open event %ws Error = %d.\n", EventName.c_str(), GetLastError());
@@ -183,7 +214,7 @@ bool GpuAdapter::QueryAdapterId()
         }
         else
         {
-            m_Index = data.Id;
+            m_Id = data.Id;
             return true;
         }
     }
@@ -194,7 +225,7 @@ bool GpuAdapter::GetCurrentResolution(PVIOGPU_DISP_MODE mode)
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
-    DISPLAYCONFIG_MODE_INFO *pConfig = GetDisplayConfig(m_Index);
+    DISPLAYCONFIG_MODE_INFO *pConfig = GetDisplayConfig();
     if (pConfig)
     {
         mode->XResolution = (USHORT)pConfig->sourceMode.width;
@@ -204,15 +235,18 @@ bool GpuAdapter::GetCurrentResolution(PVIOGPU_DISP_MODE mode)
     return false;
 }
 
-bool GpuAdapter::GetCustomResolution(PVIOGPU_DISP_MODE pmode)
+bool GpuAdapter::GetCustomResolution(PVIOGPU_DISP_MODE pmode, PULONG pGeneration)
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
-    if (m_hAdapter && pmode)
+    if (m_hAdapter && pmode && m_PathIdx < GetNumbersOfPathArrayElements())
     {
+        // An adapter can drive several displays, so ask for the size of this display's source.
+        UINT32 SourceId = m_pDisplayPathInfo[m_PathIdx].sourceInfo.id;
         VIOGPU_ESCAPE data{0};
-        data.DataLength = sizeof(VIOGPU_DISP_MODE);
-        data.Type = VIOGPU_GET_CUSTOM_RESOLUTION;
+        data.DataLength = sizeof(VIOGPU_SOURCE_MODE);
+        data.Type = VIOGPU_GET_SOURCE_RESOLUTION;
+        data.SourceMode.SourceId = SourceId;
 
         D3DKMT_ESCAPE escape = {0};
         escape.hAdapter = m_hAdapter;
@@ -222,6 +256,33 @@ bool GpuAdapter::GetCustomResolution(PVIOGPU_DISP_MODE pmode)
         NTSTATUS status = D3DKMTEscape(&escape);
         if (NT_SUCCESS(status))
         {
+            pmode->XResolution = data.SourceMode.Resolution.XResolution;
+            pmode->YResolution = data.SourceMode.Resolution.YResolution;
+            *pGeneration = data.SourceMode.Generation;
+            PrintMessage(L"%ws source %d (%dx%d) generation %d\n",
+                         __FUNCTIONW__,
+                         SourceId,
+                         pmode->XResolution,
+                         pmode->YResolution,
+                         *pGeneration);
+            return true;
+        }
+        PrintMessage(L"D3DKMTEscape source %d failed with status = 0x%0X\n", SourceId, status);
+        if (status != STATUS_INVALID_PARAMETER || SourceId != 0)
+        {
+            return false;
+        }
+
+        // A driver without VIOGPU_GET_SOURCE_RESOLUTION rejects it as an unknown escape. It has a single
+        // source, and this is its size.
+        data = {0};
+        data.DataLength = sizeof(VIOGPU_DISP_MODE);
+        data.Type = VIOGPU_GET_CUSTOM_RESOLUTION;
+        status = D3DKMTEscape(&escape);
+        if (NT_SUCCESS(status))
+        {
+            // No generations: every size is applied, as before.
+            *pGeneration = 0;
             pmode->XResolution = data.Resolution.XResolution;
             pmode->YResolution = data.Resolution.YResolution;
             PrintMessage(L"%ws (%dx%d)\n", __FUNCTIONW__, pmode->XResolution, pmode->YResolution);
@@ -236,48 +297,90 @@ bool GpuAdapter::SetResolution(PVIOGPU_DISP_MODE mode)
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
-    int ix = m_pDisplayPathInfo[m_Index].sourceInfo.modeInfoIdx;
-    PrintMessage(L"%ws m_Index %d %d (%dx%d)\n", __FUNCTIONW__, m_Index, ix, mode->XResolution, mode->YResolution);
-    m_pDisplayModeInfo[ix].sourceMode.width = mode->XResolution;
-    m_pDisplayModeInfo[ix].sourceMode.height = mode->YResolution;
-    SetDisplayConfig(m_PathArrayElements,
-                     m_pDisplayPathInfo,
-                     m_ModeInfoArrayElements,
-                     m_pDisplayModeInfo,
-                     SDC_APPLY | SDC_USE_SUPPLIED_DISPLAY_CONFIG | SDC_ALLOW_CHANGES | SDC_SAVE_TO_DATABASE);
-    return true;
+    // Change this display's mode and nothing else. Applying a snapshot of every path would also apply the
+    // snapshot's topology, and switch off a monitor that Windows attached after the snapshot was taken.
+    DEVMODEW dm = {};
+    dm.dmSize = sizeof(dm);
+    dm.dmPelsWidth = mode->XResolution;
+    dm.dmPelsHeight = mode->YResolution;
+    dm.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT;
+    LONG result = ChangeDisplaySettingsExW(m_DeviceName.c_str(), &dm, NULL, CDS_UPDATEREGISTRY, NULL);
+    PrintMessage(L"%ws %ws (%dx%d) ChangeDisplaySettingsEx = %d\n",
+                 __FUNCTIONW__,
+                 m_DeviceName.c_str(),
+                 mode->XResolution,
+                 mode->YResolution,
+                 result);
+    return result == DISP_CHANGE_SUCCESSFUL;
 }
 
-void GpuAdapter::SyncResolution(void)
+// Gives the display the size the host asks for, when the host has asked for a new one since. Returns false when the
+// display could not be synced and should be tried again: it has no active path yet, as right after a replug, or the
+// mode change failed.
+bool GpuAdapter::SyncResolution(void)
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
     VIOGPU_DISP_MODE custom = {0};
+    VIOGPU_DISP_MODE current = {0};
+    ULONG Generation = 0;
+    bool Synced = false;
+
+    LockDisplayConfig();
     UpdateDisplayConfig();
-    if (GetCustomResolution(&custom))
+    if (m_PathIdx == INVALID_PATH_IDX)
     {
-        VIOGPU_DISP_MODE current = {0};
-        GetCurrentResolution(&current);
-        SetResolution(&custom);
+        // No active path: the display is not part of the desktop, so there is no mode to set.
+        PrintMessage(L"%ws %ws is not active\n", __FUNCTIONW__, m_DeviceName.c_str());
     }
+    else if (GetCustomResolution(&custom, &Generation))
+    {
+        if (Generation != 0 && Generation == m_AppliedGeneration)
+        {
+            // Nothing new from the host: a size the user chose since stays.
+            Synced = true;
+        }
+        else if (GetCurrentResolution(&current) &&
+                 ((custom.XResolution == current.XResolution && custom.YResolution == current.YResolution) ||
+                  SetResolution(&custom)))
+        {
+            m_AppliedGeneration = Generation;
+            Synced = true;
+        }
+    }
+    UnlockDisplayConfig();
+    return Synced;
 }
 
 void GpuAdapter::Run()
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
-    if (m_hThread != NULL && m_hStopEvent != NULL && m_hResolutionEvent != NULL)
+    // A display that could not be synced is tried again for a while: after a replug Windows sets its path up only
+    // some time after the driver reported the new size.
+    const DWORD RetryMs = 500;
+    const UINT MaxRetries = 20;
+
+    if (m_hStopEvent != NULL && m_hResolutionEvent != NULL)
     {
-        SyncResolution();
+        UINT Retries = 0;
+        bool Synced = SyncResolution();
 
         const HANDLE handles[] = {m_hStopEvent, m_hResolutionEvent};
         while (1)
         {
-            if (WaitForMultipleObjects(2, handles, FALSE, INFINITE) == WAIT_OBJECT_0)
+            DWORD Timeout = (!Synced && Retries < MaxRetries) ? RetryMs : INFINITE;
+            DWORD Result = WaitForMultipleObjects(2, handles, FALSE, Timeout);
+            if (Result == WAIT_OBJECT_0)
             {
                 break;
             }
-            SyncResolution();
+            Retries = (Result == WAIT_TIMEOUT) ? Retries + 1 : 0;
+            Synced = SyncResolution();
+            if (!Synced && Retries == MaxRetries)
+            {
+                PrintMessage(L"%ws %ws not synced, until the next change\n", __FUNCTIONW__, m_DeviceName.c_str());
+            }
         }
     }
 }
@@ -305,6 +408,7 @@ void GpuAdapter::Close()
                 TerminateThread(m_hThread, 0);
             }
         }
+        CloseHandle(m_hThread);
         m_hThread = NULL;
     }
 

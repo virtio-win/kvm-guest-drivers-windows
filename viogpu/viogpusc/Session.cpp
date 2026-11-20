@@ -50,6 +50,15 @@ bool CSession::Init(void)
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
+    // One viogpuap per session: an event in a session that has one running, as a lock or an unlock, starts no
+    // other.
+    if (ProcessRunning())
+    {
+        return true;
+    }
+    // What a viogpuap that ended, or was never started, left behind.
+    Close();
+
     std::wstring PipeName = PIPE_NAME + std::to_wstring(m_SessionInfo.SessionId);
     m_PipeServer = new PipeServer(PipeName);
     if (m_PipeServer && m_PipeServer->Init())
@@ -95,6 +104,23 @@ void CSession::Close(void)
         CloseHandle(m_ProcessInfo.hThread);
         m_ProcessInfo.hThread = NULL;
     }
+}
+
+// Stops the session's viogpuap, which ends when its pipe closes. Its process handle stays until the next Init.
+void CSession::Stop(void)
+{
+    PrintMessage(L"%ws\n", __FUNCTIONW__);
+    if (m_PipeServer)
+    {
+        m_PipeServer->Close();
+        delete m_PipeServer;
+        m_PipeServer = NULL;
+    }
+}
+
+bool CSession::ProcessRunning(void)
+{
+    return m_ProcessInfo.hProcess != NULL && WaitForSingleObject(m_ProcessInfo.hProcess, 0) == WAIT_TIMEOUT;
 }
 
 void CSession::Pause(void)
