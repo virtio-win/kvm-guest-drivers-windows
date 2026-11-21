@@ -50,6 +50,34 @@ bool CSession::Init(void)
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
+    // One viogpuap per session: an event in a session whose viogpuap runs, as a lock or an unlock, starts no other.
+    if (ProcessRunning())
+    {
+        if (PipeServerActive())
+        {
+            return true;
+        }
+        // Stopped, and still on its way out: it goes before the next one starts.
+        PrintMessage(L"%ws viogpuap %u of session %u still runs after its stop\n",
+                     __FUNCTIONW__,
+                     m_ProcessInfo.dwProcessId,
+                     m_SessionInfo.SessionId);
+        if (WaitForSingleObject(m_ProcessInfo.hProcess, 5000) == WAIT_TIMEOUT)
+        {
+            PrintMessage(L"%ws viogpuap %u did not end: terminating it\n", __FUNCTIONW__, m_ProcessInfo.dwProcessId);
+            if (!TerminateProcess(m_ProcessInfo.hProcess, ERROR_TIMEOUT))
+            {
+                PrintMessage(L"%ws TerminateProcess failed, Error = %d: viogpuap %u may still run\n",
+                             __FUNCTIONW__,
+                             GetLastError(),
+                             m_ProcessInfo.dwProcessId);
+            }
+            WaitForSingleObject(m_ProcessInfo.hProcess, 1000);
+        }
+    }
+    // Release what a viogpuap that ended, or was never started, left behind.
+    Close();
+
     std::wstring PipeName = PIPE_NAME + std::to_wstring(m_SessionInfo.SessionId);
     m_PipeServer = new PipeServer(PipeName);
     if (m_PipeServer && m_PipeServer->Init())
@@ -95,6 +123,25 @@ void CSession::Close(void)
         CloseHandle(m_ProcessInfo.hThread);
         m_ProcessInfo.hThread = NULL;
     }
+}
+
+// Closes the session's pipe: its viogpuap ends when it sees the pipe close, and Stop does not wait for it. The process
+// handle, token and environment block stay until Init finds the process ended, or Close, so that Init can tell
+// whether it still runs.
+void CSession::Stop(void)
+{
+    PrintMessage(L"%ws\n", __FUNCTIONW__);
+    if (m_PipeServer)
+    {
+        m_PipeServer->Close();
+        delete m_PipeServer;
+        m_PipeServer = NULL;
+    }
+}
+
+bool CSession::ProcessRunning(void)
+{
+    return m_ProcessInfo.hProcess != NULL && WaitForSingleObject(m_ProcessInfo.hProcess, 0) == WAIT_TIMEOUT;
 }
 
 void CSession::Pause(void)

@@ -40,6 +40,7 @@ class CSession
     ~CSession(void);
     bool Init(void);
     void Close(void);
+    void Stop(void);
     void Pause(void);
     void Resume(void);
 
@@ -74,6 +75,7 @@ class CSession
         return (m_PipeServer != NULL);
     }
     bool CreateProcessInSession(const std::wstring &commandLine);
+    bool ProcessRunning(void);
     CSession(void)
     {
         ;
