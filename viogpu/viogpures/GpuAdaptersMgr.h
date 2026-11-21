@@ -56,7 +56,7 @@ class GpuAdaptersMgr
     }
     BOOL Init();
     void Close();
-    void SetCustomResolution(USHORT Width, USHORT Height);
+    bool SetCustomResolution(USHORT Width, USHORT Height);
 
   protected:
     void FindAdapters();

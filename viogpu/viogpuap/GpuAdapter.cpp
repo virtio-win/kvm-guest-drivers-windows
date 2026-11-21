@@ -1,7 +1,9 @@
 /*
  * Copyright (C) 2021-2022 Red Hat, Inc.
+ * Copyright (C) 2026 Zededa, Inc.
  *
  * Written By: Vadim Rozenfeld <vrozenfe@redhat.com>
+ *             Mikhail Malyshev <mike.malyshev@gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -29,76 +31,125 @@
 
 #include "pch.h"
 
+// One display's sync at a time: a thread reads its display's path and mode, and sets the mode, while no other thread
+// of this process changes a mode. A mutex rather than an SRW lock: Close terminates a thread that does not stop in
+// time, and the mutex of a thread that ended while it held it is abandoned, so the next wait takes it and the other
+// threads do not block on it for good.
+static HANDLE DisplayConfigMutex = CreateMutex(NULL, FALSE, NULL);
+
+// Takes the lock, or returns false when hStop is set first or the wait fails. Without the mutex, which CreateMutex
+// failed to make, the syncs go on unserialized.
+static bool LockDisplayConfig(HANDLE hStop)
+{
+    if (DisplayConfigMutex == NULL)
+    {
+        PrintMessage(L"%ws no lock: CreateMutex failed\n", __FUNCTIONW__);
+        return true;
+    }
+    const HANDLE handles[] = {hStop, DisplayConfigMutex};
+    // WAIT_ABANDONED, when the previous owner was terminated, gives the lock all the same.
+    DWORD wait = WaitForMultipleObjects(2, handles, FALSE, INFINITE);
+    if (wait == WAIT_OBJECT_0 + 1 || wait == WAIT_ABANDONED_0 + 1)
+    {
+        return true;
+    }
+    if (wait == WAIT_FAILED)
+    {
+        PrintMessage(L"%ws WaitForMultipleObjects failed with error %d\n", __FUNCTIONW__, GetLastError());
+    }
+    return false;
+}
+
+static void UnlockDisplayConfig(void)
+{
+    if (DisplayConfigMutex != NULL)
+    {
+        ReleaseMutex(DisplayConfigMutex);
+    }
+}
+
 GpuAdapter::GpuAdapter(const std::wstring LinkName)
-    : m_hThread(NULL), m_hStopEvent(NULL), m_hResolutionEvent(NULL), m_hDC(NULL), m_hAdapter(NULL), m_Index(-1),
-      m_PathArrayElements(0), m_ModeInfoArrayElements(0), m_pDisplayPathInfo(NULL), m_pDisplayModeInfo(NULL),
-      m_Flag(None)
+    : m_hThread(NULL), m_hStopEvent(NULL), m_hResolutionEvent(NULL), m_hDC(NULL), m_hAdapter(NULL), m_Id(0),
+      m_PathIdx(INVALID_PATH_IDX), m_PathArrayElements(0), m_ModeInfoArrayElements(0), m_pDisplayPathInfo(NULL),
+      m_pDisplayModeInfo(NULL), m_Flag(None)
 {
     m_DeviceName = LinkName;
     PrintMessage(L"%ws %ws\n", __FUNCTIONW__, m_DeviceName.c_str());
     Init();
 };
 
-void GpuAdapter::UpdateDisplayConfig(void)
+// Takes a snapshot of the active paths and finds this display's path in it. ERROR_SUCCESS with m_PathIdx at
+// INVALID_PATH_IDX when the display has no active path; another error, logged, when the snapshot failed.
+LONG GpuAdapter::UpdateDisplayConfig(void)
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
-    UINT32 filter = QDC_ALL_PATHS;
-    ClearDisplayConfig();
-
-    if (FAILED(HRESULT_FROM_WIN32(::GetDisplayConfigBufferSizes(filter,
-                                                                &m_PathArrayElements,
-                                                                &m_ModeInfoArrayElements))))
+    UINT32 filter = QDC_ONLY_ACTIVE_PATHS;
+    LONG result;
+    // A topology change between the two calls makes QueryDisplayConfig ask for larger buffers.
+    do
     {
-        PrintMessage(L"GetDisplayConfigBufferSizes faled\n");
-        return;
+        ClearDisplayConfig();
+        m_PathIdx = INVALID_PATH_IDX;
+        result = ::GetDisplayConfigBufferSizes(filter, &m_PathArrayElements, &m_ModeInfoArrayElements);
+        if (result != ERROR_SUCCESS)
+        {
+            break;
+        }
+        m_pDisplayPathInfo = new DISPLAYCONFIG_PATH_INFO[m_PathArrayElements];
+        m_pDisplayModeInfo = new DISPLAYCONFIG_MODE_INFO[m_ModeInfoArrayElements];
+        ZeroMemory(m_pDisplayPathInfo, sizeof(DISPLAYCONFIG_PATH_INFO) * m_PathArrayElements);
+        ZeroMemory(m_pDisplayModeInfo, sizeof(DISPLAYCONFIG_MODE_INFO) * m_ModeInfoArrayElements);
+        result = ::QueryDisplayConfig(filter,
+                                      &m_PathArrayElements,
+                                      m_pDisplayPathInfo,
+                                      &m_ModeInfoArrayElements,
+                                      m_pDisplayModeInfo,
+                                      NULL);
+    } while (result == ERROR_INSUFFICIENT_BUFFER);
+    if (result != ERROR_SUCCESS)
+    {
+        PrintMessage(L"%ws %ws: querying the display configuration failed with error %d\n",
+                     __FUNCTIONW__,
+                     m_DeviceName.c_str(),
+                     result);
+        ClearDisplayConfig();
+        return result;
     }
 
-    m_pDisplayPathInfo = new DISPLAYCONFIG_PATH_INFO[m_PathArrayElements];
-    m_pDisplayModeInfo = new DISPLAYCONFIG_MODE_INFO[m_ModeInfoArrayElements];
-    ZeroMemory(m_pDisplayPathInfo, sizeof(DISPLAYCONFIG_PATH_INFO) * m_PathArrayElements);
-    ZeroMemory(m_pDisplayModeInfo, sizeof(DISPLAYCONFIG_MODE_INFO) * m_ModeInfoArrayElements);
-
-    if (SUCCEEDED(HRESULT_FROM_WIN32(::QueryDisplayConfig(filter,
-                                                          &m_PathArrayElements,
-                                                          m_pDisplayPathInfo,
-                                                          &m_ModeInfoArrayElements,
-                                                          m_pDisplayModeInfo,
-                                                          NULL))))
+    for (UINT PathIdx = 0; PathIdx < GetNumbersOfPathArrayElements(); ++PathIdx)
     {
+        DISPLAYCONFIG_SOURCE_DEVICE_NAME SourceName = {};
+        SourceName.header.type = DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME;
+        SourceName.header.size = sizeof(SourceName);
+        SourceName.header.adapterId = m_pDisplayPathInfo[PathIdx].sourceInfo.adapterId;
+        SourceName.header.id = m_pDisplayPathInfo[PathIdx].sourceInfo.id;
 
-        for (UINT PathIdx = 0; PathIdx < GetNumbersOfPathArrayElements(); ++PathIdx)
+        LONG nameResult = ::DisplayConfigGetDeviceInfo(&SourceName.header);
+        if (nameResult != ERROR_SUCCESS)
         {
-            DISPLAYCONFIG_SOURCE_DEVICE_NAME SourceName = {};
-            SourceName.header.type = DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME;
-            SourceName.header.size = sizeof(SourceName);
-            SourceName.header.adapterId = m_pDisplayPathInfo[PathIdx].sourceInfo.adapterId;
-            SourceName.header.id = m_pDisplayPathInfo[PathIdx].sourceInfo.id;
-
-            if (SUCCEEDED(HRESULT_FROM_WIN32(::DisplayConfigGetDeviceInfo(&SourceName.header))))
-            {
-                if (wcscmp(m_DeviceName.c_str(), SourceName.viewGdiDeviceName) == 0)
-                {
-                    m_Index = PathIdx;
-                    break;
-                }
-            }
+            PrintMessage(L"%ws path %d: DisplayConfigGetDeviceInfo failed with error %d\n",
+                         __FUNCTIONW__,
+                         PathIdx,
+                         nameResult);
+        }
+        else if (wcscmp(m_DeviceName.c_str(), SourceName.viewGdiDeviceName) == 0)
+        {
+            m_PathIdx = PathIdx;
+            break;
         }
     }
-};
+    return ERROR_SUCCESS;
+}
 
-DISPLAYCONFIG_MODE_INFO *GpuAdapter::GetDisplayConfig(UINT index)
+DISPLAYCONFIG_MODE_INFO *GpuAdapter::GetDisplayConfig(void)
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
-    if (index < GetNumbersOfPathArrayElements())
+    if (m_PathIdx < GetNumbersOfPathArrayElements())
     {
-        UINT idx = m_pDisplayPathInfo[index].sourceInfo.modeInfoIdx;
-        PrintMessage(L"%ws m_Index %d idx %d active %d\n",
-                     __FUNCTIONW__,
-                     index,
-                     idx,
-                     m_pDisplayPathInfo[index].flags & DISPLAYCONFIG_PATH_ACTIVE);
+        UINT idx = m_pDisplayPathInfo[m_PathIdx].sourceInfo.modeInfoIdx;
+        PrintMessage(L"%ws path %d mode %d\n", __FUNCTIONW__, m_PathIdx, idx);
         if (idx < GetNumbersOfModeInfoArrayElements())
         {
             return &m_pDisplayModeInfo[idx];
@@ -137,13 +188,12 @@ void GpuAdapter::Init()
     NTSTATUS status = D3DKMTOpenAdapterFromHdc(&openAdapter);
     if (NT_SUCCESS(status))
     {
-        UpdateDisplayConfig();
         m_hAdapter = openAdapter.hAdapter;
         if (QueryAdapterId())
         {
             std::wstring EventName = GLOBAL_OBJECTS;
             EventName += RESOLUTION_EVENT_NAME;
-            EventName += std::to_wstring(m_Index);
+            EventName += std::to_wstring(m_Id);
             m_hResolutionEvent = ::OpenEvent(EVENT_ALL_ACCESS | EVENT_MODIFY_STATE, FALSE, EventName.c_str());
             if (m_hResolutionEvent == NULL)
             {
@@ -183,7 +233,7 @@ bool GpuAdapter::QueryAdapterId()
         }
         else
         {
-            m_Index = data.Id;
+            m_Id = data.Id;
             return true;
         }
     }
@@ -194,7 +244,7 @@ bool GpuAdapter::GetCurrentResolution(PVIOGPU_DISP_MODE mode)
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
-    DISPLAYCONFIG_MODE_INFO *pConfig = GetDisplayConfig(m_Index);
+    DISPLAYCONFIG_MODE_INFO *pConfig = GetDisplayConfig();
     if (pConfig)
     {
         mode->XResolution = (USHORT)pConfig->sourceMode.width;
@@ -236,16 +286,22 @@ bool GpuAdapter::SetResolution(PVIOGPU_DISP_MODE mode)
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
-    int ix = m_pDisplayPathInfo[m_Index].sourceInfo.modeInfoIdx;
-    PrintMessage(L"%ws m_Index %d %d (%dx%d)\n", __FUNCTIONW__, m_Index, ix, mode->XResolution, mode->YResolution);
-    m_pDisplayModeInfo[ix].sourceMode.width = mode->XResolution;
-    m_pDisplayModeInfo[ix].sourceMode.height = mode->YResolution;
-    SetDisplayConfig(m_PathArrayElements,
-                     m_pDisplayPathInfo,
-                     m_ModeInfoArrayElements,
-                     m_pDisplayModeInfo,
-                     SDC_APPLY | SDC_USE_SUPPLIED_DISPLAY_CONFIG | SDC_ALLOW_CHANGES | SDC_SAVE_TO_DATABASE);
-    return true;
+    // Change only this display's mode, and save it (CDS_UPDATEREGISTRY). SetDisplayConfig with a QueryDisplayConfig
+    // snapshot would also apply the snapshot's topology, and switch off a monitor that Windows attached after the
+    // snapshot was taken.
+    DEVMODEW dm = {};
+    dm.dmSize = sizeof(dm);
+    dm.dmPelsWidth = mode->XResolution;
+    dm.dmPelsHeight = mode->YResolution;
+    dm.dmFields = DM_PELSWIDTH | DM_PELSHEIGHT;
+    LONG result = ChangeDisplaySettingsExW(m_DeviceName.c_str(), &dm, NULL, CDS_UPDATEREGISTRY, NULL);
+    PrintMessage(L"%ws %ws (%dx%d) ChangeDisplaySettingsEx = %d\n",
+                 __FUNCTIONW__,
+                 m_DeviceName.c_str(),
+                 mode->XResolution,
+                 mode->YResolution,
+                 result);
+    return result == DISP_CHANGE_SUCCESSFUL;
 }
 
 void GpuAdapter::SyncResolution(void)
@@ -253,13 +309,27 @@ void GpuAdapter::SyncResolution(void)
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
     VIOGPU_DISP_MODE custom = {0};
-    UpdateDisplayConfig();
-    if (GetCustomResolution(&custom))
+    VIOGPU_DISP_MODE current = {0};
+
+    if (!LockDisplayConfig(m_hStopEvent))
     {
-        VIOGPU_DISP_MODE current = {0};
-        GetCurrentResolution(&current);
+        return;
+    }
+    if (UpdateDisplayConfig() != ERROR_SUCCESS)
+    {
+        PrintMessage(L"%ws %ws not synced\n", __FUNCTIONW__, m_DeviceName.c_str());
+    }
+    else if (m_PathIdx == INVALID_PATH_IDX)
+    {
+        // No active path: the display is not part of the desktop, so there is no mode to set.
+        PrintMessage(L"%ws %ws has no active path\n", __FUNCTIONW__, m_DeviceName.c_str());
+    }
+    else if (GetCustomResolution(&custom) && GetCurrentResolution(&current) &&
+             (custom.XResolution != current.XResolution || custom.YResolution != current.YResolution))
+    {
         SetResolution(&custom);
     }
+    UnlockDisplayConfig();
 }
 
 void GpuAdapter::Run()

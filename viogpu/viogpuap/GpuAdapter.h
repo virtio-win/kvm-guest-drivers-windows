@@ -29,6 +29,8 @@
 
 #pragma once
 
+constexpr UINT INVALID_PATH_IDX = UINT_MAX;
+
 enum Status
 {
     None,
@@ -75,11 +77,11 @@ class GpuAdapter
         return m_ModeInfoArrayElements;
     }
     bool GetCurrentResolution(PVIOGPU_DISP_MODE mode);
-    DISPLAYCONFIG_MODE_INFO *GetDisplayConfig(UINT index);
+    DISPLAYCONFIG_MODE_INFO *GetDisplayConfig(void);
     bool GetCustomResolution(PVIOGPU_DISP_MODE mode);
     bool SetResolution(PVIOGPU_DISP_MODE mode);
     void SyncResolution(void);
-    void UpdateDisplayConfig(void);
+    LONG UpdateDisplayConfig(void);
     void ClearDisplayConfig(void);
 
   public:
@@ -91,7 +93,11 @@ class GpuAdapter
     HANDLE m_hResolutionEvent;
     HDC m_hDC;
     D3DKMT_HANDLE m_hAdapter;
-    ULONG m_Index;
+    // The driver's adapter id (VIOGPU_GET_DEVICE_ID), which names its resolution event.
+    ULONG m_Id;
+    // This display's path in the last QueryDisplayConfig snapshot of the active paths, or INVALID_PATH_IDX when
+    // the display has no active path, as when the user switched it off, or the snapshot failed.
+    UINT m_PathIdx;
     UINT m_PathArrayElements;
     UINT m_ModeInfoArrayElements;
     DISPLAYCONFIG_PATH_INFO *m_pDisplayPathInfo;

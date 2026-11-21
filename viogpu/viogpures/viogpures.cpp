@@ -62,10 +62,11 @@ int _cdecl wmain(__in ULONG argc, __in_ecount(argc) PWCHAR argv[])
     GpuAdaptersMgr *m_pMgr;
     m_pMgr = new GpuAdaptersMgr();
     m_pMgr->Init();
-    m_pMgr->SetCustomResolution((USHORT)width, (USHORT)height);
+    bool done = m_pMgr->SetCustomResolution((USHORT)width, (USHORT)height);
     m_pMgr->Close();
     delete m_pMgr;
     m_pMgr = NULL;
 
-    return 0;
+    // 1 is a usage error (ErrorHandler); 2 says the size was not set on every display.
+    return done ? 0 : 2;
 }
