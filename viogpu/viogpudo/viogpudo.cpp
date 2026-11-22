@@ -802,7 +802,6 @@ NTSTATUS VioGpuDod::IsSupportedVidPn(_Inout_ DXGKARG_ISSUPPORTEDVIDPN *pIsSuppor
             return STATUS_SUCCESS;
         }
 
-        // A pinned source mode the driver cannot back (ModeFits) makes the VidPN unsupported.
         if (NumPathsFromSource == 0)
         {
             continue;
@@ -839,11 +838,16 @@ NTSTATUS VioGpuDod::IsSupportedVidPn(_Inout_ DXGKARG_ISSUPPORTEDVIDPN *pIsSuppor
             return Status;
         }
 
+        // A pinned source mode the driver cannot back (ModeFits) makes the VidPN unsupported, and so does a pinned
+        // target mode of another size: the driver scans out the source mode's size.
         BOOLEAN bReject = FALSE;
-        if (pPinnedVidPnSourceModeInfo != NULL)
+        BOOLEAN SourcePinned = (pPinnedVidPnSourceModeInfo != NULL);
+        UINT cx = 0;
+        UINT cy = 0;
+        if (SourcePinned)
         {
-            UINT cx = pPinnedVidPnSourceModeInfo->Format.Graphics.PrimSurfSize.cx;
-            UINT cy = pPinnedVidPnSourceModeInfo->Format.Graphics.PrimSurfSize.cy;
+            cx = pPinnedVidPnSourceModeInfo->Format.Graphics.PrimSurfSize.cx;
+            cy = pPinnedVidPnSourceModeInfo->Format.Graphics.PrimSurfSize.cy;
             if (!m_pHWDevice->ModeFits(cx, cy))
             {
                 DbgPrint(TRACE_LEVEL_WARNING,
@@ -853,6 +857,47 @@ NTSTATUS VioGpuDod::IsSupportedVidPn(_Inout_ DXGKARG_ISSUPPORTEDVIDPN *pIsSuppor
             pVidPnSourceModeSetInterface->pfnReleaseModeInfo(hVidPnSourceModeSet, pPinnedVidPnSourceModeInfo);
         }
         pVidPnInterface->pfnReleaseSourceModeSet(pIsSupportedVidPn->hDesiredVidPn, hVidPnSourceModeSet);
+
+        for (SIZE_T PathIndex = 0; SourcePinned && !bReject && PathIndex < NumPathsFromSource; ++PathIndex)
+        {
+            D3DDDI_VIDEO_PRESENT_TARGET_ID TargetId = D3DDDI_ID_UNINITIALIZED;
+            Status = pVidPnTopologyInterface->pfnEnumPathTargetsFromSource(hVidPnTopology,
+                                                                           SourceId,
+                                                                           PathIndex,
+                                                                           &TargetId);
+            if (!NT_SUCCESS(Status))
+            {
+                DbgPrint(TRACE_LEVEL_ERROR,
+                         ("<--- %s pfnEnumPathTargetsFromSource failed with Status = 0x%X, SourceId = %llu\n",
+                          __FUNCTION__,
+                          Status,
+                          LONG_PTR(SourceId)));
+                return Status;
+            }
+
+            D3DKMDT_2DREGION TargetSize = {};
+            BOOLEAN TargetPinned = FALSE;
+            Status = GetPinnedTargetSize(pIsSupportedVidPn->hDesiredVidPn,
+                                         pVidPnInterface,
+                                         TargetId,
+                                         &TargetSize,
+                                         &TargetPinned);
+            if (!NT_SUCCESS(Status))
+            {
+                return Status;
+            }
+            if (TargetPinned && (TargetSize.cx != cx || TargetSize.cy != cy))
+            {
+                DbgPrint(TRACE_LEVEL_WARNING,
+                         ("<--- %s source %ux%u on a %ux%u target needs scaling\n",
+                          __FUNCTION__,
+                          cx,
+                          cy,
+                          TargetSize.cx,
+                          TargetSize.cy));
+                bReject = TRUE;
+            }
+        }
 
         if (bReject)
         {
@@ -898,23 +943,107 @@ NTSTATUS VioGpuDod::RecommendMonitorModes(_In_ CONST DXGKARG_RECOMMENDMONITORMOD
     return AddSingleMonitorMode(pRecommendMonitorModes);
 }
 
+// The modes offered on one end of a path. The driver scans out the source mode's size and never reads the target
+// mode, so it neither stretches nor centers: a mode pinned on the other end allows exactly one mode, of its size.
+// Without one, every mode is offered.
+NTSTATUS VioGpuDod::GetOfferedModes(_In_opt_ CONST D3DKMDT_2DREGION *pPinnedSize,
+                                    VIOGPU_DISP_MODE (&Modes)[VIOGPU_MAX_MODES + 1],
+                                    _Out_ PULONG pCount)
+{
+    PAGED_CODE();
+
+    if (pPinnedSize == NULL)
+    {
+        *pCount = m_pHWDevice->GetController()->GetModes(0, Modes);
+        return STATUS_SUCCESS;
+    }
+
+    *pCount = 0;
+    if (!m_pHWDevice->ModeFits(pPinnedSize->cx, pPinnedSize->cy))
+    {
+        DbgPrint(TRACE_LEVEL_ERROR,
+                 ("<--- %s the pinned %ux%u is more than the driver can back\n",
+                  __FUNCTION__,
+                  pPinnedSize->cx,
+                  pPinnedSize->cy));
+        return STATUS_GRAPHICS_VIDPN_MODALITY_NOT_SUPPORTED;
+    }
+    Modes[0].XResolution = (USHORT)pPinnedSize->cx;
+    Modes[0].YResolution = (USHORT)pPinnedSize->cy;
+    *pCount = 1;
+    return STATUS_SUCCESS;
+}
+
+// The size of the target mode pinned on TargetId in hVidPn, if one is.
+NTSTATUS VioGpuDod::GetPinnedTargetSize(D3DKMDT_HVIDPN hVidPn,
+                                        _In_ CONST DXGK_VIDPN_INTERFACE *pVidPnInterface,
+                                        D3DDDI_VIDEO_PRESENT_TARGET_ID TargetId,
+                                        _Out_ D3DKMDT_2DREGION *pSize,
+                                        _Out_ PBOOLEAN pPinned)
+{
+    PAGED_CODE();
+
+    D3DKMDT_HVIDPNTARGETMODESET hVidPnTargetModeSet = 0;
+    CONST DXGK_VIDPNTARGETMODESET_INTERFACE *pVidPnTargetModeSetInterface = NULL;
+    CONST D3DKMDT_VIDPN_TARGET_MODE *pPinnedTargetModeInfo = NULL;
+
+    pSize->cx = 0;
+    pSize->cy = 0;
+    *pPinned = FALSE;
+
+    NTSTATUS Status = pVidPnInterface->pfnAcquireTargetModeSet(hVidPn,
+                                                               TargetId,
+                                                               &hVidPnTargetModeSet,
+                                                               &pVidPnTargetModeSetInterface);
+    if (!NT_SUCCESS(Status))
+    {
+        DbgPrint(TRACE_LEVEL_ERROR,
+                 ("<--- %s pfnAcquireTargetModeSet failed with Status = 0x%X, TargetId = %llu\n",
+                  __FUNCTION__,
+                  Status,
+                  LONG_PTR(TargetId)));
+        return Status;
+    }
+
+    Status = pVidPnTargetModeSetInterface->pfnAcquirePinnedModeInfo(hVidPnTargetModeSet, &pPinnedTargetModeInfo);
+    if (!NT_SUCCESS(Status))
+    {
+        DbgPrint(TRACE_LEVEL_ERROR,
+                 ("<--- %s pfnAcquirePinnedModeInfo failed with Status = 0x%X, TargetId = %llu\n",
+                  __FUNCTION__,
+                  Status,
+                  LONG_PTR(TargetId)));
+    }
+    else if (pPinnedTargetModeInfo != NULL)
+    {
+        *pSize = pPinnedTargetModeInfo->VideoSignalInfo.ActiveSize;
+        *pPinned = TRUE;
+        pVidPnTargetModeSetInterface->pfnReleaseModeInfo(hVidPnTargetModeSet, pPinnedTargetModeInfo);
+    }
+    pVidPnInterface->pfnReleaseTargetModeSet(hVidPn, hVidPnTargetModeSet);
+    return Status;
+}
+
 NTSTATUS VioGpuDod::AddSingleSourceMode(_In_ CONST DXGK_VIDPNSOURCEMODESET_INTERFACE *pVidPnSourceModeSetInterface,
                                         D3DKMDT_HVIDPNSOURCEMODESET hVidPnSourceModeSet,
-                                        D3DDDI_VIDEO_PRESENT_SOURCE_ID SourceId)
+                                        _In_opt_ CONST D3DKMDT_2DREGION *pPinnedTargetSize)
 {
     PAGED_CODE();
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-    UNREFERENCED_PARAMETER(SourceId);
 
     VIOGPU_DISP_MODE modes[VIOGPU_MAX_MODES + 1];
-    ULONG count = m_pHWDevice->GetController()->GetModes(0, modes);
+    ULONG count = 0;
+    NTSTATUS Status = GetOfferedModes(pPinnedTargetSize, modes, &count);
+    if (!NT_SUCCESS(Status))
+    {
+        return Status;
+    }
     for (ULONG idx = 0; idx < count; ++idx)
     {
         D3DKMDT_VIDPN_SOURCE_MODE *pVidPnSourceModeInfo = NULL;
         PVIOGPU_DISP_MODE pModeInfo = &modes[idx];
-        NTSTATUS Status = pVidPnSourceModeSetInterface->pfnCreateNewModeInfo(hVidPnSourceModeSet,
-                                                                             &pVidPnSourceModeInfo);
+        Status = pVidPnSourceModeSetInterface->pfnCreateNewModeInfo(hVidPnSourceModeSet, &pVidPnSourceModeInfo);
         if (!NT_SUCCESS(Status))
         {
             DbgPrint(TRACE_LEVEL_ERROR,
@@ -964,6 +1093,9 @@ VOID VioGpuDod::BuildVideoSignalInfo(D3DKMDT_VIDEO_SIGNAL_INFO *pVideoSignalInfo
     pVideoSignalInfo->VideoStandard = D3DKMDT_VSS_OTHER;
     pVideoSignalInfo->TotalSize.cx = pModeInfo->XResolution;
     pVideoSignalInfo->TotalSize.cy = pModeInfo->YResolution;
+    // The signal has no blanking, so the active size is the total size. Monitor modes and target modes are both
+    // built here: Windows lists a size outside its raw mode list only if a target mode matches a monitor mode.
+    pVideoSignalInfo->ActiveSize = pVideoSignalInfo->TotalSize;
 
     pVideoSignalInfo->VSyncFreq.Numerator = D3DKMDT_FREQUENCY_NOTSPECIFIED;
     pVideoSignalInfo->VSyncFreq.Denominator = D3DKMDT_FREQUENCY_NOTSPECIFIED;
@@ -975,22 +1107,25 @@ VOID VioGpuDod::BuildVideoSignalInfo(D3DKMDT_VIDEO_SIGNAL_INFO *pVideoSignalInfo
 
 NTSTATUS VioGpuDod::AddSingleTargetMode(_In_ CONST DXGK_VIDPNTARGETMODESET_INTERFACE *pVidPnTargetModeSetInterface,
                                         D3DKMDT_HVIDPNTARGETMODESET hVidPnTargetModeSet,
-                                        _In_opt_ CONST D3DKMDT_VIDPN_SOURCE_MODE *pVidPnPinnedSourceModeInfo,
-                                        D3DDDI_VIDEO_PRESENT_SOURCE_ID SourceId)
+                                        _In_opt_ CONST D3DKMDT_2DREGION *pPinnedSourceSize)
 {
     PAGED_CODE();
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-    UNREFERENCED_PARAMETER(pVidPnPinnedSourceModeInfo);
 
     D3DKMDT_VIDPN_TARGET_MODE *pVidPnTargetModeInfo = NULL;
-    NTSTATUS Status = STATUS_SUCCESS;
 
+    // With a pinned source mode the one target mode of its size is preferred, otherwise 1024x768.
     VIOGPU_DISP_MODE modes[VIOGPU_MAX_MODES + 1];
-    ULONG count = m_pHWDevice->GetController()->GetModes(0, modes);
+    ULONG count = 0;
+    NTSTATUS Status = GetOfferedModes(pPinnedSourceSize, modes, &count);
+    if (!NT_SUCCESS(Status))
+    {
+        return Status;
+    }
     for (UINT ModeIndex = 0; ModeIndex < count; ++ModeIndex)
     {
-        PVIOGPU_DISP_MODE pModeInfo = &modes[SourceId];
+        PVIOGPU_DISP_MODE pModeInfo = &modes[ModeIndex];
         pVidPnTargetModeInfo = NULL;
         Status = pVidPnTargetModeSetInterface->pfnCreateNewModeInfo(hVidPnTargetModeSet, &pVidPnTargetModeInfo);
         if (!NT_SUCCESS(Status))
@@ -1001,10 +1136,10 @@ NTSTATUS VioGpuDod::AddSingleTargetMode(_In_ CONST DXGK_VIDPNTARGETMODESET_INTER
                       LONG_PTR(hVidPnTargetModeSet)));
             return Status;
         }
-        pVidPnTargetModeInfo->VideoSignalInfo.ActiveSize = pVidPnTargetModeInfo->VideoSignalInfo.TotalSize;
         BuildVideoSignalInfo(&pVidPnTargetModeInfo->VideoSignalInfo, pModeInfo);
 
-        if (pModeInfo->XResolution == NOM_WIDTH_SIZE && pModeInfo->YResolution == NOM_HEIGHT_SIZE)
+        if (pPinnedSourceSize != NULL ||
+            (pModeInfo->XResolution == NOM_WIDTH_SIZE && pModeInfo->YResolution == NOM_HEIGHT_SIZE))
         {
             pVidPnTargetModeInfo->Preference = D3DKMDT_MP_PREFERRED;
         }
@@ -1016,6 +1151,11 @@ NTSTATUS VioGpuDod::AddSingleTargetMode(_In_ CONST DXGK_VIDPNTARGETMODESET_INTER
         Status = pVidPnTargetModeSetInterface->pfnAddMode(hVidPnTargetModeSet, pVidPnTargetModeInfo);
         if (!NT_SUCCESS(Status))
         {
+            NTSTATUS TempStatus = pVidPnTargetModeSetInterface->pfnReleaseModeInfo(hVidPnTargetModeSet,
+                                                                                   pVidPnTargetModeInfo);
+            UNREFERENCED_PARAMETER(TempStatus);
+            NT_ASSERT(NT_SUCCESS(TempStatus));
+
             if (Status != STATUS_GRAPHICS_MODE_ALREADY_IN_MODESET)
             {
                 DbgPrint(TRACE_LEVEL_ERROR,
@@ -1024,13 +1164,67 @@ NTSTATUS VioGpuDod::AddSingleTargetMode(_In_ CONST DXGK_VIDPNTARGETMODESET_INTER
                           Status,
                           LONG_PTR(hVidPnTargetModeSet),
                           pVidPnTargetModeInfo));
+                return Status;
             }
-
-            Status = pVidPnTargetModeSetInterface->pfnReleaseModeInfo(hVidPnTargetModeSet, pVidPnTargetModeInfo);
-            NT_ASSERT(NT_SUCCESS(Status));
         }
     }
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+    return STATUS_SUCCESS;
+}
+
+// Adds a driver mode of pMode's size to a monitor source mode set. A mode the set holds already is not an error: the
+// monitor's EDID can list the size.
+NTSTATUS VioGpuDod::AddMonitorMode(D3DKMDT_HMONITORSOURCEMODESET hMonitorSourceModeSet,
+                                   _In_ CONST DXGK_MONITORSOURCEMODESET_INTERFACE *pMonitorSourceModeSetInterface,
+                                   _In_ CONST VIOGPU_DISP_MODE *pMode,
+                                   D3DKMDT_MODE_PREFERENCE Preference)
+{
+    PAGED_CODE();
+
+    D3DKMDT_MONITOR_SOURCE_MODE *pMonitorSourceMode = NULL;
+    NTSTATUS Status = pMonitorSourceModeSetInterface->pfnCreateNewModeInfo(hMonitorSourceModeSet, &pMonitorSourceMode);
+    if (!NT_SUCCESS(Status))
+    {
+        DbgPrint(TRACE_LEVEL_ERROR,
+                 ("pfnCreateNewModeInfo failed with Status = 0x%X, hMonitorSourceModeSet = 0x%llu\n",
+                  Status,
+                  LONG_PTR(hMonitorSourceModeSet)));
+        return Status;
+    }
+
+    VIOGPU_DISP_MODE mode = *pMode;
+    BuildVideoSignalInfo(&pMonitorSourceMode->VideoSignalInfo, &mode);
+    pMonitorSourceMode->Origin = D3DKMDT_MCO_DRIVER;
+    pMonitorSourceMode->Preference = Preference;
+    pMonitorSourceMode->ColorBasis = D3DKMDT_CB_SRGB;
+    pMonitorSourceMode->ColorCoeffDynamicRanges.FirstChannel = 8;
+    pMonitorSourceMode->ColorCoeffDynamicRanges.SecondChannel = 8;
+    pMonitorSourceMode->ColorCoeffDynamicRanges.ThirdChannel = 8;
+    pMonitorSourceMode->ColorCoeffDynamicRanges.FourthChannel = 0;
+
+    Status = pMonitorSourceModeSetInterface->pfnAddMode(hMonitorSourceModeSet, pMonitorSourceMode);
+    if (!NT_SUCCESS(Status))
+    {
+        NTSTATUS TempStatus = pMonitorSourceModeSetInterface->pfnReleaseModeInfo(hMonitorSourceModeSet,
+                                                                                 pMonitorSourceMode);
+        UNREFERENCED_PARAMETER(TempStatus);
+        NT_ASSERT(NT_SUCCESS(TempStatus));
+
+        if (Status == STATUS_GRAPHICS_MODE_ALREADY_IN_MODESET)
+        {
+            return STATUS_SUCCESS;
+        }
+        DbgPrint(TRACE_LEVEL_ERROR,
+                 ("pfnAddMode failed with Status = 0x%X, hMonitorSourceModeSet = 0x%llu, %ux%u\n",
+                  Status,
+                  LONG_PTR(hMonitorSourceModeSet),
+                  pMode->XResolution,
+                  pMode->YResolution));
+        return Status;
+    }
+
+    DbgPrint(TRACE_LEVEL_INFORMATION,
+             ("%s: add monitor mode %ux%u\n", __FUNCTION__, pMode->XResolution, pMode->YResolution));
     return STATUS_SUCCESS;
 }
 
@@ -1038,120 +1232,121 @@ NTSTATUS VioGpuDod::AddSingleMonitorMode(_In_ CONST DXGKARG_RECOMMENDMONITORMODE
 {
     PAGED_CODE();
 
-    NTSTATUS Status = STATUS_SUCCESS;
-    D3DKMDT_MONITOR_SOURCE_MODE *pMonitorSourceMode = NULL;
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
+
     VIOGPU_DISP_MODE modes[VIOGPU_MAX_MODES + 1];
     ULONG count = m_pHWDevice->GetController()->GetModes(0, modes);
     VIOGPU_DISP_MODE current = m_pHWDevice->GetCurrentModeSize();
-    PVIOGPU_DISP_MODE pVbeModeInfo = NULL;
 
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-
-    Status = pRecommendMonitorModes->pMonitorSourceModeSetInterface->pfnCreateNewModeInfo(pRecommendMonitorModes->hMonitorSourceModeSet,
-                                                                                          &pMonitorSourceMode);
-    if (!NT_SUCCESS(Status))
+    NTSTATUS Status = AddMonitorMode(pRecommendMonitorModes->hMonitorSourceModeSet,
+                                     pRecommendMonitorModes->pMonitorSourceModeSetInterface,
+                                     &current,
+                                     D3DKMDT_MP_PREFERRED);
+    for (UINT Idx = 0; NT_SUCCESS(Status) && Idx < count; ++Idx)
     {
-        DbgPrint(TRACE_LEVEL_ERROR,
-                 ("pfnCreateNewModeInfo failed with Status = 0x%X, hMonitorSourceModeSet = 0x%llu\n",
-                  Status,
-                  LONG_PTR(pRecommendMonitorModes->hMonitorSourceModeSet)));
-        return Status;
-    }
-
-    pVbeModeInfo = &current;
-
-    BuildVideoSignalInfo(&pMonitorSourceMode->VideoSignalInfo, pVbeModeInfo);
-
-    pMonitorSourceMode->Origin = D3DKMDT_MCO_DRIVER;
-    pMonitorSourceMode->Preference = D3DKMDT_MP_PREFERRED;
-    pMonitorSourceMode->ColorBasis = D3DKMDT_CB_SRGB;
-    pMonitorSourceMode->ColorCoeffDynamicRanges.FirstChannel = 8;
-    pMonitorSourceMode->ColorCoeffDynamicRanges.SecondChannel = 8;
-    pMonitorSourceMode->ColorCoeffDynamicRanges.ThirdChannel = 8;
-    pMonitorSourceMode->ColorCoeffDynamicRanges.FourthChannel = 8;
-
-    Status = pRecommendMonitorModes->pMonitorSourceModeSetInterface->pfnAddMode(pRecommendMonitorModes->hMonitorSourceModeSet,
-                                                                                pMonitorSourceMode);
-    if (!NT_SUCCESS(Status))
-    {
-        if (Status != STATUS_GRAPHICS_MODE_ALREADY_IN_MODESET)
-        {
-            DbgPrint(TRACE_LEVEL_ERROR,
-                     ("pfnAddMode failed with Status = 0x%X, hMonitorSourceModeSet = 0x%llu, pMonitorSourceMode = "
-                      "0x%p\n",
-                      Status,
-                      LONG_PTR(pRecommendMonitorModes->hMonitorSourceModeSet),
-                      pMonitorSourceMode));
-        }
-        else
-        {
-            Status = STATUS_SUCCESS;
-        }
-
-        NTSTATUS TempStatus = pRecommendMonitorModes->pMonitorSourceModeSetInterface->pfnReleaseModeInfo(pRecommendMonitorModes->hMonitorSourceModeSet,
-                                                                                                         pMonitorSourceMode);
-        UNREFERENCED_PARAMETER(TempStatus);
-        NT_ASSERT(NT_SUCCESS(TempStatus));
-        return Status;
-    }
-
-    for (UINT Idx = 0; Idx < count; ++Idx)
-    {
-        pVbeModeInfo = &modes[Idx];
-
-        Status = pRecommendMonitorModes->pMonitorSourceModeSetInterface->pfnCreateNewModeInfo(pRecommendMonitorModes->hMonitorSourceModeSet,
-                                                                                              &pMonitorSourceMode);
-        if (!NT_SUCCESS(Status))
-        {
-            DbgPrint(TRACE_LEVEL_ERROR,
-                     ("pfnCreateNewModeInfo failed with Status = 0x%X, hMonitorSourceModeSet = 0x%llu\n",
-                      Status,
-                      LONG_PTR(pRecommendMonitorModes->hMonitorSourceModeSet)));
-            return Status;
-        }
-
-        DbgPrint(TRACE_LEVEL_INFORMATION,
-                 ("%s: add monitor mode %ux%u\n", __FUNCTION__, pVbeModeInfo->XResolution, pVbeModeInfo->YResolution));
-
-        BuildVideoSignalInfo(&pMonitorSourceMode->VideoSignalInfo, pVbeModeInfo);
-
-        pMonitorSourceMode->Origin = D3DKMDT_MCO_DRIVER;
-        pMonitorSourceMode->ColorBasis = D3DKMDT_CB_SRGB;
-        pMonitorSourceMode->ColorCoeffDynamicRanges.FirstChannel = 8;
-        pMonitorSourceMode->ColorCoeffDynamicRanges.SecondChannel = 8;
-        pMonitorSourceMode->ColorCoeffDynamicRanges.ThirdChannel = 8;
-        pMonitorSourceMode->ColorCoeffDynamicRanges.FourthChannel = 8;
-        if (pVbeModeInfo->XResolution == NOM_WIDTH_SIZE && pVbeModeInfo->YResolution == NOM_HEIGHT_SIZE)
-        {
-            pMonitorSourceMode->Preference = D3DKMDT_MP_PREFERRED;
-        }
-        else
-        {
-            pMonitorSourceMode->Preference = D3DKMDT_MP_NOTPREFERRED;
-        }
-
-        Status = pRecommendMonitorModes->pMonitorSourceModeSetInterface->pfnAddMode(pRecommendMonitorModes->hMonitorSourceModeSet,
-                                                                                    pMonitorSourceMode);
-        if (!NT_SUCCESS(Status))
-        {
-            if (Status != STATUS_GRAPHICS_MODE_ALREADY_IN_MODESET)
-            {
-                DbgPrint(TRACE_LEVEL_ERROR,
-                         ("pfnAddMode failed with Status = 0x%X, hMonitorSourceModeSet = 0x%llu, pMonitorSourceMode = "
-                          "0x%p\n",
-                          Status,
-                          LONG_PTR(pRecommendMonitorModes->hMonitorSourceModeSet),
-                          pMonitorSourceMode));
-            }
-
-            Status = pRecommendMonitorModes->pMonitorSourceModeSetInterface->pfnReleaseModeInfo(pRecommendMonitorModes->hMonitorSourceModeSet,
-                                                                                                pMonitorSourceMode);
-            NT_ASSERT(NT_SUCCESS(Status));
-        }
+        BOOLEAN Nominal = modes[Idx].XResolution == NOM_WIDTH_SIZE && modes[Idx].YResolution == NOM_HEIGHT_SIZE;
+        Status = AddMonitorMode(pRecommendMonitorModes->hMonitorSourceModeSet,
+                                pRecommendMonitorModes->pMonitorSourceModeSetInterface,
+                                &modes[Idx],
+                                Nominal ? D3DKMDT_MP_PREFERRED : D3DKMDT_MP_NOTPREFERRED);
     }
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
     return Status;
+}
+
+// Adds the driver's modes the monitor's mode set lacks. Windows sets a target mode only if a monitor mode matches it,
+// and the set was filled when the monitor arrived, before a custom mode set later through the escape existed. The set
+// is walked first: pfnAddMode refuses only an identical mode, and each mode the driver creates has a new Id.
+VOID VioGpuDod::AddMissingMonitorModes(D3DDDI_VIDEO_PRESENT_TARGET_ID TargetId)
+{
+    PAGED_CODE();
+
+    CONST DXGK_MONITOR_INTERFACE *pMonitorInterface = NULL;
+    NTSTATUS Status = m_DxgkInterface.DxgkCbQueryMonitorInterface(m_DxgkInterface.DeviceHandle,
+                                                                  DXGK_MONITOR_INTERFACE_VERSION_V1,
+                                                                  &pMonitorInterface);
+    if (!NT_SUCCESS(Status))
+    {
+        DbgPrint(TRACE_LEVEL_ERROR,
+                 ("<--- %s DxgkCbQueryMonitorInterface failed with Status = 0x%X\n", __FUNCTION__, Status));
+        return;
+    }
+
+    D3DKMDT_HMONITORSOURCEMODESET hMonitorSourceModeSet = 0;
+    CONST DXGK_MONITORSOURCEMODESET_INTERFACE *pMonitorSourceModeSetInterface = NULL;
+    Status = pMonitorInterface->pfnAcquireMonitorSourceModeSet(m_DxgkInterface.DeviceHandle,
+                                                               TargetId,
+                                                               &hMonitorSourceModeSet,
+                                                               &pMonitorSourceModeSetInterface);
+    if (Status == STATUS_GRAPHICS_MONITOR_NOT_CONNECTED)
+    {
+        return;
+    }
+    if (!NT_SUCCESS(Status))
+    {
+        DbgPrint(TRACE_LEVEL_ERROR,
+                 ("<--- %s pfnAcquireMonitorSourceModeSet failed with Status = 0x%X, TargetId = %llu\n",
+                  __FUNCTION__,
+                  Status,
+                  LONG_PTR(TargetId)));
+        return;
+    }
+
+    VIOGPU_DISP_MODE modes[VIOGPU_MAX_MODES + 1];
+    BOOLEAN listed[VIOGPU_MAX_MODES + 1] = {};
+    ULONG count = m_pHWDevice->GetController()->GetModes(0, modes);
+    ULONG inSet = 0;
+
+    CONST D3DKMDT_MONITOR_SOURCE_MODE *pMode = NULL;
+    Status = pMonitorSourceModeSetInterface->pfnAcquireFirstModeInfo(hMonitorSourceModeSet, &pMode);
+    while (Status == STATUS_SUCCESS && pMode != NULL)
+    {
+        ++inSet;
+        for (ULONG Idx = 0; Idx < count; ++Idx)
+        {
+            if (pMode->VideoSignalInfo.ActiveSize.cx == modes[Idx].XResolution &&
+                pMode->VideoSignalInfo.ActiveSize.cy == modes[Idx].YResolution)
+            {
+                listed[Idx] = TRUE;
+            }
+        }
+        CONST D3DKMDT_MONITOR_SOURCE_MODE *pNext = NULL;
+        Status = pMonitorSourceModeSetInterface->pfnAcquireNextModeInfo(hMonitorSourceModeSet, pMode, &pNext);
+        pMonitorSourceModeSetInterface->pfnReleaseModeInfo(hMonitorSourceModeSet, pMode);
+        pMode = pNext;
+    }
+    if (Status != STATUS_SUCCESS && Status != STATUS_GRAPHICS_NO_MORE_ELEMENTS_IN_DATASET &&
+        Status != STATUS_GRAPHICS_DATASET_IS_EMPTY)
+    {
+        DbgPrint(TRACE_LEVEL_ERROR,
+                 ("<--- %s walking the monitor's modes failed with Status = 0x%X, TargetId = %llu\n",
+                  __FUNCTION__,
+                  Status,
+                  LONG_PTR(TargetId)));
+    }
+    else
+    {
+        Status = STATUS_SUCCESS;
+        for (ULONG Idx = 0; NT_SUCCESS(Status) && Idx < count; ++Idx)
+        {
+            if (!listed[Idx])
+            {
+                DbgPrint(TRACE_LEVEL_INFORMATION,
+                         ("%s: target %llu, %u modes in the monitor's set, %ux%u missing\n",
+                          __FUNCTION__,
+                          LONG_PTR(TargetId),
+                          inSet,
+                          modes[Idx].XResolution,
+                          modes[Idx].YResolution));
+                Status = AddMonitorMode(hMonitorSourceModeSet,
+                                        pMonitorSourceModeSetInterface,
+                                        &modes[Idx],
+                                        D3DKMDT_MP_NOTPREFERRED);
+            }
+        }
+    }
+    pMonitorInterface->pfnReleaseMonitorSourceModeSet(m_DxgkInterface.DeviceHandle, hMonitorSourceModeSet);
 }
 
 NTSTATUS VioGpuDod::EnumVidPnCofuncModality(_In_ CONST DXGKARG_ENUMVIDPNCOFUNCMODALITY *CONST pEnumCofuncModality)
@@ -1269,10 +1464,18 @@ NTSTATUS VioGpuDod::EnumVidPnCofuncModality(_In_ CONST DXGKARG_ENUMVIDPNCOFUNCMO
                     break;
                 }
 
+                D3DKMDT_2DREGION PinnedTargetSize = {};
+                BOOLEAN TargetPinned = FALSE;
+                Status = GetPinnedTargetSize(pEnumCofuncModality->hConstrainingVidPn,
+                                             pVidPnInterface,
+                                             pVidPnPresentPath->VidPnTargetId,
+                                             &PinnedTargetSize,
+                                             &TargetPinned);
+                if (NT_SUCCESS(Status))
                 {
                     Status = AddSingleSourceMode(pVidPnSourceModeSetInterface,
                                                  hVidPnSourceModeSet,
-                                                 pVidPnPresentPath->VidPnSourceId);
+                                                 TargetPinned ? &PinnedTargetSize : NULL);
                 }
 
                 if (!NT_SUCCESS(Status))
@@ -1296,11 +1499,20 @@ NTSTATUS VioGpuDod::EnumVidPnCofuncModality(_In_ CONST DXGKARG_ENUMVIDPNCOFUNCMO
                               LONG_PTR(pEnumCofuncModality->hConstrainingVidPn),
                               LONG_PTR(pVidPnPresentPath->VidPnSourceId),
                               LONG_PTR(hVidPnSourceModeSet)));
+                    // pfnAssignSourceModeSet released the set, unless a parameter was invalid.
+                    if (Status != STATUS_GRAPHICS_INVALID_VIDPN &&
+                        Status != STATUS_GRAPHICS_INVALID_VIDEO_PRESENT_SOURCE &&
+                        Status != STATUS_GRAPHICS_INVALID_VIDPN_SOURCEMODESET)
+                    {
+                        hVidPnSourceModeSet = 0;
+                    }
                     break;
                 }
                 hVidPnSourceModeSet = 0;
             }
         }
+
+        AddMissingMonitorModes(pVidPnPresentPath->VidPnTargetId);
 
         if (!((pEnumCofuncModality->EnumPivotType == D3DKMDT_EPT_VIDPNTARGET) &&
               (pEnumCofuncModality->EnumPivot.VidPnTargetId == pVidPnPresentPath->VidPnTargetId)))
@@ -1364,8 +1576,8 @@ NTSTATUS VioGpuDod::EnumVidPnCofuncModality(_In_ CONST DXGKARG_ENUMVIDPNCOFUNCMO
 
                 Status = AddSingleTargetMode(pVidPnTargetModeSetInterface,
                                              hVidPnTargetModeSet,
-                                             pVidPnPinnedSourceModeInfo,
-                                             pVidPnPresentPath->VidPnSourceId);
+                                             pVidPnPinnedSourceModeInfo != NULL ? &pVidPnPinnedSourceModeInfo->Format.Graphics.PrimSurfSize
+                                                                                : NULL);
 
                 if (!NT_SUCCESS(Status))
                 {
@@ -1388,6 +1600,13 @@ NTSTATUS VioGpuDod::EnumVidPnCofuncModality(_In_ CONST DXGKARG_ENUMVIDPNCOFUNCMO
                               LONG_PTR(pEnumCofuncModality->hConstrainingVidPn),
                               LONG_PTR(pVidPnPresentPath->VidPnTargetId),
                               LONG_PTR(hVidPnTargetModeSet)));
+                    // pfnAssignTargetModeSet released the set, unless a parameter was invalid.
+                    if (Status != STATUS_GRAPHICS_INVALID_VIDPN &&
+                        Status != STATUS_GRAPHICS_INVALID_VIDEO_PRESENT_TARGET &&
+                        Status != STATUS_GRAPHICS_INVALID_VIDPN_TARGETMODESET)
+                    {
+                        hVidPnTargetModeSet = 0;
+                    }
                     break;
                 }
                 hVidPnTargetModeSet = 0;
@@ -1468,8 +1687,8 @@ NTSTATUS VioGpuDod::EnumVidPnCofuncModality(_In_ CONST DXGKARG_ENUMVIDPNCOFUNCMO
             {
                 RtlZeroMemory(&(LocalVidPnPresentPath.ContentTransformation.ScalingSupport),
                               sizeof(D3DKMDT_VIDPN_PRESENT_PATH_SCALING_SUPPORT));
+                // The driver scans out the source at the source mode's size.
                 LocalVidPnPresentPath.ContentTransformation.ScalingSupport.Identity = 1;
-                LocalVidPnPresentPath.ContentTransformation.ScalingSupport.Centered = 1;
                 SupportFieldsModified = TRUE;
             }
         }

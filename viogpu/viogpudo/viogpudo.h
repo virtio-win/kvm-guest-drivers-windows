@@ -419,13 +419,25 @@ class VioGpuDod
     NTSTATUS SetSourceModeAndPath(CONST D3DKMDT_VIDPN_SOURCE_MODE *pSourceMode,
                                   CONST D3DKMDT_VIDPN_PRESENT_PATH *pPath);
     NTSTATUS AddSingleMonitorMode(_In_ CONST DXGKARG_RECOMMENDMONITORMODES *CONST pRecommendMonitorModes);
+    NTSTATUS AddMonitorMode(D3DKMDT_HMONITORSOURCEMODESET hMonitorSourceModeSet,
+                            _In_ CONST DXGK_MONITORSOURCEMODESET_INTERFACE *pMonitorSourceModeSetInterface,
+                            _In_ CONST VIOGPU_DISP_MODE *pMode,
+                            D3DKMDT_MODE_PREFERENCE Preference);
+    VOID AddMissingMonitorModes(D3DDDI_VIDEO_PRESENT_TARGET_ID TargetId);
+    NTSTATUS GetOfferedModes(_In_opt_ CONST D3DKMDT_2DREGION *pPinnedSize,
+                             VIOGPU_DISP_MODE (&Modes)[VIOGPU_MAX_MODES + 1],
+                             _Out_ PULONG pCount);
+    NTSTATUS GetPinnedTargetSize(D3DKMDT_HVIDPN hVidPn,
+                                 _In_ CONST DXGK_VIDPN_INTERFACE *pVidPnInterface,
+                                 D3DDDI_VIDEO_PRESENT_TARGET_ID TargetId,
+                                 _Out_ D3DKMDT_2DREGION *pSize,
+                                 _Out_ PBOOLEAN pPinned);
     NTSTATUS AddSingleSourceMode(_In_ CONST DXGK_VIDPNSOURCEMODESET_INTERFACE *pVidPnSourceModeSetInterface,
                                  D3DKMDT_HVIDPNSOURCEMODESET hVidPnSourceModeSet,
-                                 D3DDDI_VIDEO_PRESENT_SOURCE_ID SourceId);
+                                 _In_opt_ CONST D3DKMDT_2DREGION *pPinnedTargetSize);
     NTSTATUS AddSingleTargetMode(_In_ CONST DXGK_VIDPNTARGETMODESET_INTERFACE *pVidPnTargetModeSetInterface,
                                  D3DKMDT_HVIDPNTARGETMODESET hVidPnTargetModeSet,
-                                 _In_opt_ CONST D3DKMDT_VIDPN_SOURCE_MODE *pVidPnPinnedSourceModeInfo,
-                                 D3DDDI_VIDEO_PRESENT_SOURCE_ID SourceId);
+                                 _In_opt_ CONST D3DKMDT_2DREGION *pPinnedSourceSize);
     NTSTATUS IsVidPnSourceModeFieldsValid(CONST D3DKMDT_VIDPN_SOURCE_MODE *pSourceMode) const;
     NTSTATUS IsVidPnPathFieldsValid(CONST D3DKMDT_VIDPN_PRESENT_PATH *pPath) const;
     NTSTATUS SetRegisterInfo(_In_ ULONG Id, _In_ DWORD MemSize);
