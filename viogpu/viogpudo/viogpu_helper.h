@@ -32,13 +32,14 @@
 #pragma once
 
 #include "viogpu_component.h"
+#include "viogpu_display.h"
 
 class VioGpuAdapter;
 
-// The driver's channel to its user-mode helpers (viogpuap, viogpures): the escapes they send, and the named event
-// that tells them the host's display changed. The event is made at the first escape and goes when the component
-// stops.
-class VioGpuHelperChannel : public VioGpuComponent
+// The driver's channel to its user-mode helpers (viogpuap, viogpures; viogpum.h): the escapes they send, and the named
+// resolution events that tell them a display changed. The events are made by the first VIOGPU_GET_DEVICE_ID, in the
+// helper's context, and go when the component stops, once the config-change thread that sets them has stopped.
+class VioGpuHelperChannel : public VioGpuComponent, public VioGpuDisplayListener
 {
   public:
     VioGpuHelperChannel(void);
@@ -47,15 +48,37 @@ class VioGpuHelperChannel : public VioGpuComponent
         m_pAdapter = pAdapter;
     }
     void Stop(void) override;
+    void SourceCommitted(UINT SourceId, UINT OldScanoutId, UINT NewScanoutId) override;
+    void DisplaysChanged(ULONG ConnectedMask) override;
     NTSTATUS Escape(_In_ CONST DXGKARG_ESCAPE *pEscape);
-    VOID Notify(VOID);
 
   private:
-    VOID CreateEvent(VOID);
-    VOID CloseEvent(VOID);
+    VOID Notify(VOID);
+    VOID CreateEvents(VOID);
+    VOID NotifySource(UINT SourceId);
+    VOID CloseEvents(VOID);
+    ULONG GetApplied(UINT SourceId, ULONGLONG Layout);
+    VOID SetApplied(UINT SourceId, ULONGLONG Layout, ULONG Generation);
 
   private:
     VioGpuAdapter *m_pAdapter;
+    // The device's event, which a change pulses for helpers that know no other, and an auto-reset event per source,
+    // which stays set until the source's helper thread waits on it: a pulse is lost on a thread that is not waiting at
+    // that moment. Each pointer goes from NULL to its event once (CreateEvents), and back only when the component
+    // stops, when nothing sets the events any more: they are read without a lock.
     PKEVENT m_pEvent;
     HANDLE m_EventHandle;
+    PKEVENT m_SourceEvents[MAX_VIEWS];
+    HANDLE m_SourceEventHandles[MAX_VIEWS];
+    // Per source, the generations the helper last applied, one per layout (VIOGPU_SET_SOURCE_APPLIED), the least
+    // recently set forgotten first; a Layout 0 and Generation 0 entry is free. Under m_AppliedMutex: escapes may run
+    // at once, at PASSIVE_LEVEL.
+    struct
+    {
+        ULONGLONG Layout;
+        ULONG Generation;
+        ULONG Stamp;
+    } m_Applied[MAX_VIEWS][VIOGPU_APPLIED_LAYOUTS];
+    ULONG m_AppliedStamp;
+    KGUARDED_MUTEX m_AppliedMutex;
 };

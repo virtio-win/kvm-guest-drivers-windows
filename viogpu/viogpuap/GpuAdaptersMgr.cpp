@@ -262,8 +262,17 @@ void GpuAdaptersMgr::AddAdapter(const wchar_t *name)
         // Whole names: a prefix match would take \\.\DISPLAY19 for \\.\DISPLAY1.
         if (_wcsicmp((*it)->m_DeviceName.c_str(), name) == 0)
         {
-            (*it)->SetStatus(Active);
-            return;
+            if ((*it)->IsReady())
+            {
+                (*it)->SetStatus(Active);
+                return;
+            }
+            // Its setup failed, as when the display went away meanwhile, or the driver could not make its events: it
+            // is set up again.
+            PrintMessage(L"%ws %ws: not set up, set up again\n", __FUNCTIONW__, name);
+            delete *it;
+            Adapters.erase(it);
+            break;
         }
     }
 

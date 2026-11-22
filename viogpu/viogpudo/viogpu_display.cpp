@@ -50,8 +50,14 @@ VioGpuDisplayController::VioGpuDisplayController(void)
         m_Sources[SourceId].Width = NOM_WIDTH_SIZE;
         m_Sources[SourceId].Height = NOM_HEIGHT_SIZE;
         m_Sources[SourceId].Rotation = D3DKMDT_VPPR_IDENTITY;
+        m_Sources[SourceId].ScanoutId = D3DDDI_ID_UNINITIALIZED;
         m_Sources[SourceId].Visible = TRUE;
     }
+    m_GenerationSerial = 0;
+    m_Persistent.XResolution = 0;
+    m_Persistent.YResolution = 0;
+    RtlZeroMemory(m_Listeners, sizeof(m_Listeners));
+    m_ListenerCount = 0;
     ExInitializeResourceLite(&m_Lock);
 }
 
@@ -116,6 +122,11 @@ void VioGpuDisplayController::Assume(UINT ScanoutId, _In_ const VIOGPU_DISPLAY *
     }
     LockExclusive();
     m_Scanouts[ScanoutId].Display = *pDisplay;
+    m_Scanouts[ScanoutId].Display.Generation = NextGeneration();
+    if (ScanoutId == 0 && m_Persistent.XResolution != 0)
+    {
+        CustomMode(m_Persistent.XResolution, m_Persistent.YResolution, &m_Scanouts[ScanoutId].Display.Custom);
+    }
     Unlock();
 }
 
@@ -156,19 +167,23 @@ BOOLEAN VioGpuDisplayController::Publish(UINT ScanoutId,
     {
         CustomMode(pDisplay->HostWidth, pDisplay->HostHeight, &pDisplay->Custom);
     }
-    if (ScanoutId == 0 && !pPublished->HostAnswered && m_pAdapter->GetVioGpu()->IsPersistentDispMode0Set())
+    if (ScanoutId == 0 && !pPublished->HostAnswered && m_Persistent.XResolution != 0)
     {
-        CustomMode(m_pAdapter->GetVioGpu()->GetPersistentDispMode0Width(),
-                   m_pAdapter->GetVioGpu()->GetPersistentDispMode0Height(),
-                   &pDisplay->Custom);
+        CustomMode(m_Persistent.XResolution, m_Persistent.YResolution, &pDisplay->Custom);
     }
+    // A plug-in counts as new at the same size: Windows gives a display it has seen before the mode it last had.
+    BOOLEAN newSize = pDisplay->Custom.XResolution != pPublished->Custom.XResolution ||
+                      pDisplay->Custom.YResolution != pPublished->Custom.YResolution;
+    pDisplay->Generation = (newSize || (pDisplay->Connected && !pPublished->Connected)) ? NextGeneration()
+                                                                                        : pPublished->Generation;
     pDisplay->HostAnswered = TRUE;
     *pWasConnected = pPublished->Connected;
     *pPublished = *pDisplay;
     Unlock();
 
     DbgPrint(TRACE_LEVEL_INFORMATION,
-             ("%s: scanout %d, event %d, connected %d -> %d, host %dx%d, EDID %d bytes, %d modes, custom %dx%d, %s\n",
+             ("%s: scanout %d, event %d, connected %d -> %d, host %dx%d, EDID %d bytes, %d modes, custom %dx%d, "
+              "generation %u, %s\n",
               __FUNCTION__,
               ScanoutId,
               Event,
@@ -180,6 +195,7 @@ BOOLEAN VioGpuDisplayController::Publish(UINT ScanoutId,
               pDisplay->ModeCount,
               pDisplay->Custom.XResolution,
               pDisplay->Custom.YResolution,
+              pDisplay->Generation,
               changed ? "changed" : "unchanged"));
     return changed;
 }
@@ -277,28 +293,158 @@ VIOGPU_DISP_MODE VioGpuDisplayController::GetCustomMode(UINT ScanoutId)
     return mode;
 }
 
-// The size the custom-resolution escape sets: it becomes the custom mode of a scanout's display and the persistent
-// mode, which replaces the host's size at the host's first answer. FALSE, changing nothing, for a size the driver
-// cannot back. The caller saves the persistent mode in the registry, outside the lock.
-BOOLEAN VioGpuDisplayController::SetPersistentMode(UINT ScanoutId, USHORT Width, USHORT Height)
+// The next generation (VIOGPU_DISPLAY.Generation): never 0, which a helper takes for a driver without generations, and
+// unique among the device's scanouts since the device started. Under the lock held exclusive.
+ULONG VioGpuDisplayController::NextGeneration(void)
 {
     PAGED_CODE();
 
-    ASSERT(ScanoutId < GetScanoutCount());
+    if (++m_GenerationSerial == 0)
+    {
+        ++m_GenerationSerial;
+    }
+    return m_GenerationSerial;
+}
+
+// The scanout the custom-resolution escapes act on, which name no display: the one whose display is connected, or
+// scanout 0, as with a single scanout, when none is. FALSE when several are: the caller cannot say which display it
+// means, and would get or set another display's size. Under the lock.
+BOOLEAN VioGpuDisplayController::EscapeScanout(_Out_ PUINT pScanoutId)
+{
+    PAGED_CODE();
+
+    ULONG connected = 0;
+    for (UINT ScanoutId = 0; ScanoutId < GetScanoutCount(); ++ScanoutId)
+    {
+        if (m_Scanouts[ScanoutId].Display.Connected)
+        {
+            connected |= 1UL << ScanoutId;
+        }
+    }
+    *pScanoutId = 0;
+    if (connected == 0)
+    {
+        return TRUE;
+    }
+    if ((connected & (connected - 1)) != 0)
+    {
+        DbgPrint(TRACE_LEVEL_WARNING,
+                 ("%s displays 0x%x are connected: the escape names none of them\n", __FUNCTION__, connected));
+        return FALSE;
+    }
+    while (!(connected & (1UL << *pScanoutId)))
+    {
+        ++*pScanoutId;
+    }
+    return TRUE;
+}
+
+// VIOGPU_GET_CUSTOM_RESOLUTION: the custom mode of the display the escape acts on (EscapeScanout).
+NTSTATUS VioGpuDisplayController::GetEscapeMode(_Out_ PVIOGPU_DISP_MODE pMode)
+{
+    PAGED_CODE();
+
+    UINT ScanoutId = 0;
+    LockShared();
+    BOOLEAN single = EscapeScanout(&ScanoutId);
+    if (single)
+    {
+        *pMode = m_Scanouts[ScanoutId].Display.Custom;
+    }
+    Unlock();
+    return single ? STATUS_SUCCESS : STATUS_NOT_SUPPORTED;
+}
+
+// VIOGPU_SET_CUSTOM_RESOLUTION: the size becomes the custom mode of the display the escape acts on (EscapeScanout),
+// with a new generation when it changes, and scanout 0's persistent mode, which replaces the host's size at the host's
+// first answer. *pScanoutId receives the scanout, and *pChanged whether its size changed. *pSave receives the
+// persistent mode to save in the registry, which the caller does outside the lock, or 0x0 for none.
+// STATUS_INVALID_PARAMETER, changing nothing, for a size the driver cannot back.
+NTSTATUS VioGpuDisplayController::SetEscapeMode(USHORT Width,
+                                                USHORT Height,
+                                                _Out_ PUINT pScanoutId,
+                                                _Out_ PBOOLEAN pChanged,
+                                                _Out_ PVIOGPU_DISP_MODE pSave)
+{
+    PAGED_CODE();
+
+    *pScanoutId = 0;
+    *pChanged = FALSE;
+    pSave->XResolution = 0;
+    pSave->YResolution = 0;
     VIOGPU_DISP_MODE mode;
     if (!CustomMode(Width, Height, &mode))
     {
-        return FALSE;
+        return STATUS_INVALID_PARAMETER;
     }
-    // Under the display lock, under which Publish reads the persistent mode.
+    // Under the lock, under which Publish reads the persistent mode.
     LockExclusive();
-    m_pAdapter->GetVioGpu()->SetPersistentDispMode0Width(Width);
-    m_pAdapter->GetVioGpu()->SetPersistentDispMode0Height(Height);
-    m_Scanouts[ScanoutId].Display.Custom = mode;
+    BOOLEAN single = EscapeScanout(pScanoutId);
+    if (single)
+    {
+        PVIOGPU_DISPLAY pDisplay = &m_Scanouts[*pScanoutId].Display;
+        if (mode.XResolution != pDisplay->Custom.XResolution || mode.YResolution != pDisplay->Custom.YResolution)
+        {
+            pDisplay->Generation = NextGeneration();
+            *pChanged = TRUE;
+        }
+        pDisplay->Custom = mode;
+        if (*pScanoutId == 0)
+        {
+            m_Persistent.XResolution = Width;
+            m_Persistent.YResolution = Height;
+            *pSave = m_Persistent;
+        }
+    }
     Unlock();
+    if (!single)
+    {
+        return STATUS_NOT_SUPPORTED;
+    }
     DbgPrint(TRACE_LEVEL_INFORMATION,
-             ("%s scanout %d: custom mode %dx%d\n", __FUNCTION__, ScanoutId, mode.XResolution, mode.YResolution));
-    return TRUE;
+             ("%s scanout %d: custom mode %dx%d\n", __FUNCTION__, *pScanoutId, mode.XResolution, mode.YResolution));
+    return STATUS_SUCCESS;
+}
+
+// VIOGPU_GET_SOURCE_RESOLUTION: the scanout of the source's path, and that scanout's custom mode and generation, which
+// change together under the lock. STATUS_INVALID_PARAMETER for a source the device does not have,
+// STATUS_DEVICE_NOT_CONNECTED while the source drives no connected display.
+NTSTATUS VioGpuDisplayController::GetSourceMode(_Inout_ PVIOGPU_SOURCE_MODE pMode)
+{
+    PAGED_CODE();
+
+    UINT SourceId = pMode->SourceId;
+    if (SourceId >= GetSourceCount())
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("%s no source %d\n", __FUNCTION__, SourceId));
+        return STATUS_INVALID_PARAMETER;
+    }
+    BOOLEAN connected = FALSE;
+    LockShared();
+    UINT ScanoutId = m_Sources[SourceId].ScanoutId;
+    pMode->ScanoutId = ScanoutId;
+    if (ScanoutId < GetScanoutCount())
+    {
+        connected = m_Scanouts[ScanoutId].Display.Connected;
+        pMode->Resolution = m_Scanouts[ScanoutId].Display.Custom;
+        pMode->Generation = m_Scanouts[ScanoutId].Display.Generation;
+    }
+    Unlock();
+    if (!connected)
+    {
+        DbgPrint(TRACE_LEVEL_WARNING,
+                 ("%s source %d drives no connected display (scanout %d)\n", __FUNCTION__, SourceId, ScanoutId));
+        return STATUS_DEVICE_NOT_CONNECTED;
+    }
+    DbgPrint(TRACE_LEVEL_INFORMATION,
+             ("%s source %d scanout %d %dx%d generation %u\n",
+              __FUNCTION__,
+              SourceId,
+              ScanoutId,
+              pMode->Resolution.XResolution,
+              pMode->Resolution.YResolution,
+              pMode->Generation));
+    return STATUS_SUCCESS;
 }
 
 // Clips a rectangle of the presented surface to Width x Height. FALSE when nothing of it is left.
@@ -530,6 +676,11 @@ NTSTATUS VioGpuDisplayController::Commit(UINT SourceId,
     }
     pSource->Changing = FALSE;
     Unlock();
+
+    for (UINT i = 0; i < m_ListenerCount; ++i)
+    {
+        m_Listeners[i]->SourceCommitted(SourceId, OldScanoutId, ScanoutId);
+    }
     return status;
 }
 
@@ -586,6 +737,47 @@ void VioGpuDisplayController::GetSource(UINT SourceId, _Out_ PVIOGPU_SOURCE_VIEW
     pView->Height = pSource->Height;
     pView->Rotation = pSource->Rotation;
     Unlock();
+}
+
+// A listener told after each commit, from the next one on. A listener past VIOGPU_MAX_LISTENERS is refused, and logged:
+// raise the limit with the listener that needs it.
+void VioGpuDisplayController::AddListener(_In_ VioGpuDisplayListener *pListener)
+{
+    PAGED_CODE();
+
+    if (m_ListenerCount >= VIOGPU_MAX_LISTENERS)
+    {
+        DbgPrint(TRACE_LEVEL_FATAL, ("%s more than %d listeners: refused\n", __FUNCTION__, VIOGPU_MAX_LISTENERS));
+        NT_ASSERT(FALSE);
+        return;
+    }
+    m_Listeners[m_ListenerCount++] = pListener;
+}
+
+// Tells the listeners that the host's displays changed (VioGpuDisplayListener::DisplaysChanged), once published.
+void VioGpuDisplayController::DisplaysChanged(ULONG ConnectedMask)
+{
+    PAGED_CODE();
+
+    for (UINT i = 0; i < m_ListenerCount; ++i)
+    {
+        m_Listeners[i]->DisplaysChanged(ConnectedMask);
+    }
+}
+
+// Takes scanout 0's persistent mode from the registry (VioGpuDod::GetRegisterInfo) before the start-up display read
+// applies it (VioGpuAdapter::HWInit).
+NTSTATUS VioGpuDisplayController::Start(void)
+{
+    PAGED_CODE();
+
+    VioGpuDod *pVioGpuDod = m_pAdapter->GetVioGpu();
+    if (pVioGpuDod->IsPersistentDispMode0Set())
+    {
+        m_Persistent.XResolution = pVioGpuDod->GetPersistentDispMode0Width();
+        m_Persistent.YResolution = pVioGpuDod->GetPersistentDispMode0Height();
+    }
+    return STATUS_SUCCESS;
 }
 
 // The device is about to be reset, which drops every resource the host has: each source's frame buffer is released,

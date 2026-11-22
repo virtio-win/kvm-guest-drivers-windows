@@ -2456,7 +2456,8 @@ NTSTATUS VioGpuDod::SetRegisterInfo(_In_ ULONG Id, _In_ DWORD MemSize)
     return Status;
 }
 
-NTSTATUS VioGpuDod::SetRegisterConfigInfo()
+// Saves scanout 0's persistent mode, Width x Height, in the registry, where the next start reads it (GetRegisterInfo).
+NTSTATUS VioGpuDod::SetRegisterConfigInfo(USHORT Width, USHORT Height)
 {
     PAGED_CODE();
 
@@ -2475,9 +2476,9 @@ NTSTATUS VioGpuDod::SetRegisterConfigInfo()
 
     do
     {
-        if (IsPersistentDispMode0Set())
+        if (Width > 0 && Height > 0)
         {
-            value = GetPersistentDispMode0Width();
+            value = Width;
             Status = WriteRegistryDWORD(DevInstRegKeyHandle, L"PersistentDispMode0Width", &value);
             if (!NT_SUCCESS(Status))
             {
@@ -2486,7 +2487,7 @@ NTSTATUS VioGpuDod::SetRegisterConfigInfo()
                 break;
             }
 
-            value = GetPersistentDispMode0Height();
+            value = Height;
             Status = WriteRegistryDWORD(DevInstRegKeyHandle, L"PersistentDispMode0Height", &value);
             if (!NT_SUCCESS(Status))
             {
@@ -2583,6 +2584,7 @@ VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod)
     m_bDeviceOpen = FALSE;
     m_Cursor.Init(this);
     m_HelperChannel.Init(this);
+    m_Controller.AddListener(&m_HelperChannel);
     m_HostDisplays.Init(this);
     // VioGpuHostDisplays last: its thread reads the host only once every other part is open, and is idle before any
     // of them closes.
@@ -2890,8 +2892,6 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
         return status;
     }
 
-    InitDisplay(pDispInfo);
-
     // BAR 0, where the firmware's frame buffer is, recorded in the current mode. Frame buffers get their own pages, or
     // BAR 0's with UsePhysicalMemory (CreateFrameBuffer).
     PHYSICAL_ADDRESS fb_pa = m_PciResources.GetPciBar(0)->GetPA();
@@ -2900,11 +2900,14 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
         pDispInfo->PhysicAddress = fb_pa;
     }
 
-    // The components start once the display is set up. A change the host signals before, and a re-read InitDisplays
-    // posts, wait for the config-change thread in m_WorkPosted.
+    // The components start first: the display controller takes scanout 0's persistent mode, which the display read
+    // applies. The displays are read before the components open, so that dxgkrnl's first questions about the children
+    // find them. A change the host signals meanwhile, and a re-read InitDisplays posts, wait for the config-change
+    // thread in m_WorkPosted, which uses the device only once its component opens.
     status = StartComponents();
     if (NT_SUCCESS(status))
     {
+        InitDisplay(pDispInfo);
         OpenComponents();
     }
     return status;

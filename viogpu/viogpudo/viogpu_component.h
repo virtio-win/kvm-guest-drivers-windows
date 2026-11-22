@@ -34,7 +34,9 @@
 // A part of the adapter with something to do while the device runs. The adapter lists its components in the order
 // they open, each after the parts it uses, and walks the list (VioGpuAdapter::StartComponents and the rest):
 //
-// - StartDevice starts every component, then opens every one, in list order.
+// - StartDevice starts every component, then opens every one, in list order. The device has opened by then: a Start may
+//   read its configuration, and sends nothing. Between the two the adapter reads the host's displays
+//   (VioGpuHostDisplays::InitDisplays), as dxgkrnl asks about them as soon as the start returns.
 // - A power-down (D1 to D3) closes every one, in the opposite order, before the device is reset; D0 opens every one
 //   again once the device is open.
 // - StopDevice closes every one, then stops every one once the device is reset, in the opposite order.

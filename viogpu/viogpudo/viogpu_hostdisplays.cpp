@@ -372,7 +372,6 @@ void VioGpuHostDisplays::InitDisplays(void)
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
     VioGpuDisplayController *pController = m_pAdapter->GetController();
-    VioGpuDod *pVioGpuDod = m_pAdapter->GetVioGpu();
     // A display event the host raised before the driver started is no change since this read: cleared before it, as
     // ConfigChanged clears one, so that the thread's first pass does not take the host's size over the persistent
     // mode this read applies.
@@ -392,13 +391,8 @@ void VioGpuHostDisplays::InitDisplays(void)
         pAssumed->Connected = ScanoutId == 0;
         BuiltinEdid(pAssumed);
         BuildModes(pAssumed);
+        // Scanout 0's persistent mode replaces this one (Assume).
         pController->CustomMode(NOM_WIDTH_SIZE, NOM_HEIGHT_SIZE, &pAssumed->Custom);
-        if (ScanoutId == 0 && pVioGpuDod->IsPersistentDispMode0Set())
-        {
-            pController->CustomMode(pVioGpuDod->GetPersistentDispMode0Width(),
-                                    pVioGpuDod->GetPersistentDispMode0Height(),
-                                    &pAssumed->Custom);
-        }
         pController->Assume(ScanoutId, pAssumed);
         if (read)
         {
@@ -488,8 +482,8 @@ void VioGpuHostDisplays::ThreadWorkRoutine(void)
 
 // Reads the displays when the device raised a display event, now or before a read that failed, and with Reread. After
 // a display event, or when the read finds a change, Windows is told about every display connected now or when it was
-// last told, and viogpuap applies the custom mode to a connected one; a read without an event that finds no change
-// reports nothing. FALSE when the displays could not be read, the read then staying pending with *pEvent, or
+// last told, and, while a display is connected, the helpers are signalled; a read without an event that finds no
+// change reports nothing. FALSE when the displays could not be read, the read then staying pending with *pEvent, or
 // when Windows could not be told about one, which is told again with the next pass.
 BOOLEAN VioGpuHostDisplays::ConfigChanged(BOOLEAN Reread, PBOOLEAN pEvent)
 {
@@ -530,7 +524,7 @@ BOOLEAN VioGpuHostDisplays::ConfigChanged(BOOLEAN Reread, PBOOLEAN pEvent)
     // Told once published, outside the display lock, which is never held across a call into dxgkrnl. Every connected
     // display is announced again on every change, so that Windows reads its EDID and modes again, and so is every
     // display Windows was last told is connected; a report that failed is made again. A failed announcement does not
-    // stop the others, nor hold viogpuap back.
+    // stop the others, nor hold the helpers back.
     ULONG tell = m_AnnounceFailed;
     if (event || changed)
     {
@@ -558,10 +552,10 @@ BOOLEAN VioGpuHostDisplays::ConfigChanged(BOOLEAN Reread, PBOOLEAN pEvent)
         }
     }
     m_AnnounceFailed = failed;
-    // viogpuap applies the custom mode to a connected display; with none connected there is nothing to apply.
-    if ((event || changed) && connected != 0)
+    // The parts that follow the displays, the helper channel among them, learn of the change once it is published.
+    if (event || changed)
     {
-        m_pAdapter->GetHelperChannel()->Notify();
+        pController->DisplaysChanged(connected);
     }
     if (failed != 0)
     {
