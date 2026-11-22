@@ -66,7 +66,7 @@ BOOLEAN VioGpuCommands::ScanoutSize(PGPU_RESP_DISP_INFO resp, UINT id, PULONG xr
     return TRUE;
 }
 
-NTSTATUS VioGpuCommands::GetDisplayInfo(PGPU_RESP_DISP_INFO info)
+NTSTATUS VioGpuCommands::GetDisplayInfo(PGPU_RESP_DISP_INFO info, PVIOGPU_COMPLETE late, PVOID ctx)
 {
     PAGED_CODE();
 
@@ -88,7 +88,7 @@ NTSTATUS VioGpuCommands::GetDisplayInfo(PGPU_RESP_DISP_INFO info)
 
     cmd->type = VIRTIO_GPU_CMD_GET_DISPLAY_INFO;
 
-    status = SendAndWait(m_pCtrl, vbuf, 0, info, sizeof(*info));
+    status = SendAndWait(m_pCtrl, vbuf, 0, info, sizeof(*info), late, ctx);
     if (!NT_SUCCESS(status))
     {
         DbgPrint(TRACE_LEVEL_FATAL, ("---> Failed to ask display info, status 0x%x\n", status));

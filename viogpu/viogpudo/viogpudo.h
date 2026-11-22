@@ -168,8 +168,7 @@ class VioGpuAdapter : IVioGpuPCI
     PBYTE GetEdidData(void);
     ULONG GetEdidSize(void);
     // For the config-change thread (VioGpuHostDisplays), while it may use the device.
-    void ConfigChanged(void);
-    VOID NotifyResolutionEvent(VOID);
+    BOOLEAN ConfigChanged(BOOLEAN Reread);
 
   protected:
   private:
@@ -178,7 +177,8 @@ class VioGpuAdapter : IVioGpuPCI
     void VioGpuAdapterClose(void);
     NTSTATUS BuildModeList(DXGK_DISPLAY_INFORMATION *pDispInfo);
     BOOLEAN AckFeature(UINT64 Feature);
-    BOOLEAN GetDisplayInfo(void);
+    BOOLEAN GetDisplayInfo(_Out_opt_ PBOOLEAN pTaken = NULL);
+    static void DisplayInfoLate(_In_opt_ PVOID ctx, _In_ NTSTATUS status);
     int ProcessEdid(void);
     void FixEdid(void);
     BOOLEAN GetEdids(void);
@@ -195,6 +195,7 @@ class VioGpuAdapter : IVioGpuPCI
     void UnrefResource(UINT res_id);
     NTSTATUS VirtIoDeviceInit(void);
     VOID CreateResolutionEvent(VOID);
+    VOID NotifyResolutionEvent(VOID);
     VOID CloseResolutionEvent(VOID);
     NTSTATUS StartComponents(void);
     void OpenComponents(void);
@@ -263,6 +264,8 @@ class VioGpuAdapter : IVioGpuPCI
     UINT m_ComponentCount;
     UINT m_ComponentsStarted;
     BOOLEAN m_bComponentsOpen;
+    // A GET_DISPLAY_INFO left on the ring without an answer: no other is sent until the device answers it.
+    volatile LONG m_DisplayInfoOutstanding;
     PKEVENT m_ResolutionEvent;
     HANDLE m_ResolutionEventHandle;
 };

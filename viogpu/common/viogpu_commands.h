@@ -61,7 +61,7 @@ class VioGpuCommands
     }
 
     // The control ring.
-    NTSTATUS GetDisplayInfo(PGPU_RESP_DISP_INFO info);
+    NTSTATUS GetDisplayInfo(PGPU_RESP_DISP_INFO info, PVIOGPU_COMPLETE late = NULL, PVOID ctx = NULL);
     NTSTATUS GetEdid(UINT id, PGPU_RESP_EDID edid);
     NTSTATUS ResourceCreate2D(UINT res_id, UINT format, UINT width, UINT height);
     NTSTATUS ResourceUnref(UINT id);

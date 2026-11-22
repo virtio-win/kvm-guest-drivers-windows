@@ -35,8 +35,15 @@
 
 class VioGpuAdapter;
 
-// The host's displays. A thread of their own reads them when the device reports a display change: the DPC posts it
-// (Post), and a D0 does too, since a change made while the device was reset raised no interrupt. dxgkrnl does not
+// The config-change thread's work, posted with VioGpuHostDisplays::Post.
+#define VIOGPU_WORK_EVENT  0x1 // the device raised a configuration interrupt, or may have while it was closed
+#define VIOGPU_WORK_REREAD 0x2 // read the display info whether the device raised a display event or not
+#define VIOGPU_WORK_STOP   0x4
+
+// The host's displays. A thread of their own reads them when the device reports a display change: the DPC posts it,
+// and so does every open, since a change made while the device was reset raised no interrupt. A read the start or the
+// thread could not finish is posted again: by BuildModeList, by the thread's retries, and by the late answer to a read
+// that gave up. dxgkrnl does not
 // serialize the thread with any DDI, so it uses the device only while its component is open: Close waits for a read in
 // progress to finish and keeps the next one waiting until Open.
 class VioGpuHostDisplays : public VioGpuComponent
@@ -51,8 +58,9 @@ class VioGpuHostDisplays : public VioGpuComponent
     void Open(void) override;
     void Close(void) override;
     void Stop(void) override;
-    // The device reported a display change. Callable up to DISPATCH_LEVEL.
-    void Post(void);
+    // Posts work for the thread, VIOGPU_WORK_*, and wakes it. Posts merge until the thread takes them. Callable up to
+    // DISPATCH_LEVEL.
+    void Post(LONG Work);
 
   private:
     static void ThreadWork(_In_ PVOID Context);
@@ -60,9 +68,10 @@ class VioGpuHostDisplays : public VioGpuComponent
 
   private:
     VioGpuAdapter *m_pAdapter;
-    KEVENT m_ConfigUpdateEvent;
+    // The work posted and not taken yet, and the event that wakes the thread to take it.
+    volatile LONG m_WorkPosted;
+    KEVENT m_WorkEvent;
     PETHREAD m_pWorkThread;
-    volatile BOOLEAN m_bStopWorkThread;
     // Acquired by the thread for each read: it can be only while the component is open.
     EX_RUNDOWN_REF m_Rundown;
 };

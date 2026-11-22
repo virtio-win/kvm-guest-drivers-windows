@@ -38,6 +38,10 @@
 #include "viogpu_hostdisplays.tmh"
 #endif
 
+// A read that fails is retried a second later, then after twice as long each time, up to 1 << VIOGPU_RETRY_MAX_SHIFT
+// seconds: a host that stopped answering is asked less and less often.
+#define VIOGPU_RETRY_MAX_SHIFT 4
+
 PAGED_CODE_SEG_BEGIN
 
 VioGpuHostDisplays::VioGpuHostDisplays(void)
@@ -45,15 +49,17 @@ VioGpuHostDisplays::VioGpuHostDisplays(void)
     PAGED_CODE();
     m_pAdapter = NULL;
     m_pWorkThread = NULL;
-    m_bStopWorkThread = FALSE;
-    KeInitializeEvent(&m_ConfigUpdateEvent, SynchronizationEvent, FALSE);
+    m_WorkPosted = 0;
+    KeInitializeEvent(&m_WorkEvent, SynchronizationEvent, FALSE);
     // Closed until the first Open.
     ExInitializeRundownProtection(&m_Rundown);
     ExWaitForRundownProtectionRelease(&m_Rundown);
     ExRundownCompleted(&m_Rundown);
 }
 
-// Starts the thread. A change the host signals before the first Open waits for it in m_ConfigUpdateEvent.
+// Starts the thread. A change the host signals before the first Open, and a re-read BuildModeList posts, are kept
+// until then: in m_WorkPosted, or, once the thread has taken them, in its pending re-read and the device's display
+// event.
 NTSTATUS VioGpuHostDisplays::Start(void)
 {
     PAGED_CODE();
@@ -83,8 +89,7 @@ NTSTATUS VioGpuHostDisplays::Start(void)
         // Without the reference Stop could not wait for the thread: it is told to stop, and waited for, here.
         DbgPrint(TRACE_LEVEL_FATAL, ("%s no reference to the system thread, status %x\n", __FUNCTION__, status));
         m_pWorkThread = NULL;
-        m_bStopWorkThread = TRUE;
-        KeSetEvent(&m_ConfigUpdateEvent, IO_NO_INCREMENT, FALSE);
+        Post(VIOGPU_WORK_STOP);
         NTSTATUS wait = ZwWaitForSingleObject(threadHandle, FALSE, NULL);
         if (wait != STATUS_SUCCESS)
         {
@@ -95,13 +100,13 @@ NTSTATUS VioGpuHostDisplays::Start(void)
     return status;
 }
 
-// Lets the thread use the device, and wakes it to read a display event the device kept across a reset (QEMU leaves
+// Lets the thread use the device, and has it check for a display event the device kept across a reset (QEMU leaves
 // events_read as it is; the virtio spec does not say).
 void VioGpuHostDisplays::Open(void)
 {
     PAGED_CODE();
     ExReInitializeRundownProtection(&m_Rundown);
-    KeSetEvent(&m_ConfigUpdateEvent, IO_NO_INCREMENT, FALSE);
+    Post(VIOGPU_WORK_EVENT);
 }
 
 // Waits for a read in progress, which may wait for the device's answers; a read posted from now on waits for Open.
@@ -121,8 +126,7 @@ void VioGpuHostDisplays::Stop(void)
     {
         return;
     }
-    m_bStopWorkThread = TRUE;
-    KeSetEvent(&m_ConfigUpdateEvent, IO_NO_INCREMENT, FALSE);
+    Post(VIOGPU_WORK_STOP);
     KeWaitForSingleObject(m_pWorkThread, Executive, KernelMode, FALSE, NULL);
     ObDereferenceObject(m_pWorkThread);
     m_pWorkThread = NULL;
@@ -130,9 +134,10 @@ void VioGpuHostDisplays::Stop(void)
 
 PAGED_CODE_SEG_END
 
-void VioGpuHostDisplays::Post(void)
+void VioGpuHostDisplays::Post(LONG Work)
 {
-    KeSetEvent(&m_ConfigUpdateEvent, IO_NO_INCREMENT, FALSE);
+    InterlockedOr(&m_WorkPosted, Work);
+    KeSetEvent(&m_WorkEvent, IO_NO_INCREMENT, FALSE);
 }
 
 void VioGpuHostDisplays::ThreadWork(_In_ PVOID Context)
@@ -144,21 +149,47 @@ void VioGpuHostDisplays::ThreadWorkRoutine(void)
 {
     KeSetPriorityThread(KeGetCurrentThread(), LOW_REALTIME_PRIORITY);
 
+    // A display change the driver still has to read. An open device that did not answer is asked again later
+    // (VIOGPU_RETRY_MAX_SHIFT). A closed device is not asked: the read waits for the next Open, which posts work.
+    BOOLEAN pending = FALSE;
+    BOOLEAN retry = FALSE;
+    ULONG failures = 0;
     for (;;)
     {
-        KeWaitForSingleObject(&m_ConfigUpdateEvent, Executive, KernelMode, FALSE, NULL);
+        // A second after the first failure, doubling with each failure after it (VIOGPU_RETRY_MAX_SHIFT).
+        LARGE_INTEGER timeout;
+        ULONG shift = failures > 0 ? min(failures - 1, (ULONG)VIOGPU_RETRY_MAX_SHIFT) : 0;
+        timeout.QuadPart = -10000000LL * (1LL << shift);
+        KeWaitForSingleObject(&m_WorkEvent, Executive, KernelMode, FALSE, retry ? &timeout : NULL);
+        LONG work = InterlockedExchange(&m_WorkPosted, 0);
 
-        if (m_bStopWorkThread)
+        if (work & VIOGPU_WORK_STOP)
         {
             PsTerminateSystemThread(STATUS_SUCCESS);
             break;
         }
-        // A change the device reports while the component is closed is read when it opens again.
-        if (ExAcquireRundownProtection(&m_Rundown))
+        pending = pending || (work & VIOGPU_WORK_REREAD) != 0;
+        if (!ExAcquireRundownProtection(&m_Rundown))
         {
-            m_pAdapter->ConfigChanged();
-            m_pAdapter->NotifyResolutionEvent();
-            ExReleaseRundownProtection(&m_Rundown);
+            // The next open starts the retries over.
+            retry = FALSE;
+            failures = 0;
+            continue;
+        }
+        pending = !m_pAdapter->ConfigChanged(pending);
+        ExReleaseRundownProtection(&m_Rundown);
+        retry = pending;
+        if (pending)
+        {
+            if (failures++ == 0)
+            {
+                DbgPrint(TRACE_LEVEL_FATAL, ("%s: display read failed, retried\n", __FUNCTION__));
+            }
+        }
+        else if (failures != 0)
+        {
+            DbgPrint(TRACE_LEVEL_FATAL, ("%s: display info read after %d failed tries\n", __FUNCTION__, failures));
+            failures = 0;
         }
     }
 }

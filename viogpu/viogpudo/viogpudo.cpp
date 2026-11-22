@@ -2431,6 +2431,7 @@ VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod)
     }
     m_ComponentsStarted = 0;
     m_bComponentsOpen = FALSE;
+    m_DisplayInfoOutstanding = 0;
     m_ResolutionEvent = NULL;
     m_ResolutionEventHandle = NULL;
     m_u64HostFeatures = 0;
@@ -3356,7 +3357,11 @@ NTSTATUS VioGpuAdapter::Escape(_In_ CONST DXGKARG_ESCAPE *pEscape)
     return status;
 }
 
-BOOLEAN VioGpuAdapter::GetDisplayInfo(void)
+// Sets the custom mode, as far as SetCustomDisplay takes it, to the size of the first scanout the host enables, or to
+// 1024x768 when it enables none; *pTaken, when given, says whether it took the size. FALSE when the display info could
+// not be read: the custom mode stays as it was. One read at a time: a read whose answer did not come in time stays on
+// the ring, and until the device answers it (DisplayInfoLate) no other is sent.
+BOOLEAN VioGpuAdapter::GetDisplayInfo(_Out_opt_ PBOOLEAN pTaken)
 {
     PAGED_CODE();
 
@@ -3366,23 +3371,50 @@ BOOLEAN VioGpuAdapter::GetDisplayInfo(void)
     ULONG xres = 0;
     ULONG yres = 0;
 
-    if (NT_SUCCESS(m_Commands.GetDisplayInfo(&info)))
+    if (pTaken != NULL)
     {
-        for (UINT32 i = 0; i < m_u32NumScanouts; i++)
-        {
-            if (VioGpuCommands::ScanoutSize(&info, i, &xres, &yres) && xres && yres)
-            {
-                DbgPrint(TRACE_LEVEL_INFORMATION, ("---> %s (%dx%d)\n", __FUNCTION__, xres, yres));
-                SetCustomDisplay(xres, yres);
-                return TRUE;
-            }
-        }
+        *pTaken = FALSE;
     }
+    if (m_DisplayInfoOutstanding)
+    {
+        // A host that does not answer would get a new read with each retry, until the ring is full.
+        DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s the last read is still unanswered\n", __FUNCTION__));
+        return FALSE;
+    }
+    // Marked before the read goes: DisplayInfoLate may run before it returns.
+    InterlockedExchange(&m_DisplayInfoOutstanding, 1);
+    NTSTATUS status = m_Commands.GetDisplayInfo(&info, DisplayInfoLate, this);
+    if (status != STATUS_IO_TIMEOUT)
+    {
+        InterlockedExchange(&m_DisplayInfoOutstanding, 0);
+    }
+    if (!NT_SUCCESS(status))
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s no display info (0x%x): the custom mode stays\n", __FUNCTION__, status));
+        return FALSE;
+    }
+    BOOLEAN taken = FALSE;
     xres = NOM_WIDTH_SIZE;
     yres = NOM_HEIGHT_SIZE;
-    SetCustomDisplay((USHORT)xres, (USHORT)yres);
+    for (UINT32 i = 0; i < m_u32NumScanouts; i++)
+    {
+        ULONG width = 0;
+        ULONG height = 0;
+        if (VioGpuCommands::ScanoutSize(&info, i, &width, &height) && width && height)
+        {
+            xres = width;
+            yres = height;
+            break;
+        }
+    }
+    DbgPrint(TRACE_LEVEL_INFORMATION, ("---> %s (%dx%d)\n", __FUNCTION__, xres, yres));
+    taken = SetCustomDisplay(xres, yres);
+    if (pTaken != NULL)
+    {
+        *pTaken = taken;
+    }
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
-    return FALSE;
+    return TRUE;
 }
 
 int VioGpuAdapter::ProcessEdid(void)
@@ -3671,12 +3703,20 @@ NTSTATUS VioGpuAdapter::BuildModeList(DXGK_DISPLAY_INFORMATION *pDispInfo)
     // the config-change thread, which the first open wakes, does not take the host size over the persistent mode.
     UINT32 events_clear = VIRTIO_GPU_EVENT_DISPLAY;
     virtio_set_config(&m_VioDev, FIELD_OFFSET(GPU_CONFIG, events_clear), &events_clear, sizeof(events_clear));
-    GetDisplayInfo();
+    BOOLEAN answered = GetDisplayInfo();
 
+    BOOLEAN persistent = FALSE;
     if (m_pVioGpuDod->IsPersistentDispMode0Set())
     {
-        SetCustomDisplay(m_pVioGpuDod->GetPersistentDispMode0Width(), m_pVioGpuDod->GetPersistentDispMode0Height());
+        persistent = SetCustomDisplay(m_pVioGpuDod->GetPersistentDispMode0Width(),
+                                      m_pVioGpuDod->GetPersistentDispMode0Height());
         SetCurrentModeIndex(m_CurrentModeIndex);
+    }
+    // Without an answer the config-change thread asks again, unless a persistent mode the driver took stands in for the
+    // host's size anyway.
+    if (!answered && !persistent)
+    {
+        m_HostDisplays.Post(VIOGPU_WORK_REREAD);
     }
 
     for (UINT idx = 0; idx < m_ModeCount; idx++)
@@ -3955,20 +3995,52 @@ BOOLEAN VioGpuAdapter::InterruptRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface, 
     return serviced;
 }
 
-void VioGpuAdapter::ConfigChanged(void)
+// Reads the display info when the device raised a display event, and always with Reread. FALSE when the display info
+// could not be read: the sizes stay as they were, and the caller keeps the read pending.
+BOOLEAN VioGpuAdapter::ConfigChanged(BOOLEAN Reread)
 {
-    DbgPrint(TRACE_LEVEL_FATAL, ("<--> %s\n", __FUNCTION__));
-    UINT32 events_read, events_clear = 0;
-    virtio_get_config(&m_VioDev, FIELD_OFFSET(GPU_CONFIG, events_read), &events_read, sizeof(m_u32NumScanouts));
+    DbgPrint(TRACE_LEVEL_FATAL, ("<--> %s reread %d\n", __FUNCTION__, Reread));
+    UINT32 events_read = 0;
+    UINT32 events_clear = VIRTIO_GPU_EVENT_DISPLAY;
+    virtio_get_config(&m_VioDev, FIELD_OFFSET(GPU_CONFIG, events_read), &events_read, sizeof(events_read));
     if (events_read & VIRTIO_GPU_EVENT_DISPLAY)
     {
-        GetDisplayInfo();
-        events_clear |= VIRTIO_GPU_EVENT_DISPLAY;
-        virtio_set_config(&m_VioDev, FIELD_OFFSET(GPU_CONFIG, events_clear), &events_clear, sizeof(m_u32NumScanouts));
-        //        UpdateChildStatus(FALSE);
-        //        ProcessEdid();
-        UpdateChildStatus(TRUE);
+        // Cleared before the display info is read: a change the host makes meanwhile raises the event again.
+        virtio_set_config(&m_VioDev, FIELD_OFFSET(GPU_CONFIG, events_clear), &events_clear, sizeof(events_clear));
+        Reread = TRUE;
     }
+    if (!Reread)
+    {
+        return TRUE;
+    }
+    BOOLEAN taken = FALSE;
+    if (!GetDisplayInfo(&taken))
+    {
+        return FALSE;
+    }
+    UpdateChildStatus(TRUE);
+    if (taken)
+    {
+        NotifyResolutionEvent();
+    }
+    else
+    {
+        // viogpuap would set the display to the custom mode, which is still the one before.
+        DbgPrint(TRACE_LEVEL_WARNING, ("%s: the host size was not taken: viogpuap is not signalled\n", __FUNCTION__));
+    }
+    return TRUE;
+}
+
+// The answer to a GET_DISPLAY_INFO that came after GetDisplayInfo gave up, from the DPC or from the queue's Close: the
+// next read may go. The config-change thread looks again, and reads if it still has a read pending or the device
+// raised a display event: a read nobody waits for any more, such as the start read a persistent mode stood in for, is
+// not repeated.
+void VioGpuAdapter::DisplayInfoLate(_In_opt_ PVOID ctx, _In_ NTSTATUS status)
+{
+    UNREFERENCED_PARAMETER(status);
+    VioGpuAdapter *pThis = reinterpret_cast<VioGpuAdapter *>(ctx);
+    InterlockedExchange(&pThis->m_DisplayInfoOutstanding, 0);
+    pThis->m_HostDisplays.Post(VIOGPU_WORK_EVENT);
 }
 
 VOID VioGpuAdapter::DpcRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface)
@@ -3993,7 +4065,7 @@ VOID VioGpuAdapter::DpcRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface)
         if (reason & ISR_REASON_CHANGE)
         {
             DbgPrint(TRACE_LEVEL_FATAL, ("---> %s ConfigChanged\n", __FUNCTION__));
-            m_HostDisplays.Post();
+            m_HostDisplays.Post(VIOGPU_WORK_EVENT);
         }
     }
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
