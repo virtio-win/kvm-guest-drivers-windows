@@ -66,6 +66,7 @@ BOOLEAN VioGpuCommands::ScanoutSize(PGPU_RESP_DISP_INFO resp, UINT id, PULONG xr
     return TRUE;
 }
 
+// late, if given, gets the outcome of a read whose answer came too late (VioGpuQueue::SendAndWait).
 NTSTATUS VioGpuCommands::GetDisplayInfo(PGPU_RESP_DISP_INFO info, PVIOGPU_COMPLETE late, PVOID ctx)
 {
     PAGED_CODE();
@@ -99,7 +100,8 @@ NTSTATUS VioGpuCommands::GetDisplayInfo(PGPU_RESP_DISP_INFO info, PVIOGPU_COMPLE
     return status;
 }
 
-NTSTATUS VioGpuCommands::GetEdid(UINT id, PGPU_RESP_EDID edid)
+// late as GetDisplayInfo's.
+NTSTATUS VioGpuCommands::GetEdid(UINT id, PGPU_RESP_EDID edid, PVIOGPU_COMPLETE late, PVOID ctx)
 {
     PAGED_CODE();
 
@@ -122,7 +124,7 @@ NTSTATUS VioGpuCommands::GetEdid(UINT id, PGPU_RESP_EDID edid)
     cmd->hdr.type = VIRTIO_GPU_CMD_GET_EDID;
     cmd->scanout = id;
 
-    status = SendAndWait(m_pCtrl, vbuf, 0, edid, sizeof(*edid));
+    status = SendAndWait(m_pCtrl, vbuf, 0, edid, sizeof(*edid), late, ctx);
     if (!NT_SUCCESS(status))
     {
         DbgPrint(TRACE_LEVEL_FATAL, ("---> Failed to get edid info, status 0x%x\n", status));

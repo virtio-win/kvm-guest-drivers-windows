@@ -32,18 +32,17 @@
 #pragma once
 
 #include "viogpu_component.h"
+#include "viogpu_display.h"
 
 class VioGpuAdapter;
 
 // The config-change thread's work, posted with VioGpuHostDisplays::Post.
-#define VIOGPU_WORK_EVENT  0x1 // the device raised a configuration interrupt, or may have while it was closed
-#define VIOGPU_WORK_REREAD 0x2 // read the display info whether the device raised a display event or not
+#define VIOGPU_WORK_EVENT  0x1 // the device raised a configuration interrupt
+#define VIOGPU_WORK_REREAD 0x2 // read the displays whether the device raised a display event or not
 #define VIOGPU_WORK_STOP   0x4
 
-// The host's displays. A thread of their own reads them when the device reports a display change: the DPC posts it,
-// and so does every open, since a change made while the device was reset raised no interrupt. A read the start or the
-// thread could not finish is posted again: by BuildModeList, by the thread's retries, and by the late answer to a read
-// that gave up. dxgkrnl does not
+// The host's displays. A thread of their own reads them when the device reports a display change, which the DPC
+// posts, and at every open, since a change made while the device was reset raised no interrupt. dxgkrnl does not
 // serialize the thread with any DDI, so it uses the device only while its component is open: Close waits for a read in
 // progress to finish and keeps the next one waiting until Open.
 class VioGpuHostDisplays : public VioGpuComponent
@@ -58,13 +57,21 @@ class VioGpuHostDisplays : public VioGpuComponent
     void Open(void) override;
     void Close(void) override;
     void Stop(void) override;
+    void InitDisplays(void);
     // Posts work for the thread, VIOGPU_WORK_*, and wakes it. Posts merge until the thread takes them. Callable up to
     // DISPATCH_LEVEL.
     void Post(LONG Work);
 
   private:
     static void ThreadWork(_In_ PVOID Context);
+    static void ReadLate(_In_opt_ PVOID ctx, _In_ NTSTATUS status);
     void ThreadWorkRoutine(void);
+    BOOLEAN ConfigChanged(BOOLEAN Reread, PBOOLEAN pEvent);
+    BOOLEAN ReadDisplays(void);
+    BOOLEAN ReadEdid(UINT ScanoutId, PVIOGPU_DISPLAY pDisplay);
+    void AddMode(PVIOGPU_DISPLAY pDisplay, USHORT xres, USHORT yres);
+    void BuildModes(PVIOGPU_DISPLAY pDisplay);
+    NTSTATUS UpdateChildStatus(UINT ScanoutId, BOOLEAN Connected);
 
   private:
     VioGpuAdapter *m_pAdapter;
@@ -74,4 +81,15 @@ class VioGpuHostDisplays : public VioGpuComponent
     PETHREAD m_pWorkThread;
     // Acquired by the thread for each read: it can be only while the component is open.
     EX_RUNDOWN_REF m_Rundown;
+    // Where the displays are read into, at start and then by the thread, before they are published; and the display
+    // each scanout counts as at start until the host answers.
+    VIOGPU_DISPLAY m_Next[MAX_CHILDREN];
+    VIOGPU_DISPLAY m_Assumed;
+    // The children whose connection Windows was last told about, a bit each: the thread tells it again until it matches
+    // the displays. And the children whose last report failed, told again with the next pass.
+    ULONG m_ChildAnnounced;
+    ULONG m_AnnounceFailed;
+    // A read of the host (GET_DISPLAY_INFO or GET_EDID) whose answer did not come in time is still on the ring: no
+    // other read is sent until it is answered, or the queue closes, which ReadLate tells.
+    volatile LONG m_ReadOutstanding;
 };

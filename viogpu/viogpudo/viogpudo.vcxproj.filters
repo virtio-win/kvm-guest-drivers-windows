@@ -28,6 +28,9 @@
     <ClCompile Include="viogpu_hostdisplays.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="viogpu_display.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\common\baseobj.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

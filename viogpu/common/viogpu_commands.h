@@ -62,7 +62,7 @@ class VioGpuCommands
 
     // The control ring.
     NTSTATUS GetDisplayInfo(PGPU_RESP_DISP_INFO info, PVIOGPU_COMPLETE late = NULL, PVOID ctx = NULL);
-    NTSTATUS GetEdid(UINT id, PGPU_RESP_EDID edid);
+    NTSTATUS GetEdid(UINT id, PGPU_RESP_EDID edid, PVIOGPU_COMPLETE late = NULL, PVOID ctx = NULL);
     NTSTATUS ResourceCreate2D(UINT res_id, UINT format, UINT width, UINT height);
     NTSTATUS ResourceUnref(UINT id);
     NTSTATUS SetScanout(UINT scan_id, UINT res_id, UINT width, UINT height, UINT x, UINT y, BOOLEAN wait = FALSE);
@@ -77,6 +77,19 @@ class VioGpuCommands
     NTSTATUS MoveCursor(UINT scanout, UINT res_id, INT x, INT y);
 
     // Reading the device's answers.
+    // The driver did not send the command: the host never saw it.
+    static BOOLEAN NotSent(NTSTATUS status)
+    {
+        return status == STATUS_DEVICE_NOT_READY || status == STATUS_DEVICE_BUSY ||
+               status == STATUS_INSUFFICIENT_RESOURCES || status == STATUS_INVALID_DEVICE_STATE ||
+               status == STATUS_INVALID_ADDRESS || status == STATUS_INVALID_BUFFER_SIZE;
+    }
+    // The device did not answer a command, which may still be on the ring (STATUS_IO_TIMEOUT) or was cancelled by a
+    // reset, or the driver could not send it: it may succeed when sent again. Any other failure is the device's answer.
+    static BOOLEAN NoAnswer(NTSTATUS status)
+    {
+        return NotSent(status) || status == STATUS_IO_TIMEOUT || status == STATUS_CANCELLED;
+    }
     static BOOLEAN ScanoutSize(PGPU_RESP_DISP_INFO resp, UINT id, PULONG xres, PULONG yres);
     static BOOLEAN CopyEdid(PGPU_RESP_EDID resp, PBYTE edid, ULONG size, PULONG copied);
 

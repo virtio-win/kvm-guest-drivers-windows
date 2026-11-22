@@ -334,7 +334,7 @@ NTSTATUS VioGpuQueue::Send(PGPU_VBUFFER buf, ULONG flags, PVIOGPU_COMPLETE compl
 // device answers or the queue closes, and late, if given, runs then with the outcome, from the DPC at DISPATCH_LEVEL,
 // or from Close with the answer the device gave before the reset or STATUS_CANCELLED; never in the bugcheck flow. It
 // may run before SendAndWait returns. late and ctx must stay valid until then, and late must be non-paged. With any
-// other outcome late never runs.
+// other outcome late never runs; VioGpuCommands::NotSent names the outcomes of a command the device never saw.
 // STATUS_INVALID_DEVICE_STATE above APC_LEVEL, where no wait is allowed. Any other failure: nothing was sent, the
 // device refused the command, or the queue closed before it answered (STATUS_CANCELLED).
 NTSTATUS VioGpuQueue::SendAndWait(PGPU_VBUFFER buf,

@@ -1,7 +1,9 @@
 /*
  * Copyright (C) 2019-2022 Red Hat, Inc.
+ * Copyright (C) 2026 Zededa, Inc.
  *
  * Written By: Vadim Rozenfeld <vrozenfe@redhat.com>
+ *             Mikhail Malyshev <mike.malyshev@gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -32,6 +34,7 @@
 #include "viogpu.h"
 #include "viogpu_queue.h"
 #include "viogpu_commands.h"
+#include "viogpu_display.h"
 #include "viogpu_hostdisplays.h"
 
 #pragma pack(push)
@@ -82,11 +85,27 @@ class VioGpuAdapter : IVioGpuPCI
     VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod);
     ~VioGpuAdapter(void);
     void Shutdown(void);
-    NTSTATUS SetCurrentMode(ULONG Mode, CURRENT_MODE *pCurrentMode);
-    ULONG GetModeCount(void)
+    NTSTATUS SetCurrentMode(ULONG Width, ULONG Height, CURRENT_MODE *pCurrentMode);
+    VioGpuDisplayController *GetController(void)
     {
-        return m_ModeCount;
+        return &m_Controller;
     }
+    VioGpuCommands *GetCommands(void)
+    {
+        return &m_Commands;
+    }
+    UINT32 GetNumScanouts(void)
+    {
+        return m_u32NumScanouts;
+    }
+    BOOLEAN HasFeature(UINT Feature)
+    {
+        return virtio_is_feature_enabled(m_u64GuestFeatures, Feature);
+    }
+    UINT32 ReadConfigEvents(void);
+    void ClearConfigEvents(UINT32 Events);
+    BOOLEAN ModeFits(ULONG Width, ULONG Height);
+    VOID NotifyResolutionEvent(VOID);
     NTSTATUS SetPowerState(DXGK_DEVICE_INFO *pDeviceInfo,
                            DEVICE_POWER_STATE DevicePowerState,
                            CURRENT_MODE *pCurrentMode);
@@ -141,21 +160,10 @@ class VioGpuAdapter : IVioGpuPCI
     }
     PDXGKRNL_INTERFACE GetDxgkInterface(void);
 
-    PVIDEO_MODE_INFORMATION GetModeInfo(UINT idx)
+    // The size of the last mode set, 1024x768 before the first.
+    VIOGPU_DISP_MODE GetCurrentModeSize(void)
     {
-        return &m_ModeInfo[idx];
-    }
-    USHORT GetModeNumber(USHORT idx)
-    {
-        return (USHORT)m_ModeInfo[idx].ModeIndex;
-    }
-    USHORT GetCurrentModeIndex(void)
-    {
-        return m_CurrentModeIndex;
-    }
-    VOID SetCurrentModeIndex(USHORT idx)
-    {
-        m_CurrentModeIndex = idx;
+        return m_CurrentModeSize;
     }
     VioGpuDod *GetVioGpu(void)
     {
@@ -165,27 +173,13 @@ class VioGpuAdapter : IVioGpuPCI
     {
         return m_Id;
     }
-    PBYTE GetEdidData(void);
-    ULONG GetEdidSize(void);
-    // For the config-change thread (VioGpuHostDisplays), while it may use the device.
-    BOOLEAN ConfigChanged(BOOLEAN Reread);
 
   protected:
   private:
     NTSTATUS VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION *pDispInfo);
-    void SetVideoModeInfo(UINT Idx, PVIOGPU_DISP_MODE pModeInfo);
     void VioGpuAdapterClose(void);
-    NTSTATUS BuildModeList(DXGK_DISPLAY_INFORMATION *pDispInfo);
+    void InitDisplay(DXGK_DISPLAY_INFORMATION *pDispInfo);
     BOOLEAN AckFeature(UINT64 Feature);
-    BOOLEAN GetDisplayInfo(_Out_opt_ PBOOLEAN pTaken = NULL);
-    static void DisplayInfoLate(_In_opt_ PVOID ctx, _In_ NTSTATUS status);
-    int ProcessEdid(void);
-    void FixEdid(void);
-    BOOLEAN GetEdids(void);
-    int AddEdidModes(void);
-    BOOLEAN UpdateModes(USHORT xres, USHORT yres, int &cnt);
-    NTSTATUS UpdateChildStatus(BOOLEAN connect);
-    BOOLEAN SetCustomDisplay(_In_ ULONG xres, _In_ ULONG yres);
     BOOLEAN CreateFrameBufferObj(PVIDEO_MODE_INFORMATION pModeInfo, CURRENT_MODE *pCurrentMode);
     void DestroyFrameBufferObj(BOOLEAN bReset, BOOLEAN bKeepBuffer);
     BOOLEAN CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape, _In_ CONST CURRENT_MODE *pCurrentMode);
@@ -195,7 +189,6 @@ class VioGpuAdapter : IVioGpuPCI
     void UnrefResource(UINT res_id);
     NTSTATUS VirtIoDeviceInit(void);
     VOID CreateResolutionEvent(VOID);
-    VOID NotifyResolutionEvent(VOID);
     VOID CloseResolutionEvent(VOID);
     NTSTATUS StartComponents(void);
     void OpenComponents(void);
@@ -204,15 +197,9 @@ class VioGpuAdapter : IVioGpuPCI
 
   private:
     VioGpuDod *m_pVioGpuDod;
-    PVIDEO_MODE_INFORMATION m_ModeInfo;
-    ULONG m_ModeCount;
-    USHORT m_CurrentModeIndex;
-    USHORT m_CustomModeIndex;
+    VioGpuDisplayController m_Controller;
+    VIOGPU_DISP_MODE m_CurrentModeSize;
     ULONG m_Id;
-    BYTE m_EDIDs[EDID_MAX_SIZE];
-    // The valid part of m_EDIDs (EdidValidSize).
-    ULONG m_EdidSize;
-    BOOLEAN m_bEDID;
 
     VirtIODevice m_VioDev;
     CPciResources m_PciResources;
@@ -264,8 +251,6 @@ class VioGpuAdapter : IVioGpuPCI
     UINT m_ComponentCount;
     UINT m_ComponentsStarted;
     BOOLEAN m_bComponentsOpen;
-    // A GET_DISPLAY_INFO left on the ring without an answer: no other is sent until the device answers it.
-    volatile LONG m_DisplayInfoOutstanding;
     PKEVENT m_ResolutionEvent;
     HANDLE m_ResolutionEventHandle;
 };
@@ -443,5 +428,5 @@ class VioGpuDod
     NTSTATUS IsVidPnPathFieldsValid(CONST D3DKMDT_VIDPN_PRESENT_PATH *pPath) const;
     NTSTATUS SetRegisterInfo(_In_ ULONG Id, _In_ DWORD MemSize);
     NTSTATUS GetRegisterInfo(void);
-    VOID BuildVideoSignalInfo(D3DKMDT_VIDEO_SIGNAL_INFO *pVideoSignalInfo, PVIDEO_MODE_INFORMATION pModeInfo);
+    VOID BuildVideoSignalInfo(D3DKMDT_VIDEO_SIGNAL_INFO *pVideoSignalInfo, PVIOGPU_DISP_MODE pModeInfo);
 };

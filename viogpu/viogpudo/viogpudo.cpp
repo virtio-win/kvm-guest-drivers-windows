@@ -1,7 +1,9 @@
 /*
  * Copyright (C) 2019-2022 Red Hat, Inc.
+ * Copyright (C) 2026 Zededa, Inc.
  *
  * Written By: Vadim Rozenfeld <vrozenfe@redhat.com>
+ *             Mikhail Malyshev <mike.malyshev@gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -445,9 +447,12 @@ NTSTATUS VioGpuDod::QueryChildRelations(_Out_writes_bytes_(ChildRelationsSize) D
     for (UINT ChildIndex = 0; ChildIndex < ChildRelationsCount; ++ChildIndex)
     {
         pChildRelations[ChildIndex].ChildDeviceType = TypeVideoOutput;
-        pChildRelations[ChildIndex].ChildCapabilities.HpdAwareness = IsVgaDevice() ? HpdAwarenessAlwaysConnected
-                                                                                   : HpdAwarenessInterruptible;
-        pChildRelations[ChildIndex].ChildCapabilities.Type.VideoOutput.InterfaceTechnology = IsVgaDevice() ? D3DKMDT_VOT_INTERNAL
+        // The host enables and disables a scanout at any time, and raises VIRTIO_GPU_EVENT_DISPLAY when it does: the
+        // output is hot-pluggable on a VGA device too.
+        pChildRelations[ChildIndex].ChildCapabilities.HpdAwareness = HpdAwarenessInterruptible;
+        // A VGA device's output is an external monitor, not a built-in panel: Windows treats a built-in panel that goes
+        // away like a closed lid, keeps it, and does not read the EDID of the monitor that takes its place.
+        pChildRelations[ChildIndex].ChildCapabilities.Type.VideoOutput.InterfaceTechnology = IsVgaDevice() ? D3DKMDT_VOT_HDMI
                                                                                                            : D3DKMDT_VOT_HD15;
         pChildRelations[ChildIndex].ChildCapabilities.Type.VideoOutput.MonitorOrientationAwareness = D3DKMDT_MOA_NONE;
         pChildRelations[ChildIndex].ChildCapabilities.Type.VideoOutput.SupportsSdtvModes = FALSE;
@@ -472,7 +477,8 @@ NTSTATUS VioGpuDod::QueryChildStatus(_Inout_ DXGK_CHILD_STATUS *pChildStatus, _I
     {
         case StatusConnection:
             {
-                pChildStatus->HotPlug.Connected = IsDriverActive();
+                pChildStatus->HotPlug.Connected = IsDriverActive() && m_pHWDevice != NULL &&
+                                                  m_pHWDevice->GetController()->IsConnected(pChildStatus->ChildUid);
                 return STATUS_SUCCESS;
             }
 
@@ -498,25 +504,19 @@ NTSTATUS VioGpuDod::QueryDeviceDescriptor(_In_ ULONG ChildUid, _Inout_ DXGK_DEVI
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
     VIOGPU_ASSERT(pDeviceDescriptor != NULL);
     VIOGPU_ASSERT(ChildUid < MAX_CHILDREN);
-    PBYTE edid = NULL;
 
-    edid = m_pHWDevice->GetEdidData();
-
-    if (!edid)
+    ULONG length = pDeviceDescriptor->DescriptorLength;
+    NTSTATUS Status = m_pHWDevice->GetController()->CopyEdid(ChildUid,
+                                                             pDeviceDescriptor->DescriptorOffset,
+                                                             pDeviceDescriptor->DescriptorBuffer,
+                                                             &length);
+    if (NT_SUCCESS(Status))
     {
-        return STATUS_GRAPHICS_CHILD_DESCRIPTOR_NOT_SUPPORTED;
-    }
-    else if (pDeviceDescriptor->DescriptorOffset < m_pHWDevice->GetEdidSize())
-    {
-        ULONG len = min(pDeviceDescriptor->DescriptorLength,
-                        (m_pHWDevice->GetEdidSize() - pDeviceDescriptor->DescriptorOffset));
-        RtlCopyMemory(pDeviceDescriptor->DescriptorBuffer, (edid + pDeviceDescriptor->DescriptorOffset), len);
-        pDeviceDescriptor->DescriptorLength = len;
-        return STATUS_SUCCESS;
+        pDeviceDescriptor->DescriptorLength = length;
     }
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
-    return STATUS_MONITOR_NO_MORE_DESCRIPTOR_DATA;
+    return Status;
 }
 
 NTSTATUS VioGpuDod::QueryAdapterInfo(_In_ CONST DXGKARG_QUERYADAPTERINFO *pQueryAdapterInfo)
@@ -912,10 +912,12 @@ NTSTATUS VioGpuDod::AddSingleSourceMode(_In_ CONST DXGK_VIDPNSOURCEMODESET_INTER
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
     UNREFERENCED_PARAMETER(SourceId);
 
-    for (ULONG idx = 0; idx < m_pHWDevice->GetModeCount(); ++idx)
+    VIOGPU_DISP_MODE modes[VIOGPU_MAX_MODES + 1];
+    ULONG count = m_pHWDevice->GetController()->GetModes(0, modes);
+    for (ULONG idx = 0; idx < count; ++idx)
     {
         D3DKMDT_VIDPN_SOURCE_MODE *pVidPnSourceModeInfo = NULL;
-        PVIDEO_MODE_INFORMATION pModeInfo = m_pHWDevice->GetModeInfo(idx);
+        PVIOGPU_DISP_MODE pModeInfo = &modes[idx];
         NTSTATUS Status = pVidPnSourceModeSetInterface->pfnCreateNewModeInfo(hVidPnSourceModeSet,
                                                                              &pVidPnSourceModeInfo);
         if (!NT_SUCCESS(Status))
@@ -928,10 +930,10 @@ NTSTATUS VioGpuDod::AddSingleSourceMode(_In_ CONST DXGK_VIDPNSOURCEMODESET_INTER
         }
 
         pVidPnSourceModeInfo->Type = D3DKMDT_RMT_GRAPHICS;
-        pVidPnSourceModeInfo->Format.Graphics.PrimSurfSize.cx = pModeInfo->VisScreenWidth;
-        pVidPnSourceModeInfo->Format.Graphics.PrimSurfSize.cy = pModeInfo->VisScreenHeight;
+        pVidPnSourceModeInfo->Format.Graphics.PrimSurfSize.cx = pModeInfo->XResolution;
+        pVidPnSourceModeInfo->Format.Graphics.PrimSurfSize.cy = pModeInfo->YResolution;
         pVidPnSourceModeInfo->Format.Graphics.VisibleRegionSize = pVidPnSourceModeInfo->Format.Graphics.PrimSurfSize;
-        pVidPnSourceModeInfo->Format.Graphics.Stride = pModeInfo->ScreenStride;
+        pVidPnSourceModeInfo->Format.Graphics.Stride = pModeInfo->XResolution * 4;
         pVidPnSourceModeInfo->Format.Graphics.PixelFormat = D3DDDIFMT_A8R8G8B8;
         pVidPnSourceModeInfo->Format.Graphics.ColorBasis = D3DKMDT_CB_SCRGB;
         pVidPnSourceModeInfo->Format.Graphics.PixelValueAccessMode = D3DKMDT_PVAM_DIRECT;
@@ -960,13 +962,13 @@ NTSTATUS VioGpuDod::AddSingleSourceMode(_In_ CONST DXGK_VIDPNSOURCEMODESET_INTER
     return STATUS_SUCCESS;
 }
 
-VOID VioGpuDod::BuildVideoSignalInfo(D3DKMDT_VIDEO_SIGNAL_INFO *pVideoSignalInfo, PVIDEO_MODE_INFORMATION pModeInfo)
+VOID VioGpuDod::BuildVideoSignalInfo(D3DKMDT_VIDEO_SIGNAL_INFO *pVideoSignalInfo, PVIOGPU_DISP_MODE pModeInfo)
 {
     PAGED_CODE();
 
     pVideoSignalInfo->VideoStandard = D3DKMDT_VSS_OTHER;
-    pVideoSignalInfo->TotalSize.cx = pModeInfo->VisScreenWidth;
-    pVideoSignalInfo->TotalSize.cy = pModeInfo->VisScreenHeight;
+    pVideoSignalInfo->TotalSize.cx = pModeInfo->XResolution;
+    pVideoSignalInfo->TotalSize.cy = pModeInfo->YResolution;
 
     pVideoSignalInfo->VSyncFreq.Numerator = D3DKMDT_FREQUENCY_NOTSPECIFIED;
     pVideoSignalInfo->VSyncFreq.Denominator = D3DKMDT_FREQUENCY_NOTSPECIFIED;
@@ -989,9 +991,11 @@ NTSTATUS VioGpuDod::AddSingleTargetMode(_In_ CONST DXGK_VIDPNTARGETMODESET_INTER
     D3DKMDT_VIDPN_TARGET_MODE *pVidPnTargetModeInfo = NULL;
     NTSTATUS Status = STATUS_SUCCESS;
 
-    for (UINT ModeIndex = 0; ModeIndex < m_pHWDevice->GetModeCount(); ++ModeIndex)
+    VIOGPU_DISP_MODE modes[VIOGPU_MAX_MODES + 1];
+    ULONG count = m_pHWDevice->GetController()->GetModes(0, modes);
+    for (UINT ModeIndex = 0; ModeIndex < count; ++ModeIndex)
     {
-        PVIDEO_MODE_INFORMATION pModeInfo = m_pHWDevice->GetModeInfo(SourceId);
+        PVIOGPU_DISP_MODE pModeInfo = &modes[SourceId];
         pVidPnTargetModeInfo = NULL;
         Status = pVidPnTargetModeSetInterface->pfnCreateNewModeInfo(hVidPnTargetModeSet, &pVidPnTargetModeInfo);
         if (!NT_SUCCESS(Status))
@@ -1005,7 +1009,7 @@ NTSTATUS VioGpuDod::AddSingleTargetMode(_In_ CONST DXGK_VIDPNTARGETMODESET_INTER
         pVidPnTargetModeInfo->VideoSignalInfo.ActiveSize = pVidPnTargetModeInfo->VideoSignalInfo.TotalSize;
         BuildVideoSignalInfo(&pVidPnTargetModeInfo->VideoSignalInfo, pModeInfo);
 
-        if (pModeInfo->VisScreenWidth == NOM_WIDTH_SIZE && pModeInfo->VisScreenHeight == NOM_HEIGHT_SIZE)
+        if (pModeInfo->XResolution == NOM_WIDTH_SIZE && pModeInfo->YResolution == NOM_HEIGHT_SIZE)
         {
             pVidPnTargetModeInfo->Preference = D3DKMDT_MP_PREFERRED;
         }
@@ -1041,7 +1045,10 @@ NTSTATUS VioGpuDod::AddSingleMonitorMode(_In_ CONST DXGKARG_RECOMMENDMONITORMODE
 
     NTSTATUS Status = STATUS_SUCCESS;
     D3DKMDT_MONITOR_SOURCE_MODE *pMonitorSourceMode = NULL;
-    PVIDEO_MODE_INFORMATION pVbeModeInfo = NULL;
+    VIOGPU_DISP_MODE modes[VIOGPU_MAX_MODES + 1];
+    ULONG count = m_pHWDevice->GetController()->GetModes(0, modes);
+    VIOGPU_DISP_MODE current = m_pHWDevice->GetCurrentModeSize();
+    PVIOGPU_DISP_MODE pVbeModeInfo = NULL;
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
@@ -1056,7 +1063,7 @@ NTSTATUS VioGpuDod::AddSingleMonitorMode(_In_ CONST DXGKARG_RECOMMENDMONITORMODE
         return Status;
     }
 
-    pVbeModeInfo = m_pHWDevice->GetModeInfo(m_pHWDevice->GetCurrentModeIndex());
+    pVbeModeInfo = &current;
 
     BuildVideoSignalInfo(&pMonitorSourceMode->VideoSignalInfo, pVbeModeInfo);
 
@@ -1093,9 +1100,9 @@ NTSTATUS VioGpuDod::AddSingleMonitorMode(_In_ CONST DXGKARG_RECOMMENDMONITORMODE
         return Status;
     }
 
-    for (UINT Idx = 0; Idx < m_pHWDevice->GetModeCount(); ++Idx)
+    for (UINT Idx = 0; Idx < count; ++Idx)
     {
-        pVbeModeInfo = m_pHWDevice->GetModeInfo(Idx);
+        pVbeModeInfo = &modes[Idx];
 
         Status = pRecommendMonitorModes->pMonitorSourceModeSetInterface->pfnCreateNewModeInfo(pRecommendMonitorModes->hMonitorSourceModeSet,
                                                                                               &pMonitorSourceMode);
@@ -1109,10 +1116,7 @@ NTSTATUS VioGpuDod::AddSingleMonitorMode(_In_ CONST DXGKARG_RECOMMENDMONITORMODE
         }
 
         DbgPrint(TRACE_LEVEL_INFORMATION,
-                 ("%s: add pref mode, dimensions %ux%u, taken from DxgkCbAcquirePostDisplayOwnership at StartDevice\n",
-                  __FUNCTION__,
-                  pVbeModeInfo->VisScreenWidth,
-                  pVbeModeInfo->VisScreenHeight));
+                 ("%s: add monitor mode %ux%u\n", __FUNCTION__, pVbeModeInfo->XResolution, pVbeModeInfo->YResolution));
 
         BuildVideoSignalInfo(&pMonitorSourceMode->VideoSignalInfo, pVbeModeInfo);
 
@@ -1122,7 +1126,7 @@ NTSTATUS VioGpuDod::AddSingleMonitorMode(_In_ CONST DXGKARG_RECOMMENDMONITORMODE
         pMonitorSourceMode->ColorCoeffDynamicRanges.SecondChannel = 8;
         pMonitorSourceMode->ColorCoeffDynamicRanges.ThirdChannel = 8;
         pMonitorSourceMode->ColorCoeffDynamicRanges.FourthChannel = 8;
-        if (pVbeModeInfo->VisScreenWidth == NOM_WIDTH_SIZE && pVbeModeInfo->VisScreenHeight == NOM_HEIGHT_SIZE)
+        if (pVbeModeInfo->XResolution == NOM_WIDTH_SIZE && pVbeModeInfo->YResolution == NOM_HEIGHT_SIZE)
         {
             pMonitorSourceMode->Preference = D3DKMDT_MP_PREFERRED;
         }
@@ -1838,20 +1842,7 @@ NTSTATUS VioGpuDod::SetSourceModeAndPath(CONST D3DKMDT_VIDPN_SOURCE_MODE *pSourc
     if (NT_SUCCESS(Status))
     {
         pCurrentMode->Flags.FullscreenPresent = TRUE;
-        for (USHORT ModeIndex = 0; ModeIndex < m_pHWDevice->GetModeCount(); ++ModeIndex)
-        {
-            PVIDEO_MODE_INFORMATION pModeInfo = m_pHWDevice->GetModeInfo(ModeIndex);
-            if (pCurrentMode->DispInfo.Width == pModeInfo->VisScreenWidth &&
-                pCurrentMode->DispInfo.Height == pModeInfo->VisScreenHeight)
-            {
-                Status = m_pHWDevice->SetCurrentMode(m_pHWDevice->GetModeNumber(ModeIndex), pCurrentMode);
-                if (NT_SUCCESS(Status))
-                {
-                    m_pHWDevice->SetCurrentModeIndex(ModeIndex);
-                }
-                break;
-            }
-        }
+        Status = m_pHWDevice->SetCurrentMode(pCurrentMode->DispInfo.Width, pCurrentMode->DispInfo.Height, pCurrentMode);
     }
 
     return Status;
@@ -2402,13 +2393,8 @@ VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod)
     m_Commands.Init(&m_CtrlQueue, &m_CursorQueue);
     RtlZeroMemory(&m_VioDev, sizeof(m_VioDev));
     m_pVioGpuDod = pVioGpuDod;
-    m_CurrentModeIndex = 0;
-    m_CustomModeIndex = 0;
-    RtlZeroMemory(m_EDIDs, sizeof(m_EDIDs));
-    m_EdidSize = 0;
-    m_bEDID = FALSE;
-    m_ModeInfo = NULL;
-    m_ModeCount = 0;
+    m_Controller.Init(this);
+    RtlZeroMemory(&m_CurrentModeSize, sizeof(m_CurrentModeSize));
     m_Id = g_InstanceId++;
     m_pFrameBuf = NULL;
     m_pCursorBuf = NULL;
@@ -2431,7 +2417,6 @@ VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod)
     }
     m_ComponentsStarted = 0;
     m_bComponentsOpen = FALSE;
-    m_DisplayInfoOutstanding = 0;
     m_ResolutionEvent = NULL;
     m_ResolutionEventHandle = NULL;
     m_u64HostFeatures = 0;
@@ -2445,10 +2430,6 @@ VioGpuAdapter::~VioGpuAdapter(void)
     PAGED_CODE();
     DbgPrint(TRACE_LEVEL_FATAL, ("---> %s 0x%p\n", __FUNCTION__, this));
     Shutdown();
-    delete[] m_ModeInfo;
-    m_ModeInfo = NULL;
-    m_CurrentModeIndex = 0;
-    m_ModeCount = 0;
     m_Id = 0;
     DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s\n", __FUNCTION__));
 }
@@ -2460,7 +2441,7 @@ VioGpuAdapter::~VioGpuAdapter(void)
 void VioGpuAdapter::Shutdown(void)
 {
     PAGED_CODE();
-    // The config-change thread uses the device, the mode table and the resolution event: it pauses first, and stops
+    // The config-change thread uses the device, the display state and the resolution event: it pauses first, and stops
     // once the device is reset.
     CloseComponents();
     CloseResolutionEvent();
@@ -2533,34 +2514,31 @@ void VioGpuAdapter::StopComponents(void)
     }
 }
 
-NTSTATUS VioGpuAdapter::SetCurrentMode(ULONG Mode, CURRENT_MODE *pCurrentMode)
+// Makes the frame buffer at the size Windows pinned, whether or not that size is still among the modes on offer, which
+// may have changed since Windows picked it.
+NTSTATUS VioGpuAdapter::SetCurrentMode(ULONG Width, ULONG Height, CURRENT_MODE *pCurrentMode)
 {
     PAGED_CODE();
-    DbgPrint(TRACE_LEVEL_ERROR, ("---> %s - %d: Mode = %d\n", __FUNCTION__, m_Id, Mode));
-    for (ULONG idx = 0; idx < GetModeCount(); idx++)
+    DbgPrint(TRACE_LEVEL_ERROR, ("---> %s - %d: %dx%d\n", __FUNCTION__, m_Id, Width, Height));
+
+    VIDEO_MODE_INFORMATION mode = {0};
+    mode.Length = sizeof(mode);
+    mode.VisScreenWidth = Width;
+    mode.VisScreenHeight = Height;
+    mode.ScreenStride = Width * 4;
+    if (pCurrentMode->Flags.FrameBufferIsActive)
     {
-        if (Mode == m_ModeInfo[idx].ModeIndex /*m_ModeNumbers[idx]*/)
-        {
-            if (pCurrentMode->Flags.FrameBufferIsActive)
-            {
-                DestroyFrameBufferObj(FALSE, FALSE);
-                pCurrentMode->Flags.FrameBufferIsActive = FALSE;
-            }
-            if (CreateFrameBufferObj(&m_ModeInfo[idx], pCurrentMode))
-            {
-                DbgPrint(TRACE_LEVEL_ERROR,
-                         ("%s device %d: setting current mode %d (%d x %d)\n",
-                          __FUNCTION__,
-                          m_Id,
-                          Mode,
-                          m_ModeInfo[idx].VisScreenWidth,
-                          m_ModeInfo[idx].VisScreenHeight));
-                return STATUS_SUCCESS;
-            }
-        }
+        DestroyFrameBufferObj(FALSE, FALSE);
+        pCurrentMode->Flags.FrameBufferIsActive = FALSE;
     }
-    DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s failed\n", __FUNCTION__));
-    return STATUS_UNSUCCESSFUL;
+    if (!CreateFrameBufferObj(&mode, pCurrentMode))
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s failed\n", __FUNCTION__));
+        return STATUS_UNSUCCESSFUL;
+    }
+    m_CurrentModeSize.XResolution = (USHORT)Width;
+    m_CurrentModeSize.YResolution = (USHORT)Height;
+    return STATUS_SUCCESS;
 }
 
 NTSTATUS VioGpuAdapter::VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION *pDispInfo)
@@ -2725,20 +2703,6 @@ NTSTATUS VioGpuAdapter::VirtIoDeviceInit()
                                     m_PciResources.IsMSIEnabled());
 }
 
-PBYTE VioGpuAdapter::GetEdidData()
-{
-    PAGED_CODE();
-
-    return m_bEDID ? m_EDIDs : (PBYTE)(g_gpu_edid);
-}
-
-ULONG VioGpuAdapter::GetEdidSize(void)
-{
-    PAGED_CODE();
-
-    return m_bEDID ? m_EdidSize : EDID_BLOCK_SIZE;
-}
-
 VOID VioGpuAdapter::CreateResolutionEvent(VOID)
 {
     PAGED_CODE();
@@ -2855,23 +2819,19 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
         return status;
     }
 
-    status = BuildModeList(pDispInfo);
-    if (!NT_SUCCESS(status))
-    {
-        DbgPrint(TRACE_LEVEL_FATAL, ("%s GetModeList failed with %x\n", __FUNCTION__, status));
-        VioGpuDbgBreak();
-        return status;
-    }
+    InitDisplay(pDispInfo);
 
     PHYSICAL_ADDRESS fb_pa = m_PciResources.GetPciBar(0)->GetPA();
     UINT fb_size = (UINT)m_PciResources.GetPciBar(0)->GetSize();
     UINT req_size = pDispInfo->Pitch * pDispInfo->Height;
     req_size = max(req_size, 0x1000000);
 
+    VIOGPU_DISP_MODE modes[VIOGPU_MAX_MODES + 1];
+    ULONG count = m_Controller.GetModes(0, modes);
     UINT max_res_size = MIN_WIDTH_SIZE * MIN_HEIGHT_SIZE;
-    for (UINT idx = 0; idx < m_ModeCount; idx++)
+    for (ULONG idx = 0; idx < count; idx++)
     {
-        UINT res_size = m_ModeInfo[idx].VisScreenWidth * m_ModeInfo[idx].VisScreenHeight;
+        UINT res_size = modes[idx].XResolution * modes[idx].YResolution;
         max_res_size = max(max_res_size, res_size);
     }
 
@@ -3306,8 +3266,7 @@ NTSTATUS VioGpuAdapter::Escape(_In_ CONST DXGKARG_ESCAPE *pEscape)
                               size));
                     return STATUS_INVALID_BUFFER_SIZE;
                 }
-                pVioGpuEscape->Resolution.XResolution = (USHORT)m_ModeInfo[m_CustomModeIndex].VisScreenWidth;
-                pVioGpuEscape->Resolution.YResolution = (USHORT)m_ModeInfo[m_CustomModeIndex].VisScreenHeight;
+                pVioGpuEscape->Resolution = m_Controller.GetCustomMode(0);
                 break;
             }
         case VIOGPU_SET_CUSTOM_RESOLUTION:
@@ -3339,14 +3298,13 @@ NTSTATUS VioGpuAdapter::Escape(_In_ CONST DXGKARG_ESCAPE *pEscape)
                           pVioGpuEscape->Resolution.YResolution));
 
                 // A size the driver cannot back is refused before it is saved.
-                if (!SetCustomDisplay(pVioGpuEscape->Resolution.XResolution, pVioGpuEscape->Resolution.YResolution))
+                if (!m_Controller.SetPersistentMode(0,
+                                                    pVioGpuEscape->Resolution.XResolution,
+                                                    pVioGpuEscape->Resolution.YResolution))
                 {
                     return STATUS_INVALID_PARAMETER;
                 }
-                m_pVioGpuDod->SetPersistentDispMode0Width(pVioGpuEscape->Resolution.XResolution);
-                m_pVioGpuDod->SetPersistentDispMode0Height(pVioGpuEscape->Resolution.YResolution);
                 m_pVioGpuDod->SetRegisterConfigInfo();
-                SetCurrentModeIndex(m_CurrentModeIndex);
                 break;
             }
         default:
@@ -3357,379 +3315,49 @@ NTSTATUS VioGpuAdapter::Escape(_In_ CONST DXGKARG_ESCAPE *pEscape)
     return status;
 }
 
-// Sets the custom mode, as far as SetCustomDisplay takes it, to the size of the first scanout the host enables, or to
-// 1024x768 when it enables none; *pTaken, when given, says whether it took the size. FALSE when the display info could
-// not be read: the custom mode stays as it was. One read at a time: a read whose answer did not come in time stays on
-// the ring, and until the device answers it (DisplayInfoLate) no other is sent.
-BOOLEAN VioGpuAdapter::GetDisplayInfo(_Out_opt_ PBOOLEAN pTaken)
+// The device's configuration events, VIRTIO_GPU_EVENT_*.
+UINT32 VioGpuAdapter::ReadConfigEvents(void)
+{
+    UINT32 events = 0;
+    virtio_get_config(&m_VioDev, FIELD_OFFSET(GPU_CONFIG, events_read), &events, sizeof(events));
+    return events;
+}
+
+void VioGpuAdapter::ClearConfigEvents(UINT32 Events)
+{
+    virtio_set_config(&m_VioDev, FIELD_OFFSET(GPU_CONFIG, events_clear), &Events, sizeof(Events));
+}
+
+// A mode the driver can back: no larger than 8192x8192, no more than the 64 MiB one ATTACH_BACKING can carry, and,
+// once the frame buffer segment exists, no more than the segment holds.
+BOOLEAN VioGpuAdapter::ModeFits(ULONG Width, ULONG Height)
+{
+    PAGED_CODE();
+
+    SIZE_T segment = m_FrameSegment.GetSize();
+    return Width <= MAX_WIDTH_SIZE && Height <= MAX_HEIGHT_SIZE && MODE_FITS_BACKING(Width, Height) &&
+           (segment == 0 || (ULONGLONG)Width * Height * 4 <= segment);
+}
+
+// Sets up the display at start, before the config-change thread runs: the firmware's frame buffer as dxgkrnl knows it,
+// and the host's displays (VioGpuHostDisplays::InitDisplays).
+void VioGpuAdapter::InitDisplay(DXGK_DISPLAY_INFORMATION *pDispInfo)
 {
     PAGED_CODE();
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-
-    GPU_RESP_DISP_INFO info;
-    ULONG xres = 0;
-    ULONG yres = 0;
-
-    if (pTaken != NULL)
-    {
-        *pTaken = FALSE;
-    }
-    if (m_DisplayInfoOutstanding)
-    {
-        // A host that does not answer would get a new read with each retry, until the ring is full.
-        DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s the last read is still unanswered\n", __FUNCTION__));
-        return FALSE;
-    }
-    // Marked before the read goes: DisplayInfoLate may run before it returns.
-    InterlockedExchange(&m_DisplayInfoOutstanding, 1);
-    NTSTATUS status = m_Commands.GetDisplayInfo(&info, DisplayInfoLate, this);
-    if (status != STATUS_IO_TIMEOUT)
-    {
-        InterlockedExchange(&m_DisplayInfoOutstanding, 0);
-    }
-    if (!NT_SUCCESS(status))
-    {
-        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s no display info (0x%x): the custom mode stays\n", __FUNCTION__, status));
-        return FALSE;
-    }
-    BOOLEAN taken = FALSE;
-    xres = NOM_WIDTH_SIZE;
-    yres = NOM_HEIGHT_SIZE;
-    for (UINT32 i = 0; i < m_u32NumScanouts; i++)
-    {
-        ULONG width = 0;
-        ULONG height = 0;
-        if (VioGpuCommands::ScanoutSize(&info, i, &width, &height) && width && height)
-        {
-            xres = width;
-            yres = height;
-            break;
-        }
-    }
-    DbgPrint(TRACE_LEVEL_INFORMATION, ("---> %s (%dx%d)\n", __FUNCTION__, xres, yres));
-    taken = SetCustomDisplay(xres, yres);
-    if (pTaken != NULL)
-    {
-        *pTaken = taken;
-    }
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
-    return TRUE;
-}
-
-int VioGpuAdapter::ProcessEdid(void)
-{
-    PAGED_CODE();
-
-    // The built-in EDID is also what a scanout gets when the host's is missing or invalid.
-    FixEdid();
-    if (virtio_is_feature_enabled(m_u64GuestFeatures, VIRTIO_GPU_F_EDID))
-    {
-        GetEdids();
-    }
-    else
-    {
-        DbgPrint(TRACE_LEVEL_INFORMATION, ("%s: the host offers no EDID: the built-in one stands in\n", __FUNCTION__));
-    }
-
-    return AddEdidModes();
-}
-
-void VioGpuAdapter::FixEdid(void)
-{
-    PAGED_CODE();
-
-    // The built-in EDID: no physical size and no extensions.
-    PUCHAR buf = GetEdidData();
-    buf[EDID_OFFSET_H_SIZE_CM] = 0;
-    buf[EDID_OFFSET_V_SIZE_CM] = 0;
-    buf[EDID_OFFSET_EXTENSIONS] = 0;
-    EdidSetChecksum(buf);
-}
-
-BOOLEAN VioGpuAdapter::GetEdids(void)
-{
-    PAGED_CODE();
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-
-    PGPU_RESP_EDID resp = reinterpret_cast<PGPU_RESP_EDID>(new (NonPagedPoolNx) BYTE[sizeof(GPU_RESP_EDID)]);
-    if (resp == NULL)
-    {
-        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s no memory for the answer\n", __FUNCTION__));
-        return FALSE;
-    }
-
-    // The driver presents scanout 0 (see SetScanout), so its EDID is the one that describes the display.
-    ULONG copied = 0;
-    if (NT_SUCCESS(m_Commands.GetEdid(0, resp)) && VioGpuCommands::CopyEdid(resp, m_EDIDs, sizeof(m_EDIDs), &copied))
-    {
-        m_EdidSize = EdidValidSize(m_EDIDs, copied);
-        m_bEDID = m_EdidSize != 0;
-        ULONG blocks = m_EdidSize / EDID_BLOCK_SIZE;
-        if (m_bEDID && blocks <= m_EDIDs[EDID_OFFSET_EXTENSIONS])
-        {
-            // Windows asks for as many extensions as the base block announces: it announces the ones kept.
-            DbgPrint(TRACE_LEVEL_WARNING,
-                     ("%s: extension %d of %d is missing or invalid, the EDID ends before it\n",
-                      __FUNCTION__,
-                      blocks,
-                      m_EDIDs[EDID_OFFSET_EXTENSIONS]));
-            m_EDIDs[EDID_OFFSET_EXTENSIONS] = (UCHAR)(blocks - 1);
-            EdidSetChecksum(m_EDIDs);
-        }
-        DbgPrint(TRACE_LEVEL_INFORMATION,
-                 ("%s: %s EDID, %d bytes, %d extension(s) announced\n",
-                  __FUNCTION__,
-                  m_bEDID ? "valid" : "invalid",
-                  m_EdidSize,
-                  m_EDIDs[EDID_OFFSET_EXTENSIONS]));
-    }
-    delete[] reinterpret_cast<PBYTE>(resp);
-    if (!m_bEDID)
-    {
-        DbgPrint(TRACE_LEVEL_WARNING, ("%s: no valid EDID from the host: the built-in one stands in\n", __FUNCTION__));
-    }
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
-    return TRUE;
-}
-
-BOOLEAN VioGpuAdapter::UpdateModes(USHORT xres, USHORT yres, int &cnt)
-{
-    int idx = 0;
-
-    if ((xres < MIN_WIDTH_SIZE) || (yres < MIN_HEIGHT_SIZE))
-    {
-        DbgPrint(TRACE_LEVEL_VERBOSE, ("%s: (%dx%d) is below the minimum\n", __FUNCTION__, xres, yres));
-        return FALSE;
-    }
-    // The frame buffer segment holds the largest mode and is attached whole: a display's EDID may describe modes far
-    // beyond what the driver can back.
-    if ((xres > MAX_WIDTH_SIZE) || (yres > MAX_HEIGHT_SIZE) || !MODE_FITS_BACKING(xres, yres))
-    {
-        DbgPrint(TRACE_LEVEL_WARNING,
-                 ("%s: (%dx%d) is more than the driver can back, not taken\n", __FUNCTION__, xres, yres));
-        return FALSE;
-    }
-
-    for (; idx < cnt; idx++)
-    {
-        if ((gpu_disp_modes[idx].XResolution == xres) && (gpu_disp_modes[idx].YResolution == yres))
-        {
-            return FALSE;
-        }
-    }
-    if ((size_t)idx >= ARRAYSIZE(gpu_disp_modes))
-    {
-        DbgPrint(TRACE_LEVEL_WARNING, ("%s: the mode table is full, (%dx%d) not taken\n", __FUNCTION__, xres, yres));
-        return FALSE;
-    }
-    DbgPrint(TRACE_LEVEL_INFORMATION, (" x_res: %d, y_res: %d\n", xres, yres));
-    gpu_disp_modes[idx].XResolution = xres;
-    gpu_disp_modes[idx].YResolution = yres;
-    cnt++;
-    return TRUE;
-}
-
-int VioGpuAdapter::AddEdidModes(void)
-{
-    PAGED_CODE();
-
-    VIOGPU_DISP_MODE modes[ARRAYSIZE(gpu_disp_modes)];
-    VIOGPU_DISP_MODE preferred = {0};
-    int modecount = 0;
-
-    DbgPrint(TRACE_LEVEL_INFORMATION, (" Default resolutions\n"));
-    UpdateModes(MIN_WIDTH_SIZE, MIN_HEIGHT_SIZE, modecount);
-    UpdateModes(NOM_WIDTH_SIZE, NOM_HEIGHT_SIZE, modecount);
-
-    ULONG count = EdidGetModes(GetEdidData(), GetEdidSize(), modes, ARRAYSIZE(modes), &preferred);
-    DbgPrint(TRACE_LEVEL_INFORMATION,
-             ("%s: %d EDID mode(s), preferred %dx%d\n",
-              __FUNCTION__,
-              count,
-              preferred.XResolution,
-              preferred.YResolution));
-    // The display's preferred mode first, so that a full table cannot drop it.
-    if (preferred.XResolution != 0)
-    {
-        UpdateModes(preferred.XResolution, preferred.YResolution, modecount);
-    }
-    for (ULONG i = 0; i < count; i++)
-    {
-        UpdateModes(modes[i].XResolution, modes[i].YResolution, modecount);
-    }
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
-    return modecount;
-}
-
-void VioGpuAdapter::SetVideoModeInfo(UINT Idx, PVIOGPU_DISP_MODE pModeInfo)
-{
-    PAGED_CODE();
-
-    PVIDEO_MODE_INFORMATION pMode = NULL;
-
-    pMode = &m_ModeInfo[Idx];
-    pMode->Length = sizeof(VIDEO_MODE_INFORMATION);
-    pMode->ModeIndex = Idx;
-    pMode->VisScreenWidth = pModeInfo->XResolution;
-    pMode->VisScreenHeight = pModeInfo->YResolution;
-    pMode->ScreenStride = (pModeInfo->XResolution * 4 + 3) & ~0x3;
-}
-
-NTSTATUS VioGpuAdapter::UpdateChildStatus(BOOLEAN connect)
-{
-    PAGED_CODE();
-    NTSTATUS Status(STATUS_SUCCESS);
-    DXGK_CHILD_STATUS ChildStatus;
-    PDXGKRNL_INTERFACE pDXGKInterface(m_pVioGpuDod->GetDxgkInterface());
-
-    RtlZeroMemory(&ChildStatus, sizeof(ChildStatus));
-
-    ChildStatus.Type = StatusConnection;
-    ChildStatus.ChildUid = 0;
-    ChildStatus.HotPlug.Connected = connect;
-    Status = pDXGKInterface->DxgkCbIndicateChildStatus(pDXGKInterface->DeviceHandle, &ChildStatus);
-    if (Status != STATUS_SUCCESS)
-    {
-        DbgPrint(TRACE_LEVEL_ERROR,
-                 ("<--- %s DxgkCbIndicateChildStatus failed with status %x\n ", __FUNCTION__, Status));
-    }
-    return Status;
-}
-
-// Sets the custom mode, the size viogpuap applies. FALSE for a size the driver cannot back: the custom mode stays.
-BOOLEAN VioGpuAdapter::SetCustomDisplay(_In_ ULONG xres, _In_ ULONG yres)
-{
-    PAGED_CODE();
-
-    VIOGPU_DISP_MODE tmpModeInfo = {0};
-
-    if (xres < MIN_WIDTH_SIZE || yres < MIN_HEIGHT_SIZE)
-    {
-        DbgPrint(TRACE_LEVEL_WARNING,
-                 ("%s: (%dx%d) less than (%dx%d)\n", __FUNCTION__, xres, yres, MIN_WIDTH_SIZE, MIN_HEIGHT_SIZE));
-    }
-    ULONG width = m_pVioGpuDod->IsFlexResolution() ? xres : max((ULONG)MIN_WIDTH_SIZE, xres);
-    ULONG height = m_pVioGpuDod->IsFlexResolution() ? yres : max((ULONG)MIN_HEIGHT_SIZE, yres);
-    // Checked before the sizes are narrowed to the mode's 16 bits. The frame buffer segment, once it exists, is not
-    // resized: a mode it cannot hold could not be set (IsSupportedVidPn).
-    SIZE_T segment = GetFrameSegmentSize();
-    if (width > MAX_WIDTH_SIZE || height > MAX_HEIGHT_SIZE || !MODE_FITS_BACKING(width, height) ||
-        (segment != 0 && (ULONGLONG)width * height * 4 > segment))
-    {
-        DbgPrint(TRACE_LEVEL_WARNING,
-                 ("%s: (%dx%d) is more than the driver can back; the custom mode stays\n",
-                  __FUNCTION__,
-                  width,
-                  height));
-        return FALSE;
-    }
-    tmpModeInfo.XResolution = (USHORT)width;
-    tmpModeInfo.YResolution = (USHORT)height;
-
-    DbgPrint(TRACE_LEVEL_FATAL,
-             ("%s - %d (%dx%d)\n", __FUNCTION__, m_CustomModeIndex, tmpModeInfo.XResolution, tmpModeInfo.YResolution));
-
-    SetVideoModeInfo(m_CustomModeIndex, &tmpModeInfo);
-    return TRUE;
-}
-
-NTSTATUS VioGpuAdapter::BuildModeList(DXGK_DISPLAY_INFORMATION *pDispInfo)
-{
-    PAGED_CODE();
-
-    NTSTATUS Status = STATUS_SUCCESS;
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-
-    delete[] m_ModeInfo;
-    m_ModeInfo = NULL;
-    m_ModeCount = 0;
-
-    m_ModeCount = ProcessEdid() + 1;
-
-    m_ModeInfo = new (PagedPool) VIDEO_MODE_INFORMATION[m_ModeCount];
-    if (!m_ModeInfo)
-    {
-        Status = STATUS_NO_MEMORY;
-        m_ModeCount = 0;
-        DbgPrint(TRACE_LEVEL_ERROR, ("VioGpuAdapter::GetModeList failed to allocate m_ModeInfo memory\n"));
-        return Status;
-    }
-    RtlZeroMemory(m_ModeInfo, sizeof(VIDEO_MODE_INFORMATION) * m_ModeCount);
-
-    SetCurrentModeIndex(0);
 
     pDispInfo->Height = max(pDispInfo->Height, MIN_HEIGHT_SIZE);
     pDispInfo->Width = max(pDispInfo->Width, MIN_WIDTH_SIZE);
     pDispInfo->ColorFormat = D3DDDIFMT_X8R8G8B8;
     pDispInfo->Pitch = (BPPFromPixelFormat(pDispInfo->ColorFormat) / BITS_PER_BYTE) * pDispInfo->Width;
 
-    for (USHORT indx = 0; indx < m_ModeCount - 1; indx++)
-    {
+    m_CurrentModeSize.XResolution = NOM_WIDTH_SIZE;
+    m_CurrentModeSize.YResolution = NOM_HEIGHT_SIZE;
 
-        PVIOGPU_DISP_MODE pModeInfo = &gpu_disp_modes[indx];
-
-        DbgPrint(TRACE_LEVEL_INFORMATION,
-                 ("%s: modes[%d] x_res = %d, y_res = %d\n",
-                  __FUNCTION__,
-                  indx,
-                  pModeInfo->XResolution,
-                  pModeInfo->YResolution));
-
-        SetVideoModeInfo(indx, pModeInfo);
-        if (pModeInfo->XResolution == NOM_WIDTH_SIZE && pModeInfo->YResolution == NOM_HEIGHT_SIZE)
-        {
-            SetCurrentModeIndex(indx);
-            DbgPrint(TRACE_LEVEL_FATAL,
-                     ("%s: modes[%d] x_res = %d, y_res = %d\n",
-                      __FUNCTION__,
-                      m_CurrentModeIndex,
-                      pModeInfo->XResolution,
-                      pModeInfo->YResolution));
-        }
-    }
-
-    m_CustomModeIndex = (USHORT)(m_ModeCount - 1);
-
-    DbgPrint(TRACE_LEVEL_INFORMATION, ("ModeCount filtered %d\n", m_ModeCount));
-
-    // The custom mode starts at the default size, where a host size the driver cannot back leaves it.
-    SetCustomDisplay(NOM_WIDTH_SIZE, NOM_HEIGHT_SIZE);
-    // The read at start covers a display event the host raised before the driver started: it is cleared first, so that
-    // the config-change thread, which the first open wakes, does not take the host size over the persistent mode.
-    UINT32 events_clear = VIRTIO_GPU_EVENT_DISPLAY;
-    virtio_set_config(&m_VioDev, FIELD_OFFSET(GPU_CONFIG, events_clear), &events_clear, sizeof(events_clear));
-    BOOLEAN answered = GetDisplayInfo();
-
-    BOOLEAN persistent = FALSE;
-    if (m_pVioGpuDod->IsPersistentDispMode0Set())
-    {
-        persistent = SetCustomDisplay(m_pVioGpuDod->GetPersistentDispMode0Width(),
-                                      m_pVioGpuDod->GetPersistentDispMode0Height());
-        SetCurrentModeIndex(m_CurrentModeIndex);
-    }
-    // Without an answer the config-change thread asks again, unless a persistent mode the driver took stands in for the
-    // host's size anyway.
-    if (!answered && !persistent)
-    {
-        m_HostDisplays.Post(VIOGPU_WORK_REREAD);
-    }
-
-    for (UINT idx = 0; idx < m_ModeCount; idx++)
-    {
-        DbgPrint(TRACE_LEVEL_FATAL,
-                 ("index %d, XRes = %d, YRes = %d\n",
-                  m_ModeInfo[idx].ModeIndex,
-                  m_ModeInfo[idx].VisScreenWidth,
-                  m_ModeInfo[idx].VisScreenHeight));
-    }
+    m_HostDisplays.InitDisplays();
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
-    return Status;
 }
 PAGED_CODE_SEG_END
 
@@ -3993,54 +3621,6 @@ BOOLEAN VioGpuAdapter::InterruptRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface, 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 
     return serviced;
-}
-
-// Reads the display info when the device raised a display event, and always with Reread. FALSE when the display info
-// could not be read: the sizes stay as they were, and the caller keeps the read pending.
-BOOLEAN VioGpuAdapter::ConfigChanged(BOOLEAN Reread)
-{
-    DbgPrint(TRACE_LEVEL_FATAL, ("<--> %s reread %d\n", __FUNCTION__, Reread));
-    UINT32 events_read = 0;
-    UINT32 events_clear = VIRTIO_GPU_EVENT_DISPLAY;
-    virtio_get_config(&m_VioDev, FIELD_OFFSET(GPU_CONFIG, events_read), &events_read, sizeof(events_read));
-    if (events_read & VIRTIO_GPU_EVENT_DISPLAY)
-    {
-        // Cleared before the display info is read: a change the host makes meanwhile raises the event again.
-        virtio_set_config(&m_VioDev, FIELD_OFFSET(GPU_CONFIG, events_clear), &events_clear, sizeof(events_clear));
-        Reread = TRUE;
-    }
-    if (!Reread)
-    {
-        return TRUE;
-    }
-    BOOLEAN taken = FALSE;
-    if (!GetDisplayInfo(&taken))
-    {
-        return FALSE;
-    }
-    UpdateChildStatus(TRUE);
-    if (taken)
-    {
-        NotifyResolutionEvent();
-    }
-    else
-    {
-        // viogpuap would set the display to the custom mode, which is still the one before.
-        DbgPrint(TRACE_LEVEL_WARNING, ("%s: the host size was not taken: viogpuap is not signalled\n", __FUNCTION__));
-    }
-    return TRUE;
-}
-
-// The answer to a GET_DISPLAY_INFO that came after GetDisplayInfo gave up, from the DPC or from the queue's Close: the
-// next read may go. The config-change thread looks again, and reads if it still has a read pending or the device
-// raised a display event: a read nobody waits for any more, such as the start read a persistent mode stood in for, is
-// not repeated.
-void VioGpuAdapter::DisplayInfoLate(_In_opt_ PVOID ctx, _In_ NTSTATUS status)
-{
-    UNREFERENCED_PARAMETER(status);
-    VioGpuAdapter *pThis = reinterpret_cast<VioGpuAdapter *>(ctx);
-    InterlockedExchange(&pThis->m_DisplayInfoOutstanding, 0);
-    pThis->m_HostDisplays.Post(VIOGPU_WORK_EVENT);
 }
 
 VOID VioGpuAdapter::DpcRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface)

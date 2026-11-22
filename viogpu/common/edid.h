@@ -62,5 +62,4 @@ void EdidSetChecksum(UCHAR *block);
 // preferred-timing feature bit; else a DisplayID timing marked preferred), or 0x0.
 ULONG EdidGetModes(const UCHAR *edid, ULONG size, PVIOGPU_DISP_MODE modes, ULONG maxModes, PVIOGPU_DISP_MODE preferred);
 
-extern VIOGPU_DISP_MODE gpu_disp_modes[64];
 extern UCHAR g_gpu_edid[EDID_V1_BLOCK_SIZE];
