@@ -306,67 +306,52 @@ BOOLEAN VioGpuDisplayController::SetPersistentMode(UINT ScanoutId, USHORT Width,
     return TRUE;
 }
 
-static BOOLEAN FindUpdateRect(_In_ ULONG NumMoves,
-                              _In_ D3DKMT_MOVE_RECT *pMoves,
-                              _In_ ULONG NumDirtyRects,
-                              _In_ PRECT pDirtyRect,
-                              _In_ D3DKMDT_VIDPN_PRESENT_PATH_ROTATION Rotation,
-                              _Out_ PRECT pUpdateRect)
+// Clips a rectangle of the presented surface to Width x Height. FALSE when nothing of it is left.
+static BOOLEAN ClipRect(_Inout_ RECT *pRect, LONG Width, LONG Height)
 {
     PAGED_CODE();
 
-    UNREFERENCED_PARAMETER(Rotation);
-    BOOLEAN updated = FALSE;
+    pRect->left = max(pRect->left, 0L);
+    pRect->top = max(pRect->top, 0L);
+    pRect->right = min(pRect->right, Width);
+    pRect->bottom = min(pRect->bottom, Height);
+    return pRect->left < pRect->right && pRect->top < pRect->bottom;
+}
 
-    if (pUpdateRect == NULL)
-    {
-        return FALSE;
-    }
+// The rectangle of a Width x Height frame buffer that a rectangle of the presented surface lands in: BltBits rotates it
+// by Rotation.
+static RECT FrameBufferRect(_In_ CONST RECT *pRect,
+                            D3DKMDT_VIDPN_PRESENT_PATH_ROTATION Rotation,
+                            LONG Width,
+                            LONG Height)
+{
+    PAGED_CODE();
 
-    if (NumMoves == 0 && NumDirtyRects == 0)
+    RECT Rect = *pRect;
+    switch (Rotation)
     {
-        pUpdateRect->bottom = 0;
-        pUpdateRect->left = 0;
-        pUpdateRect->right = 0;
-        pUpdateRect->top = 0;
+        case D3DKMDT_VPPR_ROTATE90:
+            Rect.left = pRect->top;
+            Rect.right = pRect->bottom;
+            Rect.top = Height - pRect->right;
+            Rect.bottom = Height - pRect->left;
+            break;
+        case D3DKMDT_VPPR_ROTATE180:
+            Rect.left = Width - pRect->right;
+            Rect.right = Width - pRect->left;
+            Rect.top = Height - pRect->bottom;
+            Rect.bottom = Height - pRect->top;
+            break;
+        case D3DKMDT_VPPR_ROTATE270:
+            Rect.left = Width - pRect->bottom;
+            Rect.right = Width - pRect->top;
+            Rect.top = pRect->left;
+            Rect.bottom = pRect->right;
+            break;
+        default:
+            break;
     }
-
-    for (ULONG i = 0; i < NumMoves; i++)
-    {
-        PRECT pRect = &pMoves[i].DestRect;
-        if (!updated)
-        {
-            *pUpdateRect = *pRect;
-            updated = TRUE;
-        }
-        else
-        {
-            pUpdateRect->bottom = max(pRect->bottom, pUpdateRect->bottom);
-            pUpdateRect->left = min(pRect->left, pUpdateRect->left);
-            pUpdateRect->right = max(pRect->right, pUpdateRect->right);
-            pUpdateRect->top = min(pRect->top, pUpdateRect->top);
-        }
-    }
-    for (ULONG i = 0; i < NumDirtyRects; i++)
-    {
-        PRECT pRect = &pDirtyRect[i];
-        if (!updated)
-        {
-            *pUpdateRect = *pRect;
-            updated = TRUE;
-        }
-        else
-        {
-            pUpdateRect->bottom = max(pRect->bottom, pUpdateRect->bottom);
-            pUpdateRect->left = min(pRect->left, pUpdateRect->left);
-            pUpdateRect->right = max(pRect->right, pUpdateRect->right);
-            pUpdateRect->top = min(pRect->top, pUpdateRect->top);
-        }
-    }
-    if (Rotation == D3DKMDT_VPPR_ROTATE90 || Rotation == D3DKMDT_VPPR_ROTATE270)
-    {
-    }
-    return updated;
+    return Rect;
 }
 
 // Shows a frame buffer on a scanout, and has the host take its whole content.
@@ -610,11 +595,11 @@ void VioGpuDisplayController::Close(void)
     }
 }
 
-// Copies what Windows presents into the source's frame buffer, and has the host take the part that changed. The copy is
-// under the display lock, shared: a commit waits for it, and a source it is changing is skipped, its frame dropped.
-// The two commands go after the lock, as they may wait for room in the ring: a commit that releases the frame buffer
-// meanwhile leaves them naming a resource the host no longer has, as IDs are not used again, and the host takes the
-// transfer before a release that came later on the ring.
+// Copies the moved and dirty rectangles of a present into the source's frame buffer, and has the host take the part of
+// it they cover. The copy is under the display lock, shared: a commit waits for it, and a source it is changing is
+// skipped, its frame dropped. The two commands go after the lock, as they may wait for room in the ring: a commit that
+// releases the frame buffer meanwhile leaves them naming a resource the host no longer has, as IDs are not used again,
+// and the host takes the transfer before a release that came later on the ring.
 NTSTATUS VioGpuDisplayController::Present(UINT SourceId, _In_ CONST DXGKARG_PRESENT_DISPLAYONLY *pPresent)
 {
     PAGED_CODE();
@@ -645,9 +630,8 @@ NTSTATUS VioGpuDisplayController::Present(UINT SourceId, _In_ CONST DXGKARG_PRES
     ULONG Pitch = pSource->Width * DstBitPerPixel / BITS_PER_BYTE;
     BLT_INFO SrcBltInfo = {0};
     BLT_INFO DstBltInfo = {0};
-    UINT resid = 0;
     RECT updrect = {0};
-    ULONG offset = 0UL;
+    BOOLEAN updated = FALSE;
 
     DbgPrint(TRACE_LEVEL_VERBOSE,
              ("SrcBytesPerPixel = %d DstBitPerPixel = %d (%dx%d)\n",
@@ -682,33 +666,43 @@ NTSTATUS VioGpuDisplayController::Present(UINT SourceId, _In_ CONST DXGKARG_PRES
         SrcBltInfo.Height = DstBltInfo.Height;
     }
 
-    for (UINT i = 0; i < pPresent->NumMoves; i++)
+    // Each rectangle is clipped to the frame buffer: Windows may still present for the mode before the last commit.
+    for (ULONG i = 0; i < pPresent->NumMoves + pPresent->NumDirtyRects; i++)
     {
-        RECT *pDestRect = &pPresent->pMoves[i].DestRect;
-        BltBits(&DstBltInfo, &SrcBltInfo, pDestRect);
+        RECT Rect = i < pPresent->NumMoves ? pPresent->pMoves[i].DestRect
+                                           : pPresent->pDirtyRect[i - pPresent->NumMoves];
+        if (!ClipRect(&Rect, (LONG)SrcBltInfo.Width, (LONG)SrcBltInfo.Height))
+        {
+            continue;
+        }
+        BltBits(&DstBltInfo, &SrcBltInfo, &Rect);
+        if (!updated)
+        {
+            updrect = Rect;
+            updated = TRUE;
+        }
+        else
+        {
+            updrect.left = min(Rect.left, updrect.left);
+            updrect.top = min(Rect.top, updrect.top);
+            updrect.right = max(Rect.right, updrect.right);
+            updrect.bottom = max(Rect.bottom, updrect.bottom);
+        }
     }
+    // The host takes the part of the frame buffer the copy changed, where BltBits rotated it to; the whole frame buffer
+    // when Windows names no rectangle.
+    if (updated)
+    {
+        updrect = FrameBufferRect(&updrect, Rotation, (LONG)DstBltInfo.Width, (LONG)DstBltInfo.Height);
+    }
+    else
+    {
+        updrect.right = (LONG)DstBltInfo.Width;
+        updrect.bottom = (LONG)DstBltInfo.Height;
+    }
+    ULONG offset = (updrect.top * Pitch) + (updrect.left * ((DstBitPerPixel + BITS_PER_BYTE - 1) / BITS_PER_BYTE));
 
-    for (UINT i = 0; i < pPresent->NumDirtyRects; i++)
-    {
-        RECT *pRect = &pPresent->pDirtyRect[i];
-        BltBits(&DstBltInfo, &SrcBltInfo, pRect);
-    }
-    if (!FindUpdateRect(pPresent->NumMoves,
-                        pPresent->pMoves,
-                        pPresent->NumDirtyRects,
-                        pPresent->pDirtyRect,
-                        Rotation,
-                        &updrect))
-    {
-        updrect.top = 0;
-        updrect.left = 0;
-        updrect.bottom = pSource->Height;
-        updrect.right = pSource->Width;
-    }
-    // FIXME!!! rotation
-    offset = (updrect.top * Pitch) + (updrect.left * ((DstBitPerPixel + BITS_PER_BYTE - 1) / BITS_PER_BYTE));
-
-    resid = pSource->pFrameBuffer->GetId();
+    UINT resid = pSource->pFrameBuffer->GetId();
     DbgPrint(TRACE_LEVEL_VERBOSE,
              ("offset = %lu (XxYxWxH) (%dx%dx%dx%d) vs (%dx%dx%dx%d)\n",
               offset,
@@ -718,8 +712,8 @@ NTSTATUS VioGpuDisplayController::Present(UINT SourceId, _In_ CONST DXGKARG_PRES
               updrect.bottom - updrect.top,
               0,
               0,
-              pSource->Width,
-              pSource->Height));
+              DstBltInfo.Width,
+              DstBltInfo.Height));
     Unlock();
 
     m_pAdapter->GetCommands()->TransferToHost2D(resid,
@@ -736,7 +730,7 @@ NTSTATUS VioGpuDisplayController::Present(UINT SourceId, _In_ CONST DXGKARG_PRES
     return STATUS_SUCCESS;
 }
 
-// Blacks the source's frame buffer out, on the host too.
+// Blacks the source's whole frame buffer out, on the host too, whatever the rotation.
 void VioGpuDisplayController::BlackOut(UINT SourceId)
 {
     PAGED_CODE();
@@ -760,7 +754,6 @@ void VioGpuDisplayController::BlackOut(UINT SourceId)
     RtlZeroMemory(pSource->pFrameBuffer->GetVirtualAddress(), (ULONGLONG)Height * Pitch);
     Unlock();
     // After the lock, as a present's (Present).
-    // FIXME!!! rotation
     m_pAdapter->GetCommands()->TransferToHost2D(resid, 0UL, Width, Height, 0, 0);
     m_pAdapter->GetCommands()->ResourceFlush(resid, Width, Height, 0, 0);
 }
