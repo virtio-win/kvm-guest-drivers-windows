@@ -153,6 +153,11 @@ class VioGpuAdapter : IVioGpuPCI
     {
         return m_InterruptsOn;
     }
+    // A source was presented to: the next control-queue interrupt reports it complete (UsePresentProgress).
+    void PresentPending(UINT SourceId)
+    {
+        InterlockedOr(&m_PresentPending, (LONG)(1UL << SourceId));
+    }
     PHYSICAL_ADDRESS GetFrameBufferPA(void)
     {
         return m_PciResources.GetPciBar(0)->GetPA();
@@ -198,6 +203,9 @@ class VioGpuAdapter : IVioGpuPCI
     VioGpuBuf m_GpuBuf;
     VioGpuResources m_Resources;
     volatile ULONG m_PendingWorks;
+    // The sources presented to since the last control-queue interrupt, a bit each, when UsePresentProgress is set: the
+    // ISR reports their presents complete.
+    volatile LONG m_PresentPending;
     // The ISR and the DPC use the device and the queues only while this is set. It changes only in
     // SwitchInterrupts, under the interrupt lock of each message whenever one can be taken, so an ISR never touches a
     // device that is not open yet or whose rings are gone. The DPC reads it without the lock: VioGpuAdapterClose

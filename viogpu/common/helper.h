@@ -69,8 +69,9 @@ extern "C"
 #include "trace.h"
 }
 
-#define MAX_CHILDREN                       1
-#define MAX_VIEWS                          1
+// A virtio-gpu device has up to 16 scanouts; the driver presents a child and a VidPN source for each.
+#define MAX_CHILDREN                       16
+#define MAX_VIEWS                          16
 #define BITS_PER_BYTE                      8
 
 // The side of the square cursor resource, unless MaxCursorSize in the registry asks for larger ones and the device

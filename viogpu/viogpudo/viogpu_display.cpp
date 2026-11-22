@@ -43,9 +43,10 @@ VioGpuDisplayController::VioGpuDisplayController(void)
 {
     PAGED_CODE();
     m_pAdapter = NULL;
+    m_Count = 0;
     RtlZeroMemory(m_Scanouts, sizeof(m_Scanouts));
     RtlZeroMemory(m_Sources, sizeof(m_Sources));
-    for (UINT SourceId = 0; SourceId < GetSourceCount(); ++SourceId)
+    for (UINT SourceId = 0; SourceId < MAX_VIEWS; ++SourceId)
     {
         m_Sources[SourceId].Width = NOM_WIDTH_SIZE;
         m_Sources[SourceId].Height = NOM_HEIGHT_SIZE;
@@ -54,7 +55,7 @@ VioGpuDisplayController::VioGpuDisplayController(void)
         m_Sources[SourceId].ShownOn = D3DDDI_ID_UNINITIALIZED;
         m_Sources[SourceId].Visible = TRUE;
     }
-    for (UINT ScanoutId = 0; ScanoutId < GetScanoutCount(); ++ScanoutId)
+    for (UINT ScanoutId = 0; ScanoutId < MAX_CHILDREN; ++ScanoutId)
     {
         m_Scanouts[ScanoutId].SourceId = D3DDDI_ID_UNINITIALIZED;
     }
@@ -536,10 +537,14 @@ NTSTATUS VioGpuDisplayController::ShowFrameBuffer(VioGpuObj *pObj, UINT ScanoutI
     return status;
 }
 
-// Makes a Width x Height frame buffer and shows it on a scanout. *ppObj receives it; on failure what was made of it
-// is released. BAR 0 backs it when the driver is told to use it and it holds the mode; system memory otherwise, and
-// when the BAR cannot be mapped.
-NTSTATUS VioGpuDisplayController::CreateFrameBuffer(UINT ScanoutId, ULONG Width, ULONG Height, _Out_ VioGpuObj **ppObj)
+// Makes a Width x Height frame buffer for a source and shows it on a scanout. *ppObj receives it; on failure what was
+// made of it is released. BAR 0 backs source 0's when the driver is told to use it and it holds the mode: the BAR
+// holds one frame buffer. System memory backs the others, and source 0's when the BAR cannot be mapped.
+NTSTATUS VioGpuDisplayController::CreateFrameBuffer(UINT SourceId,
+                                                    UINT ScanoutId,
+                                                    ULONG Width,
+                                                    ULONG Height,
+                                                    _Out_ VioGpuObj **ppObj)
 {
     PAGED_CODE();
     DbgPrint(TRACE_LEVEL_INFORMATION, ("---> %s - scanout %d: (%d x %d)\n", __FUNCTION__, ScanoutId, Width, Height));
@@ -555,16 +560,16 @@ NTSTATUS VioGpuDisplayController::CreateFrameBuffer(UINT ScanoutId, ULONG Width,
     VioGpuObj *pObj = NULL;
     NTSTATUS status = STATUS_INSUFFICIENT_RESOURCES;
     PHYSICAL_ADDRESS bar = m_pAdapter->GetPciResources()->GetPciBar(0)->GetPA();
-    if (m_pAdapter->GetVioGpu()->IsUsePhysicalMemory() && bar.QuadPart != 0 &&
+    if (SourceId == 0 && m_pAdapter->GetVioGpu()->IsUsePhysicalMemory() && bar.QuadPart != 0 &&
         size <= m_pAdapter->GetPciResources()->GetPciBar(0)->GetSize())
     {
         status = m_pAdapter->GetResources()->Create(size, &bar, format, Width, Height, &pObj);
         if (status == STATUS_INSUFFICIENT_RESOURCES)
         {
             DbgPrint(TRACE_LEVEL_WARNING,
-                     ("%s scanout %d: BAR 0 not usable for %dx%d: system memory instead\n",
+                     ("%s source %d: BAR 0 not usable for %dx%d: system memory instead\n",
                       __FUNCTION__,
-                      ScanoutId,
+                      SourceId,
                       Width,
                       Height));
         }
@@ -802,7 +807,7 @@ NTSTATUS VioGpuDisplayController::CommitSource(UINT SourceId, _In_ CONST VIOGPU_
         }
         else
         {
-            status = CreateFrameBuffer(NewScanoutId, Width, Height, &pObj);
+            status = CreateFrameBuffer(SourceId, NewScanoutId, Width, Height, &pObj);
             if (NT_SUCCESS(status))
             {
                 NewShownOn = NewScanoutId;
@@ -911,6 +916,7 @@ void VioGpuDisplayController::GetSource(UINT SourceId, _Out_ PVIOGPU_SOURCE_VIEW
     if (SourceId >= GetSourceCount())
     {
         ASSERT(FALSE);
+        pView->ShownOn = D3DDDI_ID_UNINITIALIZED;
         pView->Width = 0;
         pView->Height = 0;
         pView->Rotation = D3DKMDT_VPPR_IDENTITY;
@@ -951,21 +957,33 @@ void VioGpuDisplayController::DisplaysChanged(ULONG ConnectedMask)
     }
 }
 
-// Takes scanout 0's persistent mode from the registry (VioGpuDod::GetRegisterInfo) before the start-up display read
-// applies it (VioGpuAdapter::HWInit).
+// The scanouts the driver presents for the device: its num_scanouts, at least 1 and at most MAX_CHILDREN.
+static UINT ScanoutsOf(_In_ VioGpuAdapter *pAdapter)
+{
+    PAGED_CODE();
+
+    return max(1u, min((UINT)pAdapter->GetNumScanouts(), (UINT)MAX_CHILDREN));
+}
+
+// A child and a source per scanout the device has: dxgkrnl reads the count once, when the device starts (StartDevice).
 NTSTATUS VioGpuDisplayController::Start(void)
 {
     PAGED_CODE();
 
+    m_Count = ScanoutsOf(m_pAdapter);
     VioGpuDod *pVioGpuDod = m_pAdapter->GetVioGpu();
     if (pVioGpuDod->IsPersistentDispMode0Set())
     {
         m_Persistent.XResolution = pVioGpuDod->GetPersistentDispMode0Width();
         m_Persistent.YResolution = pVioGpuDod->GetPersistentDispMode0Height();
     }
+    // A local: DbgPrint does not parenthesize its level. A count outside 1 to MAX_CHILDREN is clamped.
+    UCHAR TraceLevel = m_Count == m_pAdapter->GetNumScanouts() ? TRACE_LEVEL_INFORMATION : TRACE_LEVEL_WARNING;
+    DbgPrint(TraceLevel, ("%s %u scanouts, the device has %u\n", __FUNCTION__, m_Count, m_pAdapter->GetNumScanouts()));
     return STATUS_SUCCESS;
 }
 
+// A device that has another number of scanouts after a D0 keeps the count it started with, until it is started again.
 void VioGpuDisplayController::Open(void)
 {
     PAGED_CODE();
@@ -974,6 +992,14 @@ void VioGpuDisplayController::Open(void)
     for (UINT ScanoutId = 0; ScanoutId < GetScanoutCount(); ++ScanoutId)
     {
         m_Scanouts[ScanoutId].OffPending = FALSE;
+    }
+    if (ScanoutsOf(m_pAdapter) != m_Count)
+    {
+        DbgPrint(TRACE_LEVEL_FATAL,
+                 ("%s the device has %u scanouts now: the driver keeps %u until it is started again\n",
+                  __FUNCTION__,
+                  m_pAdapter->GetNumScanouts(),
+                  m_Count));
     }
 }
 
@@ -1126,6 +1152,11 @@ NTSTATUS VioGpuDisplayController::Present(UINT SourceId, _In_ CONST DXGKARG_PRES
               DstBltInfo.Height));
     Unlock();
 
+    // Marked before the commands go: the interrupt that answers them reports the present complete (UsePresentProgress).
+    if (m_pAdapter->GetVioGpu()->IsUsePresentProgress())
+    {
+        m_pAdapter->PresentPending(SourceId);
+    }
     m_pAdapter->GetCommands()->TransferToHost2D(resid,
                                                 offset,
                                                 updrect.right - updrect.left,

@@ -248,8 +248,9 @@ NTSTATUS VioGpuDod::StartAdapter(_In_ DXGK_START_INFO *pDxgkStartInfo,
     DbgPrint(TRACE_LEVEL_INFORMATION,
              ("<--- %s ColorFormat = %d\n", __FUNCTION__, m_SystemDisplay.DispInfo.ColorFormat));
 
-    *pNumberOfViews = MAX_VIEWS;
-    *pNumberOfChildren = MAX_CHILDREN;
+    // A child and a source per scanout the device has.
+    *pNumberOfViews = m_pHWDevice->GetController()->GetSourceCount();
+    *pNumberOfChildren = m_pHWDevice->GetController()->GetScanoutCount();
     m_Flags.DriverStarted = TRUE;
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
     return STATUS_SUCCESS;
@@ -443,7 +444,7 @@ NTSTATUS VioGpuDod::QueryChildRelations(_Out_writes_bytes_(ChildRelationsSize) D
     VIOGPU_ASSERT(pChildRelations != NULL);
 
     ULONG ChildRelationsCount = (ChildRelationsSize / sizeof(DXGK_CHILD_DESCRIPTOR)) - 1;
-    VIOGPU_ASSERT(ChildRelationsCount <= MAX_CHILDREN);
+    VIOGPU_ASSERT(ChildRelationsCount <= m_pHWDevice->GetController()->GetScanoutCount());
 
     for (UINT ChildIndex = 0; ChildIndex < ChildRelationsCount; ++ChildIndex)
     {
@@ -661,7 +662,16 @@ NTSTATUS VioGpuDod::PresentDisplayOnly(_In_ CONST DXGKARG_PRESENT_DISPLAYONLY *p
     VIOGPU_ASSERT(pPresentDisplayOnly != NULL);
     VIOGPU_ASSERT(pPresentDisplayOnly->VidPnSourceId < MAX_VIEWS);
 
-    if (pPresentDisplayOnly->BytesPerPixel < 4 || pPresentDisplayOnly->VidPnSourceId != 0)
+    if (pPresentDisplayOnly->VidPnSourceId >= m_pHWDevice->GetController()->GetSourceCount())
+    {
+        DbgPrint(TRACE_LEVEL_ERROR,
+                 ("<--- %s source %d: the driver has %d\n",
+                  __FUNCTION__,
+                  pPresentDisplayOnly->VidPnSourceId,
+                  m_pHWDevice->GetController()->GetSourceCount()));
+        return STATUS_INVALID_PARAMETER;
+    }
+    if (pPresentDisplayOnly->BytesPerPixel < 4)
     {
         DbgPrint(TRACE_LEVEL_ERROR,
                  ("pPresentDisplayOnly->BytesPerPixel is 0x%d, which is lower than the allowed.\n",
@@ -705,7 +715,10 @@ NTSTATUS VioGpuDod::StopDeviceAndReleasePostDisplayOwnership(_In_ D3DDDI_VIDEO_P
         SetPowerState(TargetId, PowerDeviceD0, PowerActionNone);
     }
 
-    m_pHWDevice->GetController()->BlackOut(0);
+    for (UINT SourceId = 0; SourceId < m_pHWDevice->GetController()->GetSourceCount(); ++SourceId)
+    {
+        m_pHWDevice->GetController()->BlackOut(SourceId);
+    }
     DbgPrint(TRACE_LEVEL_FATAL,
              ("StopDeviceAndReleasePostDisplayOwnership Width = %d Height = %d Pitch = %d ColorFormat = %dn",
               m_SystemDisplayInfo.Width,
@@ -714,7 +727,8 @@ NTSTATUS VioGpuDod::StopDeviceAndReleasePostDisplayOwnership(_In_ D3DDDI_VIDEO_P
               m_SystemDisplayInfo.ColorFormat));
 
     *pDisplayInfo = m_SystemDisplayInfo;
-    pDisplayInfo->TargetId = TargetId;
+    // The device, reset, shows the firmware's frame buffer on scanout 0, whatever target Windows asks about.
+    pDisplayInfo->TargetId = 0;
     pDisplayInfo->AcpiId = m_SystemDisplay.DispInfo.AcpiId;
     return StopDevice();
 }
@@ -2066,18 +2080,20 @@ NTSTATUS VioGpuDod::IsVidPnPathFieldsValid(CONST D3DKMDT_VIDPN_PRESENT_PATH *pPa
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
-    if (pPath->VidPnSourceId >= MAX_VIEWS)
+    if (pPath->VidPnSourceId >= m_pHWDevice->GetController()->GetSourceCount())
     {
         DbgPrint(TRACE_LEVEL_ERROR,
-                 ("VidPnSourceId is 0x%I64x is too high (MAX_VIEWS is 0x%I64x)", pPath->VidPnSourceId, MAX_VIEWS));
+                 ("VidPnSourceId %u is too high: the driver has %u sources\n",
+                  pPath->VidPnSourceId,
+                  m_pHWDevice->GetController()->GetSourceCount()));
         return STATUS_GRAPHICS_INVALID_VIDEO_PRESENT_SOURCE;
     }
-    else if (pPath->VidPnTargetId >= MAX_CHILDREN)
+    else if (pPath->VidPnTargetId >= m_pHWDevice->GetController()->GetScanoutCount())
     {
         DbgPrint(TRACE_LEVEL_ERROR,
-                 ("VidPnTargetId is 0x%I64x is too high (MAX_CHILDREN is 0x%I64x)",
+                 ("VidPnTargetId %u is too high: the driver has %u targets\n",
                   pPath->VidPnTargetId,
-                  MAX_CHILDREN));
+                  m_pHWDevice->GetController()->GetScanoutCount()));
         return STATUS_GRAPHICS_INVALID_VIDEO_PRESENT_TARGET;
     }
     else if (pPath->GammaRamp.Type != D3DDDI_GAMMARAMP_DEFAULT)
@@ -2162,7 +2178,8 @@ VioGpuDod::UpdateActiveVidPnPresentPath(_In_ CONST DXGKARG_UPDATEACTIVEVIDPNPRES
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
     VIOGPU_ASSERT(pUpdateActiveVidPnPresentPath != NULL);
-    VIOGPU_ASSERT(pUpdateActiveVidPnPresentPath->VidPnPresentPathInfo.VidPnSourceId == 0);
+    VIOGPU_ASSERT(pUpdateActiveVidPnPresentPath->VidPnPresentPathInfo.VidPnSourceId <
+                  m_pHWDevice->GetController()->GetSourceCount());
 
     NTSTATUS Status = IsVidPnPathFieldsValid(&(pUpdateActiveVidPnPresentPath->VidPnPresentPathInfo));
     if (!NT_SUCCESS(Status))
@@ -2615,6 +2632,7 @@ VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod)
     m_Controller.Init(this);
     m_Id = g_InstanceId++;
     m_PendingWorks = 0;
+    m_PresentPending = 0;
     m_InterruptsOn = FALSE;
     m_DroppedWorks = 0;
     // Closed until VioGpuAdapterInit opens the device.
@@ -2959,18 +2977,18 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
         return status;
     }
 
-    // BAR 0, where the firmware's frame buffer is, recorded in the current mode. Frame buffers get their own pages, or
-    // BAR 0's with UsePhysicalMemory (CreateFrameBuffer).
+    // BAR 0, where the firmware's frame buffer is, recorded for the system display. Source 0's frame buffer uses its
+    // pages with UsePhysicalMemory, the others always have their own (CreateFrameBuffer).
     PHYSICAL_ADDRESS fb_pa = m_PciResources.GetPciBar(0)->GetPA();
     if (fb_pa.QuadPart != 0LL)
     {
         pDispInfo->PhysicAddress = fb_pa;
     }
 
-    // The components start first: the display controller takes scanout 0's persistent mode, which the display read
-    // applies. The displays are read before the components open, so that dxgkrnl's first questions about the children
-    // find them. A change the host signals meanwhile, and a re-read InitDisplays posts, wait for the config-change
-    // thread in m_WorkPosted, which uses the device only once its component opens.
+    // The components start first: the display controller learns how many scanouts the driver presents, which the
+    // display read counts. The displays are read before the components open, so that dxgkrnl's first questions about
+    // the children find them. A change the host signals meanwhile, and a re-read InitDisplays posts, wait for the
+    // config-change thread in m_WorkPosted, which uses the device only once its component opens.
     status = StartComponents();
     if (NT_SUCCESS(status))
     {
@@ -3073,6 +3091,7 @@ BOOLEAN VioGpuAdapter::InterruptsOnCb(PVOID Context)
     // deleted at that close; the device is not DRIVER_OK yet, so it has completed nothing of this open.
     pThis->m_DroppedWorks |= pThis->m_PendingWorks;
     pThis->m_PendingWorks = 0;
+    pThis->m_PresentPending = 0;
     pThis->m_InterruptsOn = TRUE;
     return TRUE;
 }
@@ -3217,12 +3236,19 @@ BOOLEAN VioGpuAdapter::InterruptRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface, 
     {
         if (m_pVioGpuDod->IsUsePresentProgress() && (intReason & ISR_REASON_DISPLAY) == ISR_REASON_DISPLAY)
         {
-            DXGKARGCB_NOTIFY_INTERRUPT_DATA NotifyInterrupt = {};
-            NotifyInterrupt.InterruptType = DXGK_INTERRUPT_DISPLAYONLY_PRESENT_PROGRESS;
-            NotifyInterrupt.DisplayOnlyPresentProgress.VidPnSourceId = 0;
-
-            NotifyInterrupt.DisplayOnlyPresentProgress.ProgressId = DXGK_PRESENT_DISPLAYONLY_PROGRESS_ID_COMPLETE;
-            pDxgkInterface->DxgkCbNotifyInterrupt(pDxgkInterface->DeviceHandle, &NotifyInterrupt);
+            // The presents since the last interrupt, of each source presented to.
+            ULONG pending = (ULONG)InterlockedExchange(&m_PresentPending, 0);
+            for (UINT SourceId = 0; pending != 0; ++SourceId, pending >>= 1)
+            {
+                if (pending & 1)
+                {
+                    DXGKARGCB_NOTIFY_INTERRUPT_DATA NotifyInterrupt = {};
+                    NotifyInterrupt.InterruptType = DXGK_INTERRUPT_DISPLAYONLY_PRESENT_PROGRESS;
+                    NotifyInterrupt.DisplayOnlyPresentProgress.VidPnSourceId = SourceId;
+                    NotifyInterrupt.DisplayOnlyPresentProgress.ProgressId = DXGK_PRESENT_DISPLAYONLY_PROGRESS_ID_COMPLETE;
+                    pDxgkInterface->DxgkCbNotifyInterrupt(pDxgkInterface->DeviceHandle, &NotifyInterrupt);
+                }
+            }
         }
 
         InterlockedOr((PLONG)&m_PendingWorks, intReason);

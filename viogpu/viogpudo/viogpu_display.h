@@ -155,6 +155,10 @@ typedef struct _VIOGPU_SOURCE_VIEW
     D3DKMDT_VIDPN_PRESENT_PATH_ROTATION Rotation;
 } VIOGPU_SOURCE_VIEW, *PVIOGPU_SOURCE_VIEW;
 
+// A scanout per child, and a source per scanout; their states are bit masks of a ULONG.
+C_ASSERT(MAX_VIEWS == MAX_CHILDREN);
+C_ASSERT(MAX_CHILDREN <= 32);
+
 // The display state: the scanouts and the sources, under the display lock. The lock is a reader-writer lock, taken at
 // PASSIVE_LEVEL only: presents, the DDIs and the escapes read under it shared; Publish, a commit and the visibility
 // write under it exclusive. Nobody holds it across a wait for the host, for room in a ring or for an answer, or across
@@ -172,15 +176,14 @@ class VioGpuDisplayController : public VioGpuComponent
     // At construction, before anything commits.
     void AddListener(_In_ VioGpuDisplayListener *pListener);
     void DisplaysChanged(ULONG ConnectedMask);
-    // The scanouts the driver presents, from 0.
+    // The scanouts the driver presents, from 0, and as many VidPN sources (m_Count).
     UINT GetScanoutCount(void) const
     {
-        return MAX_CHILDREN;
+        return m_Count;
     }
-    // The VidPN sources, from 0.
     UINT GetSourceCount(void) const
     {
-        return MAX_VIEWS;
+        return m_Count;
     }
     NTSTATUS Start(void) override;
     void Open(void) override;
@@ -215,7 +218,7 @@ class VioGpuDisplayController : public VioGpuComponent
     void Unlock(void);
     ULONG NextGeneration(void);
     BOOLEAN EscapeScanout(_Out_ PUINT pScanoutId);
-    NTSTATUS CreateFrameBuffer(UINT ScanoutId, ULONG Width, ULONG Height, _Out_ VioGpuObj **ppObj);
+    NTSTATUS CreateFrameBuffer(UINT SourceId, UINT ScanoutId, ULONG Width, ULONG Height, _Out_ VioGpuObj **ppObj);
     NTSTATUS ShowFrameBuffer(VioGpuObj *pObj, UINT ScanoutId, ULONG Width, ULONG Height);
     NTSTATUS TurnOffScanout(UINT ScanoutId);
     BOOLEAN RetryTurnOffs(void);
@@ -224,6 +227,10 @@ class VioGpuDisplayController : public VioGpuComponent
 
   private:
     VioGpuAdapter *m_pAdapter;
+    // The scanouts the device has when the adapter starts its components, 1 to MAX_CHILDREN: dxgkrnl is told the
+    // number of children and sources once, when the device starts, and it holds until the device is started again. 0
+    // before Start; read without the lock, as Start writes it before anything reads it.
+    UINT m_Count;
     ERESOURCE m_Lock;
     VioGpuScanout m_Scanouts[MAX_CHILDREN];
     VioGpuSource m_Sources[MAX_VIEWS];
