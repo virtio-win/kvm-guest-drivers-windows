@@ -54,28 +54,19 @@ typedef struct
 
 #pragma pack(pop)
 
-typedef struct _CURRENT_MODE
+// The bugcheck screen: the firmware's frame buffer in BAR 0, as dxgkrnl knows it, mapped once at start.
+// SystemDisplayEnable shows it, and SystemDisplayWrite draws into it.
+typedef struct _VIOGPU_SYSTEM_DISPLAY
 {
     DXGK_DISPLAY_INFORMATION DispInfo;
-    D3DKMDT_VIDPN_PRESENT_PATH_ROTATION Rotation;
-    D3DKMDT_VIDPN_PRESENT_PATH_SCALING Scaling;
-    UINT SrcModeWidth;
-    UINT SrcModeHeight;
-    struct _CURRENT_MODE_FLAGS
-    {
-        UINT SourceNotVisible : 1;
-        UINT FullscreenPresent : 1;
-        UINT FrameBufferIsActive : 1;
-        UINT DoNotMapOrUnmap : 1;
-        UINT IsInternal : 1;
-        UINT Unused : 27;
-    } Flags;
-
     PVOID FrameBuffer;
-    PVOID RamFrameBuffer;
-} CURRENT_MODE;
+    BOOLEAN Enabled;
+} VIOGPU_SYSTEM_DISPLAY;
 
 class VioGpuDod;
+
+// The virtio-gpu format of a D3DDDIFORMAT.
+UINT ColorFormat(UINT format);
 
 // The most components an adapter has.
 #define VIOGPU_MAX_COMPONENTS 8
@@ -86,10 +77,13 @@ class VioGpuAdapter : IVioGpuPCI
     VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod);
     ~VioGpuAdapter(void);
     void Shutdown(void);
-    NTSTATUS SetCurrentMode(ULONG Width, ULONG Height, CURRENT_MODE *pCurrentMode);
     VioGpuDisplayController *GetController(void)
     {
         return &m_Controller;
+    }
+    VioGpuResources *GetResources(void)
+    {
+        return &m_Resources;
     }
     VioGpuCommands *GetCommands(void)
     {
@@ -107,29 +101,16 @@ class VioGpuAdapter : IVioGpuPCI
     void ClearConfigEvents(UINT32 Events);
     BOOLEAN ModeFits(ULONG Width, ULONG Height);
     VOID NotifyResolutionEvent(VOID);
-    NTSTATUS SetPowerState(DXGK_DEVICE_INFO *pDeviceInfo,
-                           DEVICE_POWER_STATE DevicePowerState,
-                           CURRENT_MODE *pCurrentMode);
+    NTSTATUS SetPowerState(DXGK_DEVICE_INFO *pDeviceInfo, DEVICE_POWER_STATE DevicePowerState);
     NTSTATUS HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMATION *pDispInfo);
     NTSTATUS HWClose(void);
-    NTSTATUS ExecutePresentDisplayOnly(_In_ BYTE *DstAddr,
-                                       _In_ UINT DstBitPerPixel,
-                                       _In_ BYTE *SrcAddr,
-                                       _In_ UINT SrcBytesPerPixel,
-                                       _In_ LONG SrcPitch,
-                                       _In_ ULONG NumMoves,
-                                       _In_ D3DKMT_MOVE_RECT *pMoves,
-                                       _In_ ULONG NumDirtyRects,
-                                       _In_ RECT *pDirtyRect,
-                                       _In_ D3DKMDT_VIDPN_PRESENT_PATH_ROTATION Rotation,
-                                       _In_ const CURRENT_MODE *pModeCur);
-    VOID BlackOutScreen(CURRENT_MODE *pCurrentMod);
     BOOLEAN InterruptRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface, _In_ ULONG MessageNumber);
     VOID DpcRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface);
     VOID ResetDevice(VOID);
-    NTSTATUS SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape, _In_ CONST CURRENT_MODE *pModeCur);
+    NTSTATUS SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape,
+                             _In_ CONST VIOGPU_SOURCE_VIEW *pSource);
     NTSTATUS SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION *pSetPointerPosition,
-                                _In_ CONST CURRENT_MODE *pModeCur);
+                                _In_ CONST VIOGPU_SOURCE_VIEW *pSource);
     NTSTATUS Escape(_In_ CONST DXGKARG_ESCAPE *pEscap);
     CPciResources *GetPciResources(void)
     {
@@ -155,17 +136,17 @@ class VioGpuAdapter : IVioGpuPCI
     {
         return m_PciResources.GetPciBar(0)->GetPA();
     }
+    // The segment that backs the frame buffer (HWInit).
+    VioGpuMemSegment *GetFrameSegment(void)
+    {
+        return &m_FrameSegment;
+    }
     SIZE_T GetFrameSegmentSize(void)
     {
         return m_FrameSegment.GetSize();
     }
     PDXGKRNL_INTERFACE GetDxgkInterface(void);
 
-    // The size of the last mode set, 1024x768 before the first.
-    VIOGPU_DISP_MODE GetCurrentModeSize(void)
-    {
-        return m_CurrentModeSize;
-    }
     VioGpuDod *GetVioGpu(void)
     {
         return m_pVioGpuDod;
@@ -177,15 +158,12 @@ class VioGpuAdapter : IVioGpuPCI
 
   protected:
   private:
-    NTSTATUS VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION *pDispInfo);
+    NTSTATUS VioGpuAdapterInit(void);
     void VioGpuAdapterClose(void);
     void InitDisplay(DXGK_DISPLAY_INFORMATION *pDispInfo);
     BOOLEAN AckFeature(UINT64 Feature);
-    NTSTATUS ShowFrameBuffer(VioGpuObj *pObj, ULONG Width, ULONG Height);
-    NTSTATUS CreateFrameBuffer(ULONG Width, ULONG Height, CURRENT_MODE *pCurrentMode, VioGpuObj **ppObj);
-    void DestroyFrameBufferObj(BOOLEAN bKeepBuffer);
-    BOOLEAN CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape, _In_ CONST CURRENT_MODE *pCurrentMode);
-    BOOLEAN UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape, _In_ CONST CURRENT_MODE *pCurrentMode);
+    BOOLEAN CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape);
+    BOOLEAN UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape, _In_ CONST VIOGPU_SOURCE_VIEW *pSource);
     void DestroyCursor(void);
     NTSTATUS VirtIoDeviceInit(void);
     VOID CreateResolutionEvent(VOID);
@@ -198,7 +176,6 @@ class VioGpuAdapter : IVioGpuPCI
   private:
     VioGpuDod *m_pVioGpuDod;
     VioGpuDisplayController m_Controller;
-    VIOGPU_DISP_MODE m_CurrentModeSize;
     ULONG m_Id;
 
     VirtIODevice m_VioDev;
@@ -212,9 +189,6 @@ class VioGpuAdapter : IVioGpuPCI
     VioGpuCommands m_Commands;
     VioGpuBuf m_GpuBuf;
     VioGpuResources m_Resources;
-    VioGpuObj *m_pFrameBuf;
-    // The scanout the frame buffer is shown on: one, until there is a source per scanout.
-    ULONG m_FrameBufScanout;
     VioGpuObj *m_pCursorBuf;
     // Serializes SetPointerShape against SetPointerPosition: dxgkrnl calls the two pointer DDIs from
     // different threads without synchronizing them. A concurrent MOVE_CURSOR can then interleave with the
@@ -268,7 +242,7 @@ class VioGpuDod
     DEVICE_POWER_STATE m_AdapterPowerState;
     DRIVER_STATUS_FLAG m_Flags;
 
-    CURRENT_MODE m_CurrentMode;
+    VIOGPU_SYSTEM_DISPLAY m_SystemDisplay;
 
     DXGK_DISPLAY_INFORMATION m_SystemDisplayInfo;
 

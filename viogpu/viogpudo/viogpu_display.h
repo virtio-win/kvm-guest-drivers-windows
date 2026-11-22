@@ -30,6 +30,8 @@
 #pragma once
 
 #include "viogpu.h"
+#include "viogpu_component.h"
+#include "viogpu_queue.h"
 
 class VioGpuAdapter;
 
@@ -69,10 +71,40 @@ struct VioGpuScanout
     VIOGPU_DISPLAY Display;
 };
 
-// The display state: the scanouts, under the display lock. The lock is a reader-writer lock, taken at PASSIVE_LEVEL
-// only: the DDIs and the escapes read under it shared, Publish writes under it exclusive. Nobody holds it across a wait
-// for the host or a call into dxgkrnl, and a holder never takes it again.
-class VioGpuDisplayController
+// The format of every frame buffer: what the firmware's frame buffer has, and what the source modes on offer present.
+#define VIOGPU_FRAMEBUFFER_FORMAT D3DDDIFMT_X8R8G8B8
+
+// A VidPN source: what Windows committed for it, and the frame buffer that shows it.
+struct VioGpuSource
+{
+    // The size of the source mode, which the frame buffer has: that of the last commit that made one, 1024x768 before.
+    ULONG Width;
+    ULONG Height;
+    D3DKMDT_VIDPN_PRESENT_PATH_ROTATION Rotation;
+    // The scanout the source's path drives.
+    UINT ScanoutId;
+    // Windows shows the source (SetVidPnSourceVisibility): presents are dropped while it does not.
+    BOOLEAN Visible;
+    // A commit is changing the frame buffer: presents skip the source until the commit publishes it.
+    BOOLEAN Changing;
+    // The frame buffer shown on ScanoutId, or none: before the first commit, after one that failed, and once closed.
+    VioGpuObj *pFrameBuffer;
+};
+
+// A copy of a source's state, for the code outside the controller.
+typedef struct _VIOGPU_SOURCE_VIEW
+{
+    ULONG Width;
+    ULONG Height;
+    D3DKMDT_VIDPN_PRESENT_PATH_ROTATION Rotation;
+} VIOGPU_SOURCE_VIEW, *PVIOGPU_SOURCE_VIEW;
+
+// The display state: the scanouts and the sources, under the display lock. The lock is a reader-writer lock, taken at
+// PASSIVE_LEVEL only: presents, the DDIs and the escapes read under it shared; Publish, a commit and the visibility
+// write under it exclusive. Nobody holds it across a wait for the host, for room in a ring or for an answer, or across
+// a call into dxgkrnl, and a holder never takes it again. A commit holds it exclusive twice, briefly: to mark the
+// source changing, and to publish what the host commands it sent in between, without the lock, made of it.
+class VioGpuDisplayController : public VioGpuComponent
 {
   public:
     VioGpuDisplayController(void);
@@ -86,6 +118,12 @@ class VioGpuDisplayController
     {
         return MAX_CHILDREN;
     }
+    // The VidPN sources, from 0.
+    UINT GetSourceCount(void) const
+    {
+        return MAX_VIEWS;
+    }
+    void Close(void) override;
     BOOLEAN CustomMode(_In_ ULONG xres, _In_ ULONG yres, _Inout_ PVIOGPU_DISP_MODE pMode);
     void Assume(UINT ScanoutId, _In_ const VIOGPU_DISPLAY *pDisplay);
     BOOLEAN Publish(UINT ScanoutId, _Inout_ PVIOGPU_DISPLAY pDisplay, BOOLEAN Event, _Out_ PBOOLEAN pWasConnected);
@@ -95,14 +133,29 @@ class VioGpuDisplayController
     ULONG GetModes(UINT ScanoutId, VIOGPU_DISP_MODE (&Modes)[VIOGPU_MAX_MODES + 1]);
     VIOGPU_DISP_MODE GetCustomMode(UINT ScanoutId);
     BOOLEAN SetPersistentMode(UINT ScanoutId, USHORT Width, USHORT Height);
+    NTSTATUS Commit(UINT SourceId,
+                    UINT ScanoutId,
+                    ULONG Width,
+                    ULONG Height,
+                    D3DKMDT_VIDPN_PRESENT_PATH_ROTATION Rotation);
+    void SetRotation(UINT SourceId, D3DKMDT_VIDPN_PRESENT_PATH_ROTATION Rotation);
+    void SetVisible(UINT SourceId, BOOLEAN Visible);
+    NTSTATUS Present(UINT SourceId, _In_ CONST DXGKARG_PRESENT_DISPLAYONLY *pPresent);
+    void BlackOut(UINT SourceId);
+    void GetSource(UINT SourceId, _Out_ PVIOGPU_SOURCE_VIEW pView);
+    void DropFrameBuffers(void);
 
   private:
     void LockShared(void);
     void LockExclusive(void);
     void Unlock(void);
+    NTSTATUS CreateFrameBuffer(UINT ScanoutId, ULONG Width, ULONG Height, _Out_ VioGpuObj **ppObj);
+    NTSTATUS ShowFrameBuffer(VioGpuObj *pObj, UINT ScanoutId, ULONG Width, ULONG Height);
+    void ReleaseFrameBuffer(VioGpuObj *pObj, UINT ScanoutId);
 
   private:
     VioGpuAdapter *m_pAdapter;
     ERESOURCE m_Lock;
     VioGpuScanout m_Scanouts[MAX_CHILDREN];
+    VioGpuSource m_Sources[MAX_VIEWS];
 };

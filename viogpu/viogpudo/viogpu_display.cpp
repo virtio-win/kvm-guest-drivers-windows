@@ -31,6 +31,7 @@
 #include "driver.h"
 #include "viogpudo.h"
 #include "viogpu_display.h"
+#include "bitops.h"
 
 #if !DBG
 #include "viogpu_display.tmh"
@@ -43,6 +44,14 @@ VioGpuDisplayController::VioGpuDisplayController(void)
     PAGED_CODE();
     m_pAdapter = NULL;
     RtlZeroMemory(m_Scanouts, sizeof(m_Scanouts));
+    RtlZeroMemory(m_Sources, sizeof(m_Sources));
+    for (UINT SourceId = 0; SourceId < GetSourceCount(); ++SourceId)
+    {
+        m_Sources[SourceId].Width = NOM_WIDTH_SIZE;
+        m_Sources[SourceId].Height = NOM_HEIGHT_SIZE;
+        m_Sources[SourceId].Rotation = D3DKMDT_VPPR_IDENTITY;
+        m_Sources[SourceId].Visible = TRUE;
+    }
     ExInitializeResourceLite(&m_Lock);
 }
 
@@ -297,4 +306,479 @@ BOOLEAN VioGpuDisplayController::SetPersistentMode(UINT ScanoutId, USHORT Width,
     return TRUE;
 }
 
+static BOOLEAN FindUpdateRect(_In_ ULONG NumMoves,
+                              _In_ D3DKMT_MOVE_RECT *pMoves,
+                              _In_ ULONG NumDirtyRects,
+                              _In_ PRECT pDirtyRect,
+                              _In_ D3DKMDT_VIDPN_PRESENT_PATH_ROTATION Rotation,
+                              _Out_ PRECT pUpdateRect)
+{
+    PAGED_CODE();
+
+    UNREFERENCED_PARAMETER(Rotation);
+    BOOLEAN updated = FALSE;
+
+    if (pUpdateRect == NULL)
+    {
+        return FALSE;
+    }
+
+    if (NumMoves == 0 && NumDirtyRects == 0)
+    {
+        pUpdateRect->bottom = 0;
+        pUpdateRect->left = 0;
+        pUpdateRect->right = 0;
+        pUpdateRect->top = 0;
+    }
+
+    for (ULONG i = 0; i < NumMoves; i++)
+    {
+        PRECT pRect = &pMoves[i].DestRect;
+        if (!updated)
+        {
+            *pUpdateRect = *pRect;
+            updated = TRUE;
+        }
+        else
+        {
+            pUpdateRect->bottom = max(pRect->bottom, pUpdateRect->bottom);
+            pUpdateRect->left = min(pRect->left, pUpdateRect->left);
+            pUpdateRect->right = max(pRect->right, pUpdateRect->right);
+            pUpdateRect->top = min(pRect->top, pUpdateRect->top);
+        }
+    }
+    for (ULONG i = 0; i < NumDirtyRects; i++)
+    {
+        PRECT pRect = &pDirtyRect[i];
+        if (!updated)
+        {
+            *pUpdateRect = *pRect;
+            updated = TRUE;
+        }
+        else
+        {
+            pUpdateRect->bottom = max(pRect->bottom, pUpdateRect->bottom);
+            pUpdateRect->left = min(pRect->left, pUpdateRect->left);
+            pUpdateRect->right = max(pRect->right, pUpdateRect->right);
+            pUpdateRect->top = min(pRect->top, pUpdateRect->top);
+        }
+    }
+    if (Rotation == D3DKMDT_VPPR_ROTATE90 || Rotation == D3DKMDT_VPPR_ROTATE270)
+    {
+    }
+    return updated;
+}
+
+// Shows a frame buffer on a scanout, and has the host take its whole content.
+NTSTATUS VioGpuDisplayController::ShowFrameBuffer(VioGpuObj *pObj, UINT ScanoutId, ULONG Width, ULONG Height)
+{
+    PAGED_CODE();
+
+    // Waited for: QEMU's SET_SCANOUT fails for a resource the device did not create, and up to QEMU 11.1, on its 2D
+    // device, for one it did not back.
+    NTSTATUS status = m_pAdapter->GetCommands()->SetScanout(ScanoutId, pObj->GetId(), Width, Height, 0, 0, TRUE);
+    if (NT_SUCCESS(status))
+    {
+        // The scanout shows what the frame buffer holds once these are through; the next present sends it again.
+        NTSTATUS sent = m_pAdapter->GetCommands()->TransferToHost2D(pObj->GetId(), 0, Width, Height, 0, 0);
+        if (NT_SUCCESS(sent))
+        {
+            sent = m_pAdapter->GetCommands()->ResourceFlush(pObj->GetId(), Width, Height, 0, 0);
+        }
+        if (!NT_SUCCESS(sent))
+        {
+            DbgPrint(TRACE_LEVEL_ERROR,
+                     ("%s: scanout %d shows resource %d before it is sent (0x%x): until the next present\n",
+                      __FUNCTION__,
+                      ScanoutId,
+                      pObj->GetId(),
+                      sent));
+        }
+    }
+    return status;
+}
+
+// Makes a Width x Height frame buffer and shows it on a scanout. *ppObj receives it; on failure what was made of it
+// is released. The frame buffer segment backs it (VioGpuAdapter::HWInit).
+NTSTATUS VioGpuDisplayController::CreateFrameBuffer(UINT ScanoutId, ULONG Width, ULONG Height, _Out_ VioGpuObj **ppObj)
+{
+    PAGED_CODE();
+    DbgPrint(TRACE_LEVEL_INFORMATION, ("---> %s - scanout %d: (%d x %d)\n", __FUNCTION__, ScanoutId, Width, Height));
+
+    *ppObj = NULL;
+    if (!m_pAdapter->ModeFits(Width, Height))
+    {
+        DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s %dx%d is more than the driver can back\n", __FUNCTION__, Width, Height));
+        return STATUS_INVALID_PARAMETER;
+    }
+    UINT size = Width * 4 * Height;
+    UINT format = ColorFormat(VIOGPU_FRAMEBUFFER_FORMAT);
+    VioGpuObj *pObj = NULL;
+    VioGpuMemSegment *pSegment = m_pAdapter->GetFrameSegment();
+    NTSTATUS status = m_pAdapter->GetResources()->Create(size, pSegment, format, Width, Height, &pObj);
+    if (!NT_SUCCESS(status))
+    {
+        return status;
+    }
+    status = ShowFrameBuffer(pObj, ScanoutId, Width, Height);
+    if (!NT_SUCCESS(status))
+    {
+        DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s resource %d not shown (0x%x)\n", __FUNCTION__, pObj->GetId(), status));
+        m_pAdapter->GetResources()->Release(pObj);
+        return status;
+    }
+    *ppObj = pObj;
+    return STATUS_SUCCESS;
+}
+
+// Turns a scanout off and releases the frame buffer it showed. The resource goes whether or not the scanout went off.
+void VioGpuDisplayController::ReleaseFrameBuffer(VioGpuObj *pObj, UINT ScanoutId)
+{
+    PAGED_CODE();
+
+    NTSTATUS status = m_pAdapter->GetCommands()->SetScanout(ScanoutId, 0, 0, 0, 0, 0, TRUE);
+    if (!NT_SUCCESS(status))
+    {
+        DbgPrint(TRACE_LEVEL_FATAL, ("%s: scanout %d not turned off (0x%x)\n", __FUNCTION__, ScanoutId, status));
+    }
+    m_pAdapter->GetResources()->Release(pObj);
+}
+
+// Shows source SourceId on scanout ScanoutId at the size Windows pinned, whether or not that size is still among the
+// modes on offer, which may have changed since Windows picked it. A frame buffer of that size is shown again. Otherwise
+// the old one is released first, so that only one is ever allocated: a commit that fails leaves the source without a
+// frame buffer until the next one.
+NTSTATUS VioGpuDisplayController::Commit(UINT SourceId,
+                                         UINT ScanoutId,
+                                         ULONG Width,
+                                         ULONG Height,
+                                         D3DKMDT_VIDPN_PRESENT_PATH_ROTATION Rotation)
+{
+    PAGED_CODE();
+    ASSERT(SourceId < GetSourceCount() && ScanoutId < GetScanoutCount());
+    DbgPrint(TRACE_LEVEL_INFORMATION,
+             ("---> %s source %d on scanout %d: %dx%d\n", __FUNCTION__, SourceId, ScanoutId, Width, Height));
+
+    // When its frame buffer goes, the source is marked changing under the lock held exclusive, which waits for the
+    // presents copying into the frame buffer and keeps the next ones out of it: from here on the frame buffer is this
+    // commit's alone, until it is published. A frame buffer the commit keeps goes on taking presents: their pixels
+    // would be lost otherwise, as nothing repaints what they changed.
+    VioGpuSource *pSource = &m_Sources[SourceId];
+    LockExclusive();
+    VioGpuObj *pObj = pSource->pFrameBuffer;
+    UINT OldScanoutId = pSource->ScanoutId;
+    BOOLEAN same = pObj != NULL && pSource->Width == Width && pSource->Height == Height;
+    if (!same)
+    {
+        pSource->Changing = TRUE;
+    }
+    Unlock();
+
+    NTSTATUS status;
+    if (same)
+    {
+        status = ShowFrameBuffer(pObj, ScanoutId, Width, Height);
+        // A local: DbgPrint does not parenthesize its level.
+        UCHAR TraceLevel = NT_SUCCESS(status) ? TRACE_LEVEL_INFORMATION : TRACE_LEVEL_FATAL;
+        DbgPrint(TraceLevel,
+                 ("%s: scanout %d shows resource %d (%dx%d) again, 0x%x\n",
+                  __FUNCTION__,
+                  ScanoutId,
+                  pObj->GetId(),
+                  Width,
+                  Height,
+                  status));
+    }
+    else
+    {
+        if (pObj != NULL)
+        {
+            ReleaseFrameBuffer(pObj, OldScanoutId);
+            pObj = NULL;
+        }
+        status = CreateFrameBuffer(ScanoutId, Width, Height, &pObj);
+        if (NT_SUCCESS(status))
+        {
+            DbgPrint(TRACE_LEVEL_FATAL,
+                     ("%s: scanout %d shows resource %d, %dx%d, %Iu bytes in %d run(s)\n",
+                      __FUNCTION__,
+                      ScanoutId,
+                      pObj->GetId(),
+                      Width,
+                      Height,
+                      pObj->GetSize(),
+                      pObj->GetSGList()->NumberOfElements));
+        }
+        else
+        {
+            DbgPrint(TRACE_LEVEL_FATAL,
+                     ("<--- %s %dx%d failed (0x%x): no frame buffer until the next commit\n",
+                      __FUNCTION__,
+                      Width,
+                      Height,
+                      status));
+        }
+    }
+
+    LockExclusive();
+    pSource->pFrameBuffer = pObj;
+    pSource->ScanoutId = ScanoutId;
+    pSource->Rotation = Rotation;
+    if (!same && NT_SUCCESS(status))
+    {
+        pSource->Width = Width;
+        pSource->Height = Height;
+    }
+    pSource->Changing = FALSE;
+    Unlock();
+    return status;
+}
+
+// The rotation of the source's path (DxgkDdiUpdateActiveVidPnPresentPath).
+void VioGpuDisplayController::SetRotation(UINT SourceId, D3DKMDT_VIDPN_PRESENT_PATH_ROTATION Rotation)
+{
+    PAGED_CODE();
+
+    if (SourceId >= GetSourceCount())
+    {
+        ASSERT(FALSE);
+        return;
+    }
+    LockExclusive();
+    m_Sources[SourceId].Rotation = Rotation;
+    Unlock();
+}
+
+// Whether Windows shows the source. A source it hides is blacked out, after presents to it stop.
+void VioGpuDisplayController::SetVisible(UINT SourceId, BOOLEAN Visible)
+{
+    PAGED_CODE();
+
+    if (SourceId >= GetSourceCount())
+    {
+        ASSERT(FALSE);
+        return;
+    }
+    LockExclusive();
+    m_Sources[SourceId].Visible = Visible;
+    Unlock();
+    if (!Visible)
+    {
+        BlackOut(SourceId);
+    }
+}
+
+// A copy of the source's state.
+void VioGpuDisplayController::GetSource(UINT SourceId, _Out_ PVIOGPU_SOURCE_VIEW pView)
+{
+    PAGED_CODE();
+
+    if (SourceId >= GetSourceCount())
+    {
+        ASSERT(FALSE);
+        pView->Width = 0;
+        pView->Height = 0;
+        pView->Rotation = D3DKMDT_VPPR_IDENTITY;
+        return;
+    }
+    VioGpuSource *pSource = &m_Sources[SourceId];
+    LockShared();
+    pView->Width = pSource->Width;
+    pView->Height = pSource->Height;
+    pView->Rotation = pSource->Rotation;
+    Unlock();
+}
+
+// The device is about to be reset, which drops every resource the host has: each source's frame buffer is released,
+// its scanout turned off first. The sources keep their size and show nothing until Windows commits again.
+void VioGpuDisplayController::Close(void)
+{
+    PAGED_CODE();
+
+    for (UINT SourceId = 0; SourceId < GetSourceCount(); ++SourceId)
+    {
+        VioGpuSource *pSource = &m_Sources[SourceId];
+        LockExclusive();
+        VioGpuObj *pObj = pSource->pFrameBuffer;
+        pSource->pFrameBuffer = NULL;
+        UINT ScanoutId = pSource->ScanoutId;
+        Unlock();
+        if (pObj != NULL)
+        {
+            ReleaseFrameBuffer(pObj, ScanoutId);
+        }
+    }
+}
+
+// Copies what Windows presents into the source's frame buffer, and has the host take the part that changed. The copy is
+// under the display lock, shared: a commit waits for it, and a source it is changing is skipped, its frame dropped.
+// The two commands go after the lock, as they may wait for room in the ring: a commit that releases the frame buffer
+// meanwhile leaves them naming a resource the host no longer has, as IDs are not used again, and the host takes the
+// transfer before a release that came later on the ring.
+NTSTATUS VioGpuDisplayController::Present(UINT SourceId, _In_ CONST DXGKARG_PRESENT_DISPLAYONLY *pPresent)
+{
+    PAGED_CODE();
+    if (SourceId >= GetSourceCount())
+    {
+        ASSERT(FALSE);
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    VioGpuSource *pSource = &m_Sources[SourceId];
+    LockShared();
+    if (!pSource->Visible || pSource->Changing)
+    {
+        Unlock();
+        DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s source %d is not visible or changing\n", __FUNCTION__, SourceId));
+        return STATUS_SUCCESS;
+    }
+    if (pSource->pFrameBuffer == NULL)
+    {
+        // Per frame: the commit that left it without one logged why.
+        Unlock();
+        DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s source %d has no frame buffer\n", __FUNCTION__, SourceId));
+        return STATUS_UNSUCCESSFUL;
+    }
+
+    D3DKMDT_VIDPN_PRESENT_PATH_ROTATION Rotation = pPresent->Flags.Rotate ? pSource->Rotation : D3DKMDT_VPPR_IDENTITY;
+    UINT DstBitPerPixel = BPPFromPixelFormat(VIOGPU_FRAMEBUFFER_FORMAT);
+    ULONG Pitch = pSource->Width * DstBitPerPixel / BITS_PER_BYTE;
+    BLT_INFO SrcBltInfo = {0};
+    BLT_INFO DstBltInfo = {0};
+    UINT resid = 0;
+    RECT updrect = {0};
+    ULONG offset = 0UL;
+
+    DbgPrint(TRACE_LEVEL_VERBOSE,
+             ("SrcBytesPerPixel = %d DstBitPerPixel = %d (%dx%d)\n",
+              pPresent->BytesPerPixel,
+              DstBitPerPixel,
+              pSource->Width,
+              pSource->Height));
+
+    DstBltInfo.pBits = pSource->pFrameBuffer->GetVirtualAddress();
+    DstBltInfo.Pitch = Pitch;
+    DstBltInfo.BitsPerPel = DstBitPerPixel;
+    DstBltInfo.Offset.x = 0;
+    DstBltInfo.Offset.y = 0;
+    DstBltInfo.Rotation = Rotation;
+    DstBltInfo.Width = pSource->Width;
+    DstBltInfo.Height = pSource->Height;
+
+    SrcBltInfo.pBits = pPresent->pSource;
+    SrcBltInfo.Pitch = pPresent->Pitch;
+    SrcBltInfo.BitsPerPel = pPresent->BytesPerPixel * BITS_PER_BYTE;
+    SrcBltInfo.Offset.x = 0;
+    SrcBltInfo.Offset.y = 0;
+    SrcBltInfo.Rotation = D3DKMDT_VPPR_IDENTITY;
+    if (Rotation == D3DKMDT_VPPR_ROTATE90 || Rotation == D3DKMDT_VPPR_ROTATE270)
+    {
+        SrcBltInfo.Width = DstBltInfo.Height;
+        SrcBltInfo.Height = DstBltInfo.Width;
+    }
+    else
+    {
+        SrcBltInfo.Width = DstBltInfo.Width;
+        SrcBltInfo.Height = DstBltInfo.Height;
+    }
+
+    for (UINT i = 0; i < pPresent->NumMoves; i++)
+    {
+        RECT *pDestRect = &pPresent->pMoves[i].DestRect;
+        BltBits(&DstBltInfo, &SrcBltInfo, pDestRect);
+    }
+
+    for (UINT i = 0; i < pPresent->NumDirtyRects; i++)
+    {
+        RECT *pRect = &pPresent->pDirtyRect[i];
+        BltBits(&DstBltInfo, &SrcBltInfo, pRect);
+    }
+    if (!FindUpdateRect(pPresent->NumMoves,
+                        pPresent->pMoves,
+                        pPresent->NumDirtyRects,
+                        pPresent->pDirtyRect,
+                        Rotation,
+                        &updrect))
+    {
+        updrect.top = 0;
+        updrect.left = 0;
+        updrect.bottom = pSource->Height;
+        updrect.right = pSource->Width;
+    }
+    // FIXME!!! rotation
+    offset = (updrect.top * Pitch) + (updrect.left * ((DstBitPerPixel + BITS_PER_BYTE - 1) / BITS_PER_BYTE));
+
+    resid = pSource->pFrameBuffer->GetId();
+    DbgPrint(TRACE_LEVEL_VERBOSE,
+             ("offset = %lu (XxYxWxH) (%dx%dx%dx%d) vs (%dx%dx%dx%d)\n",
+              offset,
+              updrect.left,
+              updrect.top,
+              updrect.right - updrect.left,
+              updrect.bottom - updrect.top,
+              0,
+              0,
+              pSource->Width,
+              pSource->Height));
+    Unlock();
+
+    m_pAdapter->GetCommands()->TransferToHost2D(resid,
+                                                offset,
+                                                updrect.right - updrect.left,
+                                                updrect.bottom - updrect.top,
+                                                updrect.left,
+                                                updrect.top);
+    m_pAdapter->GetCommands()->ResourceFlush(resid,
+                                             updrect.right - updrect.left,
+                                             updrect.bottom - updrect.top,
+                                             updrect.left,
+                                             updrect.top);
+    return STATUS_SUCCESS;
+}
+
+// Blacks the source's frame buffer out, on the host too.
+void VioGpuDisplayController::BlackOut(UINT SourceId)
+{
+    PAGED_CODE();
+    if (SourceId >= GetSourceCount())
+    {
+        ASSERT(FALSE);
+        return;
+    }
+
+    VioGpuSource *pSource = &m_Sources[SourceId];
+    LockShared();
+    if (pSource->pFrameBuffer == NULL || pSource->Changing)
+    {
+        Unlock();
+        return;
+    }
+    UINT resid = pSource->pFrameBuffer->GetId();
+    ULONG Width = pSource->Width;
+    ULONG Height = pSource->Height;
+    ULONG Pitch = Width * BPPFromPixelFormat(VIOGPU_FRAMEBUFFER_FORMAT) / BITS_PER_BYTE;
+    RtlZeroMemory(pSource->pFrameBuffer->GetVirtualAddress(), (ULONGLONG)Height * Pitch);
+    Unlock();
+    // After the lock, as a present's (Present).
+    // FIXME!!! rotation
+    m_pAdapter->GetCommands()->TransferToHost2D(resid, 0UL, Width, Height, 0, 0);
+    m_pAdapter->GetCommands()->ResourceFlush(resid, Width, Height, 0, 0);
+}
+
 PAGED_CODE_SEG_END
+
+// The bugcheck flow, which may run at any IRQL with nothing alongside it, and takes no lock: every frame buffer is
+// parked, nothing is sent, and the device reset that follows destroys the resources. The bugcheck screen goes to BAR 0
+// (VioGpuDod::SystemDisplayEnable).
+void VioGpuDisplayController::DropFrameBuffers(void)
+{
+    for (UINT SourceId = 0; SourceId < GetSourceCount(); ++SourceId)
+    {
+        VioGpuObj *pObj = m_Sources[SourceId].pFrameBuffer;
+        m_Sources[SourceId].pFrameBuffer = NULL;
+        if (pObj != NULL)
+        {
+            m_pAdapter->GetResources()->Park(pObj);
+        }
+    }
+}
