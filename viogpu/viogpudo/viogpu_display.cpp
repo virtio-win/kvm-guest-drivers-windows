@@ -276,7 +276,10 @@ ULONG VioGpuDisplayController::GetModes(UINT ScanoutId, VIOGPU_DISP_MODE (&Modes
 {
     PAGED_CODE();
 
-    ASSERT(ScanoutId < GetScanoutCount());
+    if (ScanoutId >= GetScanoutCount())
+    {
+        return 0;
+    }
     PVIOGPU_DISPLAY pDisplay = &m_Scanouts[ScanoutId].Display;
     LockShared();
     ULONG count = pDisplay->ModeCount;
@@ -291,9 +294,13 @@ VIOGPU_DISP_MODE VioGpuDisplayController::GetCustomMode(UINT ScanoutId)
 {
     PAGED_CODE();
 
-    ASSERT(ScanoutId < GetScanoutCount());
+    VIOGPU_DISP_MODE mode = {NOM_WIDTH_SIZE, NOM_HEIGHT_SIZE};
+    if (ScanoutId >= GetScanoutCount())
+    {
+        return mode;
+    }
     LockShared();
-    VIOGPU_DISP_MODE mode = m_Scanouts[ScanoutId].Display.Custom;
+    mode = m_Scanouts[ScanoutId].Display.Custom;
     Unlock();
     return mode;
 }

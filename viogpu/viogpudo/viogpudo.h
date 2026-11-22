@@ -375,7 +375,8 @@ class VioGpuDod
                             _In_ CONST VIOGPU_DISP_MODE *pMode,
                             D3DKMDT_MODE_PREFERENCE Preference);
     VOID AddMissingMonitorModes(D3DDDI_VIDEO_PRESENT_TARGET_ID TargetId);
-    NTSTATUS GetOfferedModes(_In_opt_ CONST D3DKMDT_2DREGION *pPinnedSize,
+    NTSTATUS GetOfferedModes(UINT ScanoutId,
+                             _In_opt_ CONST D3DKMDT_2DREGION *pPinnedSize,
                              VIOGPU_DISP_MODE (&Modes)[VIOGPU_MAX_MODES + 1],
                              _Out_ PULONG pCount);
     NTSTATUS GetPinnedTargetSize(D3DKMDT_HVIDPN hVidPn,
@@ -385,9 +386,11 @@ class VioGpuDod
                                  _Out_ PBOOLEAN pPinned);
     NTSTATUS AddSingleSourceMode(_In_ CONST DXGK_VIDPNSOURCEMODESET_INTERFACE *pVidPnSourceModeSetInterface,
                                  D3DKMDT_HVIDPNSOURCEMODESET hVidPnSourceModeSet,
+                                 UINT ScanoutId,
                                  _In_opt_ CONST D3DKMDT_2DREGION *pPinnedTargetSize);
     NTSTATUS AddSingleTargetMode(_In_ CONST DXGK_VIDPNTARGETMODESET_INTERFACE *pVidPnTargetModeSetInterface,
                                  D3DKMDT_HVIDPNTARGETMODESET hVidPnTargetModeSet,
+                                 UINT ScanoutId,
                                  _In_opt_ CONST D3DKMDT_2DREGION *pPinnedSourceSize);
     NTSTATUS IsVidPnSourceModeFieldsValid(CONST D3DKMDT_VIDPN_SOURCE_MODE *pSourceMode) const;
     NTSTATUS IsVidPnPathFieldsValid(CONST D3DKMDT_VIDPN_PRESENT_PATH *pPath) const;

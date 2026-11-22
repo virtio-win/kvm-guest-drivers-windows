@@ -923,10 +923,11 @@ NTSTATUS VioGpuDod::RecommendMonitorModes(_In_ CONST DXGKARG_RECOMMENDMONITORMOD
     return AddSingleMonitorMode(pRecommendMonitorModes);
 }
 
-// The modes offered on one end of a path. The driver scans out the source mode's size and never reads the target
-// mode, so it neither stretches nor centers: a mode pinned on the other end allows exactly one mode, of its size.
-// Without one, every mode is offered.
-NTSTATUS VioGpuDod::GetOfferedModes(_In_opt_ CONST D3DKMDT_2DREGION *pPinnedSize,
+// The modes offered on one end of a path to ScanoutId. The driver scans out the source mode's size and never reads the
+// target mode, so it neither stretches nor centers: a mode pinned on the other end allows exactly one mode, of its
+// size. Without one, every mode is offered.
+NTSTATUS VioGpuDod::GetOfferedModes(UINT ScanoutId,
+                                    _In_opt_ CONST D3DKMDT_2DREGION *pPinnedSize,
                                     VIOGPU_DISP_MODE (&Modes)[VIOGPU_MAX_MODES + 1],
                                     _Out_ PULONG pCount)
 {
@@ -934,7 +935,7 @@ NTSTATUS VioGpuDod::GetOfferedModes(_In_opt_ CONST D3DKMDT_2DREGION *pPinnedSize
 
     if (pPinnedSize == NULL)
     {
-        *pCount = m_pHWDevice->GetController()->GetModes(0, Modes);
+        *pCount = m_pHWDevice->GetController()->GetModes(ScanoutId, Modes);
         return STATUS_SUCCESS;
     }
 
@@ -1006,6 +1007,7 @@ NTSTATUS VioGpuDod::GetPinnedTargetSize(D3DKMDT_HVIDPN hVidPn,
 
 NTSTATUS VioGpuDod::AddSingleSourceMode(_In_ CONST DXGK_VIDPNSOURCEMODESET_INTERFACE *pVidPnSourceModeSetInterface,
                                         D3DKMDT_HVIDPNSOURCEMODESET hVidPnSourceModeSet,
+                                        UINT ScanoutId,
                                         _In_opt_ CONST D3DKMDT_2DREGION *pPinnedTargetSize)
 {
     PAGED_CODE();
@@ -1014,7 +1016,7 @@ NTSTATUS VioGpuDod::AddSingleSourceMode(_In_ CONST DXGK_VIDPNSOURCEMODESET_INTER
 
     VIOGPU_DISP_MODE modes[VIOGPU_MAX_MODES + 1];
     ULONG count = 0;
-    NTSTATUS Status = GetOfferedModes(pPinnedTargetSize, modes, &count);
+    NTSTATUS Status = GetOfferedModes(ScanoutId, pPinnedTargetSize, modes, &count);
     if (!NT_SUCCESS(Status))
     {
         return Status;
@@ -1087,6 +1089,7 @@ VOID VioGpuDod::BuildVideoSignalInfo(D3DKMDT_VIDEO_SIGNAL_INFO *pVideoSignalInfo
 
 NTSTATUS VioGpuDod::AddSingleTargetMode(_In_ CONST DXGK_VIDPNTARGETMODESET_INTERFACE *pVidPnTargetModeSetInterface,
                                         D3DKMDT_HVIDPNTARGETMODESET hVidPnTargetModeSet,
+                                        UINT ScanoutId,
                                         _In_opt_ CONST D3DKMDT_2DREGION *pPinnedSourceSize)
 {
     PAGED_CODE();
@@ -1095,12 +1098,12 @@ NTSTATUS VioGpuDod::AddSingleTargetMode(_In_ CONST DXGK_VIDPNTARGETMODESET_INTER
 
     D3DKMDT_VIDPN_TARGET_MODE *pVidPnTargetModeInfo = NULL;
 
-    // With a pinned source mode the one target mode of its size is preferred, otherwise the size the host asks for,
-    // once.
+    // With a pinned source mode the one target mode of its size is preferred, otherwise the size the host asks for on
+    // the scanout, once.
     VIOGPU_DISP_MODE modes[VIOGPU_MAX_MODES + 1];
     ULONG count = 0;
-    NTSTATUS Status = GetOfferedModes(pPinnedSourceSize, modes, &count);
-    VIOGPU_DISP_MODE preferred = m_pHWDevice->GetController()->GetCustomMode(0);
+    NTSTATUS Status = GetOfferedModes(ScanoutId, pPinnedSourceSize, modes, &count);
+    VIOGPU_DISP_MODE preferred = m_pHWDevice->GetController()->GetCustomMode(ScanoutId);
     BOOLEAN PreferredAdded = FALSE;
     if (!NT_SUCCESS(Status))
     {
@@ -1216,10 +1219,11 @@ NTSTATUS VioGpuDod::AddSingleMonitorMode(_In_ CONST DXGKARG_RECOMMENDMONITORMODE
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
+    UINT ScanoutId = pRecommendMonitorModes->VideoPresentTargetId;
     VIOGPU_DISP_MODE modes[VIOGPU_MAX_MODES + 1];
-    ULONG count = m_pHWDevice->GetController()->GetModes(0, modes);
-    // The size the host asks for is the monitor's one preferred mode.
-    VIOGPU_DISP_MODE preferred = m_pHWDevice->GetController()->GetCustomMode(0);
+    ULONG count = m_pHWDevice->GetController()->GetModes(ScanoutId, modes);
+    // The size the host asks for on the scanout is the monitor's one preferred mode.
+    VIOGPU_DISP_MODE preferred = m_pHWDevice->GetController()->GetCustomMode(ScanoutId);
 
     NTSTATUS Status = AddMonitorMode(pRecommendMonitorModes->hMonitorSourceModeSet,
                                      pRecommendMonitorModes->pMonitorSourceModeSetInterface,
@@ -1277,7 +1281,7 @@ VOID VioGpuDod::AddMissingMonitorModes(D3DDDI_VIDEO_PRESENT_TARGET_ID TargetId)
 
     VIOGPU_DISP_MODE modes[VIOGPU_MAX_MODES + 1];
     BOOLEAN listed[VIOGPU_MAX_MODES + 1] = {};
-    ULONG count = m_pHWDevice->GetController()->GetModes(0, modes);
+    ULONG count = m_pHWDevice->GetController()->GetModes(TargetId, modes);
     ULONG inSet = 0;
 
     CONST D3DKMDT_MONITOR_SOURCE_MODE *pMode = NULL;
@@ -1457,6 +1461,7 @@ NTSTATUS VioGpuDod::EnumVidPnCofuncModality(_In_ CONST DXGKARG_ENUMVIDPNCOFUNCMO
                 {
                     Status = AddSingleSourceMode(pVidPnSourceModeSetInterface,
                                                  hVidPnSourceModeSet,
+                                                 pVidPnPresentPath->VidPnTargetId,
                                                  TargetPinned ? &PinnedTargetSize : NULL);
                 }
 
@@ -1558,6 +1563,7 @@ NTSTATUS VioGpuDod::EnumVidPnCofuncModality(_In_ CONST DXGKARG_ENUMVIDPNCOFUNCMO
 
                 Status = AddSingleTargetMode(pVidPnTargetModeSetInterface,
                                              hVidPnTargetModeSet,
+                                             pVidPnPresentPath->VidPnTargetId,
                                              pVidPnPinnedSourceModeInfo != NULL ? &pVidPnPinnedSourceModeInfo->Format.Graphics.PrimSurfSize
                                                                                 : NULL);
 

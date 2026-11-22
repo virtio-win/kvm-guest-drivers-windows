@@ -191,6 +191,7 @@ class VioGpuDisplayController : public VioGpuComponent
     BOOLEAN IsConnected(UINT ScanoutId);
     ULONG GetConnectedMask(void);
     NTSTATUS CopyEdid(UINT ScanoutId, ULONG Offset, PVOID Buffer, PULONG Length);
+    // A scanout the driver does not present has no modes, and 1024x768 as its custom mode.
     ULONG GetModes(UINT ScanoutId, VIOGPU_DISP_MODE (&Modes)[VIOGPU_MAX_MODES + 1]);
     VIOGPU_DISP_MODE GetCustomMode(UINT ScanoutId);
     NTSTATUS GetEscapeMode(_Out_ PVIOGPU_DISP_MODE pMode);
