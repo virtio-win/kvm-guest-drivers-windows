@@ -42,7 +42,8 @@ extern "C"
 
 #include <initguid.h>
 
-#include <ntddk.h>
+// ntifs.h: ntddk.h, plus ZwWaitForSingleObject.
+#include <ntifs.h>
 
 #ifndef FAR
 #define FAR

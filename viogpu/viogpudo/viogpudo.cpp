@@ -64,8 +64,7 @@ VioGpuDod::~VioGpuDod(void)
 {
     PAGED_CODE();
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s 0x%p\n", __FUNCTION__, m_pHWDevice));
-    delete m_pHWDevice;
-    m_pHWDevice = NULL;
+    DeleteAdapter();
 }
 
 BOOLEAN VioGpuDod::CheckHardware()
@@ -106,6 +105,22 @@ NTSTATUS VioGpuDod::StartDevice(_In_ DXGK_START_INFO *pDxgkStartInfo,
                                 _In_ DXGKRNL_INTERFACE *pDxgkInterface,
                                 _Out_ ULONG *pNumberOfViews,
                                 _Out_ ULONG *pNumberOfChildren)
+{
+    PAGED_CODE();
+
+    NTSTATUS Status = StartAdapter(pDxgkStartInfo, pDxgkInterface, pNumberOfViews, pNumberOfChildren);
+    if (!NT_SUCCESS(Status))
+    {
+        // The adapter a failed start made goes: the device may be started again on this context.
+        DeleteAdapter();
+    }
+    return Status;
+}
+
+NTSTATUS VioGpuDod::StartAdapter(_In_ DXGK_START_INFO *pDxgkStartInfo,
+                                 _In_ DXGKRNL_INTERFACE *pDxgkInterface,
+                                 _Out_ ULONG *pNumberOfViews,
+                                 _Out_ ULONG *pNumberOfChildren)
 {
     PAGED_CODE();
 
@@ -240,8 +255,65 @@ NTSTATUS VioGpuDod::StopDevice(VOID)
 {
     PAGED_CODE();
 
+    // Marked first: the DDIs that can still run check it before they use the adapter.
     m_Flags.DriverStarted = FALSE;
+
+    // The device may be started again on this context, with other resources: what StartDevice set up goes, and the
+    // device is reset.
+    DeleteAdapter();
     return STATUS_SUCCESS;
+}
+
+// Shuts the adapter down and frees it. It shuts down while the ISR and the DPC still reach it, which it needs until
+// the device is reset; the shutdown flushes the DPCs, and an ISR with handling off queues none. Then the ISR stops
+// reaching it, under the interrupt lock of every message Windows granted, so that no ISR still holds it when it is
+// freed.
+void VioGpuDod::DeleteAdapter(void)
+{
+    PAGED_CODE();
+
+    // The frame buffer and its BAR mapping go with the adapter.
+    m_CurrentMode.Flags.FrameBufferIsActive = FALSE;
+    m_CurrentMode.FrameBuffer = NULL;
+    m_CurrentMode.RamFrameBuffer = NULL;
+
+    VioGpuAdapter *pHWDevice = m_pHWDevice;
+    if (pHWDevice == NULL)
+    {
+        return;
+    }
+    pHWDevice->Shutdown();
+
+    ULONG Messages = pHWDevice->GetMessageCount();
+    ULONG Synchronized = 0;
+    for (ULONG Message = 0; Message < Messages; Message++)
+    {
+        BOOLEAN Ret = FALSE;
+        if (NT_SUCCESS(m_DxgkInterface.DxgkCbSynchronizeExecution(m_DxgkInterface.DeviceHandle,
+                                                                  DetachAdapterCb,
+                                                                  this,
+                                                                  Message,
+                                                                  &Ret)))
+        {
+            Synchronized++;
+        }
+    }
+    if (Synchronized == 0)
+    {
+        // Without a connected interrupt no ISR runs; with one, an ISR may still hold the adapter.
+        DbgPrint(TRACE_LEVEL_FATAL, ("%s: no message synchronized before the adapter goes\n", __FUNCTION__));
+        DetachAdapterCb(this);
+    }
+    else if (Synchronized != Messages)
+    {
+        // An ISR on a message not synchronized may still hold the adapter.
+        DbgPrint(TRACE_LEVEL_FATAL,
+                 ("%s: %lu of %lu message(s) synchronized before the adapter goes\n",
+                  __FUNCTION__,
+                  Synchronized,
+                  Messages));
+    }
+    delete pHWDevice;
 }
 
 NTSTATUS VioGpuDod::DispatchIoRequest(_In_ ULONG VidPnSourceId, _In_ VIDEO_REQUEST_PACKET *pVideoRequestPacket)
@@ -1927,16 +1999,28 @@ VOID VioGpuDod::DpcRoutine(VOID)
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
+// Under the interrupt lock, or with no interrupt connected: the ISR reaches no adapter from here on.
+BOOLEAN VioGpuDod::DetachAdapterCb(PVOID Context)
+{
+    WritePointerNoFence((PVOID *)&reinterpret_cast<VioGpuDod *>(Context)->m_pHWDevice, NULL);
+    return TRUE;
+}
+
 BOOLEAN VioGpuDod::InterruptRoutine(_In_ ULONG MessageNumber)
 {
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--> %s\n", __FUNCTION__));
-    return m_pHWDevice ? m_pHWDevice->InterruptRoutine(&m_DxgkInterface, MessageNumber) : FALSE;
+    // Read once: DeleteAdapter clears it under one message's lock at a time.
+    VioGpuAdapter *pHWDevice = (VioGpuAdapter *)ReadPointerNoFence((PVOID *)&m_pHWDevice);
+    return pHWDevice ? pHWDevice->InterruptRoutine(&m_DxgkInterface, MessageNumber) : FALSE;
 }
 
 VOID VioGpuDod::ResetDevice(VOID)
 {
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<---> %s\n", __FUNCTION__));
-    m_pHWDevice->ResetDevice();
+    if (m_pHWDevice != NULL)
+    {
+        m_pHWDevice->ResetDevice();
+    }
 }
 
 NTSTATUS VioGpuDod::SystemDisplayEnable(_In_ D3DDDI_VIDEO_PRESENT_TARGET_ID TargetId,
@@ -1957,7 +2041,10 @@ NTSTATUS VioGpuDod::SystemDisplayEnable(_In_ D3DDDI_VIDEO_PRESENT_TARGET_ID Targ
     }
 
     m_CurrentMode.Flags.FrameBufferIsActive = FALSE;
-    m_pHWDevice->ResetToVgaMode();
+    if (m_pHWDevice != NULL)
+    {
+        m_pHWDevice->ResetToVgaMode();
+    }
 
     if (m_CurrentMode.RamFrameBuffer == nullptr)
     {
@@ -2332,33 +2419,116 @@ VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod)
     m_PendingWorks = 0;
     m_InterruptsOn = FALSE;
     m_DroppedWorks = 0;
-    m_bStopWorkThread = FALSE;
-    m_pWorkThread = NULL;
+    // Closed until VioGpuAdapterInit opens the device.
+    m_bDeviceOpen = FALSE;
+    m_HostDisplays.Init(this);
+    VioGpuComponent *Components[] = {&m_HostDisplays};
+    C_ASSERT(ARRAYSIZE(Components) <= VIOGPU_MAX_COMPONENTS);
+    for (m_ComponentCount = 0; m_ComponentCount < ARRAYSIZE(Components); ++m_ComponentCount)
+    {
+        m_Components[m_ComponentCount] = Components[m_ComponentCount];
+    }
+    m_ComponentsStarted = 0;
+    m_bComponentsOpen = FALSE;
     m_ResolutionEvent = NULL;
     m_ResolutionEventHandle = NULL;
     m_u64HostFeatures = 0;
     m_u64GuestFeatures = 0;
     m_u32NumCapsets = 0;
     m_u32NumScanouts = 0;
-
-    KeInitializeEvent(&m_ConfigUpdateEvent, SynchronizationEvent, FALSE);
 }
 
 VioGpuAdapter::~VioGpuAdapter(void)
 {
     PAGED_CODE();
     DbgPrint(TRACE_LEVEL_FATAL, ("---> %s 0x%p\n", __FUNCTION__, this));
-    CloseResolutionEvent();
-    DestroyCursor();
-    DestroyFrameBufferObj(TRUE, FALSE);
-    VioGpuAdapterClose();
-    HWClose();
+    Shutdown();
     delete[] m_ModeInfo;
     m_ModeInfo = NULL;
     m_CurrentModeIndex = 0;
     m_ModeCount = 0;
     m_Id = 0;
     DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s\n", __FUNCTION__));
+}
+
+// Closes the components and what the adapter keeps open with the device, resets the device and stops the components;
+// the destructor frees the rest. The ISR and the DPC must still reach the adapter: the
+// config-change thread and the teardown commands wait for the device's answers, and an INTx line has to be
+// acknowledged until the device is reset. It may run more than once.
+void VioGpuAdapter::Shutdown(void)
+{
+    PAGED_CODE();
+    // The config-change thread uses the device, the mode table and the resolution event: it pauses first, and stops
+    // once the device is reset.
+    CloseComponents();
+    CloseResolutionEvent();
+    DestroyCursor();
+    DestroyFrameBufferObj(TRUE, FALSE);
+    VioGpuAdapterClose();
+    StopComponents();
+    HWClose();
+}
+
+// Starts the components, in list order. When one fails, those started before it are stopped.
+NTSTATUS VioGpuAdapter::StartComponents(void)
+{
+    PAGED_CODE();
+    for (; m_ComponentsStarted < m_ComponentCount; ++m_ComponentsStarted)
+    {
+        NTSTATUS status = m_Components[m_ComponentsStarted]->Start();
+        if (!NT_SUCCESS(status))
+        {
+            DbgPrint(TRACE_LEVEL_FATAL,
+                     ("%s component %d failed to start, 0x%x\n", __FUNCTION__, m_ComponentsStarted, status));
+            StopComponents();
+            return status;
+        }
+    }
+    return STATUS_SUCCESS;
+}
+
+// Opens the started components, in list order, once the device is open.
+void VioGpuAdapter::OpenComponents(void)
+{
+    PAGED_CODE();
+    ASSERT(m_bDeviceOpen);
+    // A D0 while the device is open already finds them open: a second Open would re-arm what a component holds, such
+    // as a rundown its thread may hold.
+    if (m_bComponentsOpen)
+    {
+        return;
+    }
+    for (UINT i = 0; i < m_ComponentsStarted; ++i)
+    {
+        m_Components[i]->Open();
+    }
+    m_bComponentsOpen = TRUE;
+}
+
+// Closes the components, in the opposite order, before the device is reset. Nothing when they are not open.
+void VioGpuAdapter::CloseComponents(void)
+{
+    PAGED_CODE();
+    if (!m_bComponentsOpen)
+    {
+        return;
+    }
+    m_bComponentsOpen = FALSE;
+    for (UINT i = m_ComponentsStarted; i-- > 0;)
+    {
+        m_Components[i]->Close();
+    }
+}
+
+// Stops the started components, in the opposite order, when they are not open.
+void VioGpuAdapter::StopComponents(void)
+{
+    PAGED_CODE();
+    ASSERT(!m_bComponentsOpen);
+    while (m_ComponentsStarted > 0)
+    {
+        m_Components[--m_ComponentsStarted]->Stop();
+    }
 }
 
 NTSTATUS VioGpuAdapter::SetCurrentMode(ULONG Mode, CURRENT_MODE *pCurrentMode)
@@ -2399,7 +2569,7 @@ NTSTATUS VioGpuAdapter::VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION *pDispInfo)
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
     UNREFERENCED_PARAMETER(pDispInfo);
-    if (m_pVioGpuDod->IsHardwareInit())
+    if (m_bDeviceOpen)
     {
         DbgPrint(TRACE_LEVEL_FATAL, ("Already Initialized\n"));
         VioGpuDbgBreak();
@@ -2420,6 +2590,7 @@ NTSTATUS VioGpuAdapter::VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION *pDispInfo)
         struct virtqueue *vqs[2];
         if (!AckFeature(VIRTIO_F_VERSION_1))
         {
+            DbgPrint(TRACE_LEVEL_FATAL, ("%s the device does not offer VIRTIO_F_VERSION_1\n", __FUNCTION__));
             status = STATUS_UNSUCCESSFUL;
             break;
         }
@@ -2466,10 +2637,16 @@ NTSTATUS VioGpuAdapter::VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION *pDispInfo)
         // InterruptsOnCb clears m_PendingWorks.
         SwitchInterrupts(TRUE);
         virtio_device_ready(&m_VioDev);
-        m_pVioGpuDod->SetHardwareInit(TRUE);
+        m_bDeviceOpen = TRUE;
     }
     else
     {
+        DbgPrint(TRACE_LEVEL_FATAL, ("%s failed with 0x%x: the device is marked failed\n", __FUNCTION__, status));
+        // What the open made goes, so that the next D0 starts over: the queues, which no interrupt reached, and the
+        // rings, if they were found.
+        m_CtrlQueue.Close();
+        m_CursorQueue.Close();
+        virtio_delete_queues(&m_VioDev);
         virtio_add_status(&m_VioDev, VIRTIO_CONFIG_S_FAILED);
         VioGpuDbgBreak();
     }
@@ -2493,13 +2670,24 @@ NTSTATUS VioGpuAdapter::SetPowerState(DXGK_DEVICE_INFO *pDeviceInfo,
         case PowerDeviceUnspecified:
         case PowerDeviceD0:
             {
-                VioGpuAdapterInit(&pCurrentMode->DispInfo);
+                // DxgkDdiSetPowerState must not fail, so a device that does not come back only stays closed, and so
+                // do its components.
+                NTSTATUS status = VioGpuAdapterInit(&pCurrentMode->DispInfo);
+                if (NT_SUCCESS(status))
+                {
+                    OpenComponents();
+                }
+                else
+                {
+                    DbgPrint(TRACE_LEVEL_FATAL, ("%s the device stays closed at D0, 0x%x\n", __FUNCTION__, status));
+                }
             }
             break;
         case PowerDeviceD1:
         case PowerDeviceD2:
         case PowerDeviceD3:
             {
+                CloseComponents();
                 DestroyFrameBufferObj(TRUE, FALSE);
                 VioGpuAdapterClose();
                 pCurrentMode->Flags.FrameBufferIsActive = FALSE;
@@ -2625,7 +2813,6 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
     PAGED_CODE();
 
     NTSTATUS status = STATUS_SUCCESS;
-    HANDLE threadHandle = 0;
     DbgPrint(TRACE_LEVEL_INFORMATION, ("---> %s\n", __FUNCTION__));
     UINT size = 0;
     do
@@ -2676,29 +2863,12 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
         return status;
     }
 
-    status = PsCreateSystemThread(&threadHandle,
-                                  (ACCESS_MASK)0,
-                                  NULL,
-                                  (HANDLE)0,
-                                  NULL,
-                                  VioGpuAdapter::ThreadWork,
-                                  this);
-
-    if (!NT_SUCCESS(status))
-    {
-        DbgPrint(TRACE_LEVEL_FATAL, ("%s failed to create system thread, status %x\n", __FUNCTION__, status));
-        VioGpuDbgBreak();
-        return status;
-    }
-    ObReferenceObjectByHandle(threadHandle, THREAD_ALL_ACCESS, NULL, KernelMode, (PVOID *)(&m_pWorkThread), NULL);
-
-    ZwClose(threadHandle);
-
     status = BuildModeList(pDispInfo);
     if (!NT_SUCCESS(status))
     {
         DbgPrint(TRACE_LEVEL_FATAL, ("%s GetModeList failed with %x\n", __FUNCTION__, status));
         VioGpuDbgBreak();
+        return status;
     }
 
     PHYSICAL_ADDRESS fb_pa = m_PciResources.GetPciBar(0)->GetPA();
@@ -2747,6 +2917,12 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
         return status;
     }
 
+    // The components start once the mode table and the segments exist.
+    status = StartComponents();
+    if (NT_SUCCESS(status))
+    {
+        OpenComponents();
+    }
     return status;
 }
 
@@ -2754,21 +2930,6 @@ NTSTATUS VioGpuAdapter::HWClose(void)
 {
     PAGED_CODE();
     DbgPrint(TRACE_LEVEL_INFORMATION, ("---> %s\n", __FUNCTION__));
-    m_pVioGpuDod->SetHardwareInit(FALSE);
-
-    LARGE_INTEGER timeout = {0};
-    timeout.QuadPart = Int32x32To64(1000, -10000);
-
-    m_bStopWorkThread = TRUE;
-    KeSetEvent(&m_ConfigUpdateEvent, IO_NO_INCREMENT, FALSE);
-
-    if (KeWaitForSingleObject(m_pWorkThread, Executive, KernelMode, FALSE, &timeout) == STATUS_TIMEOUT)
-    {
-        DbgPrint(TRACE_LEVEL_FATAL, ("---> Failed to exit the worker thread\n"));
-        VioGpuDbgBreak();
-    }
-
-    ObDereferenceObject(m_pWorkThread);
 
     m_FrameSegment.Close();
     m_CursorSegment.Close();
@@ -3591,6 +3752,7 @@ NTSTATUS VioGpuAdapter::BuildModeList(DXGK_DISPLAY_INFORMATION *pDispInfo)
     if (!m_ModeInfo)
     {
         Status = STATUS_NO_MEMORY;
+        m_ModeCount = 0;
         DbgPrint(TRACE_LEVEL_ERROR, ("VioGpuAdapter::GetModeList failed to allocate m_ModeInfo memory\n"));
         return Status;
     }
@@ -3632,6 +3794,10 @@ NTSTATUS VioGpuAdapter::BuildModeList(DXGK_DISPLAY_INFORMATION *pDispInfo)
 
     DbgPrint(TRACE_LEVEL_INFORMATION, ("ModeCount filtered %d\n", m_ModeCount));
 
+    // The read at start covers a display event the host raised before the driver started: it is cleared first, so that
+    // the config-change thread, which the first open wakes, does not take the host size over the persistent mode.
+    UINT32 events_clear = VIRTIO_GPU_EVENT_DISPLAY;
+    virtio_set_config(&m_VioDev, FIELD_OFFSET(GPU_CONFIG, events_clear), &events_clear, sizeof(events_clear));
     GetDisplayInfo();
 
     if (m_pVioGpuDod->IsPersistentDispMode0Set())
@@ -3720,9 +3886,9 @@ void VioGpuAdapter::VioGpuAdapterClose()
 {
     DbgPrint(TRACE_LEVEL_FATAL, ("---> %s\n", __FUNCTION__));
 
-    if (m_pVioGpuDod->IsHardwareInit())
+    if (m_bDeviceOpen)
     {
-        m_pVioGpuDod->SetHardwareInit(FALSE);
+        m_bDeviceOpen = FALSE;
         m_CtrlQueue.DisableInterrupt();
         m_CursorQueue.DisableInterrupt();
         // Reset the device before switching interrupt handling off: after the reset it raises nothing, and it lowers
@@ -3916,30 +4082,6 @@ BOOLEAN VioGpuAdapter::InterruptRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface, 
     return serviced;
 }
 
-void VioGpuAdapter::ThreadWork(_In_ PVOID Context)
-{
-    VioGpuAdapter *pdev = reinterpret_cast<VioGpuAdapter *>(Context);
-    pdev->ThreadWorkRoutine();
-}
-
-void VioGpuAdapter::ThreadWorkRoutine(void)
-{
-    KeSetPriorityThread(KeGetCurrentThread(), LOW_REALTIME_PRIORITY);
-
-    for (;;)
-    {
-        KeWaitForSingleObject(&m_ConfigUpdateEvent, Executive, KernelMode, FALSE, NULL);
-
-        if (m_bStopWorkThread)
-        {
-            PsTerminateSystemThread(STATUS_SUCCESS);
-            break;
-        }
-        ConfigChanged();
-        NotifyResolutionEvent();
-    }
-}
-
 void VioGpuAdapter::ConfigChanged(void)
 {
     DbgPrint(TRACE_LEVEL_FATAL, ("<--> %s\n", __FUNCTION__));
@@ -3978,7 +4120,7 @@ VOID VioGpuAdapter::DpcRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface)
         if (reason & ISR_REASON_CHANGE)
         {
             DbgPrint(TRACE_LEVEL_FATAL, ("---> %s ConfigChanged\n", __FUNCTION__));
-            KeSetEvent(&m_ConfigUpdateEvent, IO_NO_INCREMENT, FALSE);
+            m_HostDisplays.Post();
         }
     }
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));

@@ -32,6 +32,7 @@
 #include "viogpu.h"
 #include "viogpu_queue.h"
 #include "viogpu_commands.h"
+#include "viogpu_hostdisplays.h"
 
 #pragma pack(push)
 #pragma pack(1)
@@ -39,13 +40,12 @@
 typedef struct
 {
     UINT DriverStarted : 1;
-    UINT HardwareInit : 1;
     UINT PointerEnabled : 1;
     UINT VgaDevice : 1;
     UINT FlexResolution : 1;
     UINT UsePhysicalMemory : 1;
     UINT UsePresentProgress : 1;
-    UINT Unused : 25;
+    UINT Unused : 26;
 } DRIVER_STATUS_FLAG;
 
 #pragma pack(pop)
@@ -73,11 +73,15 @@ typedef struct _CURRENT_MODE
 
 class VioGpuDod;
 
+// The most components an adapter has.
+#define VIOGPU_MAX_COMPONENTS 8
+
 class VioGpuAdapter : IVioGpuPCI
 {
   public:
     VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod);
     ~VioGpuAdapter(void);
+    void Shutdown(void);
     NTSTATUS SetCurrentMode(ULONG Mode, CURRENT_MODE *pCurrentMode);
     ULONG GetModeCount(void)
     {
@@ -163,6 +167,9 @@ class VioGpuAdapter : IVioGpuPCI
     }
     PBYTE GetEdidData(void);
     PBYTE GetCTA861Data(void);
+    // For the config-change thread (VioGpuHostDisplays), while it may use the device.
+    void ConfigChanged(void);
+    VOID NotifyResolutionEvent(VOID);
 
   protected:
   private:
@@ -186,13 +193,13 @@ class VioGpuAdapter : IVioGpuPCI
     void DestroyCursor(void);
     BOOLEAN GpuObjectAttach(UINT res_id, VioGpuObj *obj);
     void UnrefResource(UINT res_id);
-    void static ThreadWork(_In_ PVOID Context);
-    void ThreadWorkRoutine(void);
-    void ConfigChanged(void);
     NTSTATUS VirtIoDeviceInit(void);
     VOID CreateResolutionEvent(VOID);
-    VOID NotifyResolutionEvent(VOID);
     VOID CloseResolutionEvent(VOID);
+    NTSTATUS StartComponents(void);
+    void OpenComponents(void);
+    void CloseComponents(void);
+    void StopComponents(void);
 
   private:
     VioGpuDod *m_pVioGpuDod;
@@ -241,12 +248,19 @@ class VioGpuAdapter : IVioGpuPCI
     // The causes still pending when interrupts were last switched on, which belonged to the open before: logged by
     // SwitchInterrupts.
     ULONG m_DroppedWorks;
+    // The device is open between VioGpuAdapterInit and VioGpuAdapterClose, which run in level 3 DDIs,
+    // DxgkDdiStopDeviceAndReleasePostDisplayOwnership or the bugcheck flow.
+    BOOLEAN m_bDeviceOpen;
     void SwitchInterrupts(BOOLEAN On);
     static BOOLEAN InterruptsOnCb(PVOID Context);
     static BOOLEAN InterruptsOffCb(PVOID Context);
-    KEVENT m_ConfigUpdateEvent;
-    PETHREAD m_pWorkThread;
-    BOOLEAN m_bStopWorkThread;
+    VioGpuHostDisplays m_HostDisplays;
+    // The components, in the order they open (VioGpuComponent): how many there are, how many of them started, and
+    // whether they are open.
+    VioGpuComponent *m_Components[VIOGPU_MAX_COMPONENTS];
+    UINT m_ComponentCount;
+    UINT m_ComponentsStarted;
+    BOOLEAN m_bComponentsOpen;
     PKEVENT m_ResolutionEvent;
     HANDLE m_ResolutionEventHandle;
 };
@@ -267,6 +281,10 @@ class VioGpuDod
     DXGK_DISPLAY_INFORMATION m_SystemDisplayInfo;
 
     DXGKARG_SETPOINTERSHAPE m_PointerShape;
+    // The adapter, from the StartDevice that makes it (the ISR and the DPC reach it while it starts) until StopDevice
+    // or a failed StartDevice frees it; NULL otherwise. The DDIs driver.cpp gates on IsDriverActive use it only while
+    // DriverStarted is set; QueryAdapterInfo, the ISR, the DPC, ResetDevice and SystemDisplayEnable, which dxgkrnl may
+    // call on a stopped device, check it.
     VioGpuAdapter *m_pHWDevice;
 
     USHORT m_PersistentDispMode0Width;
@@ -280,14 +298,6 @@ class VioGpuDod
     BOOLEAN IsDriverActive() const
     {
         return m_Flags.DriverStarted;
-    }
-    BOOLEAN IsHardwareInit() const
-    {
-        return m_Flags.HardwareInit;
-    }
-    void SetHardwareInit(BOOLEAN init)
-    {
-        m_Flags.HardwareInit = init;
     }
     BOOLEAN IsPointerEnabled() const
     {
@@ -404,6 +414,12 @@ class VioGpuDod
     }
 
   private:
+    void DeleteAdapter(void);
+    static BOOLEAN DetachAdapterCb(PVOID Context);
+    NTSTATUS StartAdapter(_In_ DXGK_START_INFO *pDxgkStartInfo,
+                          _In_ DXGKRNL_INTERFACE *pDxgkInterface,
+                          _Out_ ULONG *pNumberOfViews,
+                          _Out_ ULONG *pNumberOfChildren);
     BOOLEAN CheckHardware();
     NTSTATUS WriteRegistryString(_In_ HANDLE DevInstRegKeyHandle, _In_ PCWSTR pszwValueName, _In_ PCSTR pszValue);
     NTSTATUS WriteRegistryDWORD(_In_ HANDLE DevInstRegKeyHandle, _In_ PCWSTR pszwValueName, _In_ PDWORD pdwValue);

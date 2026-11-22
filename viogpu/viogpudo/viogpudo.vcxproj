@@ -264,6 +264,7 @@
     <ClCompile Include="..\common\viogpu_commands.cpp" />
     <ClCompile Include="driver.cpp" />
     <ClCompile Include="viogpudo.cpp" />
+    <ClCompile Include="viogpu_hostdisplays.cpp" />
     <ClCompile Include="..\common\baseobj.cpp" />
     <ClCompile Include="..\common\bitops.cpp" />
   </ItemGroup>

@@ -1078,7 +1078,11 @@ void VioGpuMemSegment::Close(void)
     }
     else
     {
-        UnmapFrameBuffer(m_pVAddr, (ULONG)m_Size);
+        // A segment closed before has nothing mapped: UnmapFrameBuffer would report (NULL, m_Size) as an error.
+        if (m_pVAddr != NULL)
+        {
+            UnmapFrameBuffer(m_pVAddr, (ULONG)m_Size);
+        }
         m_bMapped = FALSE;
     }
     m_pVAddr = NULL;
