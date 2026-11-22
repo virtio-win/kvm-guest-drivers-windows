@@ -36,6 +36,8 @@
 #include "viogpu_commands.h"
 #include "viogpu_resources.h"
 #include "viogpu_display.h"
+#include "viogpu_cursor.h"
+#include "viogpu_helper.h"
 #include "viogpu_hostdisplays.h"
 
 #pragma pack(push)
@@ -85,6 +87,14 @@ class VioGpuAdapter : IVioGpuPCI
     {
         return &m_Resources;
     }
+    VioGpuCursor *GetCursor(void)
+    {
+        return &m_Cursor;
+    }
+    VioGpuHelperChannel *GetHelperChannel(void)
+    {
+        return &m_HelperChannel;
+    }
     VioGpuCommands *GetCommands(void)
     {
         return &m_Commands;
@@ -100,17 +110,11 @@ class VioGpuAdapter : IVioGpuPCI
     UINT32 ReadConfigEvents(void);
     void ClearConfigEvents(UINT32 Events);
     BOOLEAN ModeFits(ULONG Width, ULONG Height);
-    VOID NotifyResolutionEvent(VOID);
     NTSTATUS SetPowerState(DXGK_DEVICE_INFO *pDeviceInfo, DEVICE_POWER_STATE DevicePowerState);
     NTSTATUS HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMATION *pDispInfo);
     BOOLEAN InterruptRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface, _In_ ULONG MessageNumber);
     VOID DpcRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface);
     VOID ResetDevice(VOID);
-    NTSTATUS SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape,
-                             _In_ CONST VIOGPU_SOURCE_VIEW *pSource);
-    NTSTATUS SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION *pSetPointerPosition,
-                                _In_ CONST VIOGPU_SOURCE_VIEW *pSource);
-    NTSTATUS Escape(_In_ CONST DXGKARG_ESCAPE *pEscap);
     CPciResources *GetPciResources(void)
     {
         return &m_PciResources;
@@ -152,12 +156,7 @@ class VioGpuAdapter : IVioGpuPCI
     void VioGpuAdapterClose(void);
     void InitDisplay(DXGK_DISPLAY_INFORMATION *pDispInfo);
     BOOLEAN AckFeature(UINT64 Feature);
-    BOOLEAN CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape);
-    BOOLEAN UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape, _In_ CONST VIOGPU_SOURCE_VIEW *pSource);
-    void DestroyCursor(void);
     NTSTATUS VirtIoDeviceInit(void);
-    VOID CreateResolutionEvent(VOID);
-    VOID CloseResolutionEvent(VOID);
     NTSTATUS StartComponents(void);
     void OpenComponents(void);
     void CloseComponents(void);
@@ -179,20 +178,6 @@ class VioGpuAdapter : IVioGpuPCI
     VioGpuCommands m_Commands;
     VioGpuBuf m_GpuBuf;
     VioGpuResources m_Resources;
-    VioGpuObj *m_pCursorBuf;
-    // Serializes SetPointerShape against SetPointerPosition: dxgkrnl calls the two pointer DDIs from
-    // different threads without synchronizing them. A concurrent MOVE_CURSOR can then interleave with the
-    // two-step shape update (control-queue image upload followed by the cursor-queue UPDATE_CURSOR) and the
-    // commands reach the device out of order, leaving a stale or stuck cursor. Both DDIs run at
-    // PASSIVE_LEVEL, so a guarded mutex is legal here and may be held across the upload.
-    KGUARDED_MUTEX m_CursorMutex;
-    // Pointer visibility, guarded by m_CursorMutex. Windows hides the hardware cursor (Flags.Visible = 0)
-    // whenever it draws the pointer itself, for instance while DWM composes it into the primary during a
-    // window move or resize loop, and shows it again afterwards.
-    BOOLEAN m_bCursorHidden;
-    // Hot spot of the current shape, replayed by the UPDATE_CURSOR that re-attaches the sprite after a hide.
-    UINT m_CursorHotX;
-    UINT m_CursorHotY;
     volatile ULONG m_PendingWorks;
     // The ISR and the DPC use the device and the queues only while this is set. It changes only in
     // SwitchInterrupts, under the interrupt lock of each message whenever one can be taken, so an ISR never touches a
@@ -208,6 +193,8 @@ class VioGpuAdapter : IVioGpuPCI
     void SwitchInterrupts(BOOLEAN On);
     static BOOLEAN InterruptsOnCb(PVOID Context);
     static BOOLEAN InterruptsOffCb(PVOID Context);
+    VioGpuCursor m_Cursor;
+    VioGpuHelperChannel m_HelperChannel;
     VioGpuHostDisplays m_HostDisplays;
     // The components, in the order they open (VioGpuComponent): how many there are, how many of them started, and
     // whether they are open.
@@ -215,8 +202,6 @@ class VioGpuAdapter : IVioGpuPCI
     UINT m_ComponentCount;
     UINT m_ComponentsStarted;
     BOOLEAN m_bComponentsOpen;
-    PKEVENT m_ResolutionEvent;
-    HANDLE m_ResolutionEventHandle;
 };
 
 class VioGpuDod

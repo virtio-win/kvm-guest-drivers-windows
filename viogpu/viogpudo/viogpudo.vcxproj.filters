@@ -34,6 +34,12 @@
     <ClCompile Include="viogpu_resources.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="viogpu_cursor.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="viogpu_helper.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\common\baseobj.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

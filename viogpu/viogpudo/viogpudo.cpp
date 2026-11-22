@@ -587,7 +587,7 @@ NTSTATUS VioGpuDod::SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION *pS
     {
         VIOGPU_SOURCE_VIEW source;
         m_pHWDevice->GetController()->GetSource(pSetPointerPosition->VidPnSourceId, &source);
-        return m_pHWDevice->SetPointerPosition(pSetPointerPosition, &source);
+        return m_pHWDevice->GetCursor()->SetPointerPosition(pSetPointerPosition, &source);
     }
     return STATUS_NOT_IMPLEMENTED;
 }
@@ -610,7 +610,7 @@ NTSTATUS VioGpuDod::SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPoin
     {
         VIOGPU_SOURCE_VIEW source;
         m_pHWDevice->GetController()->GetSource(pSetPointerShape->VidPnSourceId, &source);
-        return m_pHWDevice->SetPointerShape(pSetPointerShape, &source);
+        return m_pHWDevice->GetCursor()->SetPointerShape(pSetPointerShape, &source);
     }
     return STATUS_NOT_IMPLEMENTED;
 }
@@ -623,7 +623,7 @@ NTSTATUS VioGpuDod::Escape(_In_ CONST DXGKARG_ESCAPE *pEscape)
 
     DbgPrint(TRACE_LEVEL_INFORMATION, ("<---> %s Flags = %d\n", __FUNCTION__, pEscape->Flags.Value));
 
-    return m_pHWDevice->Escape(pEscape);
+    return m_pHWDevice->GetHelperChannel()->Escape(pEscape);
 }
 
 NTSTATUS VioGpuDod::PresentDisplayOnly(_In_ CONST DXGKARG_PRESENT_DISPLAYONLY *pPresentDisplayOnly)
@@ -2576,21 +2576,17 @@ VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod)
     m_pVioGpuDod = pVioGpuDod;
     m_Controller.Init(this);
     m_Id = g_InstanceId++;
-    m_pCursorBuf = NULL;
-    KeInitializeGuardedMutex(&m_CursorMutex);
-    // No sprite is attached until the first shape is set.
-    m_bCursorHidden = TRUE;
-    m_CursorHotX = 0;
-    m_CursorHotY = 0;
     m_PendingWorks = 0;
     m_InterruptsOn = FALSE;
     m_DroppedWorks = 0;
     // Closed until VioGpuAdapterInit opens the device.
     m_bDeviceOpen = FALSE;
+    m_Cursor.Init(this);
+    m_HelperChannel.Init(this);
     m_HostDisplays.Init(this);
     // VioGpuHostDisplays last: its thread reads the host only once every other part is open, and is idle before any
     // of them closes.
-    VioGpuComponent *Components[] = {&m_Controller, &m_HostDisplays};
+    VioGpuComponent *Components[] = {&m_Controller, &m_Cursor, &m_HelperChannel, &m_HostDisplays};
     C_ASSERT(ARRAYSIZE(Components) <= VIOGPU_MAX_COMPONENTS);
     for (m_ComponentCount = 0; m_ComponentCount < ARRAYSIZE(Components); ++m_ComponentCount)
     {
@@ -2598,8 +2594,6 @@ VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod)
     }
     m_ComponentsStarted = 0;
     m_bComponentsOpen = FALSE;
-    m_ResolutionEvent = NULL;
-    m_ResolutionEventHandle = NULL;
     m_u64HostFeatures = 0;
     m_u64GuestFeatures = 0;
     m_u32NumCapsets = 0;
@@ -2623,10 +2617,8 @@ void VioGpuAdapter::Shutdown(void)
 {
     PAGED_CODE();
     // The config-change thread uses the device, the display state and the resolution event: it pauses first, and stops
-    // once the device is reset. The frame buffers go as the controller closes.
+    // once the device is reset, before the helper channel closes the event.
     CloseComponents();
-    CloseResolutionEvent();
-    DestroyCursor();
     VioGpuAdapterClose();
     StopComponents();
 }
@@ -2818,12 +2810,9 @@ NTSTATUS VioGpuAdapter::SetPowerState(DXGK_DEVICE_INFO *pDeviceInfo, DEVICE_POWE
         case PowerDeviceD2:
         case PowerDeviceD3:
             {
-                // The frame buffers go as the controller closes.
+                // The reset drops every resource the host has: the frame buffers and the cursor go as their components
+                // close.
                 CloseComponents();
-                // The reset drops every resource the host has: the cursor is made again, and attached, with the next
-                // shape.
-                DestroyCursor();
-                m_bCursorHidden = TRUE;
                 VioGpuAdapterClose();
             }
             break;
@@ -2852,67 +2841,6 @@ NTSTATUS VioGpuAdapter::VirtIoDeviceInit()
                                     &VioGpuSystemOps,
                                     reinterpret_cast<IVioGpuPCI *>(this),
                                     m_PciResources.IsMSIEnabled());
-}
-
-VOID VioGpuAdapter::CreateResolutionEvent(VOID)
-{
-    PAGED_CODE();
-
-    if (m_ResolutionEvent != NULL && m_ResolutionEventHandle != NULL)
-    {
-        return;
-    }
-    DECLARE_UNICODE_STRING_SIZE(DeviceNumber, 10);
-    DECLARE_UNICODE_STRING_SIZE(EventName, 256);
-
-    RtlIntegerToUnicodeString(m_Id, 10, &DeviceNumber);
-    NTSTATUS status = RtlUnicodeStringPrintf(&EventName,
-                                             L"%ws%ws%ws",
-                                             BASE_NAMED_OBJECTS,
-                                             RESOLUTION_EVENT_NAME,
-                                             DeviceNumber.Buffer);
-    if (!NT_SUCCESS(status))
-    {
-        DbgPrint(TRACE_LEVEL_ERROR, ("RtlUnicodeStringPrintf failed 0x%x\n", status));
-        return;
-    }
-    m_ResolutionEvent = IoCreateNotificationEvent(&EventName, &m_ResolutionEventHandle);
-    if (m_ResolutionEvent == NULL)
-    {
-        DbgPrint(TRACE_LEVEL_FATAL, ("<--> %s\n", __FUNCTION__));
-        return;
-    }
-    KeClearEvent(m_ResolutionEvent);
-    ObReferenceObject(m_ResolutionEvent);
-}
-
-VOID VioGpuAdapter::NotifyResolutionEvent(VOID)
-{
-    PAGED_CODE();
-
-    if (m_ResolutionEvent != NULL)
-    {
-        DbgPrint(TRACE_LEVEL_ERROR, ("NotifyResolutionEvent\n"));
-        KeSetEvent(m_ResolutionEvent, IO_NO_INCREMENT, FALSE);
-        KeClearEvent(m_ResolutionEvent);
-    }
-}
-
-VOID VioGpuAdapter::CloseResolutionEvent(VOID)
-{
-    PAGED_CODE();
-
-    if (m_ResolutionEventHandle != NULL)
-    {
-        ZwClose(m_ResolutionEventHandle);
-        m_ResolutionEventHandle = NULL;
-    }
-
-    if (m_ResolutionEvent != NULL)
-    {
-        ObDereferenceObject(m_ResolutionEvent);
-        m_ResolutionEvent = NULL;
-    }
 }
 
 NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMATION *pDispInfo)
@@ -2979,233 +2907,6 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
     {
         OpenComponents();
     }
-    return status;
-}
-
-NTSTATUS VioGpuAdapter::SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape,
-                                        _In_ CONST VIOGPU_SOURCE_VIEW *pSource)
-{
-    PAGED_CODE();
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-    DbgPrint(TRACE_LEVEL_INFORMATION,
-             ("<--> %s flag = %d pitch = %d, pixels = %p, id = %d, w = %d, h = %d, x = %d, y = %d\n",
-              __FUNCTION__,
-              pSetPointerShape->Flags.Value,
-              pSetPointerShape->Pitch,
-              pSetPointerShape->pPixels,
-              pSetPointerShape->VidPnSourceId,
-              pSetPointerShape->Width,
-              pSetPointerShape->Height,
-              pSetPointerShape->XHot,
-              pSetPointerShape->YHot));
-
-    if (pSetPointerShape->Flags.Monochrome)
-    {
-        VioGpuDbgBreak();
-        return STATUS_UNSUCCESSFUL;
-    }
-
-    // The image upload and the UPDATE_CURSOR below must not interleave with a concurrent MOVE_CURSOR
-    // issued by SetPointerPosition on another thread (see m_CursorMutex).
-    NTSTATUS status = STATUS_UNSUCCESSFUL;
-    KeAcquireGuardedMutex(&m_CursorMutex);
-
-    if (UpdateCursor(pSetPointerShape, pSource))
-    {
-        status = m_Commands.UpdateCursor(0,
-                                         m_pCursorBuf->GetId(),
-                                         0,
-                                         0,
-                                         pSetPointerShape->XHot,
-                                         pSetPointerShape->YHot);
-        DbgPrint(TRACE_LEVEL_INFORMATION, ("<--- %s status = 0x%x\n", __FUNCTION__, status));
-        if (NT_SUCCESS(status))
-        {
-            // This UPDATE_CURSOR attaches the resource and shows the sprite, so any pending hide is over.
-            // Remember the hot spot for the UPDATE_CURSOR that re-attaches the sprite after a later hide.
-            m_CursorHotX = pSetPointerShape->XHot;
-            m_CursorHotY = pSetPointerShape->YHot;
-            m_bCursorHidden = FALSE;
-        }
-    }
-    else
-    {
-        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s Failed to create or upload the cursor\n", __FUNCTION__));
-    }
-
-    KeReleaseGuardedMutex(&m_CursorMutex);
-    return status;
-}
-
-NTSTATUS VioGpuAdapter::SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION *pSetPointerPosition,
-                                           _In_ CONST VIOGPU_SOURCE_VIEW *pSource)
-{
-    PAGED_CODE();
-    // Serialize against SetPointerShape (see m_CursorMutex).
-    NTSTATUS status = STATUS_UNSUCCESSFUL;
-    KeAcquireGuardedMutex(&m_CursorMutex);
-    if (m_pCursorBuf != NULL)
-    {
-        // Out-of-range coordinates are treated as invisible, as before.
-        BOOLEAN visible = pSetPointerPosition->Flags.Visible && pSetPointerPosition->X >= 0 &&
-                          pSetPointerPosition->Y >= 0 && (UINT)pSetPointerPosition->X <= pSource->Width &&
-                          (UINT)pSetPointerPosition->Y <= pSource->Height;
-
-        DbgPrint(TRACE_LEVEL_VERBOSE,
-                 ("---> %s (%d - %d) Visible = %d Value = %x VidPnSourceId = %d hidden = %d\n",
-                  __FUNCTION__,
-                  pSetPointerPosition->X,
-                  pSetPointerPosition->Y,
-                  pSetPointerPosition->Flags.Visible,
-                  pSetPointerPosition->Flags.Value,
-                  pSetPointerPosition->VidPnSourceId,
-                  m_bCursorHidden));
-
-        if (!visible && m_bCursorHidden)
-        {
-            // Already hidden, nothing to send.
-            status = STATUS_SUCCESS;
-        }
-        else
-        {
-            BOOLEAN hidden = m_bCursorHidden;
-            if (!visible)
-            {
-                // Hide the sprite for real instead of parking it at (0, 0) with the resource still
-                // attached: a parked sprite stays visible in the top left corner of the display.
-                status = m_Commands.UpdateCursor(0, 0, 0, 0, 0, 0);
-                hidden = TRUE;
-            }
-            else if (m_bCursorHidden)
-            {
-                // Coming back from a hide: MOVE_CURSOR does not re-associate a detached resource, so the
-                // sprite must be re-attached with a full UPDATE_CURSOR. The image itself is still
-                // uploaded, only the association has to be recreated.
-                status = m_Commands.UpdateCursor(0,
-                                                 m_pCursorBuf->GetId(),
-                                                 pSetPointerPosition->X,
-                                                 pSetPointerPosition->Y,
-                                                 m_CursorHotX,
-                                                 m_CursorHotY);
-                hidden = FALSE;
-            }
-            else
-            {
-                status = m_Commands.MoveCursor(0,
-                                               m_pCursorBuf->GetId(),
-                                               pSetPointerPosition->X,
-                                               pSetPointerPosition->Y);
-            }
-
-            DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s status = 0x%x\n", __FUNCTION__, status));
-            if (NT_SUCCESS(status))
-            {
-                // Record the sprite as hidden or shown only once the command that does it was sent, so that a command
-                // that was not is sent again with the next position.
-                m_bCursorHidden = hidden;
-            }
-        }
-    }
-    KeReleaseGuardedMutex(&m_CursorMutex);
-    return status;
-}
-
-NTSTATUS VioGpuAdapter::Escape(_In_ CONST DXGKARG_ESCAPE *pEscape)
-{
-    PAGED_CODE();
-    PVIOGPU_ESCAPE pVioGpuEscape = (PVIOGPU_ESCAPE)pEscape->pPrivateDriverData;
-    NTSTATUS status = STATUS_SUCCESS;
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-
-    UINT size = pEscape->PrivateDriverDataSize;
-    if (size < sizeof(PVIOGPU_ESCAPE))
-    {
-        DbgPrint(TRACE_LEVEL_ERROR,
-                 ("%s buffer too small %d, should be at least %d\n",
-                  __FUNCTION__,
-                  pEscape->PrivateDriverDataSize,
-                  size));
-        return STATUS_INVALID_BUFFER_SIZE;
-    }
-
-    switch (pVioGpuEscape->Type)
-    {
-        case VIOGPU_GET_DEVICE_ID:
-            {
-                CreateResolutionEvent();
-                size = sizeof(ULONG);
-                if (pVioGpuEscape->DataLength < size)
-                {
-                    DbgPrint(TRACE_LEVEL_ERROR,
-                             ("%s buffer too small %d, should be at least %d\n",
-                              __FUNCTION__,
-                              pVioGpuEscape->DataLength,
-                              size));
-                    return STATUS_INVALID_BUFFER_SIZE;
-                }
-                pVioGpuEscape->Id = m_Id;
-                break;
-            }
-        case VIOGPU_GET_CUSTOM_RESOLUTION:
-            {
-                size = sizeof(VIOGPU_DISP_MODE);
-                if (pVioGpuEscape->DataLength < size)
-                {
-                    DbgPrint(TRACE_LEVEL_ERROR,
-                             ("%s buffer too small %d, should be at least %d\n",
-                              __FUNCTION__,
-                              pVioGpuEscape->DataLength,
-                              size));
-                    return STATUS_INVALID_BUFFER_SIZE;
-                }
-                pVioGpuEscape->Resolution = m_Controller.GetCustomMode(0);
-                break;
-            }
-        case VIOGPU_SET_CUSTOM_RESOLUTION:
-            {
-                size = sizeof(VIOGPU_DISP_MODE);
-                if (pVioGpuEscape->DataLength < size)
-                {
-                    DbgPrint(TRACE_LEVEL_ERROR,
-                             ("%s buffer too small %d, should be at least %d\n",
-                              __FUNCTION__,
-                              pVioGpuEscape->DataLength,
-                              size));
-                    return STATUS_INVALID_BUFFER_SIZE;
-                }
-                if (pVioGpuEscape->Resolution.XResolution <= 0 || pVioGpuEscape->Resolution.YResolution <= 0)
-                {
-                    DbgPrint(TRACE_LEVEL_ERROR,
-                             ("%s PersistentDispMode0 width %d and height %d should be > 0\n",
-                              __FUNCTION__,
-                              pVioGpuEscape->Resolution.XResolution,
-                              pVioGpuEscape->Resolution.YResolution));
-                    return STATUS_INVALID_PARAMETER;
-                }
-
-                DbgPrint(TRACE_LEVEL_INFORMATION,
-                         ("%s PersistentDispMode0 width %d, height %d\n",
-                          __FUNCTION__,
-                          pVioGpuEscape->Resolution.XResolution,
-                          pVioGpuEscape->Resolution.YResolution));
-
-                // A size the driver cannot back is refused before it is saved.
-                if (!m_Controller.SetPersistentMode(0,
-                                                    pVioGpuEscape->Resolution.XResolution,
-                                                    pVioGpuEscape->Resolution.YResolution))
-                {
-                    return STATUS_INVALID_PARAMETER;
-                }
-                m_pVioGpuDod->SetRegisterConfigInfo();
-                break;
-            }
-        default:
-            DbgPrint(TRACE_LEVEL_ERROR, ("%s: invalid Escape type 0x%x\n", __FUNCTION__, pVioGpuEscape->Type));
-            status = STATUS_INVALID_PARAMETER;
-    }
-
     return status;
 }
 
@@ -3515,109 +3216,6 @@ UINT ColorFormat(UINT format)
 }
 
 PAGED_CODE_SEG_BEGIN
-BOOLEAN VioGpuAdapter::CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape)
-{
-    UINT format, size;
-    VioGpuObj *obj = NULL;
-    PAGED_CODE();
-    DbgPrint(TRACE_LEVEL_INFORMATION,
-             ("---> %s - %d: (%d x %d - %d) (%d + %d)\n",
-              __FUNCTION__,
-              m_Id,
-              pSetPointerShape->Width,
-              pSetPointerShape->Height,
-              pSetPointerShape->Pitch,
-              pSetPointerShape->XHot,
-              pSetPointerShape->YHot));
-
-    size = POINTER_SIZE * POINTER_SIZE * 4;
-    format = ColorFormat(D3DDDIFMT_A8R8G8B8);
-    DbgPrint(TRACE_LEVEL_INFORMATION, ("---> %s - (%x -> %x)\n", __FUNCTION__, D3DDDIFMT_A8R8G8B8, format));
-    if (!NT_SUCCESS(m_Resources.Create(size, NULL, format, POINTER_SIZE, POINTER_SIZE, &obj)))
-    {
-        VioGpuDbgBreak();
-        return FALSE;
-    }
-    m_pCursorBuf = obj;
-    return TRUE;
-}
-
-BOOLEAN VioGpuAdapter::UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape,
-                                    _In_ CONST VIOGPU_SOURCE_VIEW *pSource)
-{
-    PAGED_CODE();
-    RECT Rect;
-    Rect.left = 0;
-    Rect.top = 0;
-    Rect.right = Rect.left + pSetPointerShape->Width;
-    Rect.bottom = Rect.top + pSetPointerShape->Height;
-
-    if ((m_pCursorBuf == NULL) && !CreateCursor(pSetPointerShape))
-    {
-        VioGpuDbgBreak();
-        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s Cannot create cursor\n", __FUNCTION__));
-        return FALSE;
-    }
-
-    BLT_INFO DstBltInfo;
-    DstBltInfo.pBits = m_pCursorBuf->GetVirtualAddress();
-    DstBltInfo.Pitch = POINTER_SIZE * 4;
-    DstBltInfo.BitsPerPel = BPPFromPixelFormat(D3DDDIFMT_A8R8G8B8);
-    DstBltInfo.Offset.x = 0;
-    DstBltInfo.Offset.y = 0;
-    DstBltInfo.Rotation = D3DKMDT_VPPR_IDENTITY;
-    DstBltInfo.Width = POINTER_SIZE;
-    DstBltInfo.Height = POINTER_SIZE;
-
-    BLT_INFO SrcBltInfo;
-    SrcBltInfo.pBits = (PVOID)pSetPointerShape->pPixels;
-    SrcBltInfo.Pitch = pSetPointerShape->Pitch;
-    if (pSetPointerShape->Flags.Color)
-    {
-        SrcBltInfo.BitsPerPel = BPPFromPixelFormat(D3DDDIFMT_A8R8G8B8);
-    }
-    else
-    {
-        VioGpuDbgBreak();
-        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s Invalid cursor color %d\n", __FUNCTION__, pSetPointerShape->Flags.Value));
-        return FALSE;
-    }
-    SrcBltInfo.Offset.x = 0;
-    SrcBltInfo.Offset.y = 0;
-    SrcBltInfo.Rotation = pSource->Rotation;
-    SrcBltInfo.Width = pSetPointerShape->Width;
-    SrcBltInfo.Height = pSetPointerShape->Height;
-
-    BltBits(&DstBltInfo, &SrcBltInfo, &Rect);
-
-    if (!NT_SUCCESS(m_Commands.TransferToHost2D(m_pCursorBuf->GetId(),
-                                                0,
-                                                pSetPointerShape->Width,
-                                                pSetPointerShape->Height,
-                                                0,
-                                                0)))
-    {
-        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s Failed to upload the cursor image\n", __FUNCTION__));
-        return FALSE;
-    }
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
-    return TRUE;
-}
-
-void VioGpuAdapter::DestroyCursor()
-{
-    PAGED_CODE();
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-    if (m_pCursorBuf != NULL)
-    {
-        VioGpuObj *pObj = m_pCursorBuf;
-        m_pCursorBuf = NULL;
-        m_Resources.Release(pObj);
-    }
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
-}
-
 PAGED_CODE_SEG_END
 
 PDXGKRNL_INTERFACE VioGpuAdapter::GetDxgkInterface()

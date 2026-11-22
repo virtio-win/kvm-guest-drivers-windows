@@ -561,7 +561,7 @@ BOOLEAN VioGpuHostDisplays::ConfigChanged(BOOLEAN Reread, PBOOLEAN pEvent)
     // viogpuap applies the custom mode to a connected display; with none connected there is nothing to apply.
     if ((event || changed) && connected != 0)
     {
-        m_pAdapter->NotifyResolutionEvent();
+        m_pAdapter->GetHelperChannel()->Notify();
     }
     if (failed != 0)
     {
