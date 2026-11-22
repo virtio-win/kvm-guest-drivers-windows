@@ -78,7 +78,7 @@ class VioGpuCommands
 
     // Reading the device's answers.
     static BOOLEAN ScanoutSize(PGPU_RESP_DISP_INFO resp, UINT id, PULONG xres, PULONG yres);
-    static BOOLEAN CopyEdid(PGPU_RESP_EDID resp, UINT id, PBYTE edid);
+    static BOOLEAN CopyEdid(PGPU_RESP_EDID resp, PBYTE edid, ULONG size, PULONG copied);
 
   private:
     PVOID AllocCmd(PGPU_VBUFFER *buf, int sz);

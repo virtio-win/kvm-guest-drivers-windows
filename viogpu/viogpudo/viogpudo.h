@@ -166,7 +166,7 @@ class VioGpuAdapter : IVioGpuPCI
         return m_Id;
     }
     PBYTE GetEdidData(void);
-    PBYTE GetCTA861Data(void);
+    ULONG GetEdidSize(void);
     // For the config-change thread (VioGpuHostDisplays), while it may use the device.
     void ConfigChanged(void);
     VOID NotifyResolutionEvent(VOID);
@@ -185,7 +185,7 @@ class VioGpuAdapter : IVioGpuPCI
     int AddEdidModes(void);
     BOOLEAN UpdateModes(USHORT xres, USHORT yres, int &cnt);
     NTSTATUS UpdateChildStatus(BOOLEAN connect);
-    void SetCustomDisplay(_In_ USHORT xres, _In_ USHORT yres);
+    BOOLEAN SetCustomDisplay(_In_ ULONG xres, _In_ ULONG yres);
     BOOLEAN CreateFrameBufferObj(PVIDEO_MODE_INFORMATION pModeInfo, CURRENT_MODE *pCurrentMode);
     void DestroyFrameBufferObj(BOOLEAN bReset, BOOLEAN bKeepBuffer);
     BOOLEAN CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape, _In_ CONST CURRENT_MODE *pCurrentMode);
@@ -208,7 +208,9 @@ class VioGpuAdapter : IVioGpuPCI
     USHORT m_CurrentModeIndex;
     USHORT m_CustomModeIndex;
     ULONG m_Id;
-    BYTE m_EDIDs[EDID_RAW_BLOCK_SIZE];
+    BYTE m_EDIDs[EDID_MAX_SIZE];
+    // The valid part of m_EDIDs (EdidValidSize).
+    ULONG m_EdidSize;
     BOOLEAN m_bEDID;
 
     VirtIODevice m_VioDev;

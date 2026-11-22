@@ -506,10 +506,10 @@ NTSTATUS VioGpuDod::QueryDeviceDescriptor(_In_ ULONG ChildUid, _Inout_ DXGK_DEVI
     {
         return STATUS_GRAPHICS_CHILD_DESCRIPTOR_NOT_SUPPORTED;
     }
-    else if (pDeviceDescriptor->DescriptorOffset < EDID_RAW_BLOCK_SIZE)
+    else if (pDeviceDescriptor->DescriptorOffset < m_pHWDevice->GetEdidSize())
     {
         ULONG len = min(pDeviceDescriptor->DescriptorLength,
-                        (EDID_RAW_BLOCK_SIZE - pDeviceDescriptor->DescriptorOffset));
+                        (m_pHWDevice->GetEdidSize() - pDeviceDescriptor->DescriptorOffset));
         RtlCopyMemory(pDeviceDescriptor->DescriptorBuffer, (edid + pDeviceDescriptor->DescriptorOffset), len);
         pDeviceDescriptor->DescriptorLength = len;
         return STATUS_SUCCESS;
@@ -2405,6 +2405,7 @@ VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod)
     m_CurrentModeIndex = 0;
     m_CustomModeIndex = 0;
     RtlZeroMemory(m_EDIDs, sizeof(m_EDIDs));
+    m_EdidSize = 0;
     m_bEDID = FALSE;
     m_ModeInfo = NULL;
     m_ModeCount = 0;
@@ -2597,6 +2598,8 @@ NTSTATUS VioGpuAdapter::VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION *pDispInfo)
 
         AckFeature(VIRTIO_F_ACCESS_PLATFORM);
         AckFeature(VIRTIO_RING_F_INDIRECT_DESC);
+        // GET_EDID may be sent only once the feature is negotiated.
+        AckFeature(VIRTIO_GPU_F_EDID);
 
         status = virtio_set_features(&m_VioDev, m_u64GuestFeatures);
         if (!NT_SUCCESS(status))
@@ -2728,23 +2731,11 @@ PBYTE VioGpuAdapter::GetEdidData()
     return m_bEDID ? m_EDIDs : (PBYTE)(g_gpu_edid);
 }
 
-PBYTE VioGpuAdapter::GetCTA861Data(void)
+ULONG VioGpuAdapter::GetEdidSize(void)
 {
     PAGED_CODE();
 
-    if (m_bEDID)
-    {
-        PEDID_DATA_V1 edid_data = (PEDID_DATA_V1)m_EDIDs;
-        if (edid_data->ExtensionFlag[0])
-        {
-            PEDID_CTA_861 cta_data = (PEDID_CTA_861)(m_EDIDs + EDID_V1_BLOCK_SIZE);
-            if (cta_data->ExtentionTag[0] >= 2 && cta_data->Revision[0] >= 3)
-            {
-                return (PBYTE)cta_data;
-            }
-        }
-    }
-    return NULL;
+    return m_bEDID ? m_EdidSize : EDID_BLOCK_SIZE;
 }
 
 VOID VioGpuAdapter::CreateResolutionEvent(VOID)
@@ -3346,10 +3337,14 @@ NTSTATUS VioGpuAdapter::Escape(_In_ CONST DXGKARG_ESCAPE *pEscape)
                           pVioGpuEscape->Resolution.XResolution,
                           pVioGpuEscape->Resolution.YResolution));
 
+                // A size the driver cannot back is refused before it is saved.
+                if (!SetCustomDisplay(pVioGpuEscape->Resolution.XResolution, pVioGpuEscape->Resolution.YResolution))
+                {
+                    return STATUS_INVALID_PARAMETER;
+                }
                 m_pVioGpuDod->SetPersistentDispMode0Width(pVioGpuEscape->Resolution.XResolution);
                 m_pVioGpuDod->SetPersistentDispMode0Height(pVioGpuEscape->Resolution.YResolution);
                 m_pVioGpuDod->SetRegisterConfigInfo();
-                SetCustomDisplay(pVioGpuEscape->Resolution.XResolution, pVioGpuEscape->Resolution.YResolution);
                 SetCurrentModeIndex(m_CurrentModeIndex);
                 break;
             }
@@ -3378,7 +3373,7 @@ BOOLEAN VioGpuAdapter::GetDisplayInfo(void)
             if (VioGpuCommands::ScanoutSize(&info, i, &xres, &yres) && xres && yres)
             {
                 DbgPrint(TRACE_LEVEL_INFORMATION, ("---> %s (%dx%d)\n", __FUNCTION__, xres, yres));
-                SetCustomDisplay((USHORT)xres, (USHORT)yres);
+                SetCustomDisplay(xres, yres);
                 return TRUE;
             }
         }
@@ -3394,13 +3389,15 @@ int VioGpuAdapter::ProcessEdid(void)
 {
     PAGED_CODE();
 
-    if (virtio_is_feature_enabled(m_u64HostFeatures, VIRTIO_GPU_F_EDID))
+    // The built-in EDID is also what a scanout gets when the host's is missing or invalid.
+    FixEdid();
+    if (virtio_is_feature_enabled(m_u64GuestFeatures, VIRTIO_GPU_F_EDID))
     {
         GetEdids();
     }
     else
     {
-        FixEdid();
+        DbgPrint(TRACE_LEVEL_INFORMATION, ("%s: the host offers no EDID: the built-in one stands in\n", __FUNCTION__));
     }
 
     return AddEdidModes();
@@ -3410,19 +3407,12 @@ void VioGpuAdapter::FixEdid(void)
 {
     PAGED_CODE();
 
-    UCHAR Sum = 0;
+    // The built-in EDID: no physical size and no extensions.
     PUCHAR buf = GetEdidData();
-    ;
-    PEDID_DATA_V1 pdata = (PEDID_DATA_V1)buf;
-    pdata->MaximumHorizontalImageSize[0] = 0;
-    pdata->MaximumVerticallImageSize[0] = 0;
-    pdata->ExtensionFlag[0] = 0;
-    pdata->Checksum[0] = 0;
-    for (ULONG i = 0; i < EDID_V1_BLOCK_SIZE; i++)
-    {
-        Sum += buf[i];
-    }
-    pdata->Checksum[0] = -Sum;
+    buf[EDID_OFFSET_H_SIZE_CM] = 0;
+    buf[EDID_OFFSET_V_SIZE_CM] = 0;
+    buf[EDID_OFFSET_EXTENSIONS] = 0;
+    EdidSetChecksum(buf);
 }
 
 BOOLEAN VioGpuAdapter::GetEdids(void)
@@ -3438,14 +3428,36 @@ BOOLEAN VioGpuAdapter::GetEdids(void)
         return FALSE;
     }
 
-    for (UINT32 i = 0; i < m_u32NumScanouts; i++)
+    // The driver presents scanout 0 (see SetScanout), so its EDID is the one that describes the display.
+    ULONG copied = 0;
+    if (NT_SUCCESS(m_Commands.GetEdid(0, resp)) && VioGpuCommands::CopyEdid(resp, m_EDIDs, sizeof(m_EDIDs), &copied))
     {
-        if (NT_SUCCESS(m_Commands.GetEdid(i, resp)) && VioGpuCommands::CopyEdid(resp, i, m_EDIDs))
+        m_EdidSize = EdidValidSize(m_EDIDs, copied);
+        m_bEDID = m_EdidSize != 0;
+        ULONG blocks = m_EdidSize / EDID_BLOCK_SIZE;
+        if (m_bEDID && blocks <= m_EDIDs[EDID_OFFSET_EXTENSIONS])
         {
-            m_bEDID = TRUE;
+            // Windows asks for as many extensions as the base block announces: it announces the ones kept.
+            DbgPrint(TRACE_LEVEL_WARNING,
+                     ("%s: extension %d of %d is missing or invalid, the EDID ends before it\n",
+                      __FUNCTION__,
+                      blocks,
+                      m_EDIDs[EDID_OFFSET_EXTENSIONS]));
+            m_EDIDs[EDID_OFFSET_EXTENSIONS] = (UCHAR)(blocks - 1);
+            EdidSetChecksum(m_EDIDs);
         }
+        DbgPrint(TRACE_LEVEL_INFORMATION,
+                 ("%s: %s EDID, %d bytes, %d extension(s) announced\n",
+                  __FUNCTION__,
+                  m_bEDID ? "valid" : "invalid",
+                  m_EdidSize,
+                  m_EDIDs[EDID_OFFSET_EXTENSIONS]));
     }
     delete[] reinterpret_cast<PBYTE>(resp);
+    if (!m_bEDID)
+    {
+        DbgPrint(TRACE_LEVEL_WARNING, ("%s: no valid EDID from the host: the built-in one stands in\n", __FUNCTION__));
+    }
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
     return TRUE;
@@ -3455,9 +3467,17 @@ BOOLEAN VioGpuAdapter::UpdateModes(USHORT xres, USHORT yres, int &cnt)
 {
     int idx = 0;
 
-    DbgPrint(TRACE_LEVEL_INFORMATION, (" x_res: %d, y_res: %d\n", xres, yres));
     if ((xres < MIN_WIDTH_SIZE) || (yres < MIN_HEIGHT_SIZE))
     {
+        DbgPrint(TRACE_LEVEL_VERBOSE, ("%s: (%dx%d) is below the minimum\n", __FUNCTION__, xres, yres));
+        return FALSE;
+    }
+    // The frame buffer segment holds the largest mode and is attached whole: a display's EDID may describe modes far
+    // beyond what the driver can back.
+    if ((xres > MAX_WIDTH_SIZE) || (yres > MAX_HEIGHT_SIZE) || !MODE_FITS_BACKING(xres, yres))
+    {
+        DbgPrint(TRACE_LEVEL_WARNING,
+                 ("%s: (%dx%d) is more than the driver can back, not taken\n", __FUNCTION__, xres, yres));
         return FALSE;
     }
 
@@ -3468,6 +3488,12 @@ BOOLEAN VioGpuAdapter::UpdateModes(USHORT xres, USHORT yres, int &cnt)
             return FALSE;
         }
     }
+    if ((size_t)idx >= ARRAYSIZE(gpu_disp_modes))
+    {
+        DbgPrint(TRACE_LEVEL_WARNING, ("%s: the mode table is full, (%dx%d) not taken\n", __FUNCTION__, xres, yres));
+        return FALSE;
+    }
+    DbgPrint(TRACE_LEVEL_INFORMATION, (" x_res: %d, y_res: %d\n", xres, yres));
     gpu_disp_modes[idx].XResolution = xres;
     gpu_disp_modes[idx].YResolution = yres;
     cnt++;
@@ -3477,202 +3503,30 @@ BOOLEAN VioGpuAdapter::UpdateModes(USHORT xres, USHORT yres, int &cnt)
 int VioGpuAdapter::AddEdidModes(void)
 {
     PAGED_CODE();
-    PEDID_DATA_V1 edid_data = (PEDID_DATA_V1)(GetEdidData());
-    ESTABLISHED_TIMINGS_1_2 est_timing_1_2 = edid_data->EstablishedTimings;
-    MANUFACTURER_TIMINGS manufact_timing = edid_data->ManufacturerTimings;
+
+    VIOGPU_DISP_MODE modes[ARRAYSIZE(gpu_disp_modes)];
+    VIOGPU_DISP_MODE preferred = {0};
     int modecount = 0;
 
     DbgPrint(TRACE_LEVEL_INFORMATION, (" Default resolutions\n"));
     UpdateModes(MIN_WIDTH_SIZE, MIN_HEIGHT_SIZE, modecount);
     UpdateModes(NOM_WIDTH_SIZE, NOM_HEIGHT_SIZE, modecount);
 
-    DbgPrint(TRACE_LEVEL_INFORMATION, (" Processing EDID's Established timings I and II\n"));
-    if (est_timing_1_2.Timing_640x480_75 || est_timing_1_2.Timing_640x480_72 || est_timing_1_2.Timing_640x480_67 ||
-        est_timing_1_2.Timing_640x480_60)
+    ULONG count = EdidGetModes(GetEdidData(), GetEdidSize(), modes, ARRAYSIZE(modes), &preferred);
+    DbgPrint(TRACE_LEVEL_INFORMATION,
+             ("%s: %d EDID mode(s), preferred %dx%d\n",
+              __FUNCTION__,
+              count,
+              preferred.XResolution,
+              preferred.YResolution));
+    // The display's preferred mode first, so that a full table cannot drop it.
+    if (preferred.XResolution != 0)
     {
-        UpdateModes(640, 480, modecount);
+        UpdateModes(preferred.XResolution, preferred.YResolution, modecount);
     }
-
-    if (est_timing_1_2.Timing_800x600_60 || est_timing_1_2.Timing_800x600_56 || est_timing_1_2.Timing_800x600_75 ||
-        est_timing_1_2.Timing_800x600_72)
+    for (ULONG i = 0; i < count; i++)
     {
-        UpdateModes(800, 600, modecount);
-    }
-
-    if (est_timing_1_2.Timing_720x400_88 || est_timing_1_2.Timing_720x400_70)
-    {
-        UpdateModes(720, 400, modecount);
-    }
-
-    if (est_timing_1_2.Timing_832x624_75)
-    {
-        UpdateModes(832, 624, modecount);
-    }
-
-    if (est_timing_1_2.Timing_1024x768_75 || est_timing_1_2.Timing_1024x768_70 || est_timing_1_2.Timing_1024x768_60 ||
-        est_timing_1_2.Timing_1024x768_87)
-    {
-        UpdateModes(1024, 768, modecount);
-    }
-
-    if (est_timing_1_2.Timing_1280x1024_75)
-    {
-        UpdateModes(1280, 1024, modecount);
-    }
-
-    if (manufact_timing.Timing_1152x870_75)
-    {
-        UpdateModes(1152, 870, modecount);
-    }
-
-    PSTANDARD_TIMING_DESCRIPTOR standard_timing = edid_data->StandardTimings;
-    DbgPrint(TRACE_LEVEL_INFORMATION, (" Processing EDID's Standard timings\n"));
-    for (int i = 0; i < 8; i++, standard_timing++)
-    {
-        VIOGPU_DISP_MODE mode{0};
-        if (GetStandardTimingResolution(standard_timing, &mode))
-        {
-            UpdateModes(mode.XResolution, mode.YResolution, modecount);
-        }
-    }
-
-    DbgPrint(TRACE_LEVEL_INFORMATION, (" Processing EDID's detailed timings (4 18-byte blocks)\n"));
-    if (edid_data->Revision[0] == 4)
-    {
-        PEDID_DETAILED_DESCRIPTOR detailed_desc = edid_data->EDIDDetailedTimings;
-        for (int i = 0; i < 4; i++, detailed_desc++)
-        {
-            if (detailed_desc->PixelClock == 0)
-            {
-                PEDID_DISPLAY_DESCRIPTOR disp = (PEDID_DISPLAY_DESCRIPTOR)detailed_desc;
-                if (disp->Tag[3] == 0xF7 && disp->Revision == 0xA)
-                {
-                    PESTABLISHED_TIMINGS_3 est_timing_3 = (PESTABLISHED_TIMINGS_3)disp->Data;
-                    if (est_timing_3->Timing_640x350_85)
-                    {
-                        UpdateModes(640, 350, modecount);
-                    }
-
-                    if (est_timing_3->Timing_640x400_85)
-                    {
-                        UpdateModes(640, 400, modecount);
-                    }
-
-                    if (est_timing_3->Timing_640x480_85)
-                    {
-                        UpdateModes(640, 480, modecount);
-                    }
-
-                    if (est_timing_3->Timing_720x400_85)
-                    {
-                        UpdateModes(720, 400, modecount);
-                    }
-
-                    if (est_timing_3->Timing_800x600_85)
-                    {
-                        UpdateModes(800, 600, modecount);
-                    }
-
-                    if (est_timing_3->Timing_848x480_60)
-                    {
-                        UpdateModes(848, 480, modecount);
-                    }
-
-                    if (est_timing_3->Timing_1024x768_85)
-                    {
-                        UpdateModes(1024, 768, modecount);
-                    }
-
-                    if (est_timing_3->Timing_1152x864_75)
-                    {
-                        UpdateModes(1152, 864, modecount);
-                    }
-
-                    if (est_timing_3->Timing_1280x768_60 || est_timing_3->Timing_1280x768_60_RB ||
-                        est_timing_3->Timing_1280x768_75 || est_timing_3->Timing_1280x768_85)
-                    {
-                        UpdateModes(1280, 768, modecount);
-                    }
-
-                    if (est_timing_3->Timing_1280x960_60 || est_timing_3->Timing_1280x960_85)
-                    {
-                        UpdateModes(1280, 960, modecount);
-                    }
-
-                    if (est_timing_3->Timing_1280x1024_60 || est_timing_3->Timing_1280x1024_85)
-                    {
-                        UpdateModes(1280, 1024, modecount);
-                    }
-
-                    if (est_timing_3->Timing_1360x768_60)
-                    {
-                        UpdateModes(1360, 768, modecount);
-                    }
-
-                    if (est_timing_3->Timing_1400x1050_60 || est_timing_3->Timing_1400x1050_60_RB ||
-                        est_timing_3->Timing_1400x1050_75 || est_timing_3->Timing_1400x1050_85)
-                    {
-                        UpdateModes(1400, 1050, modecount);
-                    }
-
-                    if (est_timing_3->Timing_1440x900_60 || est_timing_3->Timing_1440x900_60_RB ||
-                        est_timing_3->Timing_1440x900_75 || est_timing_3->Timing_1440x900_85)
-                    {
-                        UpdateModes(1440, 900, modecount);
-                    }
-
-                    if (est_timing_3->Timing_1600x1200_60 || est_timing_3->Timing_1600x1200_65 ||
-                        est_timing_3->Timing_1600x1200_70 || est_timing_3->Timing_1600x1200_75 ||
-                        est_timing_3->Timing_1600x1200_85)
-                    {
-                        UpdateModes(1600, 1200, modecount);
-                    }
-
-                    if (est_timing_3->Timing_1680x1050_60 || est_timing_3->Timing_1680x1050_60_RB ||
-                        est_timing_3->Timing_1680x1050_75 || est_timing_3->Timing_1680x1050_85)
-                    {
-                        UpdateModes(1680, 1050, modecount);
-                    }
-
-                    if (est_timing_3->Timing_1792x1344_60 || est_timing_3->Timing_1792x1344_75)
-                    {
-                        UpdateModes(1792, 1344, modecount);
-                    }
-
-                    if (est_timing_3->Timing_1856x1392_60 || est_timing_3->Timing_1856x1392_75)
-                    {
-                        UpdateModes(1856, 1392, modecount);
-                    }
-
-                    if (est_timing_3->Timing_1920x1200_60 || est_timing_3->Timing_1920x1200_60_RB ||
-                        est_timing_3->Timing_1920x1200_75 || est_timing_3->Timing_1920x1200_85)
-                    {
-                        UpdateModes(1920, 1200, modecount);
-                    }
-
-                    if (est_timing_3->Timing_1920x1440_60 || est_timing_3->Timing_1920x1440_75)
-                    {
-                        UpdateModes(1920, 1440, modecount);
-                    }
-                }
-            }
-        }
-    }
-
-    DbgPrint(TRACE_LEVEL_INFORMATION, (" Processing CTA861 data\n"));
-    PEDID_CTA_861 cta_data = (PEDID_CTA_861)GetCTA861Data();
-    if (cta_data && cta_data->DTDBegin[0] > 4)
-    {
-        int vics = (cta_data->DTDBegin[0] - 1) - 4;
-        for (int idx = 0; idx < vics; idx++)
-        {
-            VIOGPU_DISP_MODE mode{0};
-            USHORT vic_num = cta_data->Data[idx];
-            if (GetVICResolution(vic_num, &mode))
-            {
-                UpdateModes(mode.XResolution, mode.YResolution, modecount);
-            }
-        }
+        UpdateModes(modes[i].XResolution, modes[i].YResolution, modecount);
     }
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
@@ -3714,7 +3568,8 @@ NTSTATUS VioGpuAdapter::UpdateChildStatus(BOOLEAN connect)
     return Status;
 }
 
-void VioGpuAdapter::SetCustomDisplay(_In_ USHORT xres, _In_ USHORT yres)
+// Sets the custom mode, the size viogpuap applies. FALSE for a size the driver cannot back: the custom mode stays.
+BOOLEAN VioGpuAdapter::SetCustomDisplay(_In_ ULONG xres, _In_ ULONG yres)
 {
     PAGED_CODE();
 
@@ -3725,13 +3580,29 @@ void VioGpuAdapter::SetCustomDisplay(_In_ USHORT xres, _In_ USHORT yres)
         DbgPrint(TRACE_LEVEL_WARNING,
                  ("%s: (%dx%d) less than (%dx%d)\n", __FUNCTION__, xres, yres, MIN_WIDTH_SIZE, MIN_HEIGHT_SIZE));
     }
-    tmpModeInfo.XResolution = m_pVioGpuDod->IsFlexResolution() ? xres : max(MIN_WIDTH_SIZE, xres);
-    tmpModeInfo.YResolution = m_pVioGpuDod->IsFlexResolution() ? yres : max(MIN_HEIGHT_SIZE, yres);
+    ULONG width = m_pVioGpuDod->IsFlexResolution() ? xres : max((ULONG)MIN_WIDTH_SIZE, xres);
+    ULONG height = m_pVioGpuDod->IsFlexResolution() ? yres : max((ULONG)MIN_HEIGHT_SIZE, yres);
+    // Checked before the sizes are narrowed to the mode's 16 bits. The frame buffer segment, once it exists, is not
+    // resized: a mode it cannot hold could not be set (IsSupportedVidPn).
+    SIZE_T segment = GetFrameSegmentSize();
+    if (width > MAX_WIDTH_SIZE || height > MAX_HEIGHT_SIZE || !MODE_FITS_BACKING(width, height) ||
+        (segment != 0 && (ULONGLONG)width * height * 4 > segment))
+    {
+        DbgPrint(TRACE_LEVEL_WARNING,
+                 ("%s: (%dx%d) is more than the driver can back; the custom mode stays\n",
+                  __FUNCTION__,
+                  width,
+                  height));
+        return FALSE;
+    }
+    tmpModeInfo.XResolution = (USHORT)width;
+    tmpModeInfo.YResolution = (USHORT)height;
 
     DbgPrint(TRACE_LEVEL_FATAL,
              ("%s - %d (%dx%d)\n", __FUNCTION__, m_CustomModeIndex, tmpModeInfo.XResolution, tmpModeInfo.YResolution));
 
     SetVideoModeInfo(m_CustomModeIndex, &tmpModeInfo);
+    return TRUE;
 }
 
 NTSTATUS VioGpuAdapter::BuildModeList(DXGK_DISPLAY_INFORMATION *pDispInfo)
@@ -3794,6 +3665,8 @@ NTSTATUS VioGpuAdapter::BuildModeList(DXGK_DISPLAY_INFORMATION *pDispInfo)
 
     DbgPrint(TRACE_LEVEL_INFORMATION, ("ModeCount filtered %d\n", m_ModeCount));
 
+    // The custom mode starts at the default size, where a host size the driver cannot back leaves it.
+    SetCustomDisplay(NOM_WIDTH_SIZE, NOM_HEIGHT_SIZE);
     // The read at start covers a display event the host raised before the driver started: it is cleared first, so that
     // the config-change thread, which the first open wakes, does not take the host size over the persistent mode.
     UINT32 events_clear = VIRTIO_GPU_EVENT_DISPLAY;

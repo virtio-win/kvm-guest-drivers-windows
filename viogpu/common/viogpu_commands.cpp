@@ -133,16 +133,16 @@ NTSTATUS VioGpuCommands::GetEdid(UINT id, PGPU_RESP_EDID edid)
     return status;
 }
 
-BOOLEAN VioGpuCommands::CopyEdid(PGPU_RESP_EDID resp, UINT id, PBYTE edid)
+// Copies the EDID an answer to GET_EDID carries, which starts at its first byte, as many bytes as the host says it
+// returned and at most size. The rest of edid is cleared.
+BOOLEAN VioGpuCommands::CopyEdid(PGPU_RESP_EDID resp, PBYTE edid, ULONG size, PULONG copied)
 {
     PAGED_CODE();
 
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-    PUCHAR resp_edit = (PUCHAR)(resp->edid + (ULONGLONG)id * EDID_V1_BLOCK_SIZE);
-
-    RtlCopyMemory(edid, resp_edit, EDID_RAW_BLOCK_SIZE);
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-
+    ULONG count = min(min(size, resp->size), (ULONG)sizeof(resp->edid));
+    RtlCopyMemory(edid, resp->edid, count);
+    RtlZeroMemory(edid + count, size - count);
+    *copied = count;
     return TRUE;
 }
 
