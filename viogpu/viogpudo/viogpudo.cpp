@@ -802,7 +802,7 @@ NTSTATUS VioGpuDod::IsSupportedVidPn(_Inout_ DXGKARG_ISSUPPORTEDVIDPN *pIsSuppor
             return STATUS_SUCCESS;
         }
 
-        // Check if resolution exceeds framebuffer segment capacity
+        // A pinned source mode the driver cannot back (ModeFits) makes the VidPN unsupported.
         if (NumPathsFromSource == 0)
         {
             continue;
@@ -842,18 +842,12 @@ NTSTATUS VioGpuDod::IsSupportedVidPn(_Inout_ DXGKARG_ISSUPPORTEDVIDPN *pIsSuppor
         BOOLEAN bReject = FALSE;
         if (pPinnedVidPnSourceModeInfo != NULL)
         {
-            SIZE_T RequiredSize = (SIZE_T)pPinnedVidPnSourceModeInfo->Format.Graphics.PrimSurfSize.cx *
-                                  pPinnedVidPnSourceModeInfo->Format.Graphics.PrimSurfSize.cy *
-                                  (BPPFromPixelFormat(pPinnedVidPnSourceModeInfo->Format.Graphics.PixelFormat) /
-                                   BITS_PER_BYTE);
-            SIZE_T SegmentSize = m_pHWDevice->GetFrameSegmentSize();
-            if (SegmentSize > 0 && RequiredSize > SegmentSize)
+            UINT cx = pPinnedVidPnSourceModeInfo->Format.Graphics.PrimSurfSize.cx;
+            UINT cy = pPinnedVidPnSourceModeInfo->Format.Graphics.PrimSurfSize.cy;
+            if (!m_pHWDevice->ModeFits(cx, cy))
             {
                 DbgPrint(TRACE_LEVEL_WARNING,
-                         ("<--- %s Resolution requires %llu bytes, segment size is %llu\n",
-                          __FUNCTION__,
-                          (ULONGLONG)RequiredSize,
-                          (ULONGLONG)SegmentSize));
+                         ("<--- %s %dx%d is more than the driver can back\n", __FUNCTION__, cx, cy));
                 bReject = TRUE;
             }
             pVidPnSourceModeSetInterface->pfnReleaseModeInfo(hVidPnSourceModeSet, pPinnedVidPnSourceModeInfo);
@@ -862,7 +856,8 @@ NTSTATUS VioGpuDod::IsSupportedVidPn(_Inout_ DXGKARG_ISSUPPORTEDVIDPN *pIsSuppor
 
         if (bReject)
         {
-            return STATUS_NO_MEMORY;
+            pIsSupportedVidPn->IsVidPnSupported = FALSE;
+            return STATUS_SUCCESS;
         }
     }
 
@@ -2391,12 +2386,14 @@ VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod)
 {
     PAGED_CODE();
     m_Commands.Init(&m_CtrlQueue, &m_CursorQueue);
+    m_Resources.Init(&m_Commands);
     RtlZeroMemory(&m_VioDev, sizeof(m_VioDev));
     m_pVioGpuDod = pVioGpuDod;
     m_Controller.Init(this);
     RtlZeroMemory(&m_CurrentModeSize, sizeof(m_CurrentModeSize));
     m_Id = g_InstanceId++;
     m_pFrameBuf = NULL;
+    m_FrameBufScanout = 0;
     m_pCursorBuf = NULL;
     KeInitializeGuardedMutex(&m_CursorMutex);
     // No sprite is attached until the first shape is set.
@@ -2446,7 +2443,7 @@ void VioGpuAdapter::Shutdown(void)
     CloseComponents();
     CloseResolutionEvent();
     DestroyCursor();
-    DestroyFrameBufferObj(TRUE, FALSE);
+    DestroyFrameBufferObj(FALSE);
     VioGpuAdapterClose();
     StopComponents();
     HWClose();
@@ -2515,29 +2512,62 @@ void VioGpuAdapter::StopComponents(void)
 }
 
 // Makes the frame buffer at the size Windows pinned, whether or not that size is still among the modes on offer, which
-// may have changed since Windows picked it.
+// may have changed since Windows picked it. A frame buffer of that size is shown again. Otherwise the old one is
+// released first, so that only one is ever allocated: a mode set that fails leaves none until the next one.
 NTSTATUS VioGpuAdapter::SetCurrentMode(ULONG Width, ULONG Height, CURRENT_MODE *pCurrentMode)
 {
     PAGED_CODE();
     DbgPrint(TRACE_LEVEL_ERROR, ("---> %s - %d: %dx%d\n", __FUNCTION__, m_Id, Width, Height));
 
-    VIDEO_MODE_INFORMATION mode = {0};
-    mode.Length = sizeof(mode);
-    mode.VisScreenWidth = Width;
-    mode.VisScreenHeight = Height;
-    mode.ScreenStride = Width * 4;
-    if (pCurrentMode->Flags.FrameBufferIsActive)
+    NTSTATUS status;
+    if (m_pFrameBuf != NULL && m_CurrentModeSize.XResolution == Width && m_CurrentModeSize.YResolution == Height)
     {
-        DestroyFrameBufferObj(FALSE, FALSE);
-        pCurrentMode->Flags.FrameBufferIsActive = FALSE;
+        status = ShowFrameBuffer(m_pFrameBuf, Width, Height);
+        DbgPrint(TRACE_LEVEL_FATAL,
+                 ("%s: scanout %d shows resource %d (%dx%d) again, 0x%x\n",
+                  __FUNCTION__,
+                  m_FrameBufScanout,
+                  m_pFrameBuf->GetId(),
+                  Width,
+                  Height,
+                  status));
+        if (NT_SUCCESS(status))
+        {
+            pCurrentMode->FrameBuffer = m_pFrameBuf->GetVirtualAddress();
+            pCurrentMode->Flags.FrameBufferIsActive = TRUE;
+        }
+        return status;
     }
-    if (!CreateFrameBufferObj(&mode, pCurrentMode))
+
+    pCurrentMode->Flags.FrameBufferIsActive = FALSE;
+    pCurrentMode->FrameBuffer = NULL;
+    DestroyFrameBufferObj(FALSE);
+    VioGpuObj *pObj = NULL;
+    status = CreateFrameBuffer(Width, Height, pCurrentMode, &pObj);
+    if (!NT_SUCCESS(status))
     {
-        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s failed\n", __FUNCTION__));
-        return STATUS_UNSUCCESSFUL;
+        DbgPrint(TRACE_LEVEL_FATAL,
+                 ("<--- %s %dx%d failed (0x%x): no frame buffer until the next mode set\n",
+                  __FUNCTION__,
+                  Width,
+                  Height,
+                  status));
+        return status;
     }
+    m_pFrameBuf = pObj;
+    pCurrentMode->FrameBuffer = pObj->GetVirtualAddress();
+    pCurrentMode->Flags.FrameBufferIsActive = TRUE;
     m_CurrentModeSize.XResolution = (USHORT)Width;
     m_CurrentModeSize.YResolution = (USHORT)Height;
+    DbgPrint(TRACE_LEVEL_FATAL,
+             ("%s: scanout %d shows resource %d, %dx%d, %Iu bytes in %d run(s)\n",
+              __FUNCTION__,
+              m_FrameBufScanout,
+              pObj->GetId(),
+              Width,
+              Height,
+              pObj->GetSize(),
+              pObj->GetSGList()->NumberOfElements));
     return STATUS_SUCCESS;
 }
 
@@ -2670,7 +2700,11 @@ NTSTATUS VioGpuAdapter::SetPowerState(DXGK_DEVICE_INFO *pDeviceInfo,
         case PowerDeviceD3:
             {
                 CloseComponents();
-                DestroyFrameBufferObj(TRUE, FALSE);
+                // The reset drops every resource the host has: the cursor is made again, and attached, with the next
+                // shape.
+                DestroyCursor();
+                m_bCursorHidden = TRUE;
+                DestroyFrameBufferObj(FALSE);
                 VioGpuAdapterClose();
                 pCurrentMode->Flags.FrameBufferIsActive = FALSE;
                 pCurrentMode->FrameBuffer = NULL;
@@ -2803,14 +2837,6 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
 
         m_CtrlQueue.SetGpuBuf(&m_GpuBuf);
         m_CursorQueue.SetGpuBuf(&m_GpuBuf);
-
-        if (!m_Idr.Init(1))
-        {
-            DbgPrint(TRACE_LEVEL_FATAL, ("Failed to initialize id generator\n"));
-            status = STATUS_INSUFFICIENT_RESOURCES;
-            VioGpuDbgBreak();
-            break;
-        }
 
     } while (0);
     // Exit if the block above failed
@@ -3315,6 +3341,9 @@ NTSTATUS VioGpuAdapter::Escape(_In_ CONST DXGKARG_ESCAPE *pEscape)
     return status;
 }
 
+// The virtio-gpu format of a D3DDDIFORMAT (defined below).
+UINT ColorFormat(UINT format);
+
 // The device's configuration events, VIRTIO_GPU_EVENT_*.
 UINT32 VioGpuAdapter::ReadConfigEvents(void)
 {
@@ -3359,67 +3388,89 @@ void VioGpuAdapter::InitDisplay(DXGK_DISPLAY_INFORMATION *pDispInfo)
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
+
+// Shows the frame buffer on its scanout, and has the host take its whole content.
+NTSTATUS VioGpuAdapter::ShowFrameBuffer(VioGpuObj *pObj, ULONG Width, ULONG Height)
+{
+    PAGED_CODE();
+
+    // Waited for: QEMU's SET_SCANOUT fails for a resource the device did not create, and up to QEMU 11.1, on its 2D
+    // device, for one it did not back.
+    NTSTATUS status = m_Commands.SetScanout(m_FrameBufScanout, pObj->GetId(), Width, Height, 0, 0, TRUE);
+    if (NT_SUCCESS(status))
+    {
+        m_Commands.TransferToHost2D(pObj->GetId(), 0, Width, Height, 0, 0);
+        m_Commands.ResourceFlush(pObj->GetId(), Width, Height, 0, 0);
+    }
+    return status;
+}
+
+// Makes a Width x Height frame buffer and shows it on the scanout. *ppObj receives it; on failure what was made of it
+// is released. The frame buffer segment backs it (HWInit).
+NTSTATUS VioGpuAdapter::CreateFrameBuffer(ULONG Width, ULONG Height, CURRENT_MODE *pCurrentMode, VioGpuObj **ppObj)
+{
+    PAGED_CODE();
+    DbgPrint(TRACE_LEVEL_INFORMATION, ("---> %s - %d: (%d x %d)\n", __FUNCTION__, m_Id, Width, Height));
+
+    *ppObj = NULL;
+    if (!ModeFits(Width, Height))
+    {
+        DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s %dx%d is more than the driver can back\n", __FUNCTION__, Width, Height));
+        return STATUS_INVALID_PARAMETER;
+    }
+    UINT size = Width * 4 * Height;
+    UINT format = ColorFormat(pCurrentMode->DispInfo.ColorFormat);
+    VioGpuObj *pObj = NULL;
+    NTSTATUS status = m_Resources.Create(size, &m_FrameSegment, format, Width, Height, &pObj);
+    if (!NT_SUCCESS(status))
+    {
+        return status;
+    }
+    status = ShowFrameBuffer(pObj, Width, Height);
+    if (!NT_SUCCESS(status))
+    {
+        DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s resource %d not shown (0x%x)\n", __FUNCTION__, pObj->GetId(), status));
+        m_Resources.Release(pObj);
+        return status;
+    }
+    *ppObj = pObj;
+    return STATUS_SUCCESS;
+}
+
 PAGED_CODE_SEG_END
 
 BOOLEAN VioGpuAdapter::ResetToVgaMode(void)
 {
-    DestroyFrameBufferObj(TRUE, TRUE);
+    DestroyFrameBufferObj(TRUE);
     VioGpuAdapterClose();
     return TRUE;
 }
 
-// Sends a resource's RESOURCE_UNREF, and gives its ID back once the command is sent. The host keeps a resource whose
-// RESOURCE_UNREF was not sent, until the device is reset, and refuses a new resource under its ID: that ID is not used
-// again.
-void VioGpuAdapter::UnrefResource(UINT res_id)
-{
-    NTSTATUS status = m_Commands.ResourceUnref(res_id);
-    if (NT_SUCCESS(status))
-    {
-        m_Idr.PutId(res_id);
-    }
-    else
-    {
-        DbgPrint(TRACE_LEVEL_ERROR,
-                 ("%s: RESOURCE_UNREF of resource %d not sent (0x%x): its ID is not used again\n",
-                  __FUNCTION__,
-                  res_id,
-                  status));
-    }
-}
-
-void VioGpuAdapter::DestroyFrameBufferObj(BOOLEAN bReset, BOOLEAN bKeepBuffer)
+// Turns the scanout off and releases the frame buffer. bKeepBuffer is for the bugcheck flow, which may run at any IRQL,
+// and the same holds above APC_LEVEL: nothing is sent and the object is parked, since the device reset that follows
+// destroys the resource. The bugcheck screen goes to BAR 0 (SystemDisplayEnable).
+void VioGpuAdapter::DestroyFrameBufferObj(BOOLEAN bKeepBuffer)
 {
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-    UINT resid = 0;
 
-    if (m_pFrameBuf != NULL)
+    VioGpuObj *pObj = m_pFrameBuf;
+    if (pObj == NULL)
     {
-        // Above DISPATCH_LEVEL, in the bugcheck flow, nothing is sent and nothing allocated: the device reset that
-        // follows destroys the resource and disables the scanout.
-        BOOLEAN bugcheck = (KeGetCurrentIrql() > DISPATCH_LEVEL);
-        resid = (UINT)m_pFrameBuf->GetId();
-        if (!bugcheck)
-        {
-            m_Commands.ResourceDetachBacking(resid);
-            UnrefResource(resid);
-            if (bReset == TRUE)
-            {
-                m_Commands.SetScanout(0, 0, 0, 0, 0, 0);
-            }
-        }
-
-        if (bKeepBuffer)
-        {
-            DbgPrint(TRACE_LEVEL_FATAL,
-                     ("%s: Keeping frame buffer object. Don't use except in bugcheck flow!\n", __FUNCTION__));
-        }
-        else
-        {
-            delete m_pFrameBuf;
-        }
-        m_pFrameBuf = NULL;
+        return;
     }
+    m_pFrameBuf = NULL;
+    if (bKeepBuffer || KeGetCurrentIrql() > APC_LEVEL)
+    {
+        m_Resources.Park(pObj);
+        return;
+    }
+    NTSTATUS status = m_Commands.SetScanout(m_FrameBufScanout, 0, 0, 0, 0, 0, TRUE);
+    if (!NT_SUCCESS(status))
+    {
+        DbgPrint(TRACE_LEVEL_FATAL,
+                 ("%s: scanout %d not turned off (0x%x)\n", __FUNCTION__, m_FrameBufScanout, status));
+    }
+    m_Resources.Release(pObj);
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
@@ -3451,6 +3502,11 @@ void VioGpuAdapter::VioGpuAdapterClose()
             virtio_delete_queues(&m_VioDev);
             virtio_device_shutdown(&m_VioDev);
         }
+    }
+    // After the reset the host no longer has the resources of the objects whose release got no answer.
+    if (!m_bDeviceOpen && KeGetCurrentIrql() <= APC_LEVEL)
+    {
+        m_Resources.FreeReleased();
     }
     DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s\n", __FUNCTION__));
 }
@@ -3675,66 +3731,11 @@ UINT ColorFormat(UINT format)
 }
 
 PAGED_CODE_SEG_BEGIN
-BOOLEAN VioGpuAdapter::CreateFrameBufferObj(PVIDEO_MODE_INFORMATION pModeInfo, CURRENT_MODE *pCurrentMode)
-{
-    UINT resid, format, size;
-    VioGpuObj *obj;
-    PAGED_CODE();
-    DbgPrint(TRACE_LEVEL_INFORMATION,
-             ("---> %s - %d: (%d x %d)\n", __FUNCTION__, m_Id, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight));
-    ASSERT(m_pFrameBuf == NULL);
-    size = pModeInfo->ScreenStride * pModeInfo->VisScreenHeight;
-    format = ColorFormat(pCurrentMode->DispInfo.ColorFormat);
-    DbgPrint(TRACE_LEVEL_INFORMATION,
-             ("---> %s - (%d -> %d)\n", __FUNCTION__, pCurrentMode->DispInfo.ColorFormat, format));
-    resid = m_Idr.GetId();
-    if (!NT_SUCCESS(m_Commands.ResourceCreate2D(resid, format, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight)))
-    {
-        DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s Failed to create resource %d\n", __FUNCTION__, resid));
-        m_Idr.PutId(resid);
-        return FALSE;
-    }
-    obj = new (NonPagedPoolNx) VioGpuObj();
-    if (obj == NULL || !obj->Init(size, &m_FrameSegment))
-    {
-        DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s Failed to init obj size = %d\n", __FUNCTION__, size));
-        UnrefResource(resid);
-        delete obj;
-        return FALSE;
-    }
-
-    // The frame buffer is used only once the device has answered its ATTACH_BACKING (GpuObjectAttach) and its
-    // SET_SCANOUT: QEMU refuses both for a resource it did not create, and up to QEMU 11.1 a 2D SET_SCANOUT for one
-    // without backing.
-    if (!GpuObjectAttach(resid, obj) || !NT_SUCCESS(m_Commands.SetScanout(0 /*FIXME m_Id*/,
-                                                                          resid,
-                                                                          pModeInfo->VisScreenWidth,
-                                                                          pModeInfo->VisScreenHeight,
-                                                                          0,
-                                                                          0,
-                                                                          TRUE)))
-    {
-        // Destroying the resource also drops the backing that may have been attached.
-        DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s Failed to show resource %d\n", __FUNCTION__, resid));
-        UnrefResource(resid);
-        delete obj;
-        return FALSE;
-    }
-    m_Commands.TransferToHost2D(resid, 0, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight, 0, 0);
-    m_Commands.ResourceFlush(resid, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight, 0, 0);
-    m_pFrameBuf = obj;
-    pCurrentMode->FrameBuffer = obj->GetVirtualAddress();
-    pCurrentMode->Flags.FrameBufferIsActive = TRUE;
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
-    return TRUE;
-}
-
 BOOLEAN VioGpuAdapter::CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape,
                                     _In_ CONST CURRENT_MODE *pCurrentMode)
 {
-    UINT resid, format, size;
-    VioGpuObj *obj;
-    BOOLEAN status = TRUE;
+    UINT format, size;
+    VioGpuObj *obj = NULL;
     PAGED_CODE();
     DbgPrint(TRACE_LEVEL_INFORMATION,
              ("---> %s - %d: (%d x %d - %d) (%d + %d)\n",
@@ -3750,35 +3751,13 @@ BOOLEAN VioGpuAdapter::CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPoin
     format = ColorFormat(D3DDDIFMT_A8R8G8B8);
     DbgPrint(TRACE_LEVEL_INFORMATION,
              ("---> %s - (%x -> %x)\n", __FUNCTION__, pCurrentMode->DispInfo.ColorFormat, format));
-    resid = (UINT)m_Idr.GetId();
-    if (!NT_SUCCESS(m_Commands.ResourceCreate2D(resid, format, POINTER_SIZE, POINTER_SIZE)))
-    {
-        DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s Failed to create resource %d\n", __FUNCTION__, resid));
-        m_Idr.PutId(resid);
-        return FALSE;
-    }
-    obj = new (NonPagedPoolNx) VioGpuObj();
-    if (obj == NULL || !obj->Init(size, &m_CursorSegment))
-    {
-        DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s Failed to init obj size = %d\n", __FUNCTION__, size));
-        status = FALSE;
-    }
-    else if (!GpuObjectAttach(resid, obj))
-    {
-        DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s Failed to attach gpu object\n", __FUNCTION__));
-        status = FALSE;
-    }
-    if (status)
-    {
-        m_pCursorBuf = obj;
-    }
-    else
+    if (!NT_SUCCESS(m_Resources.Create(size, &m_CursorSegment, format, POINTER_SIZE, POINTER_SIZE, &obj)))
     {
         VioGpuDbgBreak();
-        UnrefResource(resid);
-        delete obj;
+        return FALSE;
     }
-    return status;
+    m_pCursorBuf = obj;
+    return TRUE;
 }
 
 BOOLEAN VioGpuAdapter::UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape,
@@ -3850,27 +3829,13 @@ void VioGpuAdapter::DestroyCursor()
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
     if (m_pCursorBuf != NULL)
     {
-        UINT id = (UINT)m_pCursorBuf->GetId();
-        m_Commands.ResourceDetachBacking(id);
-        UnrefResource(id);
-        delete m_pCursorBuf;
+        VioGpuObj *pObj = m_pCursorBuf;
         m_pCursorBuf = NULL;
+        m_Resources.Release(pObj);
     }
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
-BOOLEAN VioGpuAdapter::GpuObjectAttach(UINT res_id, VioGpuObj *obj)
-{
-    PAGED_CODE();
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-    if (!NT_SUCCESS(m_Commands.ResourceAttachBacking(res_id, obj->GetSGList())))
-    {
-        return FALSE;
-    }
-    obj->SetId(res_id);
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
-    return TRUE;
-}
 PAGED_CODE_SEG_END
 
 PDXGKRNL_INTERFACE VioGpuAdapter::GetDxgkInterface()

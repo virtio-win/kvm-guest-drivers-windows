@@ -147,20 +147,23 @@ class VioGpuMemSegment
     SIZE_T m_Size;
 };
 
+// A host resource and the guest pages that back it: the start of a segment the adapter keeps (VioGpuAdapter::HWInit).
+// The driver deletes an object only once the host has let go of the resource (VioGpuResources::Release), and only at
+// or below APC_LEVEL.
+class VioGpuResources;
+
 class VioGpuObj
 {
+    // Only it makes, links and deletes objects, in the order Release keeps.
+    friend class VioGpuResources;
+
   public:
-    VioGpuObj(void);
-    ~VioGpuObj(void);
-    void SetId(_In_ UINT id)
-    {
-        m_uiHwRes = id;
-    }
+    VioGpuObj(const VioGpuObj &) = delete;
+    VioGpuObj &operator=(const VioGpuObj &) = delete;
     UINT GetId(void)
     {
         return m_uiHwRes;
     }
-    BOOLEAN Init(_In_ UINT size, VioGpuMemSegment *pSegment);
     SIZE_T GetSize(void)
     {
         return m_Size;
@@ -169,20 +172,37 @@ class VioGpuObj
     {
         return m_pSegment ? m_pSegment->GetSGList() : NULL;
     }
-    PHYSICAL_ADDRESS GetPhysicalAddress(void)
-    {
-        PHYSICAL_ADDRESS pa = {0};
-        return m_pSegment ? m_pSegment->GetPhysicalAddress() : pa;
-    }
     PVOID GetVirtualAddress(void)
     {
         return m_pSegment ? m_pSegment->GetVirtualAddress() : NULL;
     }
 
   private:
+    VioGpuObj(void);
+    ~VioGpuObj(void);
+    // Set once, when the host resource is made (VioGpuResources::Create).
+    void SetId(_In_ UINT id)
+    {
+        ASSERT(m_uiHwRes == 0 && id != 0);
+        m_uiHwRes = id;
+    }
+    // Takes size bytes from the start of the segment, which must hold them.
+    BOOLEAN Init(_In_ UINT size, _In_ VioGpuMemSegment *pSegment);
+    // The next object on the resource manager's list of objects that wait for the device reset.
+    VioGpuObj *GetNextReleased(void)
+    {
+        return m_pNextReleased;
+    }
+    void SetNextReleased(VioGpuObj *pObj)
+    {
+        m_pNextReleased = pObj;
+    }
+
+  private:
     UINT m_uiHwRes;
     SIZE_T m_Size;
     VioGpuMemSegment *m_pSegment;
+    VioGpuObj *m_pNextReleased;
 };
 
 // Send: the device answers once it has finished the command (VIRTIO_GPU_FLAG_FENCE).

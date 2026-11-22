@@ -586,8 +586,11 @@ static NTSTATUS CheckAnswer(PGPU_VBUFFER buf, UINT len)
             case VIRTIO_GPU_RESP_ERR_OUT_OF_MEMORY:
                 status = STATUS_NO_MEMORY;
                 break;
-            case VIRTIO_GPU_RESP_ERR_INVALID_SCANOUT_ID:
             case VIRTIO_GPU_RESP_ERR_INVALID_RESOURCE_ID:
+                // The host has no such resource: a release that finds none has nothing to wait for.
+                status = STATUS_NOT_FOUND;
+                break;
+            case VIRTIO_GPU_RESP_ERR_INVALID_SCANOUT_ID:
             case VIRTIO_GPU_RESP_ERR_INVALID_CONTEXT_ID:
             case VIRTIO_GPU_RESP_ERR_INVALID_PARAMETER:
                 status = STATUS_INVALID_PARAMETER;
@@ -1102,25 +1105,22 @@ VioGpuObj::VioGpuObj(void)
     m_uiHwRes = 0;
     m_pSegment = NULL;
     m_Size = 0;
+    m_pNextReleased = NULL;
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
+// The segment and its pages stay: the adapter keeps them (VioGpuAdapter::HWClose).
 VioGpuObj::~VioGpuObj(void)
 {
-    // Driver can destroy object in case of a bugcheck.
-    // DxgkDdiSystemDisplayEnable can be called at any IRQL, so it must
-    // be in nonpageable memory. DxgkDdiSystemDisplayEnable must not
-    // call any code that is in pageable memory and must not manipulate
-    // any data that is in pageable memory.
-    // PAGED_CODE();
+    PAGED_CODE();
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
-BOOLEAN VioGpuObj::Init(_In_ UINT size, VioGpuMemSegment *pSegment)
+BOOLEAN VioGpuObj::Init(_In_ UINT size, _In_ VioGpuMemSegment *pSegment)
 {
     PAGED_CODE();
 

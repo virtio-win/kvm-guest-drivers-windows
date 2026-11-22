@@ -1,7 +1,9 @@
 /*
  * Copyright (C) 2019-2020 Red Hat, Inc.
+ * Copyright (C) 2026 Zededa, Inc.
  *
  * Written By: Vadim Rozenfeld <vrozenfe@redhat.com>
+ *             Mikhail Malyshev <mike.malyshev@gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -37,66 +39,24 @@
 VioGpuIdr::VioGpuIdr()
 {
     m_nextId = 0;
-    KeInitializeSpinLock(&m_lock);
-    InitializeListHead(&m_freeList);
 }
 
-VioGpuIdr::~VioGpuIdr()
+void VioGpuIdr::Init(_In_ ULONG start)
 {
-    Close();
-}
-
-BOOLEAN VioGpuIdr::Init(_In_ ULONG start)
-{
-    Close();
-    m_nextId = start;
-
-    return true;
+    m_nextId = (LONG)start - 1;
 }
 
 ULONG VioGpuIdr::GetId(VOID)
 {
-    ULONG id = 0;
+    ULONG id;
 
-    FreeId *freeId = reinterpret_cast<FreeId *>(ExInterlockedRemoveHeadList(&m_freeList, &m_lock));
-    if (freeId != NULL)
+    // 0 is no resource: an ID that wraps around skips it.
+    do
     {
-        id = freeId->id;
-        delete freeId;
-    }
-    else
-    {
-        id = m_nextId++;
-    }
+        id = (ULONG)InterlockedIncrement(&m_nextId);
+    } while (id == 0);
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("[%s] id = %d\n", __FUNCTION__, id));
 
     return id;
-}
-
-VOID VioGpuIdr::PutId(_In_ ULONG id)
-{
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("[%s] id = %d\n", __FUNCTION__, id));
-    FreeId *freeId = new (NonPagedPoolNx) FreeId;
-    if (freeId == NULL)
-    {
-        // The ID is not used again.
-        return;
-    }
-    freeId->id = id;
-    ExInterlockedInsertTailList(&m_freeList, &freeId->list_entry, &m_lock);
-}
-
-VOID VioGpuIdr::Close(VOID)
-{
-
-    FreeId *freeId = NULL;
-    do
-    {
-        freeId = reinterpret_cast<FreeId *>(ExInterlockedRemoveHeadList(&m_freeList, &m_lock));
-        if (freeId != NULL)
-        {
-            delete freeId;
-        }
-    } while (freeId != NULL);
 }

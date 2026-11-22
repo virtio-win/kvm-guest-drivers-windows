@@ -171,7 +171,9 @@ NTSTATUS VioGpuCommands::ResourceCreate2D(UINT res_id, UINT format, UINT width, 
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 
-    return Send(m_pCtrl, vbuf);
+    // Waited for: the host may refuse the memory (VIRTIO_GPU_RESP_ERR_OUT_OF_MEMORY), which the next command would only
+    // report as a missing resource.
+    return SendAndWait(m_pCtrl, vbuf, 0, NULL, 0);
 }
 
 NTSTATUS VioGpuCommands::ResourceFlush(UINT res_id, UINT width, UINT height, UINT x, UINT y)
@@ -334,7 +336,8 @@ NTSTATUS VioGpuCommands::ResourceDetachBacking(UINT res_id)
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 
-    return Send(m_pCtrl, vbuf);
+    // Fenced and waited for: the backing pages may be freed only once the device answers.
+    return SendAndWait(m_pCtrl, vbuf, VIOGPU_SEND_FENCE, NULL, 0);
 }
 
 PVOID VioGpuCommands::AllocCmdResp(PGPU_VBUFFER *buf, int cmd_sz, int resp_sz, u32 resp_type)

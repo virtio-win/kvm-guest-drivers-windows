@@ -34,6 +34,7 @@
 #include "viogpu.h"
 #include "viogpu_queue.h"
 #include "viogpu_commands.h"
+#include "viogpu_resources.h"
 #include "viogpu_display.h"
 #include "viogpu_hostdisplays.h"
 
@@ -180,13 +181,12 @@ class VioGpuAdapter : IVioGpuPCI
     void VioGpuAdapterClose(void);
     void InitDisplay(DXGK_DISPLAY_INFORMATION *pDispInfo);
     BOOLEAN AckFeature(UINT64 Feature);
-    BOOLEAN CreateFrameBufferObj(PVIDEO_MODE_INFORMATION pModeInfo, CURRENT_MODE *pCurrentMode);
-    void DestroyFrameBufferObj(BOOLEAN bReset, BOOLEAN bKeepBuffer);
+    NTSTATUS ShowFrameBuffer(VioGpuObj *pObj, ULONG Width, ULONG Height);
+    NTSTATUS CreateFrameBuffer(ULONG Width, ULONG Height, CURRENT_MODE *pCurrentMode, VioGpuObj **ppObj);
+    void DestroyFrameBufferObj(BOOLEAN bKeepBuffer);
     BOOLEAN CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape, _In_ CONST CURRENT_MODE *pCurrentMode);
     BOOLEAN UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape, _In_ CONST CURRENT_MODE *pCurrentMode);
     void DestroyCursor(void);
-    BOOLEAN GpuObjectAttach(UINT res_id, VioGpuObj *obj);
-    void UnrefResource(UINT res_id);
     NTSTATUS VirtIoDeviceInit(void);
     VOID CreateResolutionEvent(VOID);
     VOID CloseResolutionEvent(VOID);
@@ -211,8 +211,10 @@ class VioGpuAdapter : IVioGpuPCI
     VioGpuQueue m_CursorQueue;
     VioGpuCommands m_Commands;
     VioGpuBuf m_GpuBuf;
-    VioGpuIdr m_Idr;
+    VioGpuResources m_Resources;
     VioGpuObj *m_pFrameBuf;
+    // The scanout the frame buffer is shown on: one, until there is a source per scanout.
+    ULONG m_FrameBufScanout;
     VioGpuObj *m_pCursorBuf;
     // Serializes SetPointerShape against SetPointerPosition: dxgkrnl calls the two pointer DDIs from
     // different threads without synchronizing them. A concurrent MOVE_CURSOR can then interleave with the
