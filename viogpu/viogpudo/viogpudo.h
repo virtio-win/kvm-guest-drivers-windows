@@ -363,8 +363,12 @@ class VioGpuDod
     NTSTATUS WriteRegistryString(_In_ HANDLE DevInstRegKeyHandle, _In_ PCWSTR pszwValueName, _In_ PCSTR pszValue);
     NTSTATUS WriteRegistryDWORD(_In_ HANDLE DevInstRegKeyHandle, _In_ PCWSTR pszwValueName, _In_ PDWORD pdwValue);
     NTSTATUS ReadRegistryDWORD(_In_ HANDLE DevInstRegKeyHandle, _In_ PCWSTR pszwValueName, _Inout_ PDWORD pdwValue);
-    NTSTATUS SetSourceModeAndPath(CONST D3DKMDT_VIDPN_SOURCE_MODE *pSourceMode,
-                                  CONST D3DKMDT_VIDPN_PRESENT_PATH *pPath);
+    NTSTATUS ReadSourceState(D3DKMDT_HVIDPN hVidPn,
+                             _In_ CONST DXGK_VIDPN_INTERFACE *pVidPnInterface,
+                             D3DKMDT_HVIDPNTOPOLOGY hVidPnTopology,
+                             _In_ CONST DXGK_VIDPNTOPOLOGY_INTERFACE *pVidPnTopologyInterface,
+                             D3DDDI_VIDEO_PRESENT_SOURCE_ID SourceId,
+                             _Out_ PVIOGPU_SOURCE_STATE pState);
     NTSTATUS AddSingleMonitorMode(_In_ CONST DXGKARG_RECOMMENDMONITORMODES *CONST pRecommendMonitorModes);
     NTSTATUS AddMonitorMode(D3DKMDT_HMONITORSOURCEMODESET hMonitorSourceModeSet,
                             _In_ CONST DXGK_MONITORSOURCEMODESET_INTERFACE *pMonitorSourceModeSetInterface,

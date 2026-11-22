@@ -758,7 +758,8 @@ NTSTATUS VioGpuDod::IsSupportedVidPn(_Inout_ DXGKARG_ISSUPPORTEDVIDPN *pIsSuppor
         return Status;
     }
 
-    for (D3DDDI_VIDEO_PRESENT_SOURCE_ID SourceId = 0; SourceId < MAX_VIEWS; ++SourceId)
+    for (D3DDDI_VIDEO_PRESENT_SOURCE_ID SourceId = 0; SourceId < m_pHWDevice->GetController()->GetSourceCount();
+         ++SourceId)
     {
         SIZE_T NumPathsFromSource = 0;
         Status = pVidPnTopologyInterface->pfnGetNumPathsFromSource(hVidPnTopology, SourceId, &NumPathsFromSource);
@@ -775,8 +776,9 @@ NTSTATUS VioGpuDod::IsSupportedVidPn(_Inout_ DXGKARG_ISSUPPORTEDVIDPN *pIsSuppor
                       LONG_PTR(SourceId)));
             return Status;
         }
-        else if (NumPathsFromSource > MAX_CHILDREN)
+        else if (NumPathsFromSource > 1)
         {
+            // The driver does not clone: a source drives one path at most.
             return STATUS_SUCCESS;
         }
 
@@ -1813,36 +1815,29 @@ NTSTATUS VioGpuDod::CommitVidPn(_In_ CONST DXGKARG_COMMITVIDPN *CONST pCommitVid
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
     VIOGPU_ASSERT(pCommitVidPn != NULL);
-    VIOGPU_ASSERT(pCommitVidPn->AffectedVidPnSourceId < MAX_VIEWS);
-
-    NTSTATUS Status;
-    SIZE_T NumPaths = 0;
-    D3DKMDT_HVIDPNTOPOLOGY hVidPnTopology = 0;
-    D3DKMDT_HVIDPNSOURCEMODESET hVidPnSourceModeSet = 0;
-    CONST DXGK_VIDPN_INTERFACE *pVidPnInterface = NULL;
-    CONST DXGK_VIDPNTOPOLOGY_INTERFACE *pVidPnTopologyInterface = NULL;
-    CONST DXGK_VIDPNSOURCEMODESET_INTERFACE *pVidPnSourceModeSetInterface = NULL;
-    CONST D3DKMDT_VIDPN_PRESENT_PATH *pVidPnPresentPath = NULL;
-    CONST D3DKMDT_VIDPN_SOURCE_MODE *pPinnedVidPnSourceModeInfo = NULL;
+    VIOGPU_ASSERT(pCommitVidPn->AffectedVidPnSourceId < MAX_VIEWS ||
+                  pCommitVidPn->AffectedVidPnSourceId == D3DDDI_ID_ALL);
 
     if (pCommitVidPn->Flags.PathPoweredOff)
     {
-        Status = STATUS_SUCCESS;
-        goto CommitVidPnExit;
+        return STATUS_SUCCESS;
     }
 
-    Status = m_DxgkInterface.DxgkCbQueryVidPnInterface(pCommitVidPn->hFunctionalVidPn,
-                                                       DXGK_VIDPN_INTERFACE_VERSION_V1,
-                                                       &pVidPnInterface);
+    CONST DXGK_VIDPN_INTERFACE *pVidPnInterface = NULL;
+    NTSTATUS Status = m_DxgkInterface.DxgkCbQueryVidPnInterface(pCommitVidPn->hFunctionalVidPn,
+                                                                DXGK_VIDPN_INTERFACE_VERSION_V1,
+                                                                &pVidPnInterface);
     if (!NT_SUCCESS(Status))
     {
         DbgPrint(TRACE_LEVEL_ERROR,
                  ("DxgkCbQueryVidPnInterface failed with Status = 0x%X, hFunctionalVidPn = 0x%llu\n",
                   Status,
                   LONG_PTR(pCommitVidPn->hFunctionalVidPn)));
-        goto CommitVidPnExit;
+        return Status;
     }
 
+    D3DKMDT_HVIDPNTOPOLOGY hVidPnTopology = 0;
+    CONST DXGK_VIDPNTOPOLOGY_INTERFACE *pVidPnTopologyInterface = NULL;
     Status = pVidPnInterface->pfnGetTopology(pCommitVidPn->hFunctionalVidPn, &hVidPnTopology, &pVidPnTopologyInterface);
     if (!NT_SUCCESS(Status))
     {
@@ -1850,184 +1845,184 @@ NTSTATUS VioGpuDod::CommitVidPn(_In_ CONST DXGKARG_COMMITVIDPN *CONST pCommitVid
                  ("pfnGetTopology failed with Status = 0x%X, hFunctionalVidPn = 0x%llu\n",
                   Status,
                   LONG_PTR(pCommitVidPn->hFunctionalVidPn)));
-        goto CommitVidPnExit;
+        return Status;
     }
 
-    Status = pVidPnTopologyInterface->pfnGetNumPaths(hVidPnTopology, &NumPaths);
+    // The affected source, or every source for D3DDDI_ID_ALL, read into what the VidPN asks of it; the controller
+    // checks them all before it changes any.
+    VioGpuDisplayController *pController = m_pHWDevice->GetController();
+    VIOGPU_SOURCE_STATE States[MAX_VIEWS];
+    RtlZeroMemory(States, sizeof(States));
+    ULONG Sources = 0;
+    for (UINT SourceId = 0; SourceId < pController->GetSourceCount(); ++SourceId)
+    {
+        if (pCommitVidPn->AffectedVidPnSourceId != D3DDDI_ID_ALL && pCommitVidPn->AffectedVidPnSourceId != SourceId)
+        {
+            continue;
+        }
+        Status = ReadSourceState(pCommitVidPn->hFunctionalVidPn,
+                                 pVidPnInterface,
+                                 hVidPnTopology,
+                                 pVidPnTopologyInterface,
+                                 SourceId,
+                                 &States[SourceId]);
+        if (!NT_SUCCESS(Status))
+        {
+            DbgPrint(TRACE_LEVEL_FATAL,
+                     ("<--- %s source %d refused (0x%x): nothing changed\n", __FUNCTION__, SourceId, Status));
+            return Status;
+        }
+        Sources |= 1UL << SourceId;
+    }
+    Status = pController->Commit(Sources, States, pCommitVidPn->MonitorConnectivityChecks == D3DKMDT_MCC_ENFORCE);
+    if (NT_SUCCESS(Status))
+    {
+        DbgPrint(TRACE_LEVEL_INFORMATION,
+                 ("<--- %s source 0x%x committed\n", __FUNCTION__, pCommitVidPn->AffectedVidPnSourceId));
+    }
+    return Status;
+}
+
+// Reads what a functional VidPN asks of one source: the mode pinned on it and the target of its path, or no path when
+// the source has none or no pinned mode. Refuses a source with more than one path, as the driver does not clone
+// (IsSupportedVidPn), and a mode or a path the driver does not take.
+NTSTATUS VioGpuDod::ReadSourceState(D3DKMDT_HVIDPN hVidPn,
+                                    _In_ CONST DXGK_VIDPN_INTERFACE *pVidPnInterface,
+                                    D3DKMDT_HVIDPNTOPOLOGY hVidPnTopology,
+                                    _In_ CONST DXGK_VIDPNTOPOLOGY_INTERFACE *pVidPnTopologyInterface,
+                                    D3DDDI_VIDEO_PRESENT_SOURCE_ID SourceId,
+                                    _Out_ PVIOGPU_SOURCE_STATE pState)
+{
+    PAGED_CODE();
+
+    D3DKMDT_HVIDPNSOURCEMODESET hVidPnSourceModeSet = 0;
+    CONST DXGK_VIDPNSOURCEMODESET_INTERFACE *pVidPnSourceModeSetInterface = NULL;
+    CONST D3DKMDT_VIDPN_SOURCE_MODE *pPinnedVidPnSourceModeInfo = NULL;
+    CONST D3DKMDT_VIDPN_PRESENT_PATH *pVidPnPresentPath = NULL;
+    D3DDDI_VIDEO_PRESENT_TARGET_ID TargetId = D3DDDI_ID_UNINITIALIZED;
+
+    RtlZeroMemory(pState, sizeof(*pState));
+    pState->ScanoutId = D3DDDI_ID_UNINITIALIZED;
+
+    SIZE_T NumPathsFromSource = 0;
+    NTSTATUS Status = pVidPnTopologyInterface->pfnGetNumPathsFromSource(hVidPnTopology, SourceId, &NumPathsFromSource);
+    if (Status == STATUS_GRAPHICS_SOURCE_NOT_IN_TOPOLOGY)
+    {
+        NumPathsFromSource = 0;
+        Status = STATUS_SUCCESS;
+    }
     if (!NT_SUCCESS(Status))
     {
         DbgPrint(TRACE_LEVEL_ERROR,
-                 ("pfnGetNumPaths failed with Status = 0x%X, hVidPnTopology = 0x%llu\n",
-                  Status,
-                  LONG_PTR(hVidPnTopology)));
-        goto CommitVidPnExit;
+                 ("pfnGetNumPathsFromSource failed with Status = 0x%X, SourceId = %d\n", Status, SourceId));
+        return Status;
     }
-
-    if (NumPaths != 0)
+    if (NumPathsFromSource > 1)
     {
-        Status = pVidPnInterface->pfnAcquireSourceModeSet(pCommitVidPn->hFunctionalVidPn,
-                                                          pCommitVidPn->AffectedVidPnSourceId,
-                                                          &hVidPnSourceModeSet,
-                                                          &pVidPnSourceModeSetInterface);
-        if (!NT_SUCCESS(Status))
-        {
-            DbgPrint(TRACE_LEVEL_ERROR,
-                     ("pfnAcquireSourceModeSet failed with Status = 0x%X, hFunctionalVidPn = 0x%llu, SourceId = "
-                      "0x%I64x\n",
-                      Status,
-                      LONG_PTR(pCommitVidPn->hFunctionalVidPn),
-                      pCommitVidPn->AffectedVidPnSourceId));
-            goto CommitVidPnExit;
-        }
-
-        Status = pVidPnSourceModeSetInterface->pfnAcquirePinnedModeInfo(hVidPnSourceModeSet,
-                                                                        &pPinnedVidPnSourceModeInfo);
-        if (!NT_SUCCESS(Status))
-        {
-            DbgPrint(TRACE_LEVEL_ERROR,
-                     ("pfnAcquirePinnedModeInfo failed with Status = 0x%X, hFunctionalVidPn = 0x%llu\n",
-                      Status,
-                      LONG_PTR(pCommitVidPn->hFunctionalVidPn)));
-            goto CommitVidPnExit;
-        }
+        // The driver does not clone (IsSupportedVidPn).
+        DbgPrint(TRACE_LEVEL_ERROR, ("%s source %d has %Iu paths\n", __FUNCTION__, SourceId, NumPathsFromSource));
+        return STATUS_GRAPHICS_INVALID_VIDPN_TOPOLOGY;
     }
-    else
+    if (NumPathsFromSource == 0)
     {
-        pPinnedVidPnSourceModeInfo = NULL;
+        return STATUS_SUCCESS;
     }
 
+    Status = pVidPnInterface->pfnAcquireSourceModeSet(hVidPn,
+                                                      SourceId,
+                                                      &hVidPnSourceModeSet,
+                                                      &pVidPnSourceModeSetInterface);
+    if (!NT_SUCCESS(Status))
+    {
+        DbgPrint(TRACE_LEVEL_ERROR,
+                 ("pfnAcquireSourceModeSet failed with Status = 0x%X, SourceId = %d\n", Status, SourceId));
+        return Status;
+    }
+    Status = pVidPnSourceModeSetInterface->pfnAcquirePinnedModeInfo(hVidPnSourceModeSet, &pPinnedVidPnSourceModeInfo);
+    if (!NT_SUCCESS(Status))
+    {
+        DbgPrint(TRACE_LEVEL_ERROR,
+                 ("pfnAcquirePinnedModeInfo failed with Status = 0x%X, SourceId = %d\n", Status, SourceId));
+        goto ReadSourceStateExit;
+    }
     if (pPinnedVidPnSourceModeInfo == NULL)
     {
-        Status = STATUS_SUCCESS;
-        goto CommitVidPnExit;
+        goto ReadSourceStateExit;
     }
 
     Status = IsVidPnSourceModeFieldsValid(pPinnedVidPnSourceModeInfo);
     if (!NT_SUCCESS(Status))
     {
-        goto CommitVidPnExit;
+        goto ReadSourceStateExit;
+    }
+    {
+        // The frame buffer has the primary surface's size, and presents fill its visible part.
+        CONST D3DKMDT_GRAPHICS_RENDERING_FORMAT *pFormat = &pPinnedVidPnSourceModeInfo->Format.Graphics;
+        if (pFormat->VisibleRegionSize.cx > pFormat->PrimSurfSize.cx ||
+            pFormat->VisibleRegionSize.cy > pFormat->PrimSurfSize.cy)
+        {
+            DbgPrint(TRACE_LEVEL_ERROR,
+                     ("%s source %d: a %ux%u surface cannot show %ux%u\n",
+                      __FUNCTION__,
+                      SourceId,
+                      pFormat->PrimSurfSize.cx,
+                      pFormat->PrimSurfSize.cy,
+                      pFormat->VisibleRegionSize.cx,
+                      pFormat->VisibleRegionSize.cy));
+            Status = STATUS_GRAPHICS_INVALID_VIDEO_PRESENT_SOURCE_MODE;
+            goto ReadSourceStateExit;
+        }
+        pState->Width = (ULONG)pFormat->PrimSurfSize.cx;
+        pState->Height = (ULONG)pFormat->PrimSurfSize.cy;
     }
 
-    SIZE_T NumPathsFromSource = 0;
-    Status = pVidPnTopologyInterface->pfnGetNumPathsFromSource(hVidPnTopology,
-                                                               pCommitVidPn->AffectedVidPnSourceId,
-                                                               &NumPathsFromSource);
+    Status = pVidPnTopologyInterface->pfnEnumPathTargetsFromSource(hVidPnTopology, SourceId, 0, &TargetId);
     if (!NT_SUCCESS(Status))
     {
         DbgPrint(TRACE_LEVEL_ERROR,
-                 ("pfnGetNumPathsFromSource failed with Status = 0x%X, hVidPnTopology = 0x%llu\n",
+                 ("pfnEnumPathTargetsFromSource failed with Status = 0x%X, SourceId = %d\n", Status, SourceId));
+        goto ReadSourceStateExit;
+    }
+    Status = pVidPnTopologyInterface->pfnAcquirePathInfo(hVidPnTopology, SourceId, TargetId, &pVidPnPresentPath);
+    if (!NT_SUCCESS(Status))
+    {
+        DbgPrint(TRACE_LEVEL_ERROR,
+                 ("pfnAcquirePathInfo failed with Status = 0x%X, SourceId = %d, TargetId = %d\n",
                   Status,
-                  LONG_PTR(hVidPnTopology)));
-        goto CommitVidPnExit;
+                  SourceId,
+                  TargetId));
+        goto ReadSourceStateExit;
     }
-
-    for (SIZE_T PathIndex = 0; PathIndex < NumPathsFromSource; ++PathIndex)
+    Status = IsVidPnPathFieldsValid(pVidPnPresentPath);
+    if (!NT_SUCCESS(Status))
     {
-        D3DDDI_VIDEO_PRESENT_TARGET_ID TargetId = D3DDDI_ID_UNINITIALIZED;
-        Status = pVidPnTopologyInterface->pfnEnumPathTargetsFromSource(hVidPnTopology,
-                                                                       pCommitVidPn->AffectedVidPnSourceId,
-                                                                       PathIndex,
-                                                                       &TargetId);
-        if (!NT_SUCCESS(Status))
-        {
-            DbgPrint(TRACE_LEVEL_ERROR,
-                     ("pfnEnumPathTargetsFromSource failed with Status = 0x%X, hVidPnTopology = 0x%llu, SourceId = "
-                      "0x%I64x, PathIndex = 0x%I64x\n",
-                      Status,
-                      LONG_PTR(hVidPnTopology),
-                      pCommitVidPn->AffectedVidPnSourceId,
-                      PathIndex));
-            goto CommitVidPnExit;
-        }
-
-        Status = pVidPnTopologyInterface->pfnAcquirePathInfo(hVidPnTopology,
-                                                             pCommitVidPn->AffectedVidPnSourceId,
-                                                             TargetId,
-                                                             &pVidPnPresentPath);
-        if (!NT_SUCCESS(Status))
-        {
-            DbgPrint(TRACE_LEVEL_ERROR,
-                     ("pfnAcquirePathInfo failed with Status = 0x%X, hVidPnTopology = 0x%llu, SourceId = 0x%I64x, "
-                      "TargetId = 0x%I64x\n",
-                      Status,
-                      LONG_PTR(hVidPnTopology),
-                      pCommitVidPn->AffectedVidPnSourceId,
-                      TargetId));
-            goto CommitVidPnExit;
-        }
-
-        Status = IsVidPnPathFieldsValid(pVidPnPresentPath);
-        if (!NT_SUCCESS(Status))
-        {
-            goto CommitVidPnExit;
-        }
-
-        Status = SetSourceModeAndPath(pPinnedVidPnSourceModeInfo, pVidPnPresentPath);
-        if (!NT_SUCCESS(Status))
-        {
-            goto CommitVidPnExit;
-        }
-
-        Status = pVidPnTopologyInterface->pfnReleasePathInfo(hVidPnTopology, pVidPnPresentPath);
-        if (!NT_SUCCESS(Status))
-        {
-            DbgPrint(TRACE_LEVEL_ERROR,
-                     ("pfnReleasePathInfo failed with Status = 0x%X, hVidPnTopoogy = 0x%llu, pVidPnPresentPath = %p\n",
-                      Status,
-                      LONG_PTR(hVidPnTopology),
-                      pVidPnPresentPath));
-            goto CommitVidPnExit;
-        }
-        pVidPnPresentPath = NULL;
+        goto ReadSourceStateExit;
     }
-
-CommitVidPnExit:
-
-    NTSTATUS TempStatus = STATUS_SUCCESS;
-
-    if ((pVidPnSourceModeSetInterface != NULL) && (hVidPnSourceModeSet != 0) && (pPinnedVidPnSourceModeInfo != NULL))
-    {
-        TempStatus = pVidPnSourceModeSetInterface->pfnReleaseModeInfo(hVidPnSourceModeSet, pPinnedVidPnSourceModeInfo);
-        NT_ASSERT(NT_SUCCESS(TempStatus));
-    }
-
-    if ((pVidPnInterface != NULL) && (pCommitVidPn->hFunctionalVidPn != 0) && (hVidPnSourceModeSet != 0))
-    {
-        TempStatus = pVidPnInterface->pfnReleaseSourceModeSet(pCommitVidPn->hFunctionalVidPn, hVidPnSourceModeSet);
-        NT_ASSERT(NT_SUCCESS(TempStatus));
-    }
-
-    if ((pVidPnTopologyInterface != NULL) && (hVidPnTopology != 0) && (pVidPnPresentPath != NULL))
-    {
-        TempStatus = pVidPnTopologyInterface->pfnReleasePathInfo(hVidPnTopology, pVidPnPresentPath);
-        NT_ASSERT(NT_SUCCESS(TempStatus));
-    }
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
-
-    return Status;
-}
-
-NTSTATUS VioGpuDod::SetSourceModeAndPath(CONST D3DKMDT_VIDPN_SOURCE_MODE *pSourceMode,
-                                         CONST D3DKMDT_VIDPN_PRESENT_PATH *pPath)
-{
-    PAGED_CODE();
-    VIOGPU_ASSERT(pPath->VidPnSourceId < MAX_VIEWS);
-
-    NTSTATUS Status = STATUS_SUCCESS;
-
-    DbgPrint(TRACE_LEVEL_FATAL,
-             ("---> %s (%dx%d)\n",
-              __FUNCTION__,
-              pSourceMode->Format.Graphics.PrimSurfSize.cx,
-              pSourceMode->Format.Graphics.PrimSurfSize.cy));
     // The source modes on offer have a visible region of the surface's size, and paths scale by identity only.
-    Status = m_pHWDevice->GetController()->Commit(pPath->VidPnSourceId,
-                                                  pPath->VidPnTargetId,
-                                                  pSourceMode->Format.Graphics.PrimSurfSize.cx,
-                                                  pSourceMode->Format.Graphics.PrimSurfSize.cy,
-                                                  pPath->ContentTransformation.Rotation);
+    pState->HasPath = TRUE;
+    pState->ScanoutId = pVidPnPresentPath->VidPnTargetId;
+    pState->Rotation = pVidPnPresentPath->ContentTransformation.Rotation;
 
+ReadSourceStateExit:
+    if (pVidPnPresentPath != NULL)
+    {
+        NTSTATUS TempStatus = pVidPnTopologyInterface->pfnReleasePathInfo(hVidPnTopology, pVidPnPresentPath);
+        UNREFERENCED_PARAMETER(TempStatus);
+        NT_ASSERT(NT_SUCCESS(TempStatus));
+    }
+    if (pPinnedVidPnSourceModeInfo != NULL)
+    {
+        NTSTATUS TempStatus = pVidPnSourceModeSetInterface->pfnReleaseModeInfo(hVidPnSourceModeSet,
+                                                                               pPinnedVidPnSourceModeInfo);
+        UNREFERENCED_PARAMETER(TempStatus);
+        NT_ASSERT(NT_SUCCESS(TempStatus));
+    }
+    if (hVidPnSourceModeSet != 0)
+    {
+        NTSTATUS TempStatus = pVidPnInterface->pfnReleaseSourceModeSet(hVidPn, hVidPnSourceModeSet);
+        UNREFERENCED_PARAMETER(TempStatus);
+        NT_ASSERT(NT_SUCCESS(TempStatus));
+    }
     return Status;
 }
 

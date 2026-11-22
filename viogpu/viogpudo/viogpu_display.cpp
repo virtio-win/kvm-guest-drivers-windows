@@ -51,7 +51,12 @@ VioGpuDisplayController::VioGpuDisplayController(void)
         m_Sources[SourceId].Height = NOM_HEIGHT_SIZE;
         m_Sources[SourceId].Rotation = D3DKMDT_VPPR_IDENTITY;
         m_Sources[SourceId].ScanoutId = D3DDDI_ID_UNINITIALIZED;
+        m_Sources[SourceId].ShownOn = D3DDDI_ID_UNINITIALIZED;
         m_Sources[SourceId].Visible = TRUE;
+    }
+    for (UINT ScanoutId = 0; ScanoutId < GetScanoutCount(); ++ScanoutId)
+    {
+        m_Scanouts[ScanoutId].SourceId = D3DDDI_ID_UNINITIALIZED;
     }
     m_GenerationSerial = 0;
     m_Persistent.XResolution = 0;
@@ -576,100 +581,273 @@ NTSTATUS VioGpuDisplayController::CreateFrameBuffer(UINT ScanoutId, ULONG Width,
     return STATUS_SUCCESS;
 }
 
-// Turns a scanout off and releases the frame buffer it showed. The resource goes whether or not the scanout went off.
-void VioGpuDisplayController::ReleaseFrameBuffer(VioGpuObj *pObj, UINT ScanoutId)
+// Turns a scanout off.
+NTSTATUS VioGpuDisplayController::TurnOffScanout(UINT ScanoutId)
 {
     PAGED_CODE();
 
     NTSTATUS status = m_pAdapter->GetCommands()->SetScanout(ScanoutId, 0, 0, 0, 0, 0, TRUE);
+    m_Scanouts[ScanoutId].OffPending = !NT_SUCCESS(status);
     if (!NT_SUCCESS(status))
     {
-        DbgPrint(TRACE_LEVEL_FATAL, ("%s: scanout %d not turned off (0x%x)\n", __FUNCTION__, ScanoutId, status));
+        DbgPrint(TRACE_LEVEL_FATAL,
+                 ("%s: scanout %d not turned off (0x%x): tried again with the next commit\n",
+                  __FUNCTION__,
+                  ScanoutId,
+                  status));
+    }
+    return status;
+}
+
+// Turns off the scanouts whose turn-off the device did not take and that no source has taken since. FALSE while one
+// is still not off: it may still show a frame buffer, which is then not freed before the device reset
+// (ReleaseFrameBuffer).
+BOOLEAN VioGpuDisplayController::RetryTurnOffs(void)
+{
+    PAGED_CODE();
+
+    BOOLEAN off = TRUE;
+    for (UINT ScanoutId = 0; ScanoutId < GetScanoutCount(); ++ScanoutId)
+    {
+        if (m_Scanouts[ScanoutId].OffPending && !NT_SUCCESS(TurnOffScanout(ScanoutId)))
+        {
+            off = FALSE;
+        }
+    }
+    return off;
+}
+
+// Releases a source's frame buffer, and first turns off the scanout that shows it, unless another source took the
+// scanout since. When a scanout may still show it, because it or an earlier one did not turn off (OffPending), the
+// object waits for the device reset instead (VioGpuResources::Park). Only commits and Close change which source a
+// scanout shows, and they never run together: the map is read without the lock.
+void VioGpuDisplayController::ReleaseFrameBuffer(VioGpuObj *pObj, UINT SourceId, UINT ShownOn)
+{
+    PAGED_CODE();
+
+    if ((ShownOn < GetScanoutCount() && m_Scanouts[ShownOn].SourceId == SourceId &&
+         !NT_SUCCESS(TurnOffScanout(ShownOn))) ||
+        !RetryTurnOffs())
+    {
+        DbgPrint(TRACE_LEVEL_FATAL,
+                 ("%s: a scanout may still show resource %d of source %d: its %Iu bytes wait for the reset\n",
+                  __FUNCTION__,
+                  pObj->GetId(),
+                  SourceId,
+                  pObj->GetSize()));
+        m_pAdapter->GetResources()->Park(pObj);
+        return;
     }
     m_pAdapter->GetResources()->Release(pObj);
 }
 
-// Shows source SourceId on scanout ScanoutId at the size Windows pinned, whether or not that size is still among the
-// modes on offer, which may have changed since Windows picked it. A frame buffer of that size is shown again. Otherwise
-// the old one is released first, so that only one is ever allocated: a commit that fails leaves the source without a
-// frame buffer until the next one.
-NTSTATUS VioGpuDisplayController::Commit(UINT SourceId,
-                                         UINT ScanoutId,
-                                         ULONG Width,
-                                         ULONG Height,
-                                         D3DKMDT_VIDPN_PRESENT_PATH_ROTATION Rotation)
+// Commits what a functional VidPN asks of the sources in the Sources mask, pStates holding one state per source. Every
+// one is checked before any changes: a path to a scanout the driver presents, a mode it can back, and, with
+// EnforceMonitors (D3DKMDT_MCC_ENFORCE), a display connected to the scanout. A VidPN that fails a check leaves every
+// source as it is. Applying a source can still fail, when the host has no memory for its frame buffer: it then shows
+// nothing until the next commit, and the sources after it keep their state. Holding the old frame buffers until the
+// new ones exist would undo it, at twice the memory.
+NTSTATUS VioGpuDisplayController::Commit(ULONG Sources,
+                                         _In_reads_(MAX_VIEWS) CONST VIOGPU_SOURCE_STATE *pStates,
+                                         BOOLEAN EnforceMonitors)
 {
     PAGED_CODE();
-    ASSERT(SourceId < GetSourceCount() && ScanoutId < GetScanoutCount());
-    DbgPrint(TRACE_LEVEL_INFORMATION,
-             ("---> %s source %d on scanout %d: %dx%d\n", __FUNCTION__, SourceId, ScanoutId, Width, Height));
 
-    // When its frame buffer goes, the source is marked changing under the lock held exclusive, which waits for the
-    // presents copying into the frame buffer and keeps the next ones out of it: from here on the frame buffer is this
-    // commit's alone, until it is published. A frame buffer the commit keeps goes on taking presents: their pixels
-    // would be lost otherwise, as nothing repaints what they changed.
+    for (UINT SourceId = 0; SourceId < GetSourceCount(); ++SourceId)
+    {
+        CONST VIOGPU_SOURCE_STATE *pState = &pStates[SourceId];
+        if (!(Sources & (1UL << SourceId)) || !pState->HasPath)
+        {
+            continue;
+        }
+        NTSTATUS status = STATUS_SUCCESS;
+        if (pState->ScanoutId >= GetScanoutCount())
+        {
+            status = STATUS_GRAPHICS_INVALID_VIDEO_PRESENT_TARGET;
+        }
+        else if (pState->Width == 0 || pState->Height == 0 || !m_pAdapter->ModeFits(pState->Width, pState->Height))
+        {
+            status = STATUS_GRAPHICS_INVALID_VIDEO_PRESENT_SOURCE_MODE;
+        }
+        else if (EnforceMonitors && !IsConnected(pState->ScanoutId))
+        {
+            status = STATUS_GRAPHICS_INVALID_VIDPN_TOPOLOGY;
+        }
+        if (!NT_SUCCESS(status))
+        {
+            DbgPrint(TRACE_LEVEL_FATAL,
+                     ("<--- %s source %d refused, %dx%d on scanout %d (0x%x): nothing changed\n",
+                      __FUNCTION__,
+                      SourceId,
+                      pState->Width,
+                      pState->Height,
+                      pState->ScanoutId,
+                      status));
+            return status;
+        }
+    }
+    RetryTurnOffs();
+    for (UINT SourceId = 0; SourceId < GetSourceCount(); ++SourceId)
+    {
+        if (!(Sources & (1UL << SourceId)))
+        {
+            continue;
+        }
+        NTSTATUS status = CommitSource(SourceId, &pStates[SourceId]);
+        if (!NT_SUCCESS(status))
+        {
+            DbgPrint(TRACE_LEVEL_FATAL,
+                     ("<--- %s source %d failed (0x%x): the sources before it are committed\n",
+                      __FUNCTION__,
+                      SourceId,
+                      status));
+            return status;
+        }
+    }
+    return STATUS_SUCCESS;
+}
+
+// Applies one checked source. With a path, its frame buffer has the size Windows pinned, whether or not that size is
+// still among the modes on offer, which may have changed since Windows picked it. A frame buffer of that size is shown
+// again: a source that moved is shown on its new scanout before its old one is turned off, and stays where it is shown
+// when the new one cannot show it. Otherwise the old frame buffer is released first, so that a source never has two
+// allocated: a mode set that fails leaves none until the next commit. Without a path the frame buffer goes, and the
+// scanout that showed it is turned off unless another source took it.
+//
+// The display lock is held only to mark the source changing when its frame buffer goes, which waits for the presents
+// copying into it and keeps the next ones out, and to publish the result: the host commands run between, without it.
+// A frame buffer the commit keeps goes on taking presents: their pixels would be lost otherwise, as nothing repaints
+// what they changed. The listeners are told last, outside the lock.
+NTSTATUS VioGpuDisplayController::CommitSource(UINT SourceId, _In_ CONST VIOGPU_SOURCE_STATE *pState)
+{
+    PAGED_CODE();
+    ULONG Width = pState->Width;
+    ULONG Height = pState->Height;
+    DbgPrint(TRACE_LEVEL_INFORMATION,
+             ("---> %s source %d: %s scanout %d, %dx%d\n",
+              __FUNCTION__,
+              SourceId,
+              pState->HasPath ? "path to" : "no path; was",
+              pState->ScanoutId,
+              Width,
+              Height));
+
     VioGpuSource *pSource = &m_Sources[SourceId];
     LockExclusive();
     VioGpuObj *pObj = pSource->pFrameBuffer;
     UINT OldScanoutId = pSource->ScanoutId;
-    BOOLEAN same = pObj != NULL && pSource->Width == Width && pSource->Height == Height;
+    UINT ShownOn = pSource->ShownOn;
+    BOOLEAN same = pState->HasPath && pObj != NULL && pSource->Width == Width && pSource->Height == Height;
     if (!same)
     {
         pSource->Changing = TRUE;
+        pSource->pFrameBuffer = NULL;
     }
     Unlock();
 
-    NTSTATUS status;
+    NTSTATUS status = STATUS_SUCCESS;
+    UINT NewScanoutId = pState->HasPath ? pState->ScanoutId : D3DDDI_ID_UNINITIALIZED;
+    UINT NewShownOn = D3DDDI_ID_UNINITIALIZED;
     if (same)
     {
-        status = ShowFrameBuffer(pObj, ScanoutId, Width, Height);
+        status = ShowFrameBuffer(pObj, NewScanoutId, Width, Height);
         // A local: DbgPrint does not parenthesize its level.
         UCHAR TraceLevel = NT_SUCCESS(status) ? TRACE_LEVEL_INFORMATION : TRACE_LEVEL_FATAL;
         DbgPrint(TraceLevel,
-                 ("%s: scanout %d shows resource %d (%dx%d) again, 0x%x\n",
+                 ("%s: scanout %d shows resource %d (%dx%d) of source %d again, before on scanout %d, 0x%x\n",
                   __FUNCTION__,
-                  ScanoutId,
+                  NewScanoutId,
                   pObj->GetId(),
                   Width,
                   Height,
+                  SourceId,
+                  ShownOn,
                   status));
+        if (NT_SUCCESS(status))
+        {
+            NewShownOn = NewScanoutId;
+            if (ShownOn != NewScanoutId && ShownOn < GetScanoutCount() && m_Scanouts[ShownOn].SourceId == SourceId)
+            {
+                TurnOffScanout(ShownOn);
+            }
+        }
+        else
+        {
+            // The source stays where it is shown, if anywhere.
+            NewShownOn = ShownOn;
+            NewScanoutId = OldScanoutId;
+        }
     }
     else
     {
         if (pObj != NULL)
         {
-            ReleaseFrameBuffer(pObj, OldScanoutId);
+            ReleaseFrameBuffer(pObj, SourceId, ShownOn);
             pObj = NULL;
         }
-        status = CreateFrameBuffer(ScanoutId, Width, Height, &pObj);
-        if (NT_SUCCESS(status))
+        if (!pState->HasPath)
         {
-            DbgPrint(TRACE_LEVEL_FATAL,
-                     ("%s: scanout %d shows resource %d, %dx%d, %Iu bytes in %d run(s)\n",
-                      __FUNCTION__,
-                      ScanoutId,
-                      pObj->GetId(),
-                      Width,
-                      Height,
-                      pObj->GetSize(),
-                      pObj->GetSGList()->NumberOfElements));
+            if (ShownOn != D3DDDI_ID_UNINITIALIZED || OldScanoutId != D3DDDI_ID_UNINITIALIZED)
+            {
+                DbgPrint(TRACE_LEVEL_INFORMATION,
+                         ("%s: source %d leaves scanout %d\n", __FUNCTION__, SourceId, ShownOn));
+            }
         }
         else
         {
-            DbgPrint(TRACE_LEVEL_FATAL,
-                     ("<--- %s %dx%d failed (0x%x): no frame buffer until the next commit\n",
-                      __FUNCTION__,
-                      Width,
-                      Height,
-                      status));
+            status = CreateFrameBuffer(NewScanoutId, Width, Height, &pObj);
+            if (NT_SUCCESS(status))
+            {
+                NewShownOn = NewScanoutId;
+                DbgPrint(TRACE_LEVEL_INFORMATION,
+                         ("%s: scanout %d shows resource %d of source %d, %dx%d, %Iu bytes in %d run(s)\n",
+                          __FUNCTION__,
+                          NewScanoutId,
+                          pObj->GetId(),
+                          SourceId,
+                          Width,
+                          Height,
+                          pObj->GetSize(),
+                          pObj->GetSGList()->NumberOfElements));
+            }
+            else
+            {
+                DbgPrint(TRACE_LEVEL_FATAL,
+                         ("<--- %s source %d %dx%d failed (0x%x): no frame buffer until the next commit\n",
+                          __FUNCTION__,
+                          SourceId,
+                          Width,
+                          Height,
+                          status));
+            }
         }
     }
 
+    // Published: the source's state and which source each scanout shows. A scanout the source left shows it no more;
+    // the source that showed on the scanout it took is shown nowhere now.
     LockExclusive();
+    if (ShownOn < GetScanoutCount() && ShownOn != NewShownOn && m_Scanouts[ShownOn].SourceId == SourceId)
+    {
+        m_Scanouts[ShownOn].SourceId = D3DDDI_ID_UNINITIALIZED;
+    }
+    if (NewShownOn < GetScanoutCount())
+    {
+        UINT Previous = m_Scanouts[NewShownOn].SourceId;
+        if (Previous < GetSourceCount() && Previous != SourceId)
+        {
+            m_Sources[Previous].ShownOn = D3DDDI_ID_UNINITIALIZED;
+        }
+        m_Scanouts[NewShownOn].SourceId = SourceId;
+        m_Scanouts[NewShownOn].OffPending = FALSE;
+    }
+    pSource->ShownOn = NewShownOn;
     pSource->pFrameBuffer = pObj;
-    pSource->ScanoutId = ScanoutId;
-    pSource->Rotation = Rotation;
-    if (!same && NT_SUCCESS(status))
+    pSource->ScanoutId = NewScanoutId;
+    if (pState->HasPath)
+    {
+        pSource->Rotation = pState->Rotation;
+    }
+    if (!same && NT_SUCCESS(status) && pState->HasPath)
     {
         pSource->Width = Width;
         pSource->Height = Height;
@@ -679,7 +857,7 @@ NTSTATUS VioGpuDisplayController::Commit(UINT SourceId,
 
     for (UINT i = 0; i < m_ListenerCount; ++i)
     {
-        m_Listeners[i]->SourceCommitted(SourceId, OldScanoutId, ScanoutId);
+        m_Listeners[i]->SourceCommitted(SourceId, OldScanoutId, NewScanoutId);
     }
     return status;
 }
@@ -733,6 +911,7 @@ void VioGpuDisplayController::GetSource(UINT SourceId, _Out_ PVIOGPU_SOURCE_VIEW
     }
     VioGpuSource *pSource = &m_Sources[SourceId];
     LockShared();
+    pView->ShownOn = pSource->ShownOn;
     pView->Width = pSource->Width;
     pView->Height = pSource->Height;
     pView->Rotation = pSource->Rotation;
@@ -780,6 +959,17 @@ NTSTATUS VioGpuDisplayController::Start(void)
     return STATUS_SUCCESS;
 }
 
+void VioGpuDisplayController::Open(void)
+{
+    PAGED_CODE();
+
+    // The reset before the open turned every scanout off.
+    for (UINT ScanoutId = 0; ScanoutId < GetScanoutCount(); ++ScanoutId)
+    {
+        m_Scanouts[ScanoutId].OffPending = FALSE;
+    }
+}
+
 // The device is about to be reset, which drops every resource the host has: each source's frame buffer is released,
 // its scanout turned off first. The sources keep their size and show nothing until Windows commits again.
 void VioGpuDisplayController::Close(void)
@@ -792,12 +982,19 @@ void VioGpuDisplayController::Close(void)
         LockExclusive();
         VioGpuObj *pObj = pSource->pFrameBuffer;
         pSource->pFrameBuffer = NULL;
-        UINT ScanoutId = pSource->ScanoutId;
+        UINT ShownOn = pSource->ShownOn;
         Unlock();
         if (pObj != NULL)
         {
-            ReleaseFrameBuffer(pObj, ScanoutId);
+            ReleaseFrameBuffer(pObj, SourceId, ShownOn);
         }
+        LockExclusive();
+        if (ShownOn < GetScanoutCount() && m_Scanouts[ShownOn].SourceId == SourceId)
+        {
+            m_Scanouts[ShownOn].SourceId = D3DDDI_ID_UNINITIALIZED;
+        }
+        pSource->ShownOn = D3DDDI_ID_UNINITIALIZED;
+        Unlock();
     }
 }
 

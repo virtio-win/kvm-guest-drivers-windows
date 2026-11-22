@@ -74,6 +74,12 @@ struct VioGpuScanout
 {
     // The display on it, as published.
     VIOGPU_DISPLAY Display;
+    // The source whose frame buffer the scanout shows, D3DDDI_ID_UNINITIALIZED for none.
+    UINT SourceId;
+    // A turn-off the device did not take: the scanout may still show a frame buffer that no source shows now. Retried
+    // at each commit, until a source is shown there or the device is reset. Changed only by commits and the device's
+    // open and close, which dxgkrnl keeps apart: not under the display lock.
+    BOOLEAN OffPending;
 };
 
 // The format of every frame buffer: what the firmware's frame buffer has, and what the source modes on offer present.
@@ -86,8 +92,11 @@ struct VioGpuSource
     ULONG Width;
     ULONG Height;
     D3DKMDT_VIDPN_PRESENT_PATH_ROTATION Rotation;
-    // The scanout the source's path drives, D3DDDI_ID_UNINITIALIZED before the first commit gives it one.
+    // The scanout the source's path drives, D3DDDI_ID_UNINITIALIZED while it has none.
     UINT ScanoutId;
+    // The scanout that shows the frame buffer, D3DDDI_ID_UNINITIALIZED for none: the path's, or, when the frame buffer
+    // could not be shown there, the one that showed it before.
+    UINT ShownOn;
     // Windows shows the source (SetVidPnSourceVisibility): presents are dropped while it does not.
     BOOLEAN Visible;
     // A commit is changing the frame buffer: presents skip the source until the commit publishes it.
@@ -95,6 +104,16 @@ struct VioGpuSource
     // The frame buffer shown on ScanoutId, or none: before the first commit, after one that failed, and once closed.
     VioGpuObj *pFrameBuffer;
 };
+
+// What a commit asks of one VidPN source: the mode Windows pinned on it and the scanout its path drives, or no path.
+typedef struct _VIOGPU_SOURCE_STATE
+{
+    BOOLEAN HasPath;
+    UINT ScanoutId;
+    ULONG Width;
+    ULONG Height;
+    D3DKMDT_VIDPN_PRESENT_PATH_ROTATION Rotation;
+} VIOGPU_SOURCE_STATE, *PVIOGPU_SOURCE_STATE;
 
 // A part that follows what the controller commits: told after each commit, once the display lock is released, so that
 // it may take its own locks and call into dxgkrnl.
@@ -129,6 +148,8 @@ class VioGpuDisplayListener
 // A copy of a source's state, for the code outside the controller.
 typedef struct _VIOGPU_SOURCE_VIEW
 {
+    // The scanout that shows the source's frame buffer, D3DDDI_ID_UNINITIALIZED for none (VioGpuSource).
+    UINT ShownOn;
     ULONG Width;
     ULONG Height;
     D3DKMDT_VIDPN_PRESENT_PATH_ROTATION Rotation;
@@ -162,6 +183,7 @@ class VioGpuDisplayController : public VioGpuComponent
         return MAX_VIEWS;
     }
     NTSTATUS Start(void) override;
+    void Open(void) override;
     void Close(void) override;
     BOOLEAN CustomMode(_In_ ULONG xres, _In_ ULONG yres, _Inout_ PVIOGPU_DISP_MODE pMode);
     void Assume(UINT ScanoutId, _In_ const VIOGPU_DISPLAY *pDisplay);
@@ -178,11 +200,7 @@ class VioGpuDisplayController : public VioGpuComponent
                            _Out_ PBOOLEAN pChanged,
                            _Out_ PVIOGPU_DISP_MODE pSave);
     NTSTATUS GetSourceMode(_Inout_ PVIOGPU_SOURCE_MODE pMode);
-    NTSTATUS Commit(UINT SourceId,
-                    UINT ScanoutId,
-                    ULONG Width,
-                    ULONG Height,
-                    D3DKMDT_VIDPN_PRESENT_PATH_ROTATION Rotation);
+    NTSTATUS Commit(ULONG Sources, _In_reads_(MAX_VIEWS) CONST VIOGPU_SOURCE_STATE *pStates, BOOLEAN EnforceMonitors);
     void SetRotation(UINT SourceId, D3DKMDT_VIDPN_PRESENT_PATH_ROTATION Rotation);
     void SetVisible(UINT SourceId, BOOLEAN Visible);
     NTSTATUS Present(UINT SourceId, _In_ CONST DXGKARG_PRESENT_DISPLAYONLY *pPresent);
@@ -198,7 +216,10 @@ class VioGpuDisplayController : public VioGpuComponent
     BOOLEAN EscapeScanout(_Out_ PUINT pScanoutId);
     NTSTATUS CreateFrameBuffer(UINT ScanoutId, ULONG Width, ULONG Height, _Out_ VioGpuObj **ppObj);
     NTSTATUS ShowFrameBuffer(VioGpuObj *pObj, UINT ScanoutId, ULONG Width, ULONG Height);
-    void ReleaseFrameBuffer(VioGpuObj *pObj, UINT ScanoutId);
+    NTSTATUS TurnOffScanout(UINT ScanoutId);
+    BOOLEAN RetryTurnOffs(void);
+    void ReleaseFrameBuffer(VioGpuObj *pObj, UINT SourceId, UINT ShownOn);
+    NTSTATUS CommitSource(UINT SourceId, _In_ CONST VIOGPU_SOURCE_STATE *pState);
 
   private:
     VioGpuAdapter *m_pAdapter;
