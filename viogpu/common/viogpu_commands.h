@@ -69,7 +69,7 @@ class VioGpuCommands
     NTSTATUS ResourceFlush(UINT res_id, UINT width, UINT height, UINT x, UINT y);
     NTSTATUS TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT height, UINT x, UINT y);
     NTSTATUS TransferToHost2DAndWait(UINT res_id, UINT width, UINT height, PVIOGPU_COMPLETE late, PVOID ctx);
-    NTSTATUS ResourceAttachBacking(UINT res_id, PGPU_MEM_ENTRY ents, UINT nents);
+    NTSTATUS ResourceAttachBacking(UINT res_id, PSCATTER_GATHER_LIST sgl);
     NTSTATUS ResourceDetachBacking(UINT id);
 
     // The cursor ring.

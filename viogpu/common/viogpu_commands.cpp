@@ -249,7 +249,8 @@ NTSTATUS VioGpuCommands::TransferToHost2D(UINT res_id, ULONG offset, UINT width,
     return Send(m_pCtrl, vbuf);
 }
 
-NTSTATUS VioGpuCommands::ResourceAttachBacking(UINT res_id, PGPU_MEM_ENTRY ents, UINT nents)
+// Backs a resource with the guest pages that sgl lists.
+NTSTATUS VioGpuCommands::ResourceAttachBacking(UINT res_id, PSCATTER_GATHER_LIST sgl)
 {
     PAGED_CODE();
 
@@ -257,10 +258,18 @@ NTSTATUS VioGpuCommands::ResourceAttachBacking(UINT res_id, PGPU_MEM_ENTRY ents,
 
     PGPU_RES_ATTACH_BACKING cmd;
     PGPU_VBUFFER vbuf;
+    PGPU_MEM_ENTRY ents;
+    UINT nents = sgl->NumberOfElements;
     cmd = (PGPU_RES_ATTACH_BACKING)AllocCmd(&vbuf, sizeof(*cmd));
     if (cmd == NULL)
     {
-        delete[] reinterpret_cast<PBYTE>(ents);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    ents = (PGPU_MEM_ENTRY)m_pCtrl->AllocPayload(vbuf, sizeof(*ents) * nents);
+    if (ents == NULL)
+    {
+        DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s no memory for %u entries\n", __FUNCTION__, nents));
+        m_pCtrl->ReleaseBuffer(vbuf);
         return STATUS_INSUFFICIENT_RESOURCES;
     }
     RtlZeroMemory(cmd, sizeof(*cmd));
@@ -269,8 +278,12 @@ NTSTATUS VioGpuCommands::ResourceAttachBacking(UINT res_id, PGPU_MEM_ENTRY ents,
     cmd->resource_id = res_id;
     cmd->nr_entries = nents;
 
-    vbuf->data_buf = ents;
-    vbuf->data_size = sizeof(*ents) * nents;
+    for (UINT i = 0; i < nents; i++)
+    {
+        ents[i].addr = sgl->Elements[i].Address.QuadPart;
+        ents[i].length = sgl->Elements[i].Length;
+        ents[i].padding = 0;
+    }
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 

@@ -39,20 +39,29 @@
 // (STATUS_IO_TIMEOUT).
 typedef void (*PVIOGPU_COMPLETE)(_In_opt_ PVOID ctx, _In_ NTSTATUS status);
 
+// A descriptor, in the ring or in an indirect table, takes 16 bytes (struct virtq_desc).
+#define VIOGPU_DESC_SIZE       16
+// The pieces whose indirect table fits in the command's buffer: the command, a payload and the answer.
+#define VIOGPU_INDIRECT_INLINE 3
+// The pieces Queue describes without allocating.
+#define VIOGPU_INLINE_PIECES   8
+
 // Who frees a command's buffer. NONE: nobody waits, the completion frees it. PENDING: SendAndWait waits. DONE: the
 // completion handed the outcome to the waiter, which frees it. ABANDONED: the waiter gave up, the completion frees it.
-#define VIOGPU_WAIT_NONE      0
-#define VIOGPU_WAIT_PENDING   1
-#define VIOGPU_WAIT_DONE      2
-#define VIOGPU_WAIT_ABANDONED 3
+#define VIOGPU_WAIT_NONE       0
+#define VIOGPU_WAIT_PENDING    1
+#define VIOGPU_WAIT_DONE       2
+#define VIOGPU_WAIT_ABANDONED  3
 
 typedef struct virtio_gpu_vbuffer
 {
     char *buf;
     int size;
 
+    // A payload from AllocPayload, physically contiguous or from the pool.
     void *data_buf;
     u32 data_size;
+    BOOLEAN data_contiguous;
 
     char *resp_buf;
     int resp_size;
@@ -68,11 +77,19 @@ typedef struct virtio_gpu_vbuffer
     // A caller that waits for the answer, VIOGPU_WAIT_*, and the event it waits on.
     volatile LONG wait_state;
     KEVENT done;
+
+    // With indirect descriptors, the table of the command's pieces that the ring's descriptor points to: indirect,
+    // or indirect_ext for a command of more pieces.
+    ULONGLONG indirect[VIOGPU_INDIRECT_INLINE * VIOGPU_DESC_SIZE / sizeof(ULONGLONG)];
+    PVOID indirect_ext;
 } GPU_VBUFFER, *PGPU_VBUFFER;
 
 #define MAX_INLINE_CMD_SIZE  96
 #define MAX_INLINE_RESP_SIZE 24
 #define VBUFFER_SIZE         (sizeof(GPU_VBUFFER) + MAX_INLINE_CMD_SIZE + MAX_INLINE_RESP_SIZE)
+// A pool allocation of a page or less does not cross a page, so the command, its inline answer and its descriptor
+// table each sit in physically contiguous memory.
+C_ASSERT(VBUFFER_SIZE <= PAGE_SIZE);
 
 class VioGpuBuf
 {
@@ -184,7 +201,10 @@ class VioGpuQueue
     ~VioGpuQueue();
     VioGpuQueue(const VioGpuQueue &) = delete;
     VioGpuQueue &operator=(const VioGpuQueue &) = delete;
-    BOOLEAN Init(_In_ VirtIODevice *pVIODevice, _In_ struct virtqueue *pVirtQueue, _In_ UINT index);
+    BOOLEAN Init(_In_ VirtIODevice *pVIODevice,
+                 _In_ struct virtqueue *pVirtQueue,
+                 _In_ UINT index,
+                 _In_ BOOLEAN indirect);
     void Close(void);
     VOID DisableInterrupt(void)
     {
@@ -207,6 +227,7 @@ class VioGpuQueue
         return m_pBuf->GetBuf(size, resp_size, resp_type);
     }
     void ReleaseBuffer(PGPU_VBUFFER buf);
+    PVOID AllocPayload(PGPU_VBUFFER buf, ULONG size);
     NTSTATUS Send(PGPU_VBUFFER buf,
                   ULONG flags = 0,
                   PVIOGPU_COMPLETE complete = NULL,
@@ -257,7 +278,13 @@ class VioGpuQueue
         return m_pVirtQueue ? virtqueue_enable_cb(m_pVirtQueue) : false;
     }
     NTSTATUS Queue(PGPU_VBUFFER buf, ULONGLONG RoomDeadline);
-    NTSTATUS AddWait(struct VirtIOBufferDescriptor sg[], UINT out_num, UINT in_num, PVOID data, ULONGLONG RoomDeadline);
+    NTSTATUS AddWait(struct VirtIOBufferDescriptor sg[],
+                     UINT out_num,
+                     UINT in_num,
+                     PVOID data,
+                     PVOID va_indirect,
+                     ULONGLONG phys_indirect,
+                     ULONGLONG RoomDeadline);
     void Finish(PGPU_VBUFFER buf, NTSTATUS status);
 
   private:
@@ -267,6 +294,10 @@ class VioGpuQueue
     KSPIN_LOCK m_SpinLock;
     // The last fence ID given, under m_SpinLock.
     ULONG64 m_FenceId;
+    // The ring's descriptors, whether the device takes indirect ones, and the most pieces a command may have.
+    UINT m_Size;
+    BOOLEAN m_bIndirect;
+    UINT m_MaxPieces;
     // Set when the DPC hands descriptors back, or the queue closes.
     KEVENT m_Room;
 

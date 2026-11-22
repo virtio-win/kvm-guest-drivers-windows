@@ -35,25 +35,58 @@
 #include "viogpu_queue.tmh"
 #endif
 
-// Adds the guest memory of size bytes at va to sg, one piece per page, after the count pieces already there. FALSE
-// when it needs more than max pieces in all.
-static BOOLEAN AddPieces(VirtIOBufferDescriptor *sg, UINT *count, UINT max, PVOID va, ULONG size)
+// Adds the guest memory of size bytes at va to sg, after the count pieces already there, one piece for each run of
+// physically adjacent pages. STATUS_BUFFER_OVERFLOW when that takes more than max pieces in all, and
+// STATUS_INVALID_ADDRESS for an address that is not valid.
+static NTSTATUS AddPieces(VirtIOBufferDescriptor *sg, UINT *count, UINT max, PVOID va, ULONG size)
 {
     PUCHAR p = (PUCHAR)va;
+    UINT first = *count;
     while (size != 0)
     {
         ULONG len = min(size, PAGE_SIZE - BYTE_OFFSET(p));
-        if (*count >= max || !MmIsAddressValid(p))
+        if (!MmIsAddressValid(p))
         {
-            return FALSE;
+            return STATUS_INVALID_ADDRESS;
         }
-        sg[*count].physAddr = MmGetPhysicalAddress(p);
-        sg[*count].length = len;
-        (*count)++;
+        PHYSICAL_ADDRESS pa = MmGetPhysicalAddress(p);
+        if (*count > first && sg[*count - 1].physAddr.QuadPart + sg[*count - 1].length == pa.QuadPart)
+        {
+            sg[*count - 1].length += len;
+        }
+        else
+        {
+            if (*count >= max)
+            {
+                return STATUS_BUFFER_OVERFLOW;
+            }
+            sg[*count].physAddr = pa;
+            sg[*count].length = len;
+            (*count)++;
+        }
         p += len;
         size -= len;
     }
-    return TRUE;
+    return STATUS_SUCCESS;
+}
+
+// Describes a command to the device in at most max pieces: first what the device reads, the command and its payload,
+// outcnt pieces, then what it writes, the answer.
+static NTSTATUS BuildPieces(PGPU_VBUFFER buf, VirtIOBufferDescriptor *sg, UINT max, UINT *count, UINT *outcnt)
+{
+    NTSTATUS status;
+    *count = 0;
+    status = AddPieces(sg, count, max, buf->buf, buf->size);
+    if (NT_SUCCESS(status))
+    {
+        status = AddPieces(sg, count, max, buf->data_buf, buf->data_size);
+    }
+    *outcnt = *count;
+    if (NT_SUCCESS(status))
+    {
+        status = AddPieces(sg, count, max, buf->resp_buf, buf->resp_size);
+    }
+    return status;
 }
 
 static NTSTATUS CheckAnswer(PGPU_VBUFFER buf, UINT len);
@@ -65,6 +98,9 @@ VioGpuQueue::VioGpuQueue()
     m_pVIODevice = NULL;
     m_pVirtQueue = NULL;
     m_FenceId = 0;
+    m_Size = 0;
+    m_bIndirect = FALSE;
+    m_MaxPieces = 0;
     KeInitializeSpinLock(&m_SpinLock);
     KeInitializeEvent(&m_Room, NotificationEvent, FALSE);
 }
@@ -118,15 +154,29 @@ void VioGpuQueue::Close(void)
     KeSetEvent(&m_Room, IO_NO_INCREMENT, FALSE);
 }
 
-BOOLEAN VioGpuQueue::Init(_In_ VirtIODevice *pVIODevice, _In_ struct virtqueue *pVirtQueue, _In_ UINT index)
+BOOLEAN VioGpuQueue::Init(_In_ VirtIODevice *pVIODevice,
+                          _In_ struct virtqueue *pVirtQueue,
+                          _In_ UINT index,
+                          _In_ BOOLEAN indirect)
 {
     if ((pVIODevice == NULL) || (pVirtQueue == NULL))
     {
         return FALSE;
     }
     m_pVIODevice = pVIODevice;
-    m_pVirtQueue = pVirtQueue;
     m_Index = index;
+    m_Size = QueryAllocation();
+    if (m_Size == 0)
+    {
+        return FALSE;
+    }
+    // A chain, in the ring or in an indirect table, is never longer than the ring; an indirect table also fits a
+    // page.
+    m_bIndirect = indirect;
+    m_MaxPieces = indirect ? min(m_Size, virtio_get_indirect_page_capacity()) : m_Size;
+    m_pVirtQueue = pVirtQueue;
+    DbgPrint(TRACE_LEVEL_INFORMATION,
+             ("%s: queue %d has %u descriptors, indirect %d\n", __FUNCTION__, m_Index, m_Size, m_bIndirect));
     EnableInterrupt();
     return TRUE;
 }
@@ -209,6 +259,46 @@ static LARGE_INTEGER TimeoutUntil(ULONGLONG deadline, ULONGLONG now)
     ULONGLONG left = deadline > now ? deadline - now : 0;
     timeout.QuadPart = -(LONGLONG)min(left, (ULONGLONG)MAXLONGLONG);
     return timeout;
+}
+
+// Gives a command a zeroed payload of size bytes, which goes with the command's buffer. Above a page the payload is
+// allocated physically contiguous where memory allows, so that it takes one piece of the command however large it
+// is; otherwise, and up to a page, it comes from the pool.
+PVOID VioGpuQueue::AllocPayload(PGPU_VBUFFER buf, ULONG size)
+{
+    PVOID va = NULL;
+    // A command has one payload.
+    ASSERT(buf->data_buf == NULL && size != 0);
+    if (size > PAGE_SIZE)
+    {
+        PHYSICAL_ADDRESS low, high, boundary;
+        low.QuadPart = 0;
+        high.QuadPart = -1;
+        boundary.QuadPart = 0;
+        va = MmAllocateContiguousNodeMemory(size, low, high, boundary, PAGE_READWRITE, MM_ANY_NODE_OK);
+        if (va != NULL)
+        {
+            buf->data_contiguous = TRUE;
+        }
+        else
+        {
+            DbgPrint(TRACE_LEVEL_WARNING,
+                     ("%s: no contiguous memory for %u bytes, the payload takes a piece per run of adjacent pages\n",
+                      __FUNCTION__,
+                      size));
+        }
+    }
+    if (va == NULL)
+    {
+        va = new (NonPagedPoolNx) BYTE[size];
+    }
+    if (va != NULL)
+    {
+        RtlZeroMemory(va, size);
+        buf->data_buf = va;
+        buf->data_size = size;
+    }
+    return va;
 }
 
 // Sends a command without waiting for its answer. The buffer is the queue's from then on: a command that cannot be
@@ -328,6 +418,8 @@ NTSTATUS VioGpuQueue::AddWait(struct VirtIOBufferDescriptor sg[],
                               UINT out_num,
                               UINT in_num,
                               PVOID data,
+                              PVOID va_indirect,
+                              ULONGLONG phys_indirect,
                               ULONGLONG RoomDeadline)
 {
     ULONGLONG deadline = RoomDeadline;
@@ -350,7 +442,7 @@ NTSTATUS VioGpuQueue::AddWait(struct VirtIOBufferDescriptor sg[],
             // Closed: the device was reset.
             status = STATUS_DEVICE_NOT_READY;
         }
-        else if (AddBuf(sg, out_num, in_num, data, NULL, 0) >= 0)
+        else if (AddBuf(sg, out_num, in_num, data, va_indirect, phys_indirect) >= 0)
         {
             Kick();
             status = STATUS_SUCCESS;
@@ -386,35 +478,68 @@ NTSTATUS VioGpuQueue::AddWait(struct VirtIOBufferDescriptor sg[],
     }
 }
 
-#define SGLIST_SIZE 256
 // Adds a command to the ring and notifies the device. A command that cannot be added is freed.
 NTSTATUS VioGpuQueue::Queue(PGPU_VBUFFER buf, ULONGLONG RoomDeadline)
 {
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
-    // A buffer is sent once: an answered one has its outcome already.
-    ASSERT(buf->status == STATUS_PENDING);
+    // A buffer is sent once: an answered one has its outcome already, a queued one of more than VIOGPU_INDIRECT_INLINE
+    // pieces its separate descriptor table.
+    ASSERT(buf->status == STATUS_PENDING && buf->indirect_ext == NULL);
 
-    VirtIOBufferDescriptor sg[SGLIST_SIZE];
+    VirtIOBufferDescriptor inline_sg[VIOGPU_INLINE_PIECES];
+    VirtIOBufferDescriptor *sg = inline_sg;
     UINT count = 0;
     UINT outcnt = 0;
-    NTSTATUS status = STATUS_SUCCESS;
+    PVOID table = NULL;
+    ULONGLONG table_pa = 0;
+    NTSTATUS status;
 
-    // What the device reads, the command and its payload, comes before what it writes, the answer.
-    if (!AddPieces(sg, &count, SGLIST_SIZE, buf->buf, buf->size) ||
-        !AddPieces(sg, &count, SGLIST_SIZE, buf->data_buf, buf->data_size))
+    // A ring of fewer descriptors than the stack holds limits the first try too.
+    status = BuildPieces(buf, sg, min((UINT)VIOGPU_INLINE_PIECES, m_MaxPieces), &count, &outcnt);
+    if (status == STATUS_BUFFER_OVERFLOW && m_MaxPieces > VIOGPU_INLINE_PIECES)
     {
-        status = STATUS_INVALID_PARAMETER;
+        // Only a payload over many pages that are not adjacent takes this many pieces.
+        sg = new (NonPagedPoolNx) VirtIOBufferDescriptor[m_MaxPieces];
+        status = (sg == NULL) ? STATUS_INSUFFICIENT_RESOURCES : BuildPieces(buf, sg, m_MaxPieces, &count, &outcnt);
     }
-    outcnt = count;
-    if (NT_SUCCESS(status) && !AddPieces(sg, &count, SGLIST_SIZE, buf->resp_buf, buf->resp_size))
+    if (status == STATUS_BUFFER_OVERFLOW)
     {
-        status = STATUS_INVALID_PARAMETER;
+        DbgPrint(TRACE_LEVEL_ERROR,
+                 ("%s: queue %d takes no more than %u pieces\n", __FUNCTION__, m_Index, m_MaxPieces));
+        status = STATUS_INVALID_BUFFER_SIZE;
+    }
+
+    // With indirect descriptors a command of more than one piece takes one descriptor of the ring, which points to a
+    // table of its pieces.
+    if (NT_SUCCESS(status) && m_bIndirect && count > 1)
+    {
+        if (count <= VIOGPU_INDIRECT_INLINE)
+        {
+            table = buf->indirect;
+        }
+        else
+        {
+            buf->indirect_ext = new (NonPagedPoolNx) BYTE[count * VIOGPU_DESC_SIZE];
+            table = buf->indirect_ext;
+            if (table == NULL)
+            {
+                status = STATUS_INSUFFICIENT_RESOURCES;
+            }
+        }
+        if (table != NULL)
+        {
+            table_pa = (ULONGLONG)MmGetPhysicalAddress(table).QuadPart;
+        }
     }
 
     if (NT_SUCCESS(status))
     {
-        status = AddWait(sg, outcnt, count - outcnt, buf, RoomDeadline);
+        status = AddWait(sg, outcnt, count - outcnt, buf, table, table_pa, RoomDeadline);
+    }
+    if (sg != inline_sg)
+    {
+        delete[] sg;
     }
 
     if (!NT_SUCCESS(status))
@@ -578,7 +703,7 @@ BOOLEAN VioGpuBuf::Init(_In_ UINT cnt)
     return (m_uCount > 0);
 }
 
-// Frees what a buffer carries besides itself: a separate answer and a payload.
+// Frees what a buffer carries besides itself: a separate answer, a payload and a separate descriptor table.
 static void FreeContents(_In_ PGPU_VBUFFER pbuf)
 {
     if (pbuf->resp_buf && pbuf->resp_size > MAX_INLINE_RESP_SIZE)
@@ -588,12 +713,23 @@ static void FreeContents(_In_ PGPU_VBUFFER pbuf)
         pbuf->resp_size = 0;
     }
 
-    if (pbuf->data_buf && pbuf->data_size)
+    if (pbuf->data_buf)
     {
-        delete[] reinterpret_cast<PBYTE>(pbuf->data_buf);
+        if (pbuf->data_contiguous)
+        {
+            MmFreeContiguousMemory(pbuf->data_buf);
+        }
+        else
+        {
+            delete[] reinterpret_cast<PBYTE>(pbuf->data_buf);
+        }
         pbuf->data_buf = NULL;
         pbuf->data_size = 0;
+        pbuf->data_contiguous = FALSE;
     }
+
+    delete[] reinterpret_cast<PBYTE>(pbuf->indirect_ext);
+    pbuf->indirect_ext = NULL;
 }
 
 void VioGpuBuf::Close(void)

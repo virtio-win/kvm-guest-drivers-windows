@@ -2425,6 +2425,7 @@ NTSTATUS VioGpuAdapter::VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION *pDispInfo)
         }
 
         AckFeature(VIRTIO_F_ACCESS_PLATFORM);
+        AckFeature(VIRTIO_RING_F_INDIRECT_DESC);
 
         status = virtio_set_features(&m_VioDev, m_u64GuestFeatures);
         if (!NT_SUCCESS(status))
@@ -2442,7 +2443,8 @@ NTSTATUS VioGpuAdapter::VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION *pDispInfo)
             break;
         }
 
-        if (!m_CtrlQueue.Init(&m_VioDev, vqs[0], 0) || !m_CursorQueue.Init(&m_VioDev, vqs[1], 1))
+        BOOLEAN indirect = virtio_is_feature_enabled(m_u64GuestFeatures, VIRTIO_RING_F_INDIRECT_DESC);
+        if (!m_CtrlQueue.Init(&m_VioDev, vqs[0], 0, indirect) || !m_CursorQueue.Init(&m_VioDev, vqs[1], 1, indirect))
         {
             DbgPrint(TRACE_LEVEL_FATAL, ("Failed to initialize virtio queues\n"));
             status = STATUS_INSUFFICIENT_RESOURCES;
@@ -4194,34 +4196,7 @@ BOOLEAN VioGpuAdapter::GpuObjectAttach(UINT res_id, VioGpuObj *obj)
 {
     PAGED_CODE();
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-    PGPU_MEM_ENTRY ents = NULL;
-    PSCATTER_GATHER_LIST sgl = NULL;
-    UINT size = 0;
-    sgl = obj->GetSGList();
-    size = sizeof(GPU_MEM_ENTRY) * sgl->NumberOfElements;
-    ents = reinterpret_cast<PGPU_MEM_ENTRY>(new (NonPagedPoolNx) BYTE[size]);
-
-    if (!ents)
-    {
-        DbgPrint(TRACE_LEVEL_FATAL,
-                 ("<--- %s cannot allocate memory %x bytes numberofentries = %d\n",
-                  __FUNCTION__,
-                  size,
-                  sgl->NumberOfElements));
-        return FALSE;
-    }
-    // FIXME
-    RtlZeroMemory(ents, size);
-
-    for (UINT i = 0; i < sgl->NumberOfElements; i++)
-    {
-        ents[i].addr = sgl->Elements[i].Address.QuadPart;
-        ents[i].length = sgl->Elements[i].Length;
-        ents[i].padding = 0;
-    }
-
-    // The queue frees the entries, whether the command is sent or not.
-    if (!NT_SUCCESS(m_Commands.ResourceAttachBacking(res_id, ents, sgl->NumberOfElements)))
+    if (!NT_SUCCESS(m_Commands.ResourceAttachBacking(res_id, obj->GetSGList())))
     {
         return FALSE;
     }
