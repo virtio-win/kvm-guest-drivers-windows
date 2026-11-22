@@ -1093,10 +1093,13 @@ NTSTATUS VioGpuDod::AddSingleTargetMode(_In_ CONST DXGK_VIDPNTARGETMODESET_INTER
 
     D3DKMDT_VIDPN_TARGET_MODE *pVidPnTargetModeInfo = NULL;
 
-    // With a pinned source mode the one target mode of its size is preferred, otherwise 1024x768.
+    // With a pinned source mode the one target mode of its size is preferred, otherwise the size the host asks for,
+    // once.
     VIOGPU_DISP_MODE modes[VIOGPU_MAX_MODES + 1];
     ULONG count = 0;
     NTSTATUS Status = GetOfferedModes(pPinnedSourceSize, modes, &count);
+    VIOGPU_DISP_MODE preferred = m_pHWDevice->GetController()->GetCustomMode(0);
+    BOOLEAN PreferredAdded = FALSE;
     if (!NT_SUCCESS(Status))
     {
         return Status;
@@ -1116,15 +1119,10 @@ NTSTATUS VioGpuDod::AddSingleTargetMode(_In_ CONST DXGK_VIDPNTARGETMODESET_INTER
         }
         BuildVideoSignalInfo(&pVidPnTargetModeInfo->VideoSignalInfo, pModeInfo);
 
-        if (pPinnedSourceSize != NULL ||
-            (pModeInfo->XResolution == NOM_WIDTH_SIZE && pModeInfo->YResolution == NOM_HEIGHT_SIZE))
-        {
-            pVidPnTargetModeInfo->Preference = D3DKMDT_MP_PREFERRED;
-        }
-        else
-        {
-            pVidPnTargetModeInfo->Preference = D3DKMDT_MP_NOTPREFERRED;
-        }
+        BOOLEAN Preferred = pPinnedSourceSize != NULL ||
+                            (!PreferredAdded && pModeInfo->XResolution == preferred.XResolution &&
+                             pModeInfo->YResolution == preferred.YResolution);
+        pVidPnTargetModeInfo->Preference = Preferred ? D3DKMDT_MP_PREFERRED : D3DKMDT_MP_NOTPREFERRED;
 
         Status = pVidPnTargetModeSetInterface->pfnAddMode(hVidPnTargetModeSet, pVidPnTargetModeInfo);
         if (!NT_SUCCESS(Status))
@@ -1144,6 +1142,10 @@ NTSTATUS VioGpuDod::AddSingleTargetMode(_In_ CONST DXGK_VIDPNTARGETMODESET_INTER
                           pVidPnTargetModeInfo));
                 return Status;
             }
+        }
+        else if (Preferred)
+        {
+            PreferredAdded = TRUE;
         }
     }
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
@@ -1214,21 +1216,19 @@ NTSTATUS VioGpuDod::AddSingleMonitorMode(_In_ CONST DXGKARG_RECOMMENDMONITORMODE
 
     VIOGPU_DISP_MODE modes[VIOGPU_MAX_MODES + 1];
     ULONG count = m_pHWDevice->GetController()->GetModes(0, modes);
-    VIOGPU_SOURCE_VIEW source;
-    m_pHWDevice->GetController()->GetSource(0, &source);
-    VIOGPU_DISP_MODE current = {(USHORT)source.Width, (USHORT)source.Height};
+    // The size the host asks for is the monitor's one preferred mode.
+    VIOGPU_DISP_MODE preferred = m_pHWDevice->GetController()->GetCustomMode(0);
 
     NTSTATUS Status = AddMonitorMode(pRecommendMonitorModes->hMonitorSourceModeSet,
                                      pRecommendMonitorModes->pMonitorSourceModeSetInterface,
-                                     &current,
+                                     &preferred,
                                      D3DKMDT_MP_PREFERRED);
     for (UINT Idx = 0; NT_SUCCESS(Status) && Idx < count; ++Idx)
     {
-        BOOLEAN Nominal = modes[Idx].XResolution == NOM_WIDTH_SIZE && modes[Idx].YResolution == NOM_HEIGHT_SIZE;
         Status = AddMonitorMode(pRecommendMonitorModes->hMonitorSourceModeSet,
                                 pRecommendMonitorModes->pMonitorSourceModeSetInterface,
                                 &modes[Idx],
-                                Nominal ? D3DKMDT_MP_PREFERRED : D3DKMDT_MP_NOTPREFERRED);
+                                D3DKMDT_MP_NOTPREFERRED);
     }
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
