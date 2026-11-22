@@ -56,6 +56,8 @@ static BOOLEAN AddPieces(VirtIOBufferDescriptor *sg, UINT *count, UINT max, PVOI
     return TRUE;
 }
 
+static NTSTATUS CheckAnswer(PGPU_VBUFFER buf, UINT len);
+
 VioGpuQueue::VioGpuQueue()
 {
     m_pBuf = NULL;
@@ -69,20 +71,51 @@ VioGpuQueue::VioGpuQueue()
 
 VioGpuQueue::~VioGpuQueue()
 {
-    Close();
+    // The adapter closes the queue when it resets the device. Here, after the pool is gone, the ring is only
+    // forgotten.
+    m_pVirtQueue = NULL;
 }
 
+// Closes the queue once the device is reset, its interrupts are off and the DPCs are done. Each command still on
+// the ring gets its outcome: the answer the device gave before the reset, or STATUS_CANCELLED.
 void VioGpuQueue::Close(void)
 {
     KIRQL SavedIrql;
+    struct virtqueue *vq;
     Lock(&SavedIrql);
+    vq = m_pVirtQueue;
     m_pVirtQueue = NULL;
     Unlock(SavedIrql);
-    // Whoever waits for room in the ring finds the queue closed.
-    if (KeGetCurrentIrql() <= DISPATCH_LEVEL)
+
+    // At DISPATCH_LEVEL and above only the bugcheck flow closes a queue: the DPCs were not flushed, and a processor it
+    // stopped may hold the pool's lock. The commands are left as they are.
+    if (KeGetCurrentIrql() >= DISPATCH_LEVEL)
     {
-        KeSetEvent(&m_Room, IO_NO_INCREMENT, FALSE);
+        return;
     }
+    if (vq != NULL)
+    {
+        PGPU_VBUFFER buf;
+        UINT len = 0;
+        UINT cancelled = 0;
+        // Answered, but not taken off the ring yet.
+        while ((buf = (PGPU_VBUFFER)virtqueue_get_buf(vq, &len)) != NULL)
+        {
+            Finish(buf, CheckAnswer(buf, len));
+        }
+        // Never answered.
+        while ((buf = (PGPU_VBUFFER)virtqueue_detach_unused_buf(vq)) != NULL)
+        {
+            Finish(buf, STATUS_CANCELLED);
+            cancelled++;
+        }
+        // A local, since DbgPrint does not parenthesize its level: a warning when the reset cancelled commands the
+        // device never answered.
+        UCHAR TraceLevel = cancelled != 0 ? TRACE_LEVEL_WARNING : TRACE_LEVEL_INFORMATION;
+        DbgPrint(TraceLevel, ("%s: queue %d closed, %u commands cancelled\n", __FUNCTION__, m_Index, cancelled));
+    }
+    // Whoever waits for room in the ring finds the queue closed.
+    KeSetEvent(&m_Room, IO_NO_INCREMENT, FALSE);
 }
 
 BOOLEAN VioGpuQueue::Init(_In_ VirtIODevice *pVIODevice, _In_ struct virtqueue *pVirtQueue, _In_ UINT index)
@@ -180,8 +213,9 @@ static LARGE_INTEGER TimeoutUntil(ULONGLONG deadline, ULONGLONG now)
 
 // Sends a command without waiting for its answer. The buffer is the queue's from then on: a command that cannot be
 // sent is freed at once, and the failure returned. Once the device answers a command that was sent, complete, if
-// given, runs in the DPC with the outcome. At IRQL <= APC_LEVEL a full ring is waited for until RoomDeadline,
-// interrupt time in 100 ns units, or for VIOGPU_ROOM_TIMEOUT_MS when it is 0; at DISPATCH_LEVEL it fails at once.
+// given, runs with the outcome, from the DPC or, after a device reset, from Close (PVIOGPU_COMPLETE). At IRQL <=
+// APC_LEVEL a full ring is waited for until RoomDeadline, interrupt time in 100 ns units, or for VIOGPU_ROOM_TIMEOUT_MS
+// when it is 0; at DISPATCH_LEVEL it fails at once.
 NTSTATUS VioGpuQueue::Send(PGPU_VBUFFER buf, ULONG flags, PVIOGPU_COMPLETE complete, PVOID ctx, ULONGLONG RoomDeadline)
 {
     // Only an answer tells that a fenced command has finished.
@@ -207,10 +241,12 @@ NTSTATUS VioGpuQueue::Send(PGPU_VBUFFER buf, ULONG flags, PVIOGPU_COMPLETE compl
 //
 // STATUS_DEVICE_BUSY when the ring had no room in time, or the deadline had passed already: nothing was sent.
 // STATUS_IO_TIMEOUT, and only that, means the command is on the ring without an answer: the buffer is freed once the
-// device answers, and late, if given, runs then with the outcome, from the DPC at DISPATCH_LEVEL. late and ctx must
-// stay valid until then, and late must be non-paged. With any other outcome late never runs.
-// STATUS_INVALID_DEVICE_STATE above APC_LEVEL, where no wait is allowed. Any other failure: nothing was sent, or the
-// device refused the command.
+// device answers or the queue closes, and late, if given, runs then with the outcome, from the DPC at DISPATCH_LEVEL,
+// or from Close with the answer the device gave before the reset or STATUS_CANCELLED; never in the bugcheck flow. It
+// may run before SendAndWait returns. late and ctx must stay valid until then, and late must be non-paged. With any
+// other outcome late never runs.
+// STATUS_INVALID_DEVICE_STATE above APC_LEVEL, where no wait is allowed. Any other failure: nothing was sent, the
+// device refused the command, or the queue closed before it answered (STATUS_CANCELLED).
 NTSTATUS VioGpuQueue::SendAndWait(PGPU_VBUFFER buf,
                                   ULONG flags,
                                   PVOID answer,
@@ -575,7 +611,7 @@ void VioGpuBuf::Close(void)
             PGPU_VBUFFER pvbuf = CONTAINING_RECORD(pListItem, GPU_VBUFFER, list_entry);
             ASSERT(pvbuf);
 
-            // A command the device never answered, which its caller gave up waiting for.
+            // A command left on a ring by the bugcheck flow, which closes the queues without finishing their commands.
             FreeContents(pvbuf);
             delete[] reinterpret_cast<PBYTE>(pvbuf);
             --m_uCount;

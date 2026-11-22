@@ -32,9 +32,11 @@
 #pragma once
 #include "viogpu.h"
 
-// The outcome of a command that Send sent: it runs once, from the DPC when the device answers, possibly before Send
-// has returned. It never runs for a command Send could not send, and must not wait. SendAndWait passes its late
-// callback here, which therefore runs only for a command SendAndWait gave up on (STATUS_IO_TIMEOUT).
+// The outcome of a command that Send sent. It runs once, at IRQL <= DISPATCH_LEVEL: from the DPC when the device
+// answers, possibly before Send has returned, or from Close after a device reset, with STATUS_CANCELLED when the
+// device never answered. It never runs for a command Send could not send, nor in the bugcheck flow, and must not wait.
+// SendAndWait passes its late callback here, which therefore runs only for a command SendAndWait gave up on
+// (STATUS_IO_TIMEOUT).
 typedef void (*PVIOGPU_COMPLETE)(_In_opt_ PVOID ctx, _In_ NTSTATUS status);
 
 // Who frees a command's buffer. NONE: nobody waits, the completion frees it. PENDING: SendAndWait waits. DONE: the

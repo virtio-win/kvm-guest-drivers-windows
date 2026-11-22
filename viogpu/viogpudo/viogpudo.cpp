@@ -3725,9 +3725,9 @@ void VioGpuAdapter::VioGpuAdapterClose()
         m_CursorQueue.DisableInterrupt();
         // Reset the device before switching interrupt handling off: after the reset it raises nothing, and it lowers
         // an INTx line it may still hold, which the ISR does not acknowledge while handling is off. Once handling is
-        // off the ISR returns at once, and flushing the DPCs lets those it queued finish before the queues are closed
-        // and the rings deleted. At DISPATCH_LEVEL and above (only the bugcheck flow, ResetToVgaMode) DPCs are not
-        // flushed, and none run.
+        // off the ISR returns at once, and flushing the DPCs lets those it queued finish before the queues hand the
+        // commands left on the rings their outcome and the rings are deleted. At DISPATCH_LEVEL and above (only the
+        // bugcheck flow, ResetToVgaMode) DPCs are not flushed, none run, and the commands stay on the rings.
         virtio_device_reset(&m_VioDev);
         SwitchInterrupts(FALSE);
         if (KeGetCurrentIrql() < DISPATCH_LEVEL)
@@ -3736,7 +3736,7 @@ void VioGpuAdapter::VioGpuAdapterClose()
         }
         m_CtrlQueue.Close();
         m_CursorQueue.Close();
-        // In the bugcheck flow the reset is all: memory may not be freed above DISPATCH_LEVEL.
+        // Above DISPATCH_LEVEL the reset is all: no memory may be freed there.
         if (KeGetCurrentIrql() <= DISPATCH_LEVEL)
         {
             virtio_delete_queues(&m_VioDev);
