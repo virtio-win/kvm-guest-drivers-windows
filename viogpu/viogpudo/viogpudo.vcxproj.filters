@@ -37,6 +37,9 @@
     <ClCompile Include="viogpu_cursor.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="viogpu_vsync.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="viogpu_helper.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

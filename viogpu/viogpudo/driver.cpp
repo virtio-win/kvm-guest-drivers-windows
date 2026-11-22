@@ -109,6 +109,9 @@ extern "C" NTSTATUS DriverEntry(_In_ DRIVER_OBJECT *pDriverObject, _In_ UNICODE_
     InitialData.DxgkDdiStopDeviceAndReleasePostDisplayOwnership = VioGpuDodStopDeviceAndReleasePostDisplayOwnership;
     InitialData.DxgkDdiSystemDisplayEnable = VioGpuDodSystemDisplayEnable;
     InitialData.DxgkDdiSystemDisplayWrite = VioGpuDodSystemDisplayWrite;
+    // Both or neither: with them Windows takes VSync from the driver, whose modes then carry their refresh rate.
+    InitialData.DxgkDdiControlInterrupt = VioGpuDodControlInterrupt;
+    InitialData.DxgkDdiGetScanLine = VioGpuDodGetScanLine;
 
     NTSTATUS Status = DxgkInitializeDisplayOnlyDriver(pDriverObject, pRegistryPath, &InitialData);
     if (!NT_SUCCESS(Status))
@@ -547,6 +550,39 @@ VioGpuDodQueryVidPnHWCapability(_In_ CONST HANDLE hAdapter, _Inout_ DXGKARG_QUER
         return STATUS_UNSUCCESSFUL;
     }
     return pVioGpuDod->QueryVidPnHWCapability(pVidPnHWCaps);
+}
+
+NTSTATUS
+APIENTRY
+VioGpuDodControlInterrupt(_In_ CONST HANDLE hAdapter, _In_ CONST DXGK_INTERRUPT_TYPE InterruptType, _In_ BOOLEAN Enable)
+{
+    PAGED_CODE();
+    VIOGPU_ASSERT_CHK(hAdapter != NULL);
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<---> %s\n", __FUNCTION__));
+
+    VioGpuDod *pVioGpuDod = reinterpret_cast<VioGpuDod *>(hAdapter);
+    if (!pVioGpuDod->IsDriverActive())
+    {
+        VIOGPU_LOG_ASSERTION1("VIOGPU (%p) is being called when not active!", pVioGpuDod);
+        return STATUS_UNSUCCESSFUL;
+    }
+    return pVioGpuDod->ControlInterrupt(InterruptType, Enable);
+}
+
+NTSTATUS
+APIENTRY
+VioGpuDodGetScanLine(_In_ CONST HANDLE hAdapter, _Inout_ DXGKARG_GETSCANLINE *pGetScanLine)
+{
+    PAGED_CODE();
+    VIOGPU_ASSERT_CHK(hAdapter != NULL);
+
+    VioGpuDod *pVioGpuDod = reinterpret_cast<VioGpuDod *>(hAdapter);
+    if (!pVioGpuDod->IsDriverActive())
+    {
+        VIOGPU_LOG_ASSERTION1("VIOGPU (%p) is being called when not active!", pVioGpuDod);
+        return STATUS_UNSUCCESSFUL;
+    }
+    return pVioGpuDod->GetScanLine(pGetScanLine);
 }
 
 // END: Paged Code

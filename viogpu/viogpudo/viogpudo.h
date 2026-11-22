@@ -37,6 +37,7 @@
 #include "viogpu_resources.h"
 #include "viogpu_display.h"
 #include "viogpu_cursor.h"
+#include "viogpu_vsync.h"
 #include "viogpu_helper.h"
 #include "viogpu_hostdisplays.h"
 
@@ -91,6 +92,10 @@ class VioGpuAdapter : IVioGpuPCI
     {
         return &m_Cursor;
     }
+    VioGpuVSync *GetVSync(void)
+    {
+        return &m_VSync;
+    }
     VioGpuHelperChannel *GetHelperChannel(void)
     {
         return &m_HelperChannel;
@@ -136,10 +141,17 @@ class VioGpuAdapter : IVioGpuPCI
         return IsMSIEnabled() ? m_PciResources.GetMessageCount() : 1;
     }
     // The message whose ISR notifies dxgkrnl, DXGK_DRIVERCAPS.InterruptMessageNumber: the control queue's with one
-    // message per cause, else message 0, which also stands for the line.
+    // message per cause, else message 0, which also stands for the line. The VSync notifies under its interrupt lock
+    // too.
     ULONG GetNotifyMessage()
     {
         return m_PciResources.IsMessagePerCause() ? VIRTIO_GPU_MSIX_CTRL_VECTOR : 0;
+    }
+    // Under the interrupt lock: the ISR handles interrupts. They are on from before the device opens until after it is
+    // reset, so while they are off the device is closed.
+    BOOLEAN AreInterruptsOn(void) const
+    {
+        return m_InterruptsOn;
     }
     PHYSICAL_ADDRESS GetFrameBufferPA(void)
     {
@@ -201,6 +213,7 @@ class VioGpuAdapter : IVioGpuPCI
     static BOOLEAN InterruptsOnCb(PVOID Context);
     static BOOLEAN InterruptsOffCb(PVOID Context);
     VioGpuCursor m_Cursor;
+    VioGpuVSync m_VSync;
     VioGpuHelperChannel m_HelperChannel;
     VioGpuHostDisplays m_HostDisplays;
     // The components, in the order they open (VioGpuComponent): how many there are, how many of them started, and
@@ -333,6 +346,8 @@ class VioGpuDod
     NTSTATUS QueryAdapterInfo(_In_ CONST DXGKARG_QUERYADAPTERINFO *pQueryAdapterInfo);
     NTSTATUS SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION *pSetPointerPosition);
     NTSTATUS SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape);
+    NTSTATUS ControlInterrupt(_In_ CONST DXGK_INTERRUPT_TYPE InterruptType, _In_ BOOLEAN Enable);
+    NTSTATUS GetScanLine(_Inout_ DXGKARG_GETSCANLINE *pGetScanLine);
     NTSTATUS Escape(_In_ CONST DXGKARG_ESCAPE *pEscape);
     NTSTATUS PresentDisplayOnly(_In_ CONST DXGKARG_PRESENT_DISPLAYONLY *pPresentDisplayOnly);
     NTSTATUS QueryInterface(_In_ CONST PQUERY_INTERFACE QueryInterface);

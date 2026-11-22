@@ -549,7 +549,8 @@ NTSTATUS VioGpuDod::QueryAdapterInfo(_In_ CONST DXGKARG_QUERYADAPTERINFO *pQuery
                 RtlZeroMemory(pDriverCaps, pQueryAdapterInfo->OutputDataSize /*sizeof(DXGK_DRIVERCAPS)*/);
                 pDriverCaps->WDDMVersion = DXGKDDI_WDDMv1_2;
                 pDriverCaps->HighestAcceptableAddress.QuadPart = (ULONG64)-1;
-                // DXGKCB_NOTIFY_INTERRUPT requires the message the ISR notifies dxgkrnl from (GetNotifyMessage).
+                // The ISR and the VSync notify dxgkrnl from one message (GetNotifyMessage), as DXGKCB_NOTIFY_INTERRUPT
+                // requires.
                 if (m_pHWDevice != NULL)
                 {
                     pDriverCaps->InterruptMessageNumber = m_pHWDevice->GetNotifyMessage();
@@ -614,6 +615,30 @@ NTSTATUS VioGpuDod::SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPoin
         return m_pHWDevice->GetCursor()->SetPointerShape(pSetPointerShape, &source);
     }
     return STATUS_NOT_IMPLEMENTED;
+}
+
+// VSync is the one interrupt Windows controls; the driver reports it as a display-only driver's (VioGpuVSync).
+NTSTATUS VioGpuDod::ControlInterrupt(_In_ CONST DXGK_INTERRUPT_TYPE InterruptType, _In_ BOOLEAN Enable)
+{
+    PAGED_CODE();
+
+    if (InterruptType != DXGK_INTERRUPT_CRTC_VSYNC && InterruptType != DXGK_INTERRUPT_DISPLAYONLY_VSYNC)
+    {
+        return STATUS_NOT_IMPLEMENTED;
+    }
+    m_pHWDevice->GetVSync()->Control(Enable);
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS VioGpuDod::GetScanLine(_Inout_ DXGKARG_GETSCANLINE *pGetScanLine)
+{
+    PAGED_CODE();
+
+    if (pGetScanLine->VidPnTargetId >= m_pHWDevice->GetController()->GetScanoutCount())
+    {
+        return STATUS_INVALID_PARAMETER;
+    }
+    return m_pHWDevice->GetVSync()->GetScanLine(pGetScanLine);
 }
 
 NTSTATUS VioGpuDod::Escape(_In_ CONST DXGKARG_ESCAPE *pEscape)
@@ -1080,11 +1105,13 @@ VOID VioGpuDod::BuildVideoSignalInfo(D3DKMDT_VIDEO_SIGNAL_INFO *pVideoSignalInfo
     // built here: Windows lists a size outside its raw mode list only if a target mode matches a monitor mode.
     pVideoSignalInfo->ActiveSize = pVideoSignalInfo->TotalSize;
 
-    pVideoSignalInfo->VSyncFreq.Numerator = D3DKMDT_FREQUENCY_NOTSPECIFIED;
-    pVideoSignalInfo->VSyncFreq.Denominator = D3DKMDT_FREQUENCY_NOTSPECIFIED;
-    pVideoSignalInfo->HSyncFreq.Numerator = D3DKMDT_FREQUENCY_NOTSPECIFIED;
-    pVideoSignalInfo->HSyncFreq.Denominator = D3DKMDT_FREQUENCY_NOTSPECIFIED;
-    pVideoSignalInfo->PixelRate = D3DKMDT_FREQUENCY_NOTSPECIFIED;
+    // A display-only driver that reports VSync gives its modes their frequencies; Windows refuses one that does not.
+    pVideoSignalInfo->VSyncFreq.Numerator = VIOGPU_REFRESH_RATE;
+    pVideoSignalInfo->VSyncFreq.Denominator = 1;
+    pVideoSignalInfo->HSyncFreq.Numerator = pVideoSignalInfo->TotalSize.cy * VIOGPU_REFRESH_RATE;
+    pVideoSignalInfo->HSyncFreq.Denominator = 1;
+    pVideoSignalInfo->PixelRate = (SIZE_T)pVideoSignalInfo->TotalSize.cx * pVideoSignalInfo->TotalSize.cy *
+                                  VIOGPU_REFRESH_RATE;
     pVideoSignalInfo->ScanLineOrdering = D3DDDI_VSSLO_PROGRESSIVE;
 }
 
@@ -2593,13 +2620,15 @@ VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod)
     // Closed until VioGpuAdapterInit opens the device.
     m_bDeviceOpen = FALSE;
     m_Cursor.Init(this);
+    m_VSync.Init(this);
     m_HelperChannel.Init(this);
     m_Controller.AddListener(&m_Cursor);
+    m_Controller.AddListener(&m_VSync);
     m_Controller.AddListener(&m_HelperChannel);
     m_HostDisplays.Init(this);
     // VioGpuHostDisplays last: its thread reads the host only once every other part is open, and is idle before any
     // of them closes.
-    VioGpuComponent *Components[] = {&m_Controller, &m_Cursor, &m_HelperChannel, &m_HostDisplays};
+    VioGpuComponent *Components[] = {&m_Controller, &m_Cursor, &m_VSync, &m_HelperChannel, &m_HostDisplays};
     C_ASSERT(ARRAYSIZE(Components) <= VIOGPU_MAX_COMPONENTS);
     for (m_ComponentCount = 0; m_ComponentCount < ARRAYSIZE(Components); ++m_ComponentCount)
     {
