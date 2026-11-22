@@ -52,6 +52,7 @@ VioGpuDod::VioGpuDod(_In_ DEVICE_OBJECT *pPhysicalDeviceObject)
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
     *((UINT *)&m_Flags) = 0;
+    m_MaxCursorSizeSetting = POINTER_SIZE;
     RtlZeroMemory(&m_DxgkInterface, sizeof(m_DxgkInterface));
     RtlZeroMemory(&m_DeviceInfo, sizeof(m_DeviceInfo));
     RtlZeroMemory(&m_SystemDisplay, sizeof(m_SystemDisplay));
@@ -554,12 +555,12 @@ NTSTATUS VioGpuDod::QueryAdapterInfo(_In_ CONST DXGKARG_QUERYADAPTERINFO *pQuery
                     pDriverCaps->InterruptMessageNumber = m_pHWDevice->GetNotifyMessage();
                 }
 
-                if (IsPointerEnabled())
+                if (IsPointerEnabled() && m_pHWDevice != NULL)
                 {
-                    pDriverCaps->MaxPointerWidth = POINTER_SIZE;
-                    pDriverCaps->MaxPointerHeight = POINTER_SIZE;
+                    pDriverCaps->MaxPointerWidth = m_pHWDevice->GetCursor()->GetMaxSize();
+                    pDriverCaps->MaxPointerHeight = m_pHWDevice->GetCursor()->GetMaxSize();
+                    // Only 32-bit color shapes: Windows draws monochrome and masked-color pointers itself.
                     pDriverCaps->PointerCaps.Color = 1;
-                    pDriverCaps->PointerCaps.MaskedColor = 1;
                 }
                 pDriverCaps->SupportNonVGA = IsVgaDevice();
                 pDriverCaps->SupportSmoothRotation = TRUE;
@@ -583,7 +584,7 @@ NTSTATUS VioGpuDod::SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION *pS
 
     VIOGPU_ASSERT(pSetPointerPosition != NULL);
     VIOGPU_ASSERT(pSetPointerPosition->VidPnSourceId < MAX_VIEWS);
-    if (IsPointerEnabled() && pSetPointerPosition->VidPnSourceId == 0)
+    if (IsPointerEnabled() && pSetPointerPosition->VidPnSourceId < m_pHWDevice->GetController()->GetSourceCount())
     {
         VIOGPU_SOURCE_VIEW source;
         m_pHWDevice->GetController()->GetSource(pSetPointerPosition->VidPnSourceId, &source);
@@ -598,7 +599,7 @@ NTSTATUS VioGpuDod::SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPoin
 
     VIOGPU_ASSERT(pSetPointerShape != NULL);
 
-    DbgPrint(TRACE_LEVEL_INFORMATION,
+    DbgPrint(TRACE_LEVEL_VERBOSE,
              ("<---> %s Height = %d, Width = %d, XHot= %d, YHot = %d SourceId = %d\n",
               __FUNCTION__,
               pSetPointerShape->Height,
@@ -606,7 +607,7 @@ NTSTATUS VioGpuDod::SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPoin
               pSetPointerShape->XHot,
               pSetPointerShape->YHot,
               pSetPointerShape->VidPnSourceId));
-    if (IsPointerEnabled() && pSetPointerShape->VidPnSourceId == 0)
+    if (IsPointerEnabled() && pSetPointerShape->VidPnSourceId < m_pHWDevice->GetController()->GetSourceCount())
     {
         VIOGPU_SOURCE_VIEW source;
         m_pHWDevice->GetController()->GetSource(pSetPointerShape->VidPnSourceId, &source);
@@ -2528,6 +2529,14 @@ NTSTATUS VioGpuDod::GetRegisterInfo(void)
         SetPointerEnabled(!!value);
     }
 
+    // Larger cursors need a feature the virtio specification has not assigned yet: off unless asked for.
+    value = 0;
+    Status = ReadRegistryDWORD(DevInstRegKeyHandle, L"MaxCursorSize", &value);
+    if (NT_SUCCESS(Status))
+    {
+        m_MaxCursorSizeSetting = max((UINT)value, (UINT)POINTER_SIZE);
+    }
+
     value = 0;
     Status = ReadRegistryDWORD(DevInstRegKeyHandle, L"FlexResolution", &value);
     if (NT_SUCCESS(Status))
@@ -2585,6 +2594,7 @@ VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod)
     m_bDeviceOpen = FALSE;
     m_Cursor.Init(this);
     m_HelperChannel.Init(this);
+    m_Controller.AddListener(&m_Cursor);
     m_Controller.AddListener(&m_HelperChannel);
     m_HostDisplays.Init(this);
     // VioGpuHostDisplays last: its thread reads the host only once every other part is open, and is idle before any
@@ -2601,6 +2611,7 @@ VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod)
     m_u64GuestFeatures = 0;
     m_u32NumCapsets = 0;
     m_u32NumScanouts = 0;
+    m_u32MaxCursorSize = 0;
 }
 
 VioGpuAdapter::~VioGpuAdapter(void)
@@ -2725,6 +2736,11 @@ NTSTATUS VioGpuAdapter::VioGpuAdapterInit(void)
         AckFeature(VIRTIO_RING_F_INDIRECT_DESC);
         // GET_EDID may be sent only once the feature is negotiated.
         AckFeature(VIRTIO_GPU_F_EDID);
+        // Its bit is not assigned yet: negotiated only when the registry asks for larger cursors.
+        if (m_pVioGpuDod->GetMaxCursorSizeSetting() > POINTER_SIZE)
+        {
+            AckFeature(VIRTIO_GPU_F_CURSOR_SIZE);
+        }
 
         status = virtio_set_features(&m_VioDev, m_u64GuestFeatures);
         if (!NT_SUCCESS(status))
@@ -2757,6 +2773,27 @@ NTSTATUS VioGpuAdapter::VioGpuAdapterInit(void)
                           sizeof(m_u32NumScanouts));
 
         virtio_get_config(&m_VioDev, FIELD_OFFSET(GPU_CONFIG, num_capsets), &m_u32NumCapsets, sizeof(m_u32NumCapsets));
+
+        m_u32MaxCursorSize = 0;
+        // A larger cursor keeps the pointer in hardware on a high-DPI monitor, where Windows scales it up.
+        if (HasFeature(VIRTIO_GPU_F_CURSOR_SIZE))
+        {
+            virtio_get_config(&m_VioDev,
+                              FIELD_OFFSET(GPU_CONFIG, max_cursor_size),
+                              &m_u32MaxCursorSize,
+                              sizeof(m_u32MaxCursorSize));
+            DbgPrint(TRACE_LEVEL_INFORMATION,
+                     ("%s the device takes cursors up to %u\n", __FUNCTION__, m_u32MaxCursorSize));
+        }
+        else if (m_pVioGpuDod->GetMaxCursorSizeSetting() > POINTER_SIZE)
+        {
+            DbgPrint(TRACE_LEVEL_WARNING,
+                     ("%s MaxCursorSize is %u but the device offers no larger cursors: %u x %u\n",
+                      __FUNCTION__,
+                      m_pVioGpuDod->GetMaxCursorSizeSetting(),
+                      POINTER_SIZE,
+                      POINTER_SIZE));
+        }
     } while (0);
     if (status == STATUS_SUCCESS)
     {

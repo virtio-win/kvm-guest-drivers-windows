@@ -296,7 +296,15 @@ typedef struct virtio_gpu_config
     u32 events_clear;
     u32 num_scanouts;
     u32 num_capsets;
+    // Not read: it puts max_cursor_size at its offset.
+    u32 blob_alignment;
+    u32 max_cursor_size;
 } GPU_CONFIG, *PGPU_CONFIG;
+// A proposed feature whose bit the virtio specification has not assigned: the device has a valid max_cursor_size, and
+// a cursor resource may be up to that size in each dimension instead of exactly 64x64. Negotiated only when the
+// registry asks for larger cursors (MaxCursorSize), until the specification assigns the bit: 6 is provisional, as
+// another pending proposal (CREATE_GUEST_HANDLE) claims it too.
+#define VIRTIO_GPU_F_CURSOR_SIZE 6
 #pragma pack()
 
 #define VIRTIO_GPU_F_VIRGL 0

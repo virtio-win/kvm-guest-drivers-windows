@@ -73,6 +73,8 @@ extern "C"
 #define MAX_VIEWS                          1
 #define BITS_PER_BYTE                      8
 
+// The side of the square cursor resource, unless MaxCursorSize in the registry asks for larger ones and the device
+// offers them (VIRTIO_GPU_F_CURSOR_SIZE).
 #define POINTER_SIZE                       64
 
 #define MIN_WIDTH_SIZE                     640

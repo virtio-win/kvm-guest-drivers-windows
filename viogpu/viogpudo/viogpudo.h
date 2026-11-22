@@ -103,6 +103,12 @@ class VioGpuAdapter : IVioGpuPCI
     {
         return m_u32NumScanouts;
     }
+    // The device's max_cursor_size, 0 unless VIRTIO_GPU_F_CURSOR_SIZE was negotiated, which the registry decides
+    // (VioGpuDod::GetMaxCursorSizeSetting).
+    UINT32 GetMaxCursorSize(void)
+    {
+        return m_u32MaxCursorSize;
+    }
     BOOLEAN HasFeature(UINT Feature)
     {
         return virtio_is_feature_enabled(m_u64GuestFeatures, Feature);
@@ -173,6 +179,7 @@ class VioGpuAdapter : IVioGpuPCI
     UINT64 m_u64GuestFeatures;
     UINT32 m_u32NumCapsets;
     UINT32 m_u32NumScanouts;
+    UINT32 m_u32MaxCursorSize;
     VioGpuQueue m_CtrlQueue;
     VioGpuQueue m_CursorQueue;
     VioGpuCommands m_Commands;
@@ -214,6 +221,7 @@ class VioGpuDod
     DEVICE_POWER_STATE m_MonitorPowerState;
     DEVICE_POWER_STATE m_AdapterPowerState;
     DRIVER_STATUS_FLAG m_Flags;
+    UINT m_MaxCursorSizeSetting;
 
     VIOGPU_SYSTEM_DISPLAY m_SystemDisplay;
 
@@ -245,6 +253,12 @@ class VioGpuDod
     void SetPointerEnabled(BOOLEAN Enabled)
     {
         m_Flags.PointerEnabled = Enabled;
+    }
+    // MaxCursorSize from the registry: the largest cursor the driver may ask the device for. Above POINTER_SIZE, the
+    // driver negotiates VIRTIO_GPU_F_CURSOR_SIZE; at or below it, it never does.
+    UINT GetMaxCursorSizeSetting() const
+    {
+        return m_MaxCursorSizeSetting;
     }
     BOOLEAN IsVgaDevice(void) const
     {
