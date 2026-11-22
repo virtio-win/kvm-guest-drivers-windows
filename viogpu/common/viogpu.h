@@ -325,6 +325,16 @@ typedef struct _COLOR_CHARACTERISTICS
 
 #pragma pack(pop)
 
+#pragma pack(1)
+typedef struct virtio_gpu_config
+{
+    u32 events_read;
+    u32 events_clear;
+    u32 num_scanouts;
+    u32 num_capsets;
+} GPU_CONFIG, *PGPU_CONFIG;
+#pragma pack()
+
 #define VIRTIO_GPU_F_VIRGL 0
 #define VIRTIO_GPU_F_EDID  1
 

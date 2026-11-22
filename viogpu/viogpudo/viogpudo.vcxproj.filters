@@ -37,6 +37,9 @@
     <ClCompile Include="..\common\viogpu_queue.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\common\viogpu_commands.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\common\viogpu_idr.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

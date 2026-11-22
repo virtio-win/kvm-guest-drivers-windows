@@ -1,7 +1,9 @@
 /*
  * Copyright (C) 2019-2020 Red Hat, Inc.
+ * Copyright (C) 2026 Zededa, Inc.
  *
  * Written By: Vadim Rozenfeld <vrozenfe@redhat.com>
+ *             Mikhail Malyshev <mike.malyshev@gmail.com>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -33,20 +35,25 @@
 #include "viogpu_queue.tmh"
 #endif
 
-static BOOLEAN BuildSGElement(VirtIOBufferDescriptor *sg, PVOID buf, ULONG size)
+// Adds the guest memory of size bytes at va to sg, one piece per page, after the count pieces already there. FALSE
+// when it needs more than max pieces in all.
+static BOOLEAN AddPieces(VirtIOBufferDescriptor *sg, UINT *count, UINT max, PVOID va, ULONG size)
 {
-    if (size != 0 && MmIsAddressValid(buf))
+    PUCHAR p = (PUCHAR)va;
+    while (size != 0)
     {
-        sg->length = min(size, PAGE_SIZE);
-        sg->physAddr = MmGetPhysicalAddress(buf);
-        return TRUE;
+        ULONG len = min(size, PAGE_SIZE - BYTE_OFFSET(p));
+        if (*count >= max || !MmIsAddressValid(p))
+        {
+            return FALSE;
+        }
+        sg[*count].physAddr = MmGetPhysicalAddress(p);
+        sg[*count].length = len;
+        (*count)++;
+        p += len;
+        size -= len;
     }
-    return FALSE;
-}
-
-static void NotifyEventCompleteCB(void *ctx)
-{
-    KeSetEvent((PKEVENT)ctx, IO_NO_INCREMENT, FALSE);
+    return TRUE;
 }
 
 VioGpuQueue::VioGpuQueue()
@@ -55,7 +62,9 @@ VioGpuQueue::VioGpuQueue()
     m_Index = (UINT)-1;
     m_pVIODevice = NULL;
     m_pVirtQueue = NULL;
+    m_FenceId = 0;
     KeInitializeSpinLock(&m_SpinLock);
+    KeInitializeEvent(&m_Room, NotificationEvent, FALSE);
 }
 
 VioGpuQueue::~VioGpuQueue()
@@ -69,6 +78,11 @@ void VioGpuQueue::Close(void)
     Lock(&SavedIrql);
     m_pVirtQueue = NULL;
     Unlock(SavedIrql);
+    // Whoever waits for room in the ring finds the queue closed.
+    if (KeGetCurrentIrql() <= DISPATCH_LEVEL)
+    {
+        KeSetEvent(&m_Room, IO_NO_INCREMENT, FALSE);
+    }
 }
 
 BOOLEAN VioGpuQueue::Init(_In_ VirtIODevice *pVIODevice, _In_ struct virtqueue *pVirtQueue, _In_ UINT index)
@@ -154,472 +168,342 @@ UINT VioGpuQueue::QueryAllocation()
 }
 PAGED_CODE_SEG_END
 
-PAGED_CODE_SEG_BEGIN
-
-BOOLEAN CtrlQueue::GetDisplayInfo(PGPU_VBUFFER buf, UINT id, PULONG xres, PULONG yres)
+// The relative timeout of a wait until deadline, interrupt time in 100 ns units: 0 once it has passed, and never so
+// far ahead that it would read as an absolute time.
+static LARGE_INTEGER TimeoutUntil(ULONGLONG deadline, ULONGLONG now)
 {
-    PAGED_CODE();
+    LARGE_INTEGER timeout;
+    ULONGLONG left = deadline > now ? deadline - now : 0;
+    timeout.QuadPart = -(LONGLONG)min(left, (ULONGLONG)MAXLONGLONG);
+    return timeout;
+}
 
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-
-    PGPU_RESP_DISP_INFO resp = (PGPU_RESP_DISP_INFO)buf->resp_buf;
-    if (resp->hdr.type != VIRTIO_GPU_RESP_OK_DISPLAY_INFO)
+// Sends a command without waiting for its answer. The buffer is the queue's from then on: a command that cannot be
+// sent is freed at once, and the failure returned. Once the device answers a command that was sent, complete, if
+// given, runs in the DPC with the outcome. At IRQL <= APC_LEVEL a full ring is waited for until RoomDeadline,
+// interrupt time in 100 ns units, or for VIOGPU_ROOM_TIMEOUT_MS when it is 0; at DISPATCH_LEVEL it fails at once.
+NTSTATUS VioGpuQueue::Send(PGPU_VBUFFER buf, ULONG flags, PVIOGPU_COMPLETE complete, PVOID ctx, ULONGLONG RoomDeadline)
+{
+    // Only an answer tells that a fenced command has finished.
+    ASSERT(!(flags & VIOGPU_SEND_FENCE) || buf->resp_type != 0);
+    buf->complete_cb = complete;
+    buf->complete_ctx = ctx;
+    if (flags & VIOGPU_SEND_FENCE)
     {
-        DbgPrint(TRACE_LEVEL_VERBOSE, (" %s type = %x: disabled\n", __FUNCTION__, resp->hdr.type));
-        return FALSE;
+        // The device answers a fenced command only once it has finished it, not once it has taken it. AddWait gives
+        // it its fence ID.
+        PGPU_CTRL_HDR hdr = (PGPU_CTRL_HDR)buf->buf;
+        hdr->flags |= VIRTIO_GPU_FLAG_FENCE;
     }
-    if (resp->pmodes[id].enabled)
+    return Queue(buf, RoomDeadline);
+}
+
+// Sends a command and waits for the device to answer, then, when the device reports success, copies the answer, size
+// bytes at most, to answer. The buffer is the queue's from the call on. Deadline, interrupt time in 100 ns units,
+// bounds the wait for room in a full ring and for the answer together, for a caller that holds others up while it waits
+// and that reports its failures itself: the queue logs only at VERBOSE what the deadline causes, a full ring, a command
+// not sent, no answer in time. With Deadline 0 the wait for room is up to VIOGPU_ROOM_TIMEOUT_MS, then for the answer
+// up to VIOGPU_ANSWER_TIMEOUT_MS.
+//
+// STATUS_DEVICE_BUSY when the ring had no room in time, or the deadline had passed already: nothing was sent.
+// STATUS_IO_TIMEOUT, and only that, means the command is on the ring without an answer: the buffer is freed once the
+// device answers, and late, if given, runs then with the outcome, from the DPC at DISPATCH_LEVEL. late and ctx must
+// stay valid until then, and late must be non-paged. With any other outcome late never runs.
+// STATUS_INVALID_DEVICE_STATE above APC_LEVEL, where no wait is allowed. Any other failure: nothing was sent, or the
+// device refused the command.
+NTSTATUS VioGpuQueue::SendAndWait(PGPU_VBUFFER buf,
+                                  ULONG flags,
+                                  PVOID answer,
+                                  ULONG size,
+                                  ULONGLONG Deadline,
+                                  PVIOGPU_COMPLETE late,
+                                  PVOID ctx)
+{
+    NTSTATUS status;
+    LARGE_INTEGER timeout;
+    u32 type = ((PGPU_CTRL_HDR)buf->buf)->type;
+    // A local: DbgPrint does not parenthesize its level.
+    UCHAR TraceLevel = Deadline != 0 ? TRACE_LEVEL_VERBOSE : TRACE_LEVEL_FATAL;
+
+    ASSERT(answer == NULL || size <= (ULONG)buf->resp_size);
+
+    if (KeGetCurrentIrql() > APC_LEVEL)
     {
+        DbgPrint(TRACE_LEVEL_ERROR,
+                 ("<--- %s queue %d: command 0x%x not sent: no wait at IRQL %d\n",
+                  __FUNCTION__,
+                  m_Index,
+                  type,
+                  KeGetCurrentIrql()));
+        ReleaseBuffer(buf);
+        return STATUS_INVALID_DEVICE_STATE;
+    }
+    if (Deadline != 0 && KeQueryInterruptTime() >= Deadline)
+    {
+        // A command sent now would be given up on at once, and left on the ring.
         DbgPrint(TRACE_LEVEL_VERBOSE,
-                 ("output %d: %dx%d+%d+%d\n",
-                  id,
-                  resp->pmodes[id].r.width,
-                  resp->pmodes[id].r.height,
-                  resp->pmodes[id].r.x,
-                  resp->pmodes[id].r.y));
-        *xres = resp->pmodes[id].r.width;
-        *yres = resp->pmodes[id].r.height;
+                 ("<--- %s queue %d: command 0x%x not sent: deadline passed\n", __FUNCTION__, m_Index, type));
+        ReleaseBuffer(buf);
+        return STATUS_DEVICE_BUSY;
+    }
+
+    buf->wait_state = VIOGPU_WAIT_PENDING;
+    status = Send(buf, flags, late, ctx, Deadline);
+    if (!NT_SUCCESS(status))
+    {
+        return status;
+    }
+
+    if (Deadline == 0)
+    {
+        timeout.QuadPart = -10000LL * VIOGPU_ANSWER_TIMEOUT_MS;
     }
     else
     {
-        DbgPrint(TRACE_LEVEL_VERBOSE, ("output %d: disabled\n", id));
-        return FALSE;
+        timeout = TimeoutUntil(Deadline, KeQueryInterruptTime());
+    }
+    if (KeWaitForSingleObject(&buf->done, Executive, KernelMode, FALSE, &timeout) == STATUS_TIMEOUT)
+    {
+        if (InterlockedCompareExchange(&buf->wait_state, VIOGPU_WAIT_ABANDONED, VIOGPU_WAIT_PENDING) ==
+            VIOGPU_WAIT_PENDING)
+        {
+            // The buffer belongs to the completion now.
+            DbgPrint(TraceLevel, ("<--- %s queue %d: no answer to command 0x%x\n", __FUNCTION__, m_Index, type));
+            return STATUS_IO_TIMEOUT;
+        }
+        // Answered just now: the completion sets the event right after it marks the command done.
+        KeWaitForSingleObject(&buf->done, Executive, KernelMode, FALSE, NULL);
     }
 
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
-
-    return TRUE;
+    status = buf->status;
+    if (NT_SUCCESS(status) && answer != NULL)
+    {
+        RtlCopyMemory(answer, buf->resp_buf, min(size, (ULONG)buf->resp_size));
+    }
+    ReleaseBuffer(buf);
+    return status;
 }
 
-BOOLEAN CtrlQueue::AskDisplayInfo(PGPU_VBUFFER *buf)
+// Adds a buffer to the ring and notifies the device, and gives a fenced command its fence ID. When the ring is full, a
+// caller at IRQL <= APC_LEVEL waits, until RoomDeadline (interrupt time) or for VIOGPU_ROOM_TIMEOUT_MS when it is 0,
+// for the DPC to hand descriptors back. STATUS_DEVICE_BUSY when the ring stays full, and STATUS_DEVICE_NOT_READY when
+// the queue is closed.
+NTSTATUS VioGpuQueue::AddWait(struct VirtIOBufferDescriptor sg[],
+                              UINT out_num,
+                              UINT in_num,
+                              PVOID data,
+                              ULONGLONG RoomDeadline)
 {
-    PAGED_CODE();
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-
-    PGPU_CTRL_HDR cmd;
-    PGPU_VBUFFER vbuf;
-    PGPU_RESP_DISP_INFO resp_buf;
-    KEVENT event;
-    NTSTATUS status;
-
-    resp_buf = reinterpret_cast<PGPU_RESP_DISP_INFO>(new (NonPagedPoolNx) BYTE[sizeof(GPU_RESP_DISP_INFO)]);
-
-    if (!resp_buf)
+    ULONGLONG deadline = RoomDeadline;
+    BOOLEAN waited = FALSE;
+    UCHAR TraceLevel = RoomDeadline != 0 ? TRACE_LEVEL_VERBOSE : TRACE_LEVEL_WARNING;
+    PGPU_CTRL_HDR hdr = (PGPU_CTRL_HDR)((PGPU_VBUFFER)data)->buf;
+    for (;;)
     {
-        DbgPrint(TRACE_LEVEL_ERROR, ("---> %s Failed allocate %d bytes\n", __FUNCTION__, sizeof(GPU_RESP_DISP_INFO)));
-        return FALSE;
+        NTSTATUS status;
+        KIRQL SavedIrql;
+        Lock(&SavedIrql);
+        // Fence IDs reach the ring in the order they are given: with virgl the device answers every fenced command up
+        // to the fence that signalled. A retry takes a new ID; the gap does no harm.
+        if (hdr->flags & VIRTIO_GPU_FLAG_FENCE)
+        {
+            hdr->fence_id = ++m_FenceId;
+        }
+        if (m_pVirtQueue == NULL)
+        {
+            // Closed: the device was reset.
+            status = STATUS_DEVICE_NOT_READY;
+        }
+        else if (AddBuf(sg, out_num, in_num, data, NULL, 0) >= 0)
+        {
+            Kick();
+            status = STATUS_SUCCESS;
+        }
+        else
+        {
+            // Cleared under the lock: whatever the DPC hands back from here on sets it again.
+            KeClearEvent(&m_Room);
+            status = STATUS_DEVICE_BUSY;
+        }
+        Unlock(SavedIrql);
+
+        if (status != STATUS_DEVICE_BUSY || KeGetCurrentIrql() > APC_LEVEL)
+        {
+            return status;
+        }
+        ULONGLONG now = KeQueryInterruptTime();
+        if (!waited)
+        {
+            DbgPrint(TraceLevel, ("%s: queue %d is full, waiting\n", __FUNCTION__, m_Index));
+            waited = TRUE;
+            if (deadline == 0)
+            {
+                deadline = now + 10000ULL * VIOGPU_ROOM_TIMEOUT_MS;
+            }
+        }
+        if (now >= deadline)
+        {
+            return STATUS_DEVICE_BUSY;
+        }
+        LARGE_INTEGER timeout = TimeoutUntil(deadline, now);
+        KeWaitForSingleObject(&m_Room, Executive, KernelMode, FALSE, &timeout);
     }
-
-    cmd = (PGPU_CTRL_HDR)AllocCmdResp(&vbuf, sizeof(GPU_CTRL_HDR), resp_buf, sizeof(GPU_RESP_DISP_INFO));
-    if (cmd == NULL)
-    {
-        delete[] reinterpret_cast<PBYTE>(resp_buf);
-        return FALSE;
-    }
-    RtlZeroMemory(cmd, sizeof(GPU_CTRL_HDR));
-
-    cmd->type = VIRTIO_GPU_CMD_GET_DISPLAY_INFO;
-
-    KeInitializeEvent(&event, NotificationEvent, FALSE);
-    vbuf->complete_cb = NotifyEventCompleteCB;
-    vbuf->complete_ctx = &event;
-    vbuf->auto_release = false;
-
-    LARGE_INTEGER timeout = {0};
-    timeout.QuadPart = Int32x32To64(1000, -10000);
-
-    QueueBuffer(vbuf);
-    status = KeWaitForSingleObject(&event, Executive, KernelMode, FALSE, &timeout);
-
-    if (status == STATUS_TIMEOUT)
-    {
-        DbgPrint(TRACE_LEVEL_FATAL, ("---> Failed to ask display info\n"));
-        VioGpuDbgBreak();
-    }
-    *buf = vbuf;
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
-
-    return TRUE;
-}
-
-BOOLEAN CtrlQueue::AskEdidInfo(PGPU_VBUFFER *buf, UINT id)
-{
-    PAGED_CODE();
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-
-    PGPU_CMD_GET_EDID cmd;
-    PGPU_VBUFFER vbuf;
-    PGPU_RESP_EDID resp_buf;
-    KEVENT event;
-    NTSTATUS status;
-
-    resp_buf = reinterpret_cast<PGPU_RESP_EDID>(new (NonPagedPoolNx) BYTE[sizeof(GPU_RESP_EDID)]);
-
-    if (!resp_buf)
-    {
-        DbgPrint(TRACE_LEVEL_ERROR, ("---> %s Failed allocate %d bytes\n", __FUNCTION__, sizeof(GPU_RESP_EDID)));
-        return FALSE;
-    }
-    cmd = (PGPU_CMD_GET_EDID)AllocCmdResp(&vbuf, sizeof(GPU_CMD_GET_EDID), resp_buf, sizeof(GPU_RESP_EDID));
-    if (cmd == NULL)
-    {
-        delete[] reinterpret_cast<PBYTE>(resp_buf);
-        return FALSE;
-    }
-    RtlZeroMemory(cmd, sizeof(GPU_CMD_GET_EDID));
-
-    cmd->hdr.type = VIRTIO_GPU_CMD_GET_EDID;
-    cmd->scanout = id;
-
-    KeInitializeEvent(&event, NotificationEvent, FALSE);
-    vbuf->complete_cb = NotifyEventCompleteCB;
-    vbuf->complete_ctx = &event;
-    vbuf->auto_release = false;
-
-    LARGE_INTEGER timeout = {0};
-    timeout.QuadPart = Int32x32To64(1000, -10000);
-
-    QueueBuffer(vbuf);
-
-    status = KeWaitForSingleObject(&event, Executive, KernelMode, FALSE, &timeout);
-
-    if (status == STATUS_TIMEOUT)
-    {
-        DbgPrint(TRACE_LEVEL_FATAL, ("---> Failed to get edid info\n"));
-        VioGpuDbgBreak();
-    }
-
-    *buf = vbuf;
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
-
-    return TRUE;
-}
-
-BOOLEAN CtrlQueue::GetEdidInfo(PGPU_VBUFFER buf, UINT id, PBYTE edid)
-{
-    PAGED_CODE();
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-    PGPU_CMD_GET_EDID cmd = (PGPU_CMD_GET_EDID)buf->buf;
-    PGPU_RESP_EDID resp = (PGPU_RESP_EDID)buf->resp_buf;
-    PUCHAR resp_edit = (PUCHAR)(resp->edid + (ULONGLONG)id * EDID_V1_BLOCK_SIZE);
-    if (resp->hdr.type != VIRTIO_GPU_RESP_OK_EDID)
-    {
-        DbgPrint(TRACE_LEVEL_VERBOSE, (" %s type = %x: disabled\n", __FUNCTION__, resp->hdr.type));
-        return FALSE;
-    }
-    if (cmd->scanout != id)
-    {
-        DbgPrint(TRACE_LEVEL_VERBOSE, (" %s invalid scaout = %x\n", __FUNCTION__, cmd->scanout));
-        return FALSE;
-    }
-
-    RtlCopyMemory(edid, resp_edit, EDID_RAW_BLOCK_SIZE);
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-
-    return TRUE;
-}
-
-void CtrlQueue::CreateResource(UINT res_id, UINT format, UINT width, UINT height)
-{
-    PAGED_CODE();
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-
-    PGPU_RES_CREATE_2D cmd;
-    PGPU_VBUFFER vbuf;
-    cmd = (PGPU_RES_CREATE_2D)AllocCmd(&vbuf, sizeof(*cmd));
-    if (cmd == NULL)
-    {
-        return;
-    }
-    RtlZeroMemory(cmd, sizeof(*cmd));
-
-    cmd->hdr.type = VIRTIO_GPU_CMD_RESOURCE_CREATE_2D;
-    cmd->resource_id = res_id;
-    cmd->format = format;
-    cmd->width = width;
-    cmd->height = height;
-
-    // FIXME!!! if
-    QueueBuffer(vbuf);
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
-}
-
-void CtrlQueue::ResFlush(UINT res_id, UINT width, UINT height, UINT x, UINT y)
-{
-    PAGED_CODE();
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-    PGPU_RES_FLUSH cmd;
-    PGPU_VBUFFER vbuf;
-    cmd = (PGPU_RES_FLUSH)AllocCmd(&vbuf, sizeof(*cmd));
-    if (cmd == NULL)
-    {
-        return;
-    }
-    RtlZeroMemory(cmd, sizeof(*cmd));
-
-    cmd->hdr.type = VIRTIO_GPU_CMD_RESOURCE_FLUSH;
-    cmd->resource_id = res_id;
-    cmd->r.width = width;
-    cmd->r.height = height;
-    cmd->r.x = x;
-    cmd->r.y = y;
-
-    QueueBuffer(vbuf);
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
-}
-
-void CtrlQueue::TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT height, UINT x, UINT y)
-{
-    PAGED_CODE();
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-    PGPU_RES_TRANSF_TO_HOST_2D cmd;
-    PGPU_VBUFFER vbuf;
-    cmd = (PGPU_RES_TRANSF_TO_HOST_2D)AllocCmd(&vbuf, sizeof(*cmd));
-    if (cmd == NULL)
-    {
-        return;
-    }
-    RtlZeroMemory(cmd, sizeof(*cmd));
-
-    cmd->hdr.type = VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D;
-    cmd->resource_id = res_id;
-    cmd->offset = offset;
-    cmd->r.width = width;
-    cmd->r.height = height;
-    cmd->r.x = x;
-    cmd->r.y = y;
-
-    QueueBuffer(vbuf);
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
-}
-
-void CtrlQueue::AttachBacking(UINT res_id, PGPU_MEM_ENTRY ents, UINT nents)
-{
-    PAGED_CODE();
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-
-    PGPU_RES_ATTACH_BACKING cmd;
-    PGPU_VBUFFER vbuf;
-    cmd = (PGPU_RES_ATTACH_BACKING)AllocCmd(&vbuf, sizeof(*cmd));
-    if (cmd == NULL)
-    {
-        delete[] reinterpret_cast<PBYTE>(ents);
-        return;
-    }
-    RtlZeroMemory(cmd, sizeof(*cmd));
-
-    cmd->hdr.type = VIRTIO_GPU_CMD_RESOURCE_ATTACH_BACKING;
-    cmd->resource_id = res_id;
-    cmd->nr_entries = nents;
-
-    vbuf->data_buf = ents;
-    vbuf->data_size = sizeof(*ents) * nents;
-
-    QueueBuffer(vbuf);
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
-}
-
-PAGED_CODE_SEG_END
-
-void CtrlQueue::DestroyResource(UINT res_id)
-{
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-
-    PGPU_RES_UNREF cmd;
-    PGPU_VBUFFER vbuf;
-    cmd = (PGPU_RES_UNREF)AllocCmd(&vbuf, sizeof(*cmd));
-    if (cmd == NULL)
-    {
-        return;
-    }
-    RtlZeroMemory(cmd, sizeof(*cmd));
-
-    cmd->hdr.type = VIRTIO_GPU_CMD_RESOURCE_UNREF;
-    cmd->resource_id = res_id;
-
-    QueueBuffer(vbuf);
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
-}
-
-void CtrlQueue::DetachBacking(UINT res_id)
-{
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-
-    PGPU_RES_DETACH_BACKING cmd;
-    PGPU_VBUFFER vbuf;
-    cmd = (PGPU_RES_DETACH_BACKING)AllocCmd(&vbuf, sizeof(*cmd));
-    if (cmd == NULL)
-    {
-        return;
-    }
-    RtlZeroMemory(cmd, sizeof(*cmd));
-
-    cmd->hdr.type = VIRTIO_GPU_CMD_RESOURCE_DETACH_BACKING;
-    cmd->resource_id = res_id;
-
-    QueueBuffer(vbuf);
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
-}
-
-PVOID CtrlQueue::AllocCmdResp(PGPU_VBUFFER *buf, int cmd_sz, PVOID resp_buf, int resp_sz)
-{
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-
-    PGPU_VBUFFER vbuf;
-    vbuf = m_pBuf->GetBuf(cmd_sz, resp_sz, resp_buf);
-    *buf = vbuf;
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
-
-    return vbuf ? vbuf->buf : NULL;
-}
-
-PVOID CtrlQueue::AllocCmd(PGPU_VBUFFER *buf, int sz)
-{
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-
-    if (buf == NULL || sz == 0)
-    {
-        return NULL;
-    }
-
-    PGPU_VBUFFER vbuf = m_pBuf->GetBuf(sz, sizeof(GPU_CTRL_HDR), NULL);
-    *buf = vbuf;
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s  vbuf = %p\n", __FUNCTION__, vbuf));
-
-    return vbuf ? vbuf->buf : NULL;
-}
-
-void CtrlQueue::SetScanout(UINT scan_id, UINT res_id, UINT width, UINT height, UINT x, UINT y)
-{
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-
-    PGPU_SET_SCANOUT cmd;
-    PGPU_VBUFFER vbuf;
-    cmd = (PGPU_SET_SCANOUT)AllocCmd(&vbuf, sizeof(*cmd));
-    if (cmd == NULL)
-    {
-        return;
-    }
-    RtlZeroMemory(cmd, sizeof(*cmd));
-
-    cmd->hdr.type = VIRTIO_GPU_CMD_SET_SCANOUT;
-    cmd->resource_id = res_id;
-    cmd->scanout_id = scan_id;
-    cmd->r.width = width;
-    cmd->r.height = height;
-    cmd->r.x = x;
-    cmd->r.y = y;
-
-    // FIXME if
-    QueueBuffer(vbuf);
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
 #define SGLIST_SIZE 256
-UINT CtrlQueue::QueueBuffer(PGPU_VBUFFER buf)
+// Adds a command to the ring and notifies the device. A command that cannot be added is freed.
+NTSTATUS VioGpuQueue::Queue(PGPU_VBUFFER buf, ULONGLONG RoomDeadline)
 {
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
+
+    // A buffer is sent once: an answered one has its outcome already.
+    ASSERT(buf->status == STATUS_PENDING);
 
     VirtIOBufferDescriptor sg[SGLIST_SIZE];
-    UINT sgleft = SGLIST_SIZE;
-    UINT outcnt = 0, incnt = 0;
-    UINT ret = 0;
-    KIRQL SavedIrql;
+    UINT count = 0;
+    UINT outcnt = 0;
+    NTSTATUS status = STATUS_SUCCESS;
 
-    if (buf->size > PAGE_SIZE)
+    // What the device reads, the command and its payload, comes before what it writes, the answer.
+    if (!AddPieces(sg, &count, SGLIST_SIZE, buf->buf, buf->size) ||
+        !AddPieces(sg, &count, SGLIST_SIZE, buf->data_buf, buf->data_size))
     {
-        DbgPrint(TRACE_LEVEL_ERROR, ("<--> %s size is too big %d\n", __FUNCTION__, buf->size));
-        return 0;
+        status = STATUS_INVALID_PARAMETER;
+    }
+    outcnt = count;
+    if (NT_SUCCESS(status) && !AddPieces(sg, &count, SGLIST_SIZE, buf->resp_buf, buf->resp_size))
+    {
+        status = STATUS_INVALID_PARAMETER;
     }
 
-    if (BuildSGElement(&sg[outcnt + incnt], (PVOID)buf->buf, buf->size))
+    if (NT_SUCCESS(status))
     {
-        outcnt++;
-        sgleft--;
+        status = AddWait(sg, outcnt, count - outcnt, buf, RoomDeadline);
     }
 
-    if (buf->data_size)
+    if (!NT_SUCCESS(status))
     {
-        ULONG data_size = buf->data_size;
-        PVOID data_buf = (PVOID)buf->data_buf;
-        while (data_size)
-        {
-            if (BuildSGElement(&sg[outcnt + incnt], data_buf, data_size))
-            {
-                data_buf = (PVOID)((LONG_PTR)(data_buf) + PAGE_SIZE);
-                data_size -= min(data_size, PAGE_SIZE);
-                outcnt++;
-                sgleft--;
-                if (sgleft == 0)
-                {
-                    DbgPrint(TRACE_LEVEL_ERROR, ("<--> %s no more sgelenamt spots left %d\n", __FUNCTION__, outcnt));
-                    return 0;
-                }
-            }
-        }
+        // A sender with a deadline reports a ring that stayed full itself.
+        UCHAR TraceLevel = RoomDeadline != 0 && status == STATUS_DEVICE_BUSY ? TRACE_LEVEL_VERBOSE : TRACE_LEVEL_ERROR;
+        DbgPrint(TraceLevel,
+                 ("<--- %s queue %d: command 0x%x not sent, status 0x%x\n",
+                  __FUNCTION__,
+                  m_Index,
+                  ((PGPU_CTRL_HDR)buf->buf)->type,
+                  status));
+        ReleaseBuffer(buf);
+        return status;
     }
 
-    if (buf->resp_size > PAGE_SIZE)
-    {
-        DbgPrint(TRACE_LEVEL_ERROR, ("<--> %s resp_size is too big %d\n", __FUNCTION__, buf->resp_size));
-        return 0;
-    }
-
-    if (buf->resp_size && (sgleft > 0))
-    {
-        if (BuildSGElement(&sg[outcnt + incnt], (PVOID)buf->resp_buf, buf->resp_size))
-        {
-            incnt++;
-            sgleft--;
-        }
-    }
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--> %s sgleft %d\n", __FUNCTION__, sgleft));
-
-    Lock(&SavedIrql);
-    ret = AddBuf(&sg[0], outcnt, incnt, buf, NULL, 0);
-    Kick();
-    Unlock(SavedIrql);
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s ret = %d\n", __FUNCTION__, ret));
-
-    return ret;
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+    return STATUS_SUCCESS;
 }
 
-PGPU_VBUFFER CtrlQueue::DequeueBuffer(_Out_ UINT *len)
+// The outcome of a command, from the device's answer of len bytes.
+static NTSTATUS CheckAnswer(PGPU_VBUFFER buf, UINT len)
 {
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
+    PGPU_CTRL_HDR cmd = (PGPU_CTRL_HDR)buf->buf;
+    PGPU_CTRL_HDR resp = (PGPU_CTRL_HDR)buf->resp_buf;
+    NTSTATUS status;
 
-    PGPU_VBUFFER buf = NULL;
-    KIRQL SavedIrql;
-    Lock(&SavedIrql);
-    buf = (PGPU_VBUFFER)GetBuf(len);
-    Unlock(SavedIrql);
-    if (buf == NULL)
+    if (buf->resp_type == 0)
     {
-        *len = 0;
+        return STATUS_SUCCESS;
     }
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+    if (len < sizeof(GPU_CTRL_HDR))
+    {
+        status = STATUS_DEVICE_PROTOCOL_ERROR;
+    }
+    else if (resp->type == buf->resp_type)
+    {
+        status = (len < (UINT)buf->resp_size) ? STATUS_DEVICE_PROTOCOL_ERROR : STATUS_SUCCESS;
+    }
+    else
+    {
+        switch (resp->type)
+        {
+            case VIRTIO_GPU_RESP_ERR_OUT_OF_MEMORY:
+                status = STATUS_NO_MEMORY;
+                break;
+            case VIRTIO_GPU_RESP_ERR_INVALID_SCANOUT_ID:
+            case VIRTIO_GPU_RESP_ERR_INVALID_RESOURCE_ID:
+            case VIRTIO_GPU_RESP_ERR_INVALID_CONTEXT_ID:
+            case VIRTIO_GPU_RESP_ERR_INVALID_PARAMETER:
+                status = STATUS_INVALID_PARAMETER;
+                break;
+            case VIRTIO_GPU_RESP_ERR_UNSPEC:
+                status = STATUS_UNSUCCESSFUL;
+                break;
+            default:
+                status = STATUS_DEVICE_PROTOCOL_ERROR;
+                break;
+        }
+    }
+    if (!NT_SUCCESS(status))
+    {
+        DbgPrint(TRACE_LEVEL_ERROR,
+                 ("%s: command 0x%x failed: answer 0x%x of %u bytes, status 0x%x\n",
+                  __FUNCTION__,
+                  cmd->type,
+                  (len < sizeof(GPU_CTRL_HDR)) ? 0 : resp->type,
+                  len,
+                  status));
+    }
+    return status;
+}
 
-    return buf;
+// Hands each command the device completed its outcome, in the DPC.
+void VioGpuQueue::Complete(void)
+{
+    BOOLEAN room = FALSE;
+    for (;;)
+    {
+        KIRQL SavedIrql;
+        UINT len = 0;
+        Lock(&SavedIrql);
+        PGPU_VBUFFER buf = (PGPU_VBUFFER)GetBuf(&len);
+        Unlock(SavedIrql);
+        if (buf == NULL)
+        {
+            break;
+        }
+        room = TRUE;
+
+        Finish(buf, CheckAnswer(buf, len));
+    }
+    if (room)
+    {
+        KeSetEvent(&m_Room, IO_NO_INCREMENT, FALSE);
+    }
+}
+
+// Hands a command its outcome. A caller still waiting frees the buffer itself; otherwise the completion callback, if
+// any, runs and the buffer is freed here.
+void VioGpuQueue::Finish(PGPU_VBUFFER buf, NTSTATUS status)
+{
+    buf->status = status;
+    if (buf->wait_state != VIOGPU_WAIT_NONE &&
+        InterlockedCompareExchange(&buf->wait_state, VIOGPU_WAIT_DONE, VIOGPU_WAIT_PENDING) == VIOGPU_WAIT_PENDING)
+    {
+        // Nothing touches the buffer after the event: the waiter may free it at once.
+        KeSetEvent(&buf->done, IO_NO_INCREMENT, FALSE);
+        return;
+    }
+    if (buf->complete_cb != NULL)
+    {
+        buf->complete_cb(buf->complete_ctx, buf->status);
+    }
+    else if (buf->wait_state == VIOGPU_WAIT_ABANDONED)
+    {
+        // SendAndWait gave up on the answer and said so; a caller with a late callback reports the end itself.
+        DbgPrint(TRACE_LEVEL_WARNING,
+                 ("%s: queue %d: command 0x%x, given up on, ended with 0x%x\n",
+                  __FUNCTION__,
+                  m_Index,
+                  ((PGPU_CTRL_HDR)buf->buf)->type,
+                  buf->status));
+    }
+    ReleaseBuffer(buf);
 }
 
 void VioGpuQueue::ReleaseBuffer(PGPU_VBUFFER buf)
@@ -658,6 +542,24 @@ BOOLEAN VioGpuBuf::Init(_In_ UINT cnt)
     return (m_uCount > 0);
 }
 
+// Frees what a buffer carries besides itself: a separate answer and a payload.
+static void FreeContents(_In_ PGPU_VBUFFER pbuf)
+{
+    if (pbuf->resp_buf && pbuf->resp_size > MAX_INLINE_RESP_SIZE)
+    {
+        delete[] reinterpret_cast<PBYTE>(pbuf->resp_buf);
+        pbuf->resp_buf = NULL;
+        pbuf->resp_size = 0;
+    }
+
+    if (pbuf->data_buf && pbuf->data_size)
+    {
+        delete[] reinterpret_cast<PBYTE>(pbuf->data_buf);
+        pbuf->data_buf = NULL;
+        pbuf->data_size = 0;
+    }
+}
+
 void VioGpuBuf::Close(void)
 {
     KIRQL OldIrql;
@@ -672,8 +574,9 @@ void VioGpuBuf::Close(void)
         {
             PGPU_VBUFFER pvbuf = CONTAINING_RECORD(pListItem, GPU_VBUFFER, list_entry);
             ASSERT(pvbuf);
-            ASSERT(pvbuf->resp_size <= MAX_INLINE_RESP_SIZE);
 
+            // A command the device never answered, which its caller gave up waiting for.
+            FreeContents(pvbuf);
             delete[] reinterpret_cast<PBYTE>(pvbuf);
             --m_uCount;
         }
@@ -687,20 +590,6 @@ void VioGpuBuf::Close(void)
             PGPU_VBUFFER pbuf = CONTAINING_RECORD(pListItem, GPU_VBUFFER, list_entry);
             ASSERT(pbuf);
 
-            if (pbuf->resp_buf && pbuf->resp_size > MAX_INLINE_RESP_SIZE)
-            {
-                delete[] reinterpret_cast<PBYTE>(pbuf->resp_buf);
-                pbuf->resp_buf = NULL;
-                pbuf->resp_size = 0;
-            }
-
-            if (pbuf->data_buf && pbuf->data_size)
-            {
-                delete[] reinterpret_cast<PBYTE>(pbuf->data_buf);
-                pbuf->data_buf = NULL;
-                pbuf->data_size = 0;
-            }
-
             delete[] reinterpret_cast<PBYTE>(pbuf);
             --m_uCount;
         }
@@ -712,12 +601,13 @@ void VioGpuBuf::Close(void)
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
-PGPU_VBUFFER VioGpuBuf::GetBuf(_In_ int size, _In_ int resp_size, _In_opt_ void *resp_buf)
+PGPU_VBUFFER VioGpuBuf::GetBuf(_In_ int size, _In_ int resp_size, _In_ u32 resp_type)
 {
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
     PGPU_VBUFFER pbuf = NULL;
+    PBYTE resp_buf = NULL;
     BOOLEAN Allocated = FALSE;
     KIRQL OldIrql;
 
@@ -728,10 +618,20 @@ PGPU_VBUFFER VioGpuBuf::GetBuf(_In_ int size, _In_ int resp_size, _In_opt_ void 
     {
         return NULL;
     }
-    if (size > MAX_INLINE_CMD_SIZE || (resp_size > MAX_INLINE_RESP_SIZE && resp_buf == NULL))
+    if (size > MAX_INLINE_CMD_SIZE)
     {
-        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s no room for %d and %d bytes\n", __FUNCTION__, size, resp_size));
+        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s no room for %d bytes\n", __FUNCTION__, size));
         return NULL;
+    }
+    // An answer too large for the buffer gets its own memory, which the pool frees with the buffer.
+    if (resp_size > MAX_INLINE_RESP_SIZE)
+    {
+        resp_buf = new (NonPagedPoolNx) BYTE[resp_size];
+        if (resp_buf == NULL)
+        {
+            DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s no memory for a %d byte answer\n", __FUNCTION__, resp_size));
+            return NULL;
+        }
     }
 
     KeAcquireSpinLock(&m_SpinLock, &OldIrql);
@@ -747,6 +647,7 @@ PGPU_VBUFFER VioGpuBuf::GetBuf(_In_ int size, _In_ int resp_size, _In_opt_ void 
         if (pbuf == NULL)
         {
             DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s no memory for a command buffer\n", __FUNCTION__));
+            delete[] resp_buf;
             return NULL;
         }
         Allocated = TRUE;
@@ -756,17 +657,23 @@ PGPU_VBUFFER VioGpuBuf::GetBuf(_In_ int size, _In_ int resp_size, _In_opt_ void 
 
     pbuf->buf = (char *)((ULONG_PTR)pbuf + sizeof(*pbuf));
     pbuf->size = size;
-    pbuf->auto_release = true;
 
+    // A command has an answer type exactly when it has an answer.
+    ASSERT((resp_size == 0) == (resp_type == 0));
     pbuf->resp_size = resp_size;
+    pbuf->resp_type = resp_type;
+    pbuf->status = STATUS_PENDING;
     if (resp_size <= MAX_INLINE_RESP_SIZE)
     {
         pbuf->resp_buf = (char *)((ULONG_PTR)pbuf->buf + size);
     }
     else
     {
+        // Whatever the device does not write must read as zeroes.
         pbuf->resp_buf = (char *)resp_buf;
+        RtlZeroMemory(pbuf->resp_buf, resp_size);
     }
+    KeInitializeEvent(&pbuf->done, NotificationEvent, FALSE);
 
     KeAcquireSpinLock(&m_SpinLock, &OldIrql);
     if (Allocated)
@@ -806,19 +713,7 @@ void VioGpuBuf::FreeBuf(_In_ PGPU_VBUFFER pbuf)
         ASSERT(Found);
         return;
     }
-    if (pbuf->resp_buf && pbuf->resp_size > MAX_INLINE_RESP_SIZE)
-    {
-        delete[] reinterpret_cast<PBYTE>(pbuf->resp_buf);
-        pbuf->resp_buf = NULL;
-        pbuf->resp_size = 0;
-    }
-
-    if (pbuf->data_buf && pbuf->data_size)
-    {
-        delete[] reinterpret_cast<PBYTE>(pbuf->data_buf);
-        pbuf->data_buf = NULL;
-        pbuf->data_size = 0;
-    }
+    FreeContents(pbuf);
 
     if (m_uCount > m_uCountMin)
     {
@@ -1071,65 +966,4 @@ BOOLEAN VioGpuObj::Init(_In_ UINT size, VioGpuMemSegment *pSegment)
     return TRUE;
 }
 
-PVOID CrsrQueue::AllocCursor(PGPU_VBUFFER *buf)
-{
-    PAGED_CODE();
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-
-    PGPU_VBUFFER vbuf;
-    vbuf = m_pBuf->GetBuf(sizeof(GPU_UPDATE_CURSOR), 0, NULL);
-    *buf = vbuf;
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s  vbuf = %p\n", __FUNCTION__, vbuf));
-
-    return vbuf ? vbuf->buf : NULL;
-}
-
 PAGED_CODE_SEG_END
-
-UINT CrsrQueue::QueueCursor(PGPU_VBUFFER buf)
-{
-    //    PAGED_CODE();
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-
-    UINT res = 0;
-    KIRQL SavedIrql;
-
-    VirtIOBufferDescriptor sg[1];
-    int outcnt = 0;
-    UINT ret = 0;
-
-    ASSERT(buf->size <= PAGE_SIZE);
-    if (BuildSGElement(&sg[outcnt], (PVOID)buf->buf, buf->size))
-    {
-        outcnt++;
-    }
-
-    ASSERT(outcnt);
-    Lock(&SavedIrql);
-    ret = AddBuf(&sg[0], outcnt, 0, buf, NULL, 0);
-    Kick();
-    Unlock(SavedIrql);
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s vbuf = %p outcnt = %d, ret = %d\n", __FUNCTION__, buf, outcnt, ret));
-    return res;
-}
-
-PGPU_VBUFFER CrsrQueue::DequeueCursor(_Out_ UINT *len)
-{
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-
-    PGPU_VBUFFER buf = NULL;
-    KIRQL SavedIrql;
-    Lock(&SavedIrql);
-    buf = (PGPU_VBUFFER)GetBuf(len);
-    Unlock(SavedIrql);
-    if (buf == NULL)
-    {
-        *len = 0;
-    }
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s buf %p len = %u\n", __FUNCTION__, buf, *len));
-    return buf;
-}

@@ -2312,6 +2312,7 @@ NTSTATUS VioGpuDod::GetRegisterInfo(void)
 VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod)
 {
     PAGED_CODE();
+    m_Commands.Init(&m_CtrlQueue, &m_CursorQueue);
     RtlZeroMemory(&m_VioDev, sizeof(m_VioDev));
     m_pVioGpuDod = pVioGpuDod;
     m_CurrentModeIndex = 0;
@@ -2927,13 +2928,17 @@ NTSTATUS VioGpuAdapter::ExecutePresentDisplayOnly(_In_ BYTE *DstAddr,
               pModeCur->SrcModeWidth,
               pModeCur->SrcModeHeight));
 
-    m_CtrlQueue.TransferToHost2D(resid,
-                                 offset,
-                                 updrect.right - updrect.left,
-                                 updrect.bottom - updrect.top,
-                                 updrect.left,
-                                 updrect.top);
-    m_CtrlQueue.ResFlush(resid, updrect.right - updrect.left, updrect.bottom - updrect.top, updrect.left, updrect.top);
+    m_Commands.TransferToHost2D(resid,
+                                offset,
+                                updrect.right - updrect.left,
+                                updrect.bottom - updrect.top,
+                                updrect.left,
+                                updrect.top);
+    m_Commands.ResourceFlush(resid,
+                             updrect.right - updrect.left,
+                             updrect.bottom - updrect.top,
+                             updrect.left,
+                             updrect.top);
 
     return STATUS_SUCCESS;
 }
@@ -2961,8 +2966,8 @@ VOID VioGpuAdapter::BlackOutScreen(CURRENT_MODE *pCurrentMod)
 
         resid = m_pFrameBuf->GetId();
 
-        m_CtrlQueue.TransferToHost2D(resid, 0UL, pCurrentMod->DispInfo.Width, pCurrentMod->DispInfo.Height, 0, 0);
-        m_CtrlQueue.ResFlush(resid, pCurrentMod->DispInfo.Width, pCurrentMod->DispInfo.Height, 0, 0);
+        m_Commands.TransferToHost2D(resid, 0UL, pCurrentMod->DispInfo.Width, pCurrentMod->DispInfo.Height, 0, 0);
+        m_Commands.ResourceFlush(resid, pCurrentMod->DispInfo.Width, pCurrentMod->DispInfo.Height, 0, 0);
     }
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
@@ -2999,42 +3004,25 @@ NTSTATUS VioGpuAdapter::SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSet
 
     if (UpdateCursor(pSetPointerShape, pModeCur))
     {
-        PGPU_UPDATE_CURSOR crsr;
-        PGPU_VBUFFER vbuf;
-        UINT ret = 0;
-        crsr = (PGPU_UPDATE_CURSOR)m_CursorQueue.AllocCursor(&vbuf);
-        if (crsr == NULL)
+        status = m_Commands.UpdateCursor(0,
+                                         m_pCursorBuf->GetId(),
+                                         0,
+                                         0,
+                                         pSetPointerShape->XHot,
+                                         pSetPointerShape->YHot);
+        DbgPrint(TRACE_LEVEL_INFORMATION, ("<--- %s status = 0x%x\n", __FUNCTION__, status));
+        if (NT_SUCCESS(status))
         {
-            KeReleaseGuardedMutex(&m_CursorMutex);
-            return STATUS_INSUFFICIENT_RESOURCES;
-        }
-        RtlZeroMemory(crsr, sizeof(*crsr));
-
-        crsr->hdr.type = VIRTIO_GPU_CMD_UPDATE_CURSOR;
-        crsr->resource_id = m_pCursorBuf->GetId();
-        crsr->pos.x = 0;
-        crsr->pos.y = 0;
-        crsr->hot_x = pSetPointerShape->XHot;
-        crsr->hot_y = pSetPointerShape->YHot;
-        // This UPDATE_CURSOR attaches the resource and shows the sprite, so any pending hide is over.
-        // Remember the hot spot for the UPDATE_CURSOR that re-attaches the sprite after a later hide.
-        m_CursorHotX = pSetPointerShape->XHot;
-        m_CursorHotY = pSetPointerShape->YHot;
-        m_bCursorHidden = FALSE;
-        ret = m_CursorQueue.QueueCursor(vbuf);
-        DbgPrint(TRACE_LEVEL_INFORMATION, ("<--- %s vbuf = %p, ret = %d\n", __FUNCTION__, vbuf, ret));
-        if (ret == 0)
-        {
-            status = STATUS_SUCCESS;
-        }
-        else
-        {
-            VioGpuDbgBreak();
+            // This UPDATE_CURSOR attaches the resource and shows the sprite, so any pending hide is over.
+            // Remember the hot spot for the UPDATE_CURSOR that re-attaches the sprite after a later hide.
+            m_CursorHotX = pSetPointerShape->XHot;
+            m_CursorHotY = pSetPointerShape->YHot;
+            m_bCursorHidden = FALSE;
         }
     }
     else
     {
-        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s Failed to create cursor\n", __FUNCTION__));
+        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s Failed to create or upload the cursor\n", __FUNCTION__));
     }
 
     KeReleaseGuardedMutex(&m_CursorMutex);
@@ -3072,55 +3060,41 @@ NTSTATUS VioGpuAdapter::SetPointerPosition(_In_ CONST DXGKARG_SETPOINTERPOSITION
         }
         else
         {
-            PGPU_UPDATE_CURSOR crsr;
-            PGPU_VBUFFER vbuf;
-            UINT ret = 0;
-            crsr = (PGPU_UPDATE_CURSOR)m_CursorQueue.AllocCursor(&vbuf);
-            if (crsr == NULL)
-            {
-                KeReleaseGuardedMutex(&m_CursorMutex);
-                return STATUS_INSUFFICIENT_RESOURCES;
-            }
-            RtlZeroMemory(crsr, sizeof(*crsr));
-
+            BOOLEAN hidden = m_bCursorHidden;
             if (!visible)
             {
                 // Hide the sprite for real instead of parking it at (0, 0) with the resource still
                 // attached: a parked sprite stays visible in the top left corner of the display.
-                crsr->hdr.type = VIRTIO_GPU_CMD_UPDATE_CURSOR;
-                crsr->resource_id = 0;
-                m_bCursorHidden = TRUE;
+                status = m_Commands.UpdateCursor(0, 0, 0, 0, 0, 0);
+                hidden = TRUE;
             }
             else if (m_bCursorHidden)
             {
                 // Coming back from a hide: MOVE_CURSOR does not re-associate a detached resource, so the
                 // sprite must be re-attached with a full UPDATE_CURSOR. The image itself is still
                 // uploaded, only the association has to be recreated.
-                crsr->hdr.type = VIRTIO_GPU_CMD_UPDATE_CURSOR;
-                crsr->resource_id = m_pCursorBuf->GetId();
-                crsr->pos.x = pSetPointerPosition->X;
-                crsr->pos.y = pSetPointerPosition->Y;
-                crsr->hot_x = m_CursorHotX;
-                crsr->hot_y = m_CursorHotY;
-                m_bCursorHidden = FALSE;
+                status = m_Commands.UpdateCursor(0,
+                                                 m_pCursorBuf->GetId(),
+                                                 pSetPointerPosition->X,
+                                                 pSetPointerPosition->Y,
+                                                 m_CursorHotX,
+                                                 m_CursorHotY);
+                hidden = FALSE;
             }
             else
             {
-                crsr->hdr.type = VIRTIO_GPU_CMD_MOVE_CURSOR;
-                crsr->resource_id = m_pCursorBuf->GetId();
-                crsr->pos.x = pSetPointerPosition->X;
-                crsr->pos.y = pSetPointerPosition->Y;
+                status = m_Commands.MoveCursor(0,
+                                               m_pCursorBuf->GetId(),
+                                               pSetPointerPosition->X,
+                                               pSetPointerPosition->Y);
             }
 
-            ret = m_CursorQueue.QueueCursor(vbuf);
-            DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s vbuf = %p, ret = %d\n", __FUNCTION__, vbuf, ret));
-            if (ret == 0)
+            DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s status = 0x%x\n", __FUNCTION__, status));
+            if (NT_SUCCESS(status))
             {
-                status = STATUS_SUCCESS;
-            }
-            else
-            {
-                VioGpuDbgBreak();
+                // Record the sprite as hidden or shown only once the command that does it was sent, so that a command
+                // that was not is sent again with the next position.
+                m_bCursorHidden = hidden;
             }
         }
     }
@@ -3230,17 +3204,15 @@ BOOLEAN VioGpuAdapter::GetDisplayInfo(void)
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
-    PGPU_VBUFFER vbuf = NULL;
+    GPU_RESP_DISP_INFO info;
     ULONG xres = 0;
     ULONG yres = 0;
 
-    for (UINT32 i = 0; i < m_u32NumScanouts; i++)
+    if (NT_SUCCESS(m_Commands.GetDisplayInfo(&info)))
     {
-        if (m_CtrlQueue.AskDisplayInfo(&vbuf))
+        for (UINT32 i = 0; i < m_u32NumScanouts; i++)
         {
-            m_CtrlQueue.GetDisplayInfo(vbuf, i, &xres, &yres);
-            m_CtrlQueue.ReleaseBuffer(vbuf);
-            if (xres && yres)
+            if (VioGpuCommands::ScanoutSize(&info, i, &xres, &yres) && xres && yres)
             {
                 DbgPrint(TRACE_LEVEL_INFORMATION, ("---> %s (%dx%d)\n", __FUNCTION__, xres, yres));
                 SetCustomDisplay((USHORT)xres, (USHORT)yres);
@@ -3296,20 +3268,21 @@ BOOLEAN VioGpuAdapter::GetEdids(void)
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
-    PGPU_VBUFFER vbuf = NULL;
+    PGPU_RESP_EDID resp = reinterpret_cast<PGPU_RESP_EDID>(new (NonPagedPoolNx) BYTE[sizeof(GPU_RESP_EDID)]);
+    if (resp == NULL)
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s no memory for the answer\n", __FUNCTION__));
+        return FALSE;
+    }
 
     for (UINT32 i = 0; i < m_u32NumScanouts; i++)
     {
-        if (!m_CtrlQueue.AskEdidInfo(&vbuf, i))
-        {
-            continue;
-        }
-        if (m_CtrlQueue.GetEdidInfo(vbuf, i, m_EDIDs))
+        if (NT_SUCCESS(m_Commands.GetEdid(i, resp)) && VioGpuCommands::CopyEdid(resp, i, m_EDIDs))
         {
             m_bEDID = TRUE;
         }
-        m_CtrlQueue.ReleaseBuffer(vbuf);
     }
+    delete[] reinterpret_cast<PBYTE>(resp);
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
     return TRUE;
@@ -3686,6 +3659,26 @@ BOOLEAN VioGpuAdapter::ResetToVgaMode(void)
     return TRUE;
 }
 
+// Sends a resource's RESOURCE_UNREF, and gives its ID back once the command is sent. The host keeps a resource whose
+// RESOURCE_UNREF was not sent, until the device is reset, and refuses a new resource under its ID: that ID is not used
+// again.
+void VioGpuAdapter::UnrefResource(UINT res_id)
+{
+    NTSTATUS status = m_Commands.ResourceUnref(res_id);
+    if (NT_SUCCESS(status))
+    {
+        m_Idr.PutId(res_id);
+    }
+    else
+    {
+        DbgPrint(TRACE_LEVEL_ERROR,
+                 ("%s: RESOURCE_UNREF of resource %d not sent (0x%x): its ID is not used again\n",
+                  __FUNCTION__,
+                  res_id,
+                  status));
+    }
+}
+
 void VioGpuAdapter::DestroyFrameBufferObj(BOOLEAN bReset, BOOLEAN bKeepBuffer)
 {
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
@@ -3699,11 +3692,11 @@ void VioGpuAdapter::DestroyFrameBufferObj(BOOLEAN bReset, BOOLEAN bKeepBuffer)
         resid = (UINT)m_pFrameBuf->GetId();
         if (!bugcheck)
         {
-            m_CtrlQueue.DetachBacking(resid);
-            m_CtrlQueue.DestroyResource(resid);
+            m_Commands.ResourceDetachBacking(resid);
+            UnrefResource(resid);
             if (bReset == TRUE)
             {
-                m_CtrlQueue.SetScanout(0, 0, 0, 0, 0, 0);
+                m_Commands.SetScanout(0, 0, 0, 0, 0, 0);
             }
         }
 
@@ -3717,10 +3710,6 @@ void VioGpuAdapter::DestroyFrameBufferObj(BOOLEAN bReset, BOOLEAN bKeepBuffer)
             delete m_pFrameBuf;
         }
         m_pFrameBuf = NULL;
-        if (!bugcheck)
-        {
-            m_Idr.PutId(resid);
-        }
     }
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
@@ -3969,8 +3958,6 @@ VOID VioGpuAdapter::DpcRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface)
 {
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
     UNREFERENCED_PARAMETER(pDxgkInterface);
-    PGPU_VBUFFER pvbuf = NULL;
-    UINT len = 0;
     ULONG reason;
     if (!m_InterruptsOn)
     {
@@ -3980,45 +3967,11 @@ VOID VioGpuAdapter::DpcRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface)
     {
         if ((reason & ISR_REASON_DISPLAY))
         {
-            while ((pvbuf = m_CtrlQueue.DequeueBuffer(&len)) != NULL)
-            {
-                DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s m_CtrlQueue pvbuf = %p len = %d\n", __FUNCTION__, pvbuf, len));
-                PGPU_CTRL_HDR pcmd = (PGPU_CTRL_HDR)pvbuf->buf;
-                PGPU_CTRL_HDR resp = (PGPU_CTRL_HDR)pvbuf->resp_buf;
-
-                if (resp->type >= VIRTIO_GPU_RESP_ERR_UNSPEC)
-                {
-                    DbgPrint(TRACE_LEVEL_FATAL, ("!!!!! Command failed %d", resp->type));
-                }
-                if (resp->type != VIRTIO_GPU_RESP_OK_NODATA)
-                {
-                    DbgPrint(TRACE_LEVEL_ERROR,
-                             ("<--- %s type = %xlu flags = %lu fence_id = %llu ctx_id = %lu cmd_type = %lu\n",
-                              __FUNCTION__,
-                              resp->type,
-                              resp->flags,
-                              resp->fence_id,
-                              resp->ctx_id,
-                              pcmd->type));
-                }
-                if (pvbuf->complete_cb != NULL)
-                {
-                    pvbuf->complete_cb(pvbuf->complete_ctx);
-                }
-                if (pvbuf->auto_release)
-                {
-                    m_CtrlQueue.ReleaseBuffer(pvbuf);
-                }
-            };
+            m_CtrlQueue.Complete();
         }
         if ((reason & ISR_REASON_CURSOR))
         {
-            while ((pvbuf = m_CursorQueue.DequeueCursor(&len)) != NULL)
-            {
-                DbgPrint(TRACE_LEVEL_VERBOSE,
-                         ("---> %s m_CursorQueue pvbuf = %p len = %u\n", __FUNCTION__, pvbuf, len));
-                m_CursorQueue.ReleaseBuffer(pvbuf);
-            };
+            m_CursorQueue.Complete();
         }
         if (reason & ISR_REASON_CHANGE)
         {
@@ -4066,21 +4019,40 @@ BOOLEAN VioGpuAdapter::CreateFrameBufferObj(PVIDEO_MODE_INFORMATION pModeInfo, C
     DbgPrint(TRACE_LEVEL_INFORMATION,
              ("---> %s - (%d -> %d)\n", __FUNCTION__, pCurrentMode->DispInfo.ColorFormat, format));
     resid = m_Idr.GetId();
-    m_CtrlQueue.CreateResource(resid, format, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight);
+    if (!NT_SUCCESS(m_Commands.ResourceCreate2D(resid, format, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight)))
+    {
+        DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s Failed to create resource %d\n", __FUNCTION__, resid));
+        m_Idr.PutId(resid);
+        return FALSE;
+    }
     obj = new (NonPagedPoolNx) VioGpuObj();
-    if (!obj->Init(size, &m_FrameSegment))
+    if (obj == NULL || !obj->Init(size, &m_FrameSegment))
     {
         DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s Failed to init obj size = %d\n", __FUNCTION__, size));
-        m_CtrlQueue.DestroyResource(resid);
-        m_Idr.PutId(resid);
+        UnrefResource(resid);
         delete obj;
         return FALSE;
     }
 
-    GpuObjectAttach(resid, obj);
-    m_CtrlQueue.SetScanout(0 /*FIXME m_Id*/, resid, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight, 0, 0);
-    m_CtrlQueue.TransferToHost2D(resid, 0, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight, 0, 0);
-    m_CtrlQueue.ResFlush(resid, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight, 0, 0);
+    // The frame buffer is used only once the device has answered its ATTACH_BACKING (GpuObjectAttach) and its
+    // SET_SCANOUT: QEMU refuses both for a resource it did not create, and up to QEMU 11.1 a 2D SET_SCANOUT for one
+    // without backing.
+    if (!GpuObjectAttach(resid, obj) || !NT_SUCCESS(m_Commands.SetScanout(0 /*FIXME m_Id*/,
+                                                                          resid,
+                                                                          pModeInfo->VisScreenWidth,
+                                                                          pModeInfo->VisScreenHeight,
+                                                                          0,
+                                                                          0,
+                                                                          TRUE)))
+    {
+        // Destroying the resource also drops the backing that may have been attached.
+        DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s Failed to show resource %d\n", __FUNCTION__, resid));
+        UnrefResource(resid);
+        delete obj;
+        return FALSE;
+    }
+    m_Commands.TransferToHost2D(resid, 0, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight, 0, 0);
+    m_Commands.ResourceFlush(resid, pModeInfo->VisScreenWidth, pModeInfo->VisScreenHeight, 0, 0);
     m_pFrameBuf = obj;
     pCurrentMode->FrameBuffer = obj->GetVirtualAddress();
     pCurrentMode->Flags.FrameBufferIsActive = TRUE;
@@ -4110,9 +4082,14 @@ BOOLEAN VioGpuAdapter::CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPoin
     DbgPrint(TRACE_LEVEL_INFORMATION,
              ("---> %s - (%x -> %x)\n", __FUNCTION__, pCurrentMode->DispInfo.ColorFormat, format));
     resid = (UINT)m_Idr.GetId();
-    m_CtrlQueue.CreateResource(resid, format, POINTER_SIZE, POINTER_SIZE);
+    if (!NT_SUCCESS(m_Commands.ResourceCreate2D(resid, format, POINTER_SIZE, POINTER_SIZE)))
+    {
+        DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s Failed to create resource %d\n", __FUNCTION__, resid));
+        m_Idr.PutId(resid);
+        return FALSE;
+    }
     obj = new (NonPagedPoolNx) VioGpuObj();
-    if (!obj->Init(size, &m_CursorSegment))
+    if (obj == NULL || !obj->Init(size, &m_CursorSegment))
     {
         DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s Failed to init obj size = %d\n", __FUNCTION__, size));
         status = FALSE;
@@ -4129,8 +4106,7 @@ BOOLEAN VioGpuAdapter::CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPoin
     else
     {
         VioGpuDbgBreak();
-        m_CtrlQueue.DestroyResource(resid);
-        m_Idr.PutId(resid);
+        UnrefResource(resid);
         delete obj;
     }
     return status;
@@ -4184,7 +4160,16 @@ BOOLEAN VioGpuAdapter::UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPoin
 
     BltBits(&DstBltInfo, &SrcBltInfo, &Rect);
 
-    m_CtrlQueue.TransferToHost2D(m_pCursorBuf->GetId(), 0, pSetPointerShape->Width, pSetPointerShape->Height, 0, 0);
+    if (!NT_SUCCESS(m_Commands.TransferToHost2D(m_pCursorBuf->GetId(),
+                                                0,
+                                                pSetPointerShape->Width,
+                                                pSetPointerShape->Height,
+                                                0,
+                                                0)))
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s Failed to upload the cursor image\n", __FUNCTION__));
+        return FALSE;
+    }
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
     return TRUE;
@@ -4197,11 +4182,10 @@ void VioGpuAdapter::DestroyCursor()
     if (m_pCursorBuf != NULL)
     {
         UINT id = (UINT)m_pCursorBuf->GetId();
-        m_CtrlQueue.DetachBacking(id);
-        m_CtrlQueue.DestroyResource(id);
+        m_Commands.ResourceDetachBacking(id);
+        UnrefResource(id);
         delete m_pCursorBuf;
         m_pCursorBuf = NULL;
-        m_Idr.PutId(id);
     }
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
@@ -4236,7 +4220,11 @@ BOOLEAN VioGpuAdapter::GpuObjectAttach(UINT res_id, VioGpuObj *obj)
         ents[i].padding = 0;
     }
 
-    m_CtrlQueue.AttachBacking(res_id, ents, sgl->NumberOfElements);
+    // The queue frees the entries, whether the command is sent or not.
+    if (!NT_SUCCESS(m_Commands.ResourceAttachBacking(res_id, ents, sgl->NumberOfElements)))
+    {
+        return FALSE;
+    }
     obj->SetId(res_id);
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
     return TRUE;

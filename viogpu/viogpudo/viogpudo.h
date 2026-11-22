@@ -31,6 +31,7 @@
 
 #include "viogpu.h"
 #include "viogpu_queue.h"
+#include "viogpu_commands.h"
 
 #pragma pack(push)
 #pragma pack(1)
@@ -184,6 +185,7 @@ class VioGpuAdapter : IVioGpuPCI
     BOOLEAN UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape, _In_ CONST CURRENT_MODE *pCurrentMode);
     void DestroyCursor(void);
     BOOLEAN GpuObjectAttach(UINT res_id, VioGpuObj *obj);
+    void UnrefResource(UINT res_id);
     void static ThreadWork(_In_ PVOID Context);
     void ThreadWorkRoutine(void);
     void ConfigChanged(void);
@@ -208,8 +210,9 @@ class VioGpuAdapter : IVioGpuPCI
     UINT64 m_u64GuestFeatures;
     UINT32 m_u32NumCapsets;
     UINT32 m_u32NumScanouts;
-    CtrlQueue m_CtrlQueue;
-    CrsrQueue m_CursorQueue;
+    VioGpuQueue m_CtrlQueue;
+    VioGpuQueue m_CursorQueue;
+    VioGpuCommands m_Commands;
     VioGpuBuf m_GpuBuf;
     VioGpuIdr m_Idr;
     VioGpuObj *m_pFrameBuf;
