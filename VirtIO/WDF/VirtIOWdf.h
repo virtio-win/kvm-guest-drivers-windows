@@ -57,6 +57,7 @@ typedef struct virtio_wdf_driver {
 
     WDFINTERRUPT ConfigInterrupt;
     PVIRTIO_WDF_QUEUE_PARAM pQueueParams;
+    BOOLEAN AlignQueueAllocationToPowerOfTwo;
 
     WDFDMAENABLER DmaEnabler;
     WDFCOLLECTION MemoryBlockCollection;
@@ -102,6 +103,12 @@ NTSTATUS VirtIOWdfSetDriverFeatures(PVIRTIO_WDF_DRIVER pWdfDriver, ULONGLONG uPr
  */
 NTSTATUS VirtIOWdfInitQueues(PVIRTIO_WDF_DRIVER pWdfDriver, ULONG nQueues,
                              struct virtqueue **pQueues, PVIRTIO_WDF_QUEUE_PARAM pQueueParams);
+/* Aligns each queue's logical address to the smallest power-of-two boundary
+ * that contains the queue allocation. The alignment policy is scoped to this call.
+ */
+NTSTATUS VirtIOWdfInitQueuesPowerOfTwoAligned(PVIRTIO_WDF_DRIVER pWdfDriver, ULONG nQueues,
+                                              struct virtqueue **pQueues,
+                                              PVIRTIO_WDF_QUEUE_PARAM pQueueParams);
 NTSTATUS VirtIOWdfInitQueuesCB(PVIRTIO_WDF_DRIVER pWdfDriver, ULONG nQueues,
                                VirtIOWdfGetQueueParamCallback pQueueParamFunc,
                                VirtIOWdfSetQueueCallback pSetQueueFunc);
@@ -143,6 +150,8 @@ void VirtIOWdfDeviceSet(PVIRTIO_WDF_DRIVER pWdfDriver, ULONG offset, CONST PVOID
  * returns NULL on DISPATCH
  */
 void *VirtIOWdfDeviceAllocDmaMemory(VirtIODevice *vdev, size_t size, ULONG groupTag);
+void *VirtIOWdfDeviceAllocDmaMemoryWithConfig(VirtIODevice *vdev, size_t size,
+                                              PWDF_COMMON_BUFFER_CONFIG config, ULONG groupTag);
 PHYSICAL_ADDRESS VirtIOWdfDeviceGetPhysicalAddress(VirtIODevice *vdev, void *va);
 /* PASSIVE, va must be exact address of the block
  *  does not free the block on DISPATCH

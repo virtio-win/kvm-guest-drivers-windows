@@ -103,7 +103,7 @@ ViomemInit(IN WDFOBJECT WdfDevice)
     {
         params[0].Interrupt = devCtx->WdfInterrupt;
         nvqs = 1;
-        status = VirtIOWdfInitQueues(&devCtx->VDevice, nvqs, vqs, params);
+        status = VirtIOWdfInitQueuesPowerOfTwoAligned(&devCtx->VDevice, nvqs, vqs, params);
         if (NT_SUCCESS(status))
         {
             devCtx->infVirtQueue = vqs[0];
