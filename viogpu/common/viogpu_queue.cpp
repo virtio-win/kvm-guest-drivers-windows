@@ -341,6 +341,45 @@ void CtrlQueue::CreateResource(UINT res_id, UINT format, UINT width, UINT height
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
+BOOLEAN CtrlQueue::CreateResourceSync(UINT res_id, UINT format, UINT width, UINT height)
+{
+    PAGED_CODE();
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s res_id=%u width=%u height=%u\n", __FUNCTION__, res_id, width, height));
+
+    PGPU_RES_CREATE_2D cmd;
+    PGPU_VBUFFER vbuf;
+    KEVENT event;
+
+    cmd = (PGPU_RES_CREATE_2D)AllocCmd(&vbuf, sizeof(*cmd));
+    RtlZeroMemory(cmd, sizeof(*cmd));
+
+    cmd->hdr.type = VIRTIO_GPU_CMD_RESOURCE_CREATE_2D;
+    cmd->resource_id = res_id;
+    cmd->format = format;
+    cmd->width = width;
+    cmd->height = height;
+
+    KeInitializeEvent(&event, NotificationEvent, FALSE);
+    vbuf->complete_cb = NotifyEventCompleteCB;
+    vbuf->complete_ctx = &event;
+    vbuf->auto_release = false;
+
+    QueueBuffer(vbuf);
+    KeWaitForSingleObject(&event, Executive, KernelMode, FALSE, NULL);
+
+    PGPU_CTRL_HDR resp = (PGPU_CTRL_HDR)vbuf->resp_buf;
+    BOOLEAN success = (resp && resp->type == VIRTIO_GPU_RESP_OK_NODATA);
+    if (!success)
+    {
+        DbgPrint(TRACE_LEVEL_ERROR,
+                 ("<--- %s FAILED res_id=%u resp_type=0x%x\n", __FUNCTION__, res_id, resp ? resp->type : 0));
+    }
+
+    ReleaseBuffer(vbuf);
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s res_id=%u\n", __FUNCTION__, res_id));
+    return success;
+}
+
 void CtrlQueue::ResFlush(UINT res_id, UINT width, UINT height, UINT x, UINT y)
 {
     PAGED_CODE();
@@ -386,11 +425,19 @@ void CtrlQueue::TransferToHost2D(UINT res_id, ULONG offset, UINT width, UINT hei
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
-void CtrlQueue::AttachBacking(UINT res_id, PGPU_MEM_ENTRY ents, UINT nents)
+BOOLEAN CtrlQueue::AttachBacking(UINT res_id, PGPU_MEM_ENTRY ents, UINT nents)
 {
     PAGED_CODE();
 
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s res_id=%u nents=%u\n", __FUNCTION__, res_id, nents));
+
+    // QEMU virtio_gpu_create_mapping_iov() rejects nr_entries > 16384
+    if (nents > VIRTIO_GPU_MAX_BACKING_ENTRIES)
+    {
+        DbgPrint(TRACE_LEVEL_FATAL,
+                 ("<--- %s QEMU entry limit exceeded: %u > %u\n", __FUNCTION__, nents, VIRTIO_GPU_MAX_BACKING_ENTRIES));
+        return FALSE;
+    }
 
     PGPU_RES_ATTACH_BACKING cmd;
     PGPU_VBUFFER vbuf;
@@ -403,10 +450,12 @@ void CtrlQueue::AttachBacking(UINT res_id, PGPU_MEM_ENTRY ents, UINT nents)
 
     vbuf->data_buf = ents;
     vbuf->data_size = sizeof(*ents) * nents;
+    vbuf->use_indirect = true;
 
     QueueBuffer(vbuf);
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+    return TRUE;
 }
 
 PAGED_CODE_SEG_END
@@ -442,6 +491,59 @@ void CtrlQueue::DetachBacking(UINT res_id)
 
     QueueBuffer(vbuf);
 
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+}
+void CtrlQueue::DestroyResourceSync(UINT res_id)
+{
+    PAGED_CODE();
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
+
+    PGPU_RES_UNREF cmd;
+    PGPU_VBUFFER vbuf;
+    KEVENT event;
+
+    cmd = (PGPU_RES_UNREF)AllocCmd(&vbuf, sizeof(*cmd));
+    RtlZeroMemory(cmd, sizeof(*cmd));
+
+    cmd->hdr.type = VIRTIO_GPU_CMD_RESOURCE_UNREF;
+    cmd->resource_id = res_id;
+
+    KeInitializeEvent(&event, NotificationEvent, FALSE);
+    vbuf->complete_cb = NotifyEventCompleteCB;
+    vbuf->complete_ctx = &event;
+    vbuf->auto_release = false;
+
+    QueueBuffer(vbuf);
+    KeWaitForSingleObject(&event, Executive, KernelMode, FALSE, NULL);
+
+    ReleaseBuffer(vbuf);
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+}
+
+void CtrlQueue::DetachBackingSync(UINT res_id)
+{
+    PAGED_CODE();
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
+
+    PGPU_RES_DETACH_BACKING cmd;
+    PGPU_VBUFFER vbuf;
+    KEVENT event;
+
+    cmd = (PGPU_RES_DETACH_BACKING)AllocCmd(&vbuf, sizeof(*cmd));
+    RtlZeroMemory(cmd, sizeof(*cmd));
+
+    cmd->hdr.type = VIRTIO_GPU_CMD_RESOURCE_DETACH_BACKING;
+    cmd->resource_id = res_id;
+
+    KeInitializeEvent(&event, NotificationEvent, FALSE);
+    vbuf->complete_cb = NotifyEventCompleteCB;
+    vbuf->complete_ctx = &event;
+    vbuf->auto_release = false;
+
+    QueueBuffer(vbuf);
+    KeWaitForSingleObject(&event, Executive, KernelMode, FALSE, NULL);
+
+    ReleaseBuffer(vbuf);
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
@@ -505,6 +607,16 @@ UINT CtrlQueue::QueueBuffer(PGPU_VBUFFER buf)
 {
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
+    // Allocate indirect descriptors if requested
+    if (buf->use_indirect)
+    {
+        if (!m_pBuf->AllocateIndirectDescriptors(buf, buf->data_size))
+        {
+            DbgPrint(TRACE_LEVEL_ERROR, ("<--> %s failed to allocate indirect descriptors\n", __FUNCTION__));
+            return 0;
+        }
+    }
+
     VirtIOBufferDescriptor sg[SGLIST_SIZE];
     UINT sgleft = SGLIST_SIZE;
     UINT outcnt = 0, incnt = 0;
@@ -562,7 +674,7 @@ UINT CtrlQueue::QueueBuffer(PGPU_VBUFFER buf)
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--> %s sgleft %d\n", __FUNCTION__, sgleft));
 
     Lock(&SavedIrql);
-    ret = AddBuf(&sg[0], outcnt, incnt, buf, NULL, 0);
+    ret = AddBuf(&sg[0], outcnt, incnt, buf, buf->desc, buf->desc_pa.QuadPart);
     Kick();
     Unlock(SavedIrql);
 
@@ -596,6 +708,37 @@ void VioGpuQueue::ReleaseBuffer(PGPU_VBUFFER buf)
     m_pBuf->FreeBuf(buf);
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+}
+
+BOOLEAN VioGpuBuf::AllocateIndirectDescriptors(_In_ PGPU_VBUFFER pbuf, _In_ SIZE_T dataSize)
+{
+    // Calculate descriptor table size: data pages + 2 (cmd + resp)
+    UINT numPages = (UINT)((dataSize + PAGE_SIZE - 1) / PAGE_SIZE);
+    UINT numDescriptors = numPages + 2;
+    SIZE_T descTableSize = numDescriptors * SIZE_OF_SINGLE_INDIRECT_DESC;
+    descTableSize = (descTableSize + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
+
+    PHYSICAL_ADDRESS highestAcceptable;
+    highestAcceptable.QuadPart = (ULONGLONG)-1;
+    pbuf->desc = MmAllocateContiguousMemory(descTableSize, highestAcceptable);
+    if (!pbuf->desc)
+    {
+        pbuf->desc_pa.QuadPart = 0;
+        return FALSE;
+    }
+    RtlZeroMemory(pbuf->desc, descTableSize);
+    pbuf->desc_pa = MmGetPhysicalAddress(pbuf->desc);
+    return TRUE;
+}
+
+void VioGpuBuf::DeleteBuffer(_In_ PGPU_VBUFFER pbuf)
+{
+    if (pbuf->desc)
+    {
+        MmFreeContiguousMemory(pbuf->desc);
+        pbuf->desc = NULL;
+    }
+    delete[] reinterpret_cast<PBYTE>(pbuf);
 }
 
 BOOLEAN VioGpuBuf::Init(_In_ UINT cnt)
@@ -642,7 +785,7 @@ void VioGpuBuf::Close(void)
             ASSERT(pvbuf);
             ASSERT(pvbuf->resp_size <= MAX_INLINE_RESP_SIZE);
 
-            delete[] reinterpret_cast<PBYTE>(pvbuf);
+            DeleteBuffer(pvbuf);
             --m_uCount;
         }
     }
@@ -669,7 +812,7 @@ void VioGpuBuf::Close(void)
                 pbuf->data_size = 0;
             }
 
-            delete[] reinterpret_cast<PBYTE>(pbuf);
+            DeleteBuffer(pbuf);
             --m_uCount;
         }
     }
@@ -798,9 +941,16 @@ void VioGpuBuf::FreeBuf(_In_ PGPU_VBUFFER pbuf)
         pbuf->data_size = 0;
     }
 
+    if (pbuf->desc)
+    {
+        MmFreeContiguousMemory(pbuf->desc);
+        pbuf->desc = NULL;
+        pbuf->desc_pa.QuadPart = 0;
+    }
+
     if (m_uCount > m_uCountMin)
     {
-        delete[] reinterpret_cast<PBYTE>(pbuf);
+        DeleteBuffer(pbuf);
         --m_uCount;
     }
     else
@@ -851,6 +1001,9 @@ VioGpuMemSegment::VioGpuMemSegment(void)
     m_bSystemMemory = FALSE;
     m_bMapped = FALSE;
     m_Size = 0;
+    m_pBlocks = NULL;
+    m_pBlockSizes = NULL;
+    m_nBlocks = 0;
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
@@ -865,89 +1018,43 @@ VioGpuMemSegment::~VioGpuMemSegment(void)
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
-BOOLEAN VioGpuMemSegment::Init(_In_ UINT size, _In_opt_ PPHYSICAL_ADDRESS pPAddr)
+// Helper function to try allocating contiguous memory with fallback sizes
+static PVOID AllocateContiguousWithFallback(SIZE_T requestedSize,
+                                            SIZE_T *actualSize,
+                                            PHYSICAL_ADDRESS highestAcceptable,
+                                            const SIZE_T *blockSizes = g_ContiguousBlockSizes,
+                                            UINT blockSizeCount = CONTIGUOUS_BLOCK_SIZE_COUNT)
+{
+    for (UINT i = 0; i < blockSizeCount; i++)
+    {
+        SIZE_T trySize = min(requestedSize, blockSizes[i]);
+        PVOID ptr = MmAllocateContiguousMemory(trySize, highestAcceptable);
+        if (ptr)
+        {
+            *actualSize = trySize;
+            return ptr;
+        }
+        DbgPrint(TRACE_LEVEL_WARNING,
+                 ("AllocateContiguousWithFallback: failed size=%llu, trying smaller\n", (ULONGLONG)trySize));
+    }
+
+    *actualSize = 0;
+    return NULL;
+}
+
+BOOLEAN VioGpuMemSegment::Init(_In_ UINT size, _In_opt_ CPciBar *pBar, _In_ BOOLEAN singleBlock)
 {
     PAGED_CODE();
 
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s size=%u singleBlock=%d\n", __FUNCTION__, size, singleBlock));
 
     ASSERT(size);
-    PVOID buf = NULL;
     UINT pages = BYTES_TO_PAGES(size);
-    UINT sglsize = sizeof(SCATTER_GATHER_LIST) + (sizeof(SCATTER_GATHER_ELEMENT) * pages);
     size = pages * PAGE_SIZE;
 
-    if ((pPAddr == NULL) || pPAddr->QuadPart == 0LL)
-    {
-        m_pVAddr = new (NonPagedPoolNx) BYTE[size];
-
-        if (!m_pVAddr)
-        {
-            DbgPrint(TRACE_LEVEL_FATAL, ("%s insufficient resources to allocate %x bytes\n", __FUNCTION__, size));
-            return FALSE;
-        }
-        RtlZeroMemory(m_pVAddr, size);
-        m_bSystemMemory = TRUE;
-    }
-    else
-    {
-        NTSTATUS Status = MapFrameBuffer(*pPAddr, size, &m_pVAddr);
-        if (!NT_SUCCESS(Status))
-        {
-            DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s MapFrameBuffer failed with Status: 0x%X\n", __FUNCTION__, Status));
-            return FALSE;
-        }
-        m_bMapped = TRUE;
-    }
-
-    m_pMdl = IoAllocateMdl(m_pVAddr, size, FALSE, FALSE, NULL);
-    if (!m_pMdl)
-    {
-        DbgPrint(TRACE_LEVEL_FATAL, ("%s insufficient resources to allocate MDLs\n", __FUNCTION__));
-        return FALSE;
-    }
-    if (m_bSystemMemory == TRUE)
-    {
-        __try
-        {
-            MmProbeAndLockPages(m_pMdl, KernelMode, IoWriteAccess);
-        }
-#pragma prefast(suppress : __WARNING_EXCEPTIONEXECUTEHANDLER, "try/except is only able to protect against user-mode errors and these are the only errors we try to catch here");
-        __except (EXCEPTION_EXECUTE_HANDLER)
-        {
-            DbgPrint(TRACE_LEVEL_FATAL, ("%s Failed to lock pages with error %x\n", __FUNCTION__, GetExceptionCode()));
-            IoFreeMdl(m_pMdl);
-            return FALSE;
-        }
-    }
-    m_pSGList = reinterpret_cast<PSCATTER_GATHER_LIST>(new (NonPagedPoolNx) BYTE[sglsize]);
-    m_pSGList->NumberOfElements = 0;
-    m_pSGList->Reserved = 0;
-    //       m_pSAddr = reinterpret_cast<BYTE*>
-    //    (MmGetSystemAddressForMdlSafe(m_pMdl, NormalPagePriority | MdlMappingNoExecute));
-
-    RtlZeroMemory(m_pSGList, sglsize);
-    buf = PAGE_ALIGN(m_pVAddr);
-
-    for (UINT i = 0; i < pages; ++i)
-    {
-        PHYSICAL_ADDRESS pa = {0};
-        ASSERT(MmIsAddressValid(buf));
-        pa = MmGetPhysicalAddress(buf);
-        if (pa.QuadPart == 0LL)
-        {
-            DbgPrint(TRACE_LEVEL_FATAL, ("%s Invalid PA buf = %p element %d\n", __FUNCTION__, buf, i));
-            break;
-        }
-        m_pSGList->Elements[i].Address = pa;
-        m_pSGList->Elements[i].Length = PAGE_SIZE;
-        buf = (PVOID)((LONG_PTR)(buf) + PAGE_SIZE);
-        m_pSGList->NumberOfElements++;
-    }
-    m_Size = size;
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
-
-    return TRUE;
+    // Delegate to Merge which handles BAR vs system memory decision
+    // When singleBlock is TRUE, use size as fixedBlockSize to allocate in one block
+    return Merge(size, pBar, singleBlock ? size : 0);
 }
 
 PHYSICAL_ADDRESS VioGpuMemSegment::GetPhysicalAddress(void)
@@ -973,29 +1080,518 @@ void VioGpuMemSegment::Close(void)
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
+    if (m_bSystemMemory)
+    {
+        CloseSystemMemory();
+    }
+    else
+    {
+        CloseBar();
+    }
+
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+}
+
+void VioGpuMemSegment::CloseBar()
+{
+    PAGED_CODE();
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
+
     if (m_pMdl)
     {
-        if (m_bSystemMemory)
-        {
-            MmUnlockPages(m_pMdl);
-        }
         IoFreeMdl(m_pMdl);
         m_pMdl = NULL;
     }
 
-    if (m_bSystemMemory)
-    {
-        delete[] reinterpret_cast<PBYTE>(m_pVAddr);
-    }
-    else
+    if (m_bMapped)
     {
         UnmapFrameBuffer(m_pVAddr, (ULONG)m_Size);
         m_bMapped = FALSE;
     }
     m_pVAddr = NULL;
 
+    CleanSGList();
+
+    m_Size = 0;
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+}
+
+void VioGpuMemSegment::CloseSystemMemory()
+{
+    PAGED_CODE();
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
+
+    CleanMapping();
+
+    if (m_pBlocks)
+    {
+        for (UINT i = 0; i < m_nBlocks; i++)
+        {
+            if (m_pBlocks[i])
+            {
+                MmFreeContiguousMemory(m_pBlocks[i]);
+                m_pBlocks[i] = NULL;
+            }
+        }
+        delete[] reinterpret_cast<PBYTE>(m_pBlocks);
+        m_pBlocks = NULL;
+    }
+
+    if (m_pBlockSizes)
+    {
+        delete[] reinterpret_cast<PBYTE>(m_pBlockSizes);
+        m_pBlockSizes = NULL;
+    }
+
+    CleanSGList();
+
+    m_nBlocks = 0;
+    m_Size = 0;
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+}
+
+BOOLEAN VioGpuMemSegment::AllocateBar(PHYSICAL_ADDRESS pAddr,
+                                      SIZE_T size,
+                                      PVOID *pVAddr,
+                                      PMDL *pMdl,
+                                      PSCATTER_GATHER_LIST *pSGList)
+{
+    PAGED_CODE();
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s size=%Iu\n", __FUNCTION__, size));
+
+    PVOID newVAddr = NULL;
+    PMDL newMdl = NULL;
+    PSCATTER_GATHER_LIST newSGList = NULL;
+
+    NTSTATUS Status = MapFrameBuffer(pAddr, (ULONG)size, &newVAddr);
+    if (!NT_SUCCESS(Status))
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("%s MapFrameBuffer failed with Status: 0x%X\n", __FUNCTION__, Status));
+        return FALSE;
+    }
+
+    newMdl = IoAllocateMdl(newVAddr, (ULONG)size, FALSE, FALSE, NULL);
+    if (!newMdl)
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("%s insufficient resources to allocate MDL\n", __FUNCTION__));
+        UnmapFrameBuffer(newVAddr, (ULONG)size);
+        return FALSE;
+    }
+
+    UINT sglsize = sizeof(SCATTER_GATHER_LIST) + sizeof(SCATTER_GATHER_ELEMENT);
+    newSGList = reinterpret_cast<PSCATTER_GATHER_LIST>(new (NonPagedPoolNx) BYTE[sglsize]);
+    if (!newSGList)
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("%s insufficient resources to allocate SGL\n", __FUNCTION__));
+        IoFreeMdl(newMdl);
+        UnmapFrameBuffer(newVAddr, (ULONG)size);
+        return FALSE;
+    }
+    RtlZeroMemory(newSGList, sglsize);
+
+    newSGList->NumberOfElements = 1;
+    newSGList->Elements[0].Address = pAddr;
+    newSGList->Elements[0].Length = (ULONG)size;
+
+    *pVAddr = newVAddr;
+    *pMdl = newMdl;
+    *pSGList = newSGList;
+
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s success\n", __FUNCTION__));
+    return TRUE;
+}
+
+BOOLEAN VioGpuMemSegment::ExpandSystemMemory(SIZE_T targetSize, SIZE_T fixedBlockSize)
+{
+    SIZE_T additionalSize = targetSize - m_Size;
+    SIZE_T minBlockSize = fixedBlockSize > 0 ? fixedBlockSize : PAGE_SIZE;
+    UINT maxNewBlocks = (UINT)((additionalSize + minBlockSize - 1) / minBlockSize);
+
+    // Temporary storage for new blocks
+    PVOID *newBlocks = reinterpret_cast<PVOID *>(new (NonPagedPoolNx) BYTE[maxNewBlocks * sizeof(PVOID)]);
+    SIZE_T *newSizes = reinterpret_cast<SIZE_T *>(new (NonPagedPoolNx) BYTE[maxNewBlocks * sizeof(SIZE_T)]);
+    if (!newBlocks || !newSizes)
+    {
+        delete[] reinterpret_cast<PBYTE>(newBlocks);
+        delete[] reinterpret_cast<PBYTE>(newSizes);
+        return FALSE;
+    }
+    RtlZeroMemory(newBlocks, maxNewBlocks * sizeof(PVOID));
+    RtlZeroMemory(newSizes, maxNewBlocks * sizeof(SIZE_T));
+    UINT newBlockCount = 0;
+
+    PHYSICAL_ADDRESS highestAcceptable;
+    highestAcceptable.QuadPart = 0xFFFFFFFFFF;
+    SIZE_T remaining = additionalSize;
+
+    // Use fixed block size as single-element fallback list, or default fallback list
+    const SIZE_T *blockSizes = fixedBlockSize > 0 ? &fixedBlockSize : g_ContiguousBlockSizes;
+    UINT blockSizeCount = fixedBlockSize > 0 ? 1 : CONTIGUOUS_BLOCK_SIZE_COUNT;
+
+    // Allocate new blocks
+    while (remaining > 0 && newBlockCount < maxNewBlocks)
+    {
+        SIZE_T actualSize = 0;
+        newBlocks[newBlockCount] = AllocateContiguousWithFallback(remaining,
+                                                                  &actualSize,
+                                                                  highestAcceptable,
+                                                                  blockSizes,
+                                                                  blockSizeCount);
+
+        if (!newBlocks[newBlockCount])
+        {
+            // Allocation failed, free already allocated new blocks
+            for (UINT i = 0; i < newBlockCount; i++)
+            {
+                MmFreeContiguousMemory(newBlocks[i]);
+            }
+            delete[] reinterpret_cast<PBYTE>(newBlocks);
+            delete[] reinterpret_cast<PBYTE>(newSizes);
+            return FALSE;
+        }
+
+        RtlZeroMemory(newBlocks[newBlockCount], actualSize);
+        newSizes[newBlockCount] = actualSize;
+        remaining -= actualSize;
+        newBlockCount++;
+    }
+
+    // Expand existing arrays
+    UINT totalBlocks = m_nBlocks + newBlockCount;
+    PVOID *expandedBlocks = reinterpret_cast<PVOID *>(new (NonPagedPoolNx) BYTE[totalBlocks * sizeof(PVOID)]);
+    SIZE_T *expandedSizes = reinterpret_cast<SIZE_T *>(new (NonPagedPoolNx) BYTE[totalBlocks * sizeof(SIZE_T)]);
+    if (!expandedBlocks || !expandedSizes)
+    {
+        // Free new blocks on allocation failure
+        for (UINT i = 0; i < newBlockCount; i++)
+        {
+            MmFreeContiguousMemory(newBlocks[i]);
+        }
+        delete[] reinterpret_cast<PBYTE>(newBlocks);
+        delete[] reinterpret_cast<PBYTE>(newSizes);
+        delete[] reinterpret_cast<PBYTE>(expandedBlocks);
+        delete[] reinterpret_cast<PBYTE>(expandedSizes);
+        return FALSE;
+    }
+
+    if (m_nBlocks > 0)
+    {
+        RtlCopyMemory(expandedBlocks, m_pBlocks, m_nBlocks * sizeof(PVOID));
+        RtlCopyMemory(expandedSizes, m_pBlockSizes, m_nBlocks * sizeof(SIZE_T));
+    }
+
+    // Append new blocks
+    RtlCopyMemory(&expandedBlocks[m_nBlocks], newBlocks, newBlockCount * sizeof(PVOID));
+    RtlCopyMemory(&expandedSizes[m_nBlocks], newSizes, newBlockCount * sizeof(SIZE_T));
+
+    // Replace arrays
+    delete[] reinterpret_cast<PBYTE>(m_pBlocks);
+    delete[] reinterpret_cast<PBYTE>(m_pBlockSizes);
+    delete[] reinterpret_cast<PBYTE>(newBlocks);
+    delete[] reinterpret_cast<PBYTE>(newSizes);
+
+    m_pBlocks = expandedBlocks;
+    m_pBlockSizes = expandedSizes;
+    m_nBlocks = totalBlocks;
+    m_Size = targetSize;
+
+    return TRUE;
+}
+
+BOOLEAN VioGpuMemSegment::ShrinkSystemMemory(SIZE_T targetSize)
+{
+    // Remove blocks from the end until size approaches targetSize
+    // but keep >= targetSize (conservative strategy)
+    SIZE_T currentSize = m_Size;
+    UINT blocksToKeep = m_nBlocks;
+
+    // Calculate how many blocks to keep
+    while (blocksToKeep > 0)
+    {
+        SIZE_T sizeWithoutLast = currentSize - m_pBlockSizes[blocksToKeep - 1];
+        if (sizeWithoutLast < targetSize)
+        {
+            // Removing this block would go below target, stop
+            break;
+        }
+        currentSize = sizeWithoutLast;
+        blocksToKeep--;
+    }
+
+    // Free excess blocks from the end
+    for (UINT i = blocksToKeep; i < m_nBlocks; i++)
+    {
+        MmFreeContiguousMemory(m_pBlocks[i]);
+        m_pBlocks[i] = NULL;
+    }
+
+    m_nBlocks = blocksToKeep;
+    m_Size = currentSize;
+
+    // Note: Keep array size unchanged to avoid frequent reallocations
+    // Only m_nBlocks is updated
+
+    return TRUE;
+}
+
+void VioGpuMemSegment::CleanMapping()
+{
+    if (m_pVAddr && m_pMdl)
+    {
+        MmUnmapLockedPages(m_pVAddr, m_pMdl);
+    }
+    m_pVAddr = NULL;
+
+    if (m_pMdl)
+    {
+        IoFreeMdl(m_pMdl);
+        m_pMdl = NULL;
+    }
+}
+
+void VioGpuMemSegment::CleanSGList()
+{
     delete[] reinterpret_cast<PBYTE>(m_pSGList);
     m_pSGList = NULL;
+}
+
+BOOLEAN VioGpuMemSegment::RebuildMapping()
+{
+    CleanMapping();
+
+    if (m_nBlocks == 0 || m_Size == 0)
+    {
+        return TRUE; // Empty segment
+    }
+
+    m_pMdl = IoAllocateMdl(NULL, (ULONG)m_Size, FALSE, FALSE, NULL);
+    if (!m_pMdl)
+    {
+        return FALSE;
+    }
+
+    // MmAllocateContiguousMemory guarantees physical contiguity within each block
+    PPFN_NUMBER pfnArray = MmGetMdlPfnArray(m_pMdl);
+    UINT pfnIndex = 0;
+
+    for (UINT i = 0; i < m_nBlocks; i++)
+    {
+        UINT blockPages = (UINT)(m_pBlockSizes[i] / PAGE_SIZE);
+        PHYSICAL_ADDRESS blockPA = MmGetPhysicalAddress(m_pBlocks[i]);
+        PFN_NUMBER basePfn = (PFN_NUMBER)(blockPA.QuadPart / PAGE_SIZE);
+
+        for (UINT j = 0; j < blockPages; j++)
+        {
+            pfnArray[pfnIndex++] = basePfn + j;
+        }
+    }
+
+    m_pMdl->MdlFlags |= MDL_PAGES_LOCKED;
+    m_pVAddr = MmMapLockedPagesSpecifyCache(m_pMdl, KernelMode, MmNonCached, NULL, FALSE, NormalPagePriority);
+
+    return (m_pVAddr != NULL);
+}
+
+BOOLEAN VioGpuMemSegment::RebuildSGList()
+{
+    CleanSGList();
+
+    if (m_nBlocks == 0)
+    {
+        return TRUE;
+    }
+
+    UINT sglsize = sizeof(SCATTER_GATHER_LIST) + sizeof(SCATTER_GATHER_ELEMENT) * m_nBlocks;
+    m_pSGList = reinterpret_cast<PSCATTER_GATHER_LIST>(new (NonPagedPoolNx) BYTE[sglsize]);
+
+    if (!m_pSGList)
+    {
+        return FALSE;
+    }
+
+    RtlZeroMemory(m_pSGList, sglsize);
+    m_pSGList->NumberOfElements = m_nBlocks;
+
+    for (UINT i = 0; i < m_nBlocks; i++)
+    {
+        m_pSGList->Elements[i].Address = MmGetPhysicalAddress(m_pBlocks[i]);
+        m_pSGList->Elements[i].Length = (ULONG)m_pBlockSizes[i];
+    }
+
+    return TRUE;
+}
+
+BOOLEAN VioGpuMemSegment::Merge(SIZE_T targetSize, CPciBar *pBar, SIZE_T fixedBlockSize)
+{
+    PAGED_CODE();
+    DbgPrint(TRACE_LEVEL_VERBOSE,
+             ("---> %s current=%Iu target=%Iu fixedBlock=%Iu\n", __FUNCTION__, m_Size, targetSize, fixedBlockSize));
+
+    // Align to page size
+    SIZE_T pages = BYTES_TO_PAGES(targetSize);
+    targetSize = pages * PAGE_SIZE;
+
+    // Same size, nothing to do
+    if (targetSize == m_Size)
+    {
+        return TRUE;
+    }
+
+    // Get BAR info from CPciBar pointer
+    PHYSICAL_ADDRESS barAddr = {0};
+    SIZE_T barSize = 0;
+    if (pBar)
+    {
+        barAddr = pBar->GetPA();
+        barSize = pBar->GetSize();
+    }
+
+    bool barAvailable = (barAddr.QuadPart != 0 && barSize > 0);
+    bool shouldUseBar = barAvailable && (targetSize <= barSize);
+
+    DbgPrint(TRACE_LEVEL_INFORMATION,
+             ("%s: barAvailable=%d shouldUseBar=%d targetSize=%Iu barSize=%Iu\n",
+              __FUNCTION__,
+              barAvailable,
+              shouldUseBar,
+              targetSize,
+              barSize));
+
+    BOOLEAN hadUsedBar = (!m_bSystemMemory && m_Size > 0);
+    BOOLEAN success = FALSE;
+    if (shouldUseBar)
+    {
+        // BAR path: targetSize <= barSize
+        PVOID newVAddr = NULL;
+        PMDL newMdl = NULL;
+        PSCATTER_GATHER_LIST newSGList = NULL;
+
+        if (AllocateBar(barAddr, targetSize, &newVAddr, &newMdl, &newSGList))
+        {
+            // Allocation succeeded - now clean up old resources
+            if (m_bSystemMemory)
+            {
+                CloseSystemMemory();
+            }
+            else if (m_bMapped)
+            {
+                CloseBar();
+            }
+
+            // Commit new BAR resources
+            m_pVAddr = newVAddr;
+            m_pMdl = newMdl;
+            m_pSGList = newSGList;
+            m_bMapped = TRUE;
+            m_bSystemMemory = FALSE;
+            m_Size = targetSize;
+
+            DbgPrint(TRACE_LEVEL_INFORMATION, ("<--- %s: ->BAR success\n", __FUNCTION__));
+            return TRUE;
+        }
+        else
+        {
+            DbgPrint(TRACE_LEVEL_WARNING, ("%s: BAR allocation failed\n", __FUNCTION__));
+            return FALSE;
+        }
+    }
+    else if (hadUsedBar)
+    {
+        // Currently using BAR -> release BAR
+        CloseBar();
+        DbgPrint(TRACE_LEVEL_INFORMATION, ("%s: BAR->system memory released BAR\n", __FUNCTION__));
+    }
+
+    // System memory path
+    m_bSystemMemory = TRUE;
+
+    if (targetSize > m_Size)
+    {
+        success = ExpandSystemMemory(targetSize, fixedBlockSize);
+    }
+    else
+    {
+        success = ShrinkSystemMemory(targetSize);
+    }
+
+    // if used BAR originally and failed to allocate system memory, try BAR again
+    if (!success && hadUsedBar && barAvailable)
+    {
+        DbgPrint(TRACE_LEVEL_WARNING, ("%s: system memory allocation failed, trying BAR again\n", __FUNCTION__));
+        PVOID newVAddr = NULL;
+        PMDL newMdl = NULL;
+        PSCATTER_GATHER_LIST newSGList = NULL;
+
+        if (AllocateBar(barAddr, targetSize, &newVAddr, &newMdl, &newSGList))
+        {
+            // Clean up failed system memory state
+            CloseSystemMemory();
+
+            // Commit BAR resources
+            m_pVAddr = newVAddr;
+            m_pMdl = newMdl;
+            m_pSGList = newSGList;
+            m_bMapped = TRUE;
+            m_Size = targetSize;
+            m_bSystemMemory = FALSE;
+
+            DbgPrint(TRACE_LEVEL_INFORMATION, ("<--- %s: system memory->BAR success\n", __FUNCTION__));
+            return TRUE;
+        }
+    }
+
+    if (!success)
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s: system memory merge failed\n", __FUNCTION__));
+        return FALSE;
+    }
+
+    if (!RebuildMapping())
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s: RebuildMapping failed\n", __FUNCTION__));
+        return FALSE;
+    }
+
+    if (!RebuildSGList())
+    {
+        DbgPrint(TRACE_LEVEL_ERROR, ("<--- %s: RebuildSGList failed\n", __FUNCTION__));
+        return FALSE;
+    }
+
+    DbgPrint(TRACE_LEVEL_INFORMATION, ("<--- %s: merged to %Iu bytes (%u blocks)\n", __FUNCTION__, m_Size, m_nBlocks));
+    return TRUE;
+}
+
+void VioGpuMemSegment::TakeFrom(VioGpuMemSegment &other)
+{
+    PAGED_CODE();
+
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
+
+    // Close our own resources first
+    Close();
+
+    // Take ownership of other's resources
+    m_bSystemMemory = other.m_bSystemMemory;
+    m_bMapped = other.m_bMapped;
+    m_pSGList = other.m_pSGList;
+    m_pVAddr = other.m_pVAddr;
+    m_pMdl = other.m_pMdl;
+    m_Size = other.m_Size;
+    m_pBlocks = other.m_pBlocks;
+    m_pBlockSizes = other.m_pBlockSizes;
+    m_nBlocks = other.m_nBlocks;
+
+    // Clear other to prevent double-free on destruction
+    other.m_pSGList = NULL;
+    other.m_pVAddr = NULL;
+    other.m_pMdl = NULL;
+    other.m_Size = 0;
+    other.m_bSystemMemory = FALSE;
+    other.m_bMapped = FALSE;
+    other.m_pBlocks = NULL;
+    other.m_pBlockSizes = NULL;
+    other.m_nBlocks = 0;
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
