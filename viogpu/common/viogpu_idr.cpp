@@ -37,6 +37,7 @@
 VioGpuIdr::VioGpuIdr()
 {
     m_nextId = 0;
+    KeInitializeSpinLock(&m_idLock);
     KeInitializeSpinLock(&m_lock);
     InitializeListHead(&m_freeList);
 }
@@ -66,8 +67,28 @@ ULONG VioGpuIdr::GetId(VOID)
     }
     else
     {
+        KIRQL irql;
+
+        KeAcquireSpinLock(&m_idLock, &irql);
         id = m_nextId++;
+        KeReleaseSpinLock(&m_idLock, irql);
     }
+
+    DbgPrint(TRACE_LEVEL_VERBOSE, ("[%s] id = %d\n", __FUNCTION__, id));
+
+    return id;
+}
+
+ULONG VioGpuIdr::GetFreshId(VOID)
+{
+    // Unlike GetId(), never returns an id that was freed: a resource that is destroyed and created again with the same
+    // id but other dimensions (a mode change) is displayed wrongly by hosts that keep state for the old resource
+    KIRQL irql;
+    ULONG id;
+
+    KeAcquireSpinLock(&m_idLock, &irql);
+    id = m_nextId++;
+    KeReleaseSpinLock(&m_idLock, irql);
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("[%s] id = %d\n", __FUNCTION__, id));
 
