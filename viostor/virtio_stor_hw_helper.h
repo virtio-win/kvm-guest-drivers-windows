@@ -148,7 +148,7 @@ RhelGetSectors(IN PVOID DeviceExtension, IN PCDB Cdb);
 BOOLEAN
 RhelGetSerialNumber(IN PVOID DeviceExtension, IN PSRB_TYPE Srb);
 
-VOID RhelGetDiskGeometry(IN PVOID DeviceExtension);
+BOOLEAN RhelGetDiskGeometry(IN PVOID DeviceExtension);
 
 VOID VioStorCompleteRequest(IN PVOID DeviceExtension, IN ULONG MessageID, IN BOOLEAN bIsr);
 
