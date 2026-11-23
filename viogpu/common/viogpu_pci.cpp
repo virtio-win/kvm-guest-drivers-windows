@@ -234,9 +234,13 @@ u16 vdev_get_msix_vector(void *context, int queue)
 
     // The cursor queue, queue 1, follows the control queue, queue 0.
     C_ASSERT(VIRTIO_GPU_MSIX_CURSOR_VECTOR == VIRTIO_GPU_MSIX_CTRL_VECTOR + 1);
-    if (pdev->IsMSIEnabled())
+    if (pdev->GetPciResources()->IsMessagePerCause())
     {
         vector = (queue >= 0) ? (u16)(VIRTIO_GPU_MSIX_CTRL_VECTOR + queue) : (u16)VIRTIO_GPU_MSIX_CONFIG_VECTOR;
+    }
+    else if (pdev->IsMSIEnabled())
+    {
+        vector = 0;
     }
     return vector;
 }
@@ -401,6 +405,10 @@ bool CPciResources::Init(PDXGKRNL_INTERFACE pDxgkInterface, PCM_RESOURCE_LIST pR
                 case CmResourceTypeInterrupt:
                     {
                         m_InterruptFlags = pResDescriptor->Flags;
+                        if (pResDescriptor->Flags & CM_RESOURCE_INTERRUPT_MESSAGE)
+                        {
+                            m_MessageCount++;
+                        }
                         if (IsMSIEnabled())
                         {
                             DbgPrint(TRACE_LEVEL_FATAL,
@@ -455,6 +463,19 @@ bool CPciResources::Init(PDXGKRNL_INTERFACE pDxgkInterface, PCM_RESOURCE_LIST pR
     {
         DbgPrint(TRACE_LEVEL_FATAL, ("[%s] resource enumeration failed\n", __FUNCTION__));
         return false;
+    }
+    // Fewer messages than causes work, more slowly: logged as a warning.
+    if (IsMessagePerCause())
+    {
+        DbgPrint(TRACE_LEVEL_INFORMATION, ("[%s] %lu MSI messages, one per cause\n", __FUNCTION__, m_MessageCount));
+    }
+    else if (IsMSIEnabled())
+    {
+        DbgPrint(TRACE_LEVEL_WARNING,
+                 ("[%s] %lu MSI message(s), fewer than %d: every cause on message 0\n",
+                  __FUNCTION__,
+                  m_MessageCount,
+                  VIRTIO_GPU_MSIX_VECTORS));
     }
     return true;
 }

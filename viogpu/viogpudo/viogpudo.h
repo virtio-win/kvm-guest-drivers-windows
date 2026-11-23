@@ -115,6 +115,17 @@ class VioGpuAdapter : IVioGpuPCI
     {
         return m_PciResources.IsMSIEnabled();
     }
+    // The interrupt messages whose lock fences the ISR: every MSI message Windows granted, or the line.
+    ULONG GetMessageCount()
+    {
+        return IsMSIEnabled() ? m_PciResources.GetMessageCount() : 1;
+    }
+    // The message whose ISR notifies dxgkrnl, DXGK_DRIVERCAPS.InterruptMessageNumber: the control queue's with one
+    // message per cause, else message 0, which also stands for the line.
+    ULONG GetNotifyMessage()
+    {
+        return m_PciResources.IsMessagePerCause() ? VIRTIO_GPU_MSIX_CTRL_VECTOR : 0;
+    }
     PHYSICAL_ADDRESS GetFrameBufferPA(void)
     {
         return m_PciResources.GetPciBar(0)->GetPA();

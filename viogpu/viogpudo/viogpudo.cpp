@@ -476,11 +476,10 @@ NTSTATUS VioGpuDod::QueryAdapterInfo(_In_ CONST DXGKARG_QUERYADAPTERINFO *pQuery
                 RtlZeroMemory(pDriverCaps, pQueryAdapterInfo->OutputDataSize /*sizeof(DXGK_DRIVERCAPS)*/);
                 pDriverCaps->WDDMVersion = DXGKDDI_WDDMv1_2;
                 pDriverCaps->HighestAcceptableAddress.QuadPart = (ULONG64)-1;
-                // DXGKCB_NOTIFY_INTERRUPT requires the message the ISR notifies dxgkrnl from: the control queue's.
-                // Without MSI it is the line, message 0, as zeroed above.
-                if (m_pHWDevice != NULL && m_pHWDevice->IsMSIEnabled())
+                // DXGKCB_NOTIFY_INTERRUPT requires the message the ISR notifies dxgkrnl from (GetNotifyMessage).
+                if (m_pHWDevice != NULL)
                 {
-                    pDriverCaps->InterruptMessageNumber = VIRTIO_GPU_MSIX_CTRL_VECTOR;
+                    pDriverCaps->InterruptMessageNumber = m_pHWDevice->GetNotifyMessage();
                 }
 
                 if (IsPointerEnabled())
@@ -3757,7 +3756,7 @@ void VioGpuAdapter::SwitchInterrupts(BOOLEAN On)
 {
     PDXGKRNL_INTERFACE pDxgkInterface = GetDxgkInterface();
     PKSYNCHRONIZE_ROUTINE Routine = On ? InterruptsOnCb : InterruptsOffCb;
-    ULONG Messages = IsMSIEnabled() ? VIRTIO_GPU_MSIX_VECTORS : 1;
+    ULONG Messages = GetMessageCount();
     ULONG Synchronized = 0;
     NTSTATUS Failure = STATUS_SUCCESS;
 
@@ -3815,7 +3814,28 @@ BOOLEAN VioGpuAdapter::InterruptRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface, 
         return FALSE;
     }
 
-    if (m_PciResources.IsMSIEnabled())
+    if (m_PciResources.IsMSIEnabled() && !m_PciResources.IsMessagePerCause())
+    {
+        // Every cause shares message 0, which no other device sends. Both queues are checked on every interrupt, and
+        // the ISR status register tells a configuration change: the device sets its bit before it sends one, with
+        // MSI-X too.
+        if (MessageNumber == 0)
+        {
+            UCHAR isrstat = virtio_read_isr_status(&m_VioDev);
+            intReason = ISR_REASON_DISPLAY | ISR_REASON_CURSOR;
+            if (isrstat != 0xFF && (isrstat & VIRTIO_PCI_ISR_CONFIG))
+            {
+                intReason |= ISR_REASON_CHANGE;
+            }
+        }
+        else
+        {
+            serviced = FALSE;
+            DbgPrint(TRACE_LEVEL_FATAL,
+                     ("---> %s message %d, all causes are on message 0\n", __FUNCTION__, MessageNumber));
+        }
+    }
+    else if (m_PciResources.IsMSIEnabled())
     {
         switch (MessageNumber)
         {
