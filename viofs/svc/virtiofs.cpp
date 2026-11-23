@@ -49,6 +49,7 @@
 #include <shellapi.h>
 
 #include <map>
+#include <mutex>
 #include <string>
 #include <utility>
 
@@ -162,8 +163,9 @@ struct VIRTFS
     // commandline/registry parameters.
     bool AutoOwnerIds{true};
 
-    // Maps NodeId to its Nlookup counter.
+    // Maps NodeId to its Nlookup counter. WinFsp's dispatcher calls in from several threads at once.
     std::map<UINT64, UINT64> LookupMap{};
+    std::mutex LookupMapMutex{};
 
     // Directory buffers are shared by WinFsp dispatcher threads and the
     // periodic refresh thread. This lock also keeps a file context alive while
@@ -204,6 +206,7 @@ struct VIRTFS
     DWORD DevInterfaceArrival();
     VOID DevQueryRemove();
 
+    bool LookupMapNewNode(UINT64 NodeId);
     VOID LookupMapNewOrIncNode(UINT64 NodeId);
     UINT64 LookupMapPopNode(UINT64 NodeId);
 
@@ -955,7 +958,7 @@ static NTSTATUS VirtFsCreateFile(VIRTFS *VirtFs,
         FileContext->FileHandle = create_out.open.fh;
 
         // Newly created file has nlookup = 1
-        if (!VirtFs->LookupMap.emplace(FileContext->NodeId, 1).second)
+        if (!VirtFs->LookupMapNewNode(FileContext->NodeId))
         {
             return STATUS_UNSUCCESSFUL;
         }
@@ -1000,7 +1003,7 @@ static NTSTATUS VirtFsCreateDir(VIRTFS *VirtFs,
         FileContext->NodeId = mkdir_out.entry.nodeid;
 
         // Newly created directory has nlookup = 1
-        if (!VirtFs->LookupMap.emplace(FileContext->NodeId, 1).second)
+        if (!VirtFs->LookupMapNewNode(FileContext->NodeId))
         {
             return STATUS_UNSUCCESSFUL;
         }
@@ -1011,8 +1014,17 @@ static NTSTATUS VirtFsCreateDir(VIRTFS *VirtFs,
     return Status;
 }
 
+bool VIRTFS::LookupMapNewNode(UINT64 NodeId)
+{
+    std::lock_guard Lock(LookupMapMutex);
+
+    return LookupMap.emplace(NodeId, 1).second;
+}
+
 VOID VIRTFS::LookupMapNewOrIncNode(UINT64 NodeId)
 {
+    std::lock_guard Lock(LookupMapMutex);
+
     auto EmplaceResult = LookupMap.emplace(NodeId, 1);
 
     if (!EmplaceResult.second)
@@ -1023,6 +1035,8 @@ VOID VIRTFS::LookupMapNewOrIncNode(UINT64 NodeId)
 
 UINT64 VIRTFS::LookupMapPopNode(UINT64 NodeId)
 {
+    std::lock_guard Lock(LookupMapMutex);
+
     auto Item = LookupMap.extract(NodeId);
 
     return Item.empty() ? 0 : Item.mapped();
