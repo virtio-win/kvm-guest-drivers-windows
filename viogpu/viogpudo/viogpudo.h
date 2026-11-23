@@ -115,6 +115,17 @@ class VioGpuAdapter : IVioGpuPCI
     {
         return m_PciResources.IsMSIEnabled();
     }
+    // The interrupt messages whose lock fences the ISR: every MSI message Windows granted, or the line.
+    ULONG GetMessageCount()
+    {
+        return IsMSIEnabled() ? m_PciResources.GetMessageCount() : 1;
+    }
+    // The message whose ISR notifies dxgkrnl, DXGK_DRIVERCAPS.InterruptMessageNumber: the control queue's with one
+    // message per cause, else message 0, which also stands for the line.
+    ULONG GetNotifyMessage()
+    {
+        return m_PciResources.IsMessagePerCause() ? VIRTIO_GPU_MSIX_CTRL_VECTOR : 0;
+    }
     PHYSICAL_ADDRESS GetFrameBufferPA(void)
     {
         return m_PciResources.GetPciBar(0)->GetPA();
@@ -219,6 +230,17 @@ class VioGpuAdapter : IVioGpuPCI
     VioGpuMemSegment m_CursorSegment;
     VioGpuMemSegment m_FrameSegment;
     volatile ULONG m_PendingWorks;
+    // The ISR and the DPC use the device and the queues only while this is set. It changes only in
+    // SwitchInterrupts, under the interrupt lock of each message whenever one can be taken, so an ISR never touches a
+    // device that is not open yet or whose rings are gone. The DPC reads it without the lock: VioGpuAdapterClose
+    // switches it off before flushing the DPCs, so a DPC that read it set finishes before the rings are deleted.
+    volatile BOOLEAN m_InterruptsOn;
+    // The causes still pending when interrupts were last switched on, which belonged to the open before: logged by
+    // SwitchInterrupts.
+    ULONG m_DroppedWorks;
+    void SwitchInterrupts(BOOLEAN On);
+    static BOOLEAN InterruptsOnCb(PVOID Context);
+    static BOOLEAN InterruptsOffCb(PVOID Context);
     KEVENT m_ConfigUpdateEvent;
     PETHREAD m_pWorkThread;
     BOOLEAN m_bStopWorkThread;

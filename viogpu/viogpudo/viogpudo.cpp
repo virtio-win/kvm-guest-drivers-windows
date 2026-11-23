@@ -476,6 +476,11 @@ NTSTATUS VioGpuDod::QueryAdapterInfo(_In_ CONST DXGKARG_QUERYADAPTERINFO *pQuery
                 RtlZeroMemory(pDriverCaps, pQueryAdapterInfo->OutputDataSize /*sizeof(DXGK_DRIVERCAPS)*/);
                 pDriverCaps->WDDMVersion = DXGKDDI_WDDMv1_2;
                 pDriverCaps->HighestAcceptableAddress.QuadPart = (ULONG64)-1;
+                // DXGKCB_NOTIFY_INTERRUPT requires the message the ISR notifies dxgkrnl from (GetNotifyMessage).
+                if (m_pHWDevice != NULL)
+                {
+                    pDriverCaps->InterruptMessageNumber = m_pHWDevice->GetNotifyMessage();
+                }
 
                 if (IsPointerEnabled())
                 {
@@ -1907,10 +1912,17 @@ PAGED_CODE_SEG_END
 #pragma code_seg(push)
 #pragma code_seg()
 
+// Every DPC calls DxgkCbNotifyDpc. DXGKCB_NOTIFY_INTERRUPT requires it from the DPC an ISR queues after notifying
+// dxgkrnl, with no exception for a device closed in between, and one DPC can stand for several ISRs (one is queued per
+// adapter at a time), so a DPC cannot tell whether such an ISR queued it. Only the adapter's own work depends on the
+// device's state.
 VOID VioGpuDod::DpcRoutine(VOID)
 {
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-    m_pHWDevice->DpcRoutine(&m_DxgkInterface);
+    if (m_pHWDevice != NULL)
+    {
+        m_pHWDevice->DpcRoutine(&m_DxgkInterface);
+    }
     m_DxgkInterface.DxgkCbNotifyDpc((HANDLE)m_DxgkInterface.DeviceHandle);
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
@@ -1918,11 +1930,7 @@ VOID VioGpuDod::DpcRoutine(VOID)
 BOOLEAN VioGpuDod::InterruptRoutine(_In_ ULONG MessageNumber)
 {
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--> %s\n", __FUNCTION__));
-    if (IsHardwareInit())
-    {
-        return m_pHWDevice ? m_pHWDevice->InterruptRoutine(&m_DxgkInterface, MessageNumber) : FALSE;
-    }
-    return FALSE;
+    return m_pHWDevice ? m_pHWDevice->InterruptRoutine(&m_DxgkInterface, MessageNumber) : FALSE;
 }
 
 VOID VioGpuDod::ResetDevice(VOID)
@@ -2321,6 +2329,8 @@ VioGpuAdapter::VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod)
     m_CursorHotX = 0;
     m_CursorHotY = 0;
     m_PendingWorks = 0;
+    m_InterruptsOn = FALSE;
+    m_DroppedWorks = 0;
     m_bStopWorkThread = FALSE;
     m_pWorkThread = NULL;
     m_ResolutionEvent = NULL;
@@ -2448,6 +2458,10 @@ NTSTATUS VioGpuAdapter::VioGpuAdapterInit(DXGK_DISPLAY_INFORMATION *pDispInfo)
     } while (0);
     if (status == STATUS_SUCCESS)
     {
+        // Handling is switched on before DRIVER_OK: the device sends no used-buffer notification before it, and QEMU no
+        // configuration change either. So the first interrupt is handled, and nothing of this open is pending when
+        // InterruptsOnCb clears m_PendingWorks.
+        SwitchInterrupts(TRUE);
         virtio_device_ready(&m_VioDev);
         m_pVioGpuDod->SetHardwareInit(TRUE);
     }
@@ -3697,17 +3711,96 @@ void VioGpuAdapter::VioGpuAdapterClose()
         m_pVioGpuDod->SetHardwareInit(FALSE);
         m_CtrlQueue.DisableInterrupt();
         m_CursorQueue.DisableInterrupt();
+        // Reset the device before switching interrupt handling off: after the reset it raises nothing, and it lowers
+        // an INTx line it may still hold, which the ISR does not acknowledge while handling is off. Once handling is
+        // off the ISR returns at once, and flushing the DPCs lets those it queued finish before the queues are closed
+        // and the rings deleted. At DISPATCH_LEVEL and above (only the bugcheck flow, ResetToVgaMode) DPCs are not
+        // flushed, and none run.
+        virtio_device_reset(&m_VioDev);
+        SwitchInterrupts(FALSE);
         if (KeGetCurrentIrql() < DISPATCH_LEVEL)
         {
             KeFlushQueuedDpcs();
         }
-        virtio_device_reset(&m_VioDev);
-        virtio_delete_queues(&m_VioDev);
         m_CtrlQueue.Close();
         m_CursorQueue.Close();
+        virtio_delete_queues(&m_VioDev);
         virtio_device_shutdown(&m_VioDev);
     }
     DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s\n", __FUNCTION__));
+}
+
+BOOLEAN VioGpuAdapter::InterruptsOnCb(PVOID Context)
+{
+    VioGpuAdapter *pThis = reinterpret_cast<VioGpuAdapter *>(Context);
+    // A DPC that ran after the last close switched handling off left the ISR's causes pending. They refer to rings
+    // deleted at that close; the device is not DRIVER_OK yet, so it has completed nothing of this open.
+    pThis->m_DroppedWorks |= pThis->m_PendingWorks;
+    pThis->m_PendingWorks = 0;
+    pThis->m_InterruptsOn = TRUE;
+    return TRUE;
+}
+
+BOOLEAN VioGpuAdapter::InterruptsOffCb(PVOID Context)
+{
+    reinterpret_cast<VioGpuAdapter *>(Context)->m_InterruptsOn = FALSE;
+    return TRUE;
+}
+
+// Switches interrupt handling under the interrupt lock of each message in turn (the routine runs once per message), so
+// that an ISR already running finishes first and the next one sees the change. DxgkCbSynchronizeExecution is callable
+// only at DISPATCH_LEVEL or below. When no lock is taken, no ISR runs alongside: the interrupt is not connected (before
+// StartDevice connects it, after StopDevice disconnects it), or the system is bugchecking. Some messages locked and
+// others not would leave an ISR unfenced, which is logged.
+void VioGpuAdapter::SwitchInterrupts(BOOLEAN On)
+{
+    PDXGKRNL_INTERFACE pDxgkInterface = GetDxgkInterface();
+    PKSYNCHRONIZE_ROUTINE Routine = On ? InterruptsOnCb : InterruptsOffCb;
+    ULONG Messages = GetMessageCount();
+    ULONG Synchronized = 0;
+    NTSTATUS Failure = STATUS_SUCCESS;
+
+    if (KeGetCurrentIrql() <= DISPATCH_LEVEL)
+    {
+        for (ULONG Message = 0; Message < Messages; Message++)
+        {
+            BOOLEAN Ret = FALSE;
+            NTSTATUS Status = pDxgkInterface->DxgkCbSynchronizeExecution(pDxgkInterface->DeviceHandle,
+                                                                         Routine,
+                                                                         this,
+                                                                         Message,
+                                                                         &Ret);
+            if (NT_SUCCESS(Status))
+            {
+                Synchronized++;
+            }
+            else
+            {
+                Failure = Status;
+            }
+        }
+    }
+    if (Synchronized == 0)
+    {
+        Routine(this);
+    }
+    // A local: DbgPrint does not parenthesize its level.
+    UCHAR TraceLevel = (Synchronized != 0 && !NT_SUCCESS(Failure)) ? TRACE_LEVEL_FATAL : TRACE_LEVEL_INFORMATION;
+    DbgPrint(TraceLevel,
+             ("<--> %s %d: %lu of %lu message(s) synchronized (0x%x)\n",
+              __FUNCTION__,
+              On,
+              Synchronized,
+              Messages,
+              Failure));
+    if (m_DroppedWorks != 0)
+    {
+        DbgPrint(TRACE_LEVEL_WARNING,
+                 ("%s: causes 0x%x of the last open were not handled before its close\n",
+                  __FUNCTION__,
+                  m_DroppedWorks));
+        m_DroppedWorks = 0;
+    }
 }
 
 BOOLEAN VioGpuAdapter::InterruptRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface, _In_ ULONG MessageNumber)
@@ -3716,17 +3809,43 @@ BOOLEAN VioGpuAdapter::InterruptRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface, 
     BOOLEAN serviced = TRUE;
     ULONG intReason = 0;
 
-    if (m_PciResources.IsMSIEnabled())
+    if (!m_InterruptsOn)
+    {
+        return FALSE;
+    }
+
+    if (m_PciResources.IsMSIEnabled() && !m_PciResources.IsMessagePerCause())
+    {
+        // Every cause shares message 0, which no other device sends. Both queues are checked on every interrupt, and
+        // the ISR status register tells a configuration change: the device sets its bit before it sends one, with
+        // MSI-X too.
+        if (MessageNumber == 0)
+        {
+            UCHAR isrstat = virtio_read_isr_status(&m_VioDev);
+            intReason = ISR_REASON_DISPLAY | ISR_REASON_CURSOR;
+            if (isrstat != 0xFF && (isrstat & VIRTIO_PCI_ISR_CONFIG))
+            {
+                intReason |= ISR_REASON_CHANGE;
+            }
+        }
+        else
+        {
+            serviced = FALSE;
+            DbgPrint(TRACE_LEVEL_FATAL,
+                     ("---> %s message %d, all causes are on message 0\n", __FUNCTION__, MessageNumber));
+        }
+    }
+    else if (m_PciResources.IsMSIEnabled())
     {
         switch (MessageNumber)
         {
-            case 0:
+            case VIRTIO_GPU_MSIX_CONFIG_VECTOR:
                 intReason = ISR_REASON_CHANGE;
                 break;
-            case 1:
+            case VIRTIO_GPU_MSIX_CTRL_VECTOR:
                 intReason = ISR_REASON_DISPLAY;
                 break;
-            case 2:
+            case VIRTIO_GPU_MSIX_CURSOR_VECTOR:
                 intReason = ISR_REASON_CURSOR;
                 break;
             default:
@@ -3737,20 +3856,25 @@ BOOLEAN VioGpuAdapter::InterruptRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface, 
     }
     else
     {
-        UNREFERENCED_PARAMETER(MessageNumber);
+        // The line may be shared. The ISR status register has one bit per cause. The bits accumulate until the driver
+        // reads the register, which returns and clears them all and lowers the line, so one read can report both.
         UCHAR isrstat = virtio_read_isr_status(&m_VioDev);
-
-        switch (isrstat)
+        // A device that is gone reads all ones. Only bits 0 and 1 are defined, so a live device does not report all
+        // ones: the interrupt is another device's on the shared line.
+        if (isrstat == 0xFF)
         {
-            case 1:
-                intReason = (ISR_REASON_DISPLAY | ISR_REASON_CURSOR);
-                break;
-            case 3:
-                intReason = ISR_REASON_CHANGE;
-                break;
-            default:
-                serviced = FALSE;
+            return FALSE;
         }
+
+        if (isrstat & VIOGPU_ISR_QUEUE)
+        {
+            intReason |= ISR_REASON_DISPLAY | ISR_REASON_CURSOR;
+        }
+        if (isrstat & VIRTIO_PCI_ISR_CONFIG)
+        {
+            intReason |= ISR_REASON_CHANGE;
+        }
+        serviced = (intReason != 0);
     }
 
     if (serviced)
@@ -3821,6 +3945,10 @@ VOID VioGpuAdapter::DpcRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface)
     PGPU_VBUFFER pvbuf = NULL;
     UINT len = 0;
     ULONG reason;
+    if (!m_InterruptsOn)
+    {
+        return;
+    }
     while ((reason = InterlockedExchange((PLONG)&m_PendingWorks, 0)) != 0)
     {
         if ((reason & ISR_REASON_DISPLAY))
