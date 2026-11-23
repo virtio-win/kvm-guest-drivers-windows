@@ -420,7 +420,9 @@ VIOSerialDeviceListCreatePdo(IN WDFCHILDLIST DeviceList,
             break;
         }
 
-        WDF_IO_QUEUE_CONFIG_INIT(&queueConfig, WdfIoQueueDispatchParallel);
+        // A write may span multiple virtqueue batches. Dispatch writes one
+        // at a time so their bytes cannot interleave.
+        WDF_IO_QUEUE_CONFIG_INIT(&queueConfig, WdfIoQueueDispatchSequential);
         queueConfig.AllowZeroLengthRequests = WdfFalse;
         queueConfig.EvtIoWrite = VIOSerialPortWrite;
         queueConfig.EvtIoStop = VIOSerialPortWriteIoStop;
@@ -1218,7 +1220,7 @@ VOID VIOSerialPortWriteIoStop(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN ULONG
         // in a moment, thus, there is no need to acknowledge it here (the framework
         // will wait for the completion).
         //
-        // If the request is still in the list, §et us requeue it for next
+        // If the request is still in the list, let us requeue it for next
         // power up.
         if (VIOSerialDetachRequest(Queue, Request))
         {
