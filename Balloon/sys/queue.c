@@ -73,8 +73,12 @@ VOID BalloonIoWrite(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN size_t Length)
         return;
     }
 
+    WdfSpinLockAcquire(devCtx->StatQueueLock);
     if (devCtx->HandleWriteRequest)
     {
+        devCtx->HandleWriteRequest = FALSE;
+        WdfSpinLockRelease(devCtx->StatQueueLock);
+
         Length = min(buffSize, sizeof(BALLOON_STAT) * VIRTIO_BALLOON_S_NR);
 #if 0
         {
@@ -97,7 +101,6 @@ VOID BalloonIoWrite(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN size_t Length)
                     Length,
                     status);
 
-        devCtx->HandleWriteRequest = FALSE;
         BalloonMemStats(WdfIoQueueGetDevice(Queue));
     }
     else
@@ -105,20 +108,30 @@ VOID BalloonIoWrite(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN size_t Length)
         status = WdfRequestMarkCancelableEx(Request, BalloonEvtRequestCancel);
         if (!NT_SUCCESS(status))
         {
+            WdfSpinLockRelease(devCtx->StatQueueLock);
             TraceEvents(TRACE_LEVEL_ERROR, DBG_READ, "WdfRequestMarkCancelableEx failed: 0x%08x\n", status);
             WdfRequestCompleteWithInformation(Request, status, 0L);
             return;
         }
 
         devCtx->PendingWriteRequest = Request;
+        WdfSpinLockRelease(devCtx->StatQueueLock);
     }
 }
 
 VOID BalloonIoStop(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN ULONG ActionFlags)
 {
-    UNREFERENCED_PARAMETER(Queue);
+    PDEVICE_CONTEXT devCtx = GetDeviceContext(WdfIoQueueGetDevice(Queue));
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> %!FUNC! Request: %p", Request);
+
+    WdfSpinLockAcquire(devCtx->StatQueueLock);
+    if (devCtx->PendingWriteRequest != Request)
+    {
+        // The DPC has already taken the request and will complete it.
+        WdfSpinLockRelease(devCtx->StatQueueLock);
+        goto end_io_stop;
+    }
 
     if (ActionFlags & WdfRequestStopRequestCancelable)
     {
@@ -126,10 +139,13 @@ VOID BalloonIoStop(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN ULONG ActionFlag
         __analysis_assume(status != STATUS_NOT_SUPPORTED);
         if (status == STATUS_CANCELLED)
         {
-            WdfRequestStopAcknowledge(Request, FALSE);
+            WdfSpinLockRelease(devCtx->StatQueueLock);
             goto end_io_stop;
         }
     }
+
+    devCtx->PendingWriteRequest = NULL;
+    WdfSpinLockRelease(devCtx->StatQueueLock);
 
     if (ActionFlags & WdfRequestStopActionSuspend)
     {
@@ -154,8 +170,10 @@ VOID BalloonEvtRequestCancel(IN WDFREQUEST Request)
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "--> BalloonEvtRequestCancel Cancelled Request: %p\n", Request);
 
+    WdfSpinLockAcquire(devCtx->StatQueueLock);
     NT_ASSERT(devCtx->PendingWriteRequest == Request);
     devCtx->PendingWriteRequest = NULL;
+    WdfSpinLockRelease(devCtx->StatQueueLock);
     WdfRequestComplete(Request, STATUS_CANCELLED);
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_READ, "<-- BalloonEvtRequestCancel\n");

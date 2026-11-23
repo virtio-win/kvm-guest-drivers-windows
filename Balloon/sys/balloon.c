@@ -51,6 +51,10 @@ BalloonInit(IN WDFOBJECT WdfDevice)
 
     WdfObjectAcquireLock(WdfDevice);
 
+#ifdef USE_BALLOON_SERVICE
+    devCtx->HandleWriteRequest = FALSE;
+#endif
+
     // inflate
     params[0].Interrupt = devCtx->WdfInterrupt;
 
