@@ -95,12 +95,7 @@ BOOLEAN VioGpuDisplayController::CustomMode(_In_ ULONG xres, _In_ ULONG yres, _I
     // Checked before the sizes are narrowed to the mode's 16 bits.
     if (!m_pAdapter->ModeFits(width, height))
     {
-        DbgPrint(TRACE_LEVEL_FATAL,
-                 ("%s: (%dx%d) is more than the driver can back (8192x8192, 64 MiB, segment %d bytes)\n",
-                  __FUNCTION__,
-                  width,
-                  height,
-                  (ULONG)m_pAdapter->GetFrameSegmentSize()));
+        DbgPrint(TRACE_LEVEL_FATAL, ("%s: (%dx%d) is wider or taller than 8192\n", __FUNCTION__, width, height));
         return FALSE;
     }
     pMode->XResolution = (USHORT)width;
@@ -384,7 +379,8 @@ NTSTATUS VioGpuDisplayController::ShowFrameBuffer(VioGpuObj *pObj, UINT ScanoutI
 }
 
 // Makes a Width x Height frame buffer and shows it on a scanout. *ppObj receives it; on failure what was made of it
-// is released. The frame buffer segment backs it (VioGpuAdapter::HWInit).
+// is released. BAR 0 backs it when the driver is told to use it and it holds the mode; system memory otherwise, and
+// when the BAR cannot be mapped.
 NTSTATUS VioGpuDisplayController::CreateFrameBuffer(UINT ScanoutId, ULONG Width, ULONG Height, _Out_ VioGpuObj **ppObj)
 {
     PAGED_CODE();
@@ -393,14 +389,32 @@ NTSTATUS VioGpuDisplayController::CreateFrameBuffer(UINT ScanoutId, ULONG Width,
     *ppObj = NULL;
     if (!m_pAdapter->ModeFits(Width, Height))
     {
-        DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s %dx%d is more than the driver can back\n", __FUNCTION__, Width, Height));
+        DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s %dx%d is wider or taller than 8192\n", __FUNCTION__, Width, Height));
         return STATUS_INVALID_PARAMETER;
     }
     UINT size = Width * 4 * Height;
     UINT format = ColorFormat(VIOGPU_FRAMEBUFFER_FORMAT);
     VioGpuObj *pObj = NULL;
-    VioGpuMemSegment *pSegment = m_pAdapter->GetFrameSegment();
-    NTSTATUS status = m_pAdapter->GetResources()->Create(size, pSegment, format, Width, Height, &pObj);
+    NTSTATUS status = STATUS_INSUFFICIENT_RESOURCES;
+    PHYSICAL_ADDRESS bar = m_pAdapter->GetPciResources()->GetPciBar(0)->GetPA();
+    if (m_pAdapter->GetVioGpu()->IsUsePhysicalMemory() && bar.QuadPart != 0 &&
+        size <= m_pAdapter->GetPciResources()->GetPciBar(0)->GetSize())
+    {
+        status = m_pAdapter->GetResources()->Create(size, &bar, format, Width, Height, &pObj);
+        if (status == STATUS_INSUFFICIENT_RESOURCES)
+        {
+            DbgPrint(TRACE_LEVEL_WARNING,
+                     ("%s scanout %d: BAR 0 not usable for %dx%d: system memory instead\n",
+                      __FUNCTION__,
+                      ScanoutId,
+                      Width,
+                      Height));
+        }
+    }
+    if (status == STATUS_INSUFFICIENT_RESOURCES)
+    {
+        status = m_pAdapter->GetResources()->Create(size, NULL, format, Width, Height, &pObj);
+    }
     if (!NT_SUCCESS(status))
     {
         return status;

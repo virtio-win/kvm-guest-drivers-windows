@@ -2629,7 +2629,6 @@ void VioGpuAdapter::Shutdown(void)
     DestroyCursor();
     VioGpuAdapterClose();
     StopComponents();
-    HWClose();
 }
 
 // Starts the components, in list order. When one fails, those started before it are stopped.
@@ -2965,74 +2964,22 @@ NTSTATUS VioGpuAdapter::HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMAT
 
     InitDisplay(pDispInfo);
 
+    // BAR 0, where the firmware's frame buffer is, recorded in the current mode. Frame buffers get their own pages, or
+    // BAR 0's with UsePhysicalMemory (CreateFrameBuffer).
     PHYSICAL_ADDRESS fb_pa = m_PciResources.GetPciBar(0)->GetPA();
-    UINT fb_size = (UINT)m_PciResources.GetPciBar(0)->GetSize();
-    UINT req_size = pDispInfo->Pitch * pDispInfo->Height;
-    req_size = max(req_size, 0x1000000);
-
-    VIOGPU_DISP_MODE modes[VIOGPU_MAX_MODES + 1];
-    ULONG count = m_Controller.GetModes(0, modes);
-    UINT max_res_size = MIN_WIDTH_SIZE * MIN_HEIGHT_SIZE;
-    for (ULONG idx = 0; idx < count; idx++)
-    {
-        UINT res_size = modes[idx].XResolution * modes[idx].YResolution;
-        max_res_size = max(max_res_size, res_size);
-    }
-
-    req_size = max(req_size, (max_res_size * 4));
-
     if (fb_pa.QuadPart != 0LL)
     {
         pDispInfo->PhysicAddress = fb_pa;
     }
 
-    if (fb_size < req_size)
-    {
-        m_pVioGpuDod->SetUsePhysicalMemory(FALSE);
-    }
-
-    if (!m_pVioGpuDod->IsUsePhysicalMemory() || fb_pa.QuadPart == 0 || fb_size < req_size)
-    {
-        fb_pa.QuadPart = 0LL;
-        fb_size = max(req_size, fb_size);
-    }
-
-    if (!m_FrameSegment.Init(fb_size, &fb_pa))
-    {
-        DbgPrint(TRACE_LEVEL_FATAL, ("%s failed to allocate FB memory segment\n", __FUNCTION__));
-        status = STATUS_INSUFFICIENT_RESOURCES;
-        VioGpuDbgBreak();
-        return status;
-    }
-
-    if (!m_CursorSegment.Init(POINTER_SIZE * POINTER_SIZE * 4, NULL))
-    {
-        DbgPrint(TRACE_LEVEL_FATAL, ("%s failed to allocate Cursor memory segment\n", __FUNCTION__));
-        status = STATUS_INSUFFICIENT_RESOURCES;
-        VioGpuDbgBreak();
-        return status;
-    }
-
-    // The components start once the mode table and the segments exist.
+    // The components start once the display is set up. A change the host signals before, and a re-read InitDisplays
+    // posts, wait for the config-change thread in m_WorkPosted.
     status = StartComponents();
     if (NT_SUCCESS(status))
     {
         OpenComponents();
     }
     return status;
-}
-
-NTSTATUS VioGpuAdapter::HWClose(void)
-{
-    PAGED_CODE();
-    DbgPrint(TRACE_LEVEL_INFORMATION, ("---> %s\n", __FUNCTION__));
-
-    m_FrameSegment.Close();
-    m_CursorSegment.Close();
-
-    DbgPrint(TRACE_LEVEL_INFORMATION, ("<--- %s\n", __FUNCTION__));
-
-    return STATUS_SUCCESS;
 }
 
 NTSTATUS VioGpuAdapter::SetPointerShape(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape,
@@ -3275,15 +3222,13 @@ void VioGpuAdapter::ClearConfigEvents(UINT32 Events)
     virtio_set_config(&m_VioDev, FIELD_OFFSET(GPU_CONFIG, events_clear), &Events, sizeof(Events));
 }
 
-// A mode the driver can back: no larger than 8192x8192, no more than the 64 MiB one ATTACH_BACKING can carry, and,
-// once the frame buffer segment exists, no more than the segment holds.
+// A mode the driver offers and accepts: no larger than 8192x8192, the limit Linux's virtio-gpu driver uses too. Its
+// pages are allocated when it is set, and the set fails when they cannot be (VioGpuMemSegment::Init).
 BOOLEAN VioGpuAdapter::ModeFits(ULONG Width, ULONG Height)
 {
     PAGED_CODE();
 
-    SIZE_T segment = m_FrameSegment.GetSize();
-    return Width <= MAX_WIDTH_SIZE && Height <= MAX_HEIGHT_SIZE && MODE_FITS_BACKING(Width, Height) &&
-           (segment == 0 || (ULONGLONG)Width * Height * 4 <= segment);
+    return Width <= MAX_WIDTH_SIZE && Height <= MAX_HEIGHT_SIZE;
 }
 
 // Sets up the display at start, before the config-change thread runs: the firmware's frame buffer as dxgkrnl knows it,
@@ -3342,7 +3287,7 @@ void VioGpuAdapter::VioGpuAdapterClose()
             virtio_device_shutdown(&m_VioDev);
         }
     }
-    // After the reset the host no longer has the resources of the objects whose release got no answer.
+    // After the reset the host no longer uses the pages of the objects whose release got no answer.
     if (!m_bDeviceOpen && KeGetCurrentIrql() <= APC_LEVEL)
     {
         m_Resources.FreeReleased();
@@ -3588,7 +3533,7 @@ BOOLEAN VioGpuAdapter::CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPoin
     size = POINTER_SIZE * POINTER_SIZE * 4;
     format = ColorFormat(D3DDDIFMT_A8R8G8B8);
     DbgPrint(TRACE_LEVEL_INFORMATION, ("---> %s - (%x -> %x)\n", __FUNCTION__, D3DDDIFMT_A8R8G8B8, format));
-    if (!NT_SUCCESS(m_Resources.Create(size, &m_CursorSegment, format, POINTER_SIZE, POINTER_SIZE, &obj)))
+    if (!NT_SUCCESS(m_Resources.Create(size, NULL, format, POINTER_SIZE, POINTER_SIZE, &obj)))
     {
         VioGpuDbgBreak();
         return FALSE;

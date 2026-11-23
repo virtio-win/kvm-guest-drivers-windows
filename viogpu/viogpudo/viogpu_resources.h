@@ -33,9 +33,9 @@
 #include "viogpu_idr.h"
 
 // The host's resources and the guest pages behind them. Each resource gets an ID never used before (VioGpuIdr) and an
-// object over the pages of a segment the adapter keeps (VioGpuObj), and is released in order: the host detaches the
-// pages and drops the resource before the object goes. An object whose release got no answer waits for the device
-// reset, after which the host no longer has the resource (FreeReleased).
+// object with pages of its own (VioGpuObj), and is released in order: the host detaches the pages and drops the
+// resource before the pages are freed. An object whose release got no answer waits for the device reset, after which
+// the host no longer uses its pages (FreeReleased).
 class VioGpuResources
 {
   public:
@@ -45,7 +45,7 @@ class VioGpuResources
         m_pCommands = pCommands;
         m_Idr.Init(1);
     }
-    NTSTATUS Create(UINT size, VioGpuMemSegment *pSegment, UINT format, UINT Width, UINT Height, VioGpuObj **ppObj);
+    NTSTATUS Create(UINT size, PPHYSICAL_ADDRESS pBar, UINT format, UINT Width, UINT Height, VioGpuObj **ppObj);
     void Release(VioGpuObj *pObj);
     void Park(VioGpuObj *pObj);
     void FreeReleased(void);
@@ -53,6 +53,6 @@ class VioGpuResources
   private:
     VioGpuCommands *m_pCommands;
     VioGpuIdr m_Idr;
-    // Objects whose release got no answer: they wait for the device reset (FreeReleased).
+    // Objects whose release got no answer: their pages wait for the device reset (FreeReleased).
     VioGpuObj *volatile m_pReleased;
 };

@@ -103,7 +103,6 @@ class VioGpuAdapter : IVioGpuPCI
     VOID NotifyResolutionEvent(VOID);
     NTSTATUS SetPowerState(DXGK_DEVICE_INFO *pDeviceInfo, DEVICE_POWER_STATE DevicePowerState);
     NTSTATUS HWInit(PCM_RESOURCE_LIST pResList, DXGK_DISPLAY_INFORMATION *pDispInfo);
-    NTSTATUS HWClose(void);
     BOOLEAN InterruptRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface, _In_ ULONG MessageNumber);
     VOID DpcRoutine(_In_ PDXGKRNL_INTERFACE pDxgkInterface);
     VOID ResetDevice(VOID);
@@ -135,15 +134,6 @@ class VioGpuAdapter : IVioGpuPCI
     PHYSICAL_ADDRESS GetFrameBufferPA(void)
     {
         return m_PciResources.GetPciBar(0)->GetPA();
-    }
-    // The segment that backs the frame buffer (HWInit).
-    VioGpuMemSegment *GetFrameSegment(void)
-    {
-        return &m_FrameSegment;
-    }
-    SIZE_T GetFrameSegmentSize(void)
-    {
-        return m_FrameSegment.GetSize();
     }
     PDXGKRNL_INTERFACE GetDxgkInterface(void);
 
@@ -203,8 +193,6 @@ class VioGpuAdapter : IVioGpuPCI
     // Hot spot of the current shape, replayed by the UPDATE_CURSOR that re-attaches the sprite after a hide.
     UINT m_CursorHotX;
     UINT m_CursorHotY;
-    VioGpuMemSegment m_CursorSegment;
-    VioGpuMemSegment m_FrameSegment;
     volatile ULONG m_PendingWorks;
     // The ISR and the DPC use the device and the queues only while this is set. It changes only in
     // SwitchInterrupts, under the interrupt lock of each message whenever one can be taken, so an ISR never touches a

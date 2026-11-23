@@ -288,11 +288,7 @@ void VioGpuHostDisplays::AddMode(PVIOGPU_DISPLAY pDisplay, USHORT xres, USHORT y
     if (!m_pAdapter->ModeFits(xres, yres))
     {
         DbgPrint(TRACE_LEVEL_WARNING,
-                 ("%s: (%dx%d) is more than the driver can back (segment %d bytes), not taken\n",
-                  __FUNCTION__,
-                  xres,
-                  yres,
-                  (ULONG)m_pAdapter->GetFrameSegmentSize()));
+                 ("%s: (%dx%d) is wider or taller than 8192, not taken\n", __FUNCTION__, xres, yres));
         return;
     }
     for (ULONG idx = 0; idx < pDisplay->ModeCount; idx++)
@@ -402,12 +398,6 @@ void VioGpuHostDisplays::InitDisplays(void)
             pController->CustomMode(pVioGpuDod->GetPersistentDispMode0Width(),
                                     pVioGpuDod->GetPersistentDispMode0Height(),
                                     &pAssumed->Custom);
-        }
-        // The frame buffer segment is sized from the modes offered now: a disabled scanout's EDID is read too, for the
-        // display that connects later.
-        if (read && !m_Next[ScanoutId].Connected && ReadEdid(ScanoutId, pAssumed))
-        {
-            BuildModes(pAssumed);
         }
         pController->Assume(ScanoutId, pAssumed);
         if (read)

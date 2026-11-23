@@ -118,6 +118,8 @@ class VioGpuMemSegment
   public:
     VioGpuMemSegment(void);
     ~VioGpuMemSegment(void);
+    VioGpuMemSegment(const VioGpuMemSegment &) = delete;
+    VioGpuMemSegment &operator=(const VioGpuMemSegment &) = delete;
     SIZE_T GetSize(void)
     {
         return m_Size;
@@ -126,19 +128,15 @@ class VioGpuMemSegment
     {
         return m_pVAddr;
     }
-    PHYSICAL_ADDRESS GetPhysicalAddress(void);
     PSCATTER_GATHER_LIST GetSGList(void)
     {
         return m_pSGList;
     }
     BOOLEAN Init(_In_ UINT size, _In_opt_ PPHYSICAL_ADDRESS pPAddr);
-    BOOLEAN IsSystemMemory(void)
-    {
-        return m_bSystemMemory;
-    }
-    void Close(void);
 
   private:
+    void Close(void);
+
     BOOLEAN m_bSystemMemory;
     BOOLEAN m_bMapped;
     PSCATTER_GATHER_LIST m_pSGList;
@@ -147,14 +145,14 @@ class VioGpuMemSegment
     SIZE_T m_Size;
 };
 
-// A host resource and the guest pages that back it: the start of a segment the adapter keeps (VioGpuAdapter::HWInit).
-// The driver deletes an object only once the host has let go of the resource (VioGpuResources::Release), and only at
+// A host resource and the guest pages that back it. The pages are the object's own and go with it, unless they are
+// BAR 0's: the driver deletes an object only once the host no longer uses them (VioGpuResources::Release), and only at
 // or below APC_LEVEL.
 class VioGpuResources;
 
 class VioGpuObj
 {
-    // Only it makes, links and deletes objects, in the order Release keeps.
+    // Only it makes, links and deletes objects: the pages go in the order Release keeps.
     friend class VioGpuResources;
 
   public:
@@ -166,15 +164,15 @@ class VioGpuObj
     }
     SIZE_T GetSize(void)
     {
-        return m_Size;
+        return m_Segment.GetSize();
     }
     PSCATTER_GATHER_LIST GetSGList(void)
     {
-        return m_pSegment ? m_pSegment->GetSGList() : NULL;
+        return m_Segment.GetSGList();
     }
     PVOID GetVirtualAddress(void)
     {
-        return m_pSegment ? m_pSegment->GetVirtualAddress() : NULL;
+        return m_Segment.GetVirtualAddress();
     }
 
   private:
@@ -186,9 +184,9 @@ class VioGpuObj
         ASSERT(m_uiHwRes == 0 && id != 0);
         m_uiHwRes = id;
     }
-    // Takes size bytes from the start of the segment, which must hold them.
-    BOOLEAN Init(_In_ UINT size, _In_ VioGpuMemSegment *pSegment);
-    // The next object on the resource manager's list of objects that wait for the device reset.
+    // Allocates size bytes of backing, or maps them from the start of the BAR at *pBar when that is not 0.
+    BOOLEAN Init(_In_ UINT size, _In_opt_ PPHYSICAL_ADDRESS pBar);
+    // The next object on the resource manager's list of objects whose pages wait for the device reset.
     VioGpuObj *GetNextReleased(void)
     {
         return m_pNextReleased;
@@ -200,8 +198,7 @@ class VioGpuObj
 
   private:
     UINT m_uiHwRes;
-    SIZE_T m_Size;
-    VioGpuMemSegment *m_pSegment;
+    VioGpuMemSegment m_Segment;
     VioGpuObj *m_pNextReleased;
 };
 

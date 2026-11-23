@@ -77,13 +77,9 @@ extern "C"
 
 #define MIN_WIDTH_SIZE                     640
 #define MIN_HEIGHT_SIZE                    480
-// The largest mode taken from a display's EDID, in each dimension; Linux's virtio-gpu driver uses the same.
+// The largest mode the driver offers or sets, in each dimension (ModeFits); Linux's virtio-gpu driver uses the same.
 #define MAX_WIDTH_SIZE                     8192
 #define MAX_HEIGHT_SIZE                    8192
-// The driver backs the frame buffer with the whole segment, which holds at least the largest mode, in one
-// ATTACH_BACKING of one entry per page, and QEMU takes at most 16384 entries: no mode may need more than 64 MiB at 32
-// bits per pixel. The segment is also at least BAR 0's size: a BAR 0 over 64 MiB exceeds the limit whatever the modes.
-#define MODE_FITS_BACKING(x, y)            ((ULONGLONG)(x) * (y)*4 <= 16384ULL * PAGE_SIZE)
 
 #define NOM_WIDTH_SIZE                     1024
 #define NOM_HEIGHT_SIZE                    768

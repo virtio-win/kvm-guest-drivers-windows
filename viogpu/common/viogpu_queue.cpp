@@ -957,6 +957,13 @@ VioGpuMemSegment::~VioGpuMemSegment(void)
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
+// The most entries one ATTACH_BACKING may carry: QEMU refuses more (virtio_gpu_create_mapping_iov).
+#define VIOGPU_MAX_BACKING_ENTRIES 16384
+
+// Allocates size bytes, rounded up to whole chunks, or maps them, rounded up to whole pages, from *pPAddr when that is
+// not 0. Allocated memory comes in physically contiguous chunks: 2 MiB when memory allows, else 64 KiB, else single
+// pages, a chunk being no larger than the allocation. The scatter-gather list, one element per contiguous run, stays
+// short: a frame buffer is attached whole, in one ATTACH_BACKING.
 BOOLEAN VioGpuMemSegment::Init(_In_ UINT size, _In_opt_ PPHYSICAL_ADDRESS pPAddr)
 {
     PAGED_CODE();
@@ -964,131 +971,168 @@ BOOLEAN VioGpuMemSegment::Init(_In_ UINT size, _In_opt_ PPHYSICAL_ADDRESS pPAddr
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
     ASSERT(size);
-    PVOID buf = NULL;
-    UINT pages = BYTES_TO_PAGES(size);
-    UINT sglsize = sizeof(SCATTER_GATHER_LIST) + (sizeof(SCATTER_GATHER_ELEMENT) * pages);
-    size = pages * PAGE_SIZE;
-
-    if ((pPAddr == NULL) || pPAddr->QuadPart == 0LL)
+    if (m_pSGList != NULL || m_pMdl != NULL || m_pVAddr != NULL)
     {
-        m_pVAddr = new (NonPagedPoolNx) BYTE[size];
-
-        if (!m_pVAddr)
-        {
-            DbgPrint(TRACE_LEVEL_FATAL, ("%s insufficient resources to allocate %x bytes\n", __FUNCTION__, size));
-            return FALSE;
-        }
-        RtlZeroMemory(m_pVAddr, size);
-        m_bSystemMemory = TRUE;
+        DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s the segment is set up already\n", __FUNCTION__));
+        ASSERT(FALSE);
+        return FALSE;
     }
-    else
+    SIZE_T bytes = ROUND_TO_PAGES(size);
+
+    if (pPAddr != NULL && pPAddr->QuadPart != 0LL)
     {
-        NTSTATUS Status = MapFrameBuffer(*pPAddr, size, &m_pVAddr);
+        NTSTATUS Status = MapFrameBuffer(*pPAddr, (ULONG)bytes, &m_pVAddr);
         if (!NT_SUCCESS(Status))
         {
             DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s MapFrameBuffer failed with Status: 0x%X\n", __FUNCTION__, Status));
             return FALSE;
         }
         m_bMapped = TRUE;
-    }
-
-    m_pMdl = IoAllocateMdl(m_pVAddr, size, FALSE, FALSE, NULL);
-    if (!m_pMdl)
-    {
-        DbgPrint(TRACE_LEVEL_FATAL, ("%s insufficient resources to allocate MDLs\n", __FUNCTION__));
-        return FALSE;
-    }
-    if (m_bSystemMemory == TRUE)
-    {
-        __try
+        m_Size = bytes;
+        SIZE_T sglsize = sizeof(SCATTER_GATHER_LIST) + sizeof(SCATTER_GATHER_ELEMENT);
+        m_pSGList = reinterpret_cast<PSCATTER_GATHER_LIST>(new (NonPagedPoolNx) BYTE[sglsize]);
+        if (m_pSGList == NULL)
         {
-            MmProbeAndLockPages(m_pMdl, KernelMode, IoWriteAccess);
-        }
-#pragma prefast(suppress : __WARNING_EXCEPTIONEXECUTEHANDLER, "try/except is only able to protect against user-mode errors and these are the only errors we try to catch here");
-        __except (EXCEPTION_EXECUTE_HANDLER)
-        {
-            DbgPrint(TRACE_LEVEL_FATAL, ("%s Failed to lock pages with error %x\n", __FUNCTION__, GetExceptionCode()));
-            IoFreeMdl(m_pMdl);
+            DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s no memory for the scatter-gather list\n", __FUNCTION__));
+            Close();
             return FALSE;
         }
+        RtlZeroMemory(m_pSGList, sglsize);
+        // A BAR is physically contiguous.
+        m_pSGList->NumberOfElements = 1;
+        m_pSGList->Elements[0].Address = *pPAddr;
+        m_pSGList->Elements[0].Length = (ULONG)bytes;
+        DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+        return TRUE;
     }
-    m_pSGList = reinterpret_cast<PSCATTER_GATHER_LIST>(new (NonPagedPoolNx) BYTE[sglsize]);
-    m_pSGList->NumberOfElements = 0;
-    m_pSGList->Reserved = 0;
-    //       m_pSAddr = reinterpret_cast<BYTE*>
-    //    (MmGetSystemAddressForMdlSafe(m_pMdl, NormalPagePriority | MdlMappingNoExecute));
 
-    RtlZeroMemory(m_pSGList, sglsize);
-    buf = PAGE_ALIGN(m_pVAddr);
-
-    for (UINT i = 0; i < pages; ++i)
+    static const SIZE_T Chunks[] = {2 * 1024 * 1024, 64 * 1024, PAGE_SIZE};
+    SIZE_T chunk = PAGE_SIZE;
+    for (ULONG i = 0; i < ARRAYSIZE(Chunks) && m_pMdl == NULL; i++)
     {
-        PHYSICAL_ADDRESS pa = {0};
-        ASSERT(MmIsAddressValid(buf));
-        pa = MmGetPhysicalAddress(buf);
-        if (pa.QuadPart == 0LL)
+        // The chunk is no larger than the allocation needs, since the allocation is rounded up to whole chunks.
+        chunk = Chunks[i];
+        while (chunk > PAGE_SIZE && chunk / 2 >= bytes)
         {
-            DbgPrint(TRACE_LEVEL_FATAL, ("%s Invalid PA buf = %p element %d\n", __FUNCTION__, buf, i));
-            break;
+            chunk /= 2;
         }
-        m_pSGList->Elements[i].Address = pa;
-        m_pSGList->Elements[i].Length = PAGE_SIZE;
-        buf = (PVOID)((LONG_PTR)(buf) + PAGE_SIZE);
-        m_pSGList->NumberOfElements++;
+        SIZE_T total = (bytes + chunk - 1) & ~(chunk - 1);
+        PHYSICAL_ADDRESS low, high, skip;
+        low.QuadPart = 0;
+        high.QuadPart = -1;
+        skip.QuadPart = (chunk > PAGE_SIZE) ? (LONGLONG)chunk : 0;
+        ULONG flags = MM_ALLOCATE_FULLY_REQUIRED | ((chunk > PAGE_SIZE) ? MM_ALLOCATE_REQUIRE_CONTIGUOUS_CHUNKS : 0);
+#if defined(_AMD64_) || defined(_ARM64_)
+        // Large pages only from the cache: building more may take long, and smaller chunks serve as well.
+        if (chunk == 2 * 1024 * 1024)
+        {
+            flags |= MM_ALLOCATE_FAST_LARGE_PAGES;
+        }
+#endif
+        m_pMdl = MmAllocatePagesForMdlEx(low, high, skip, total, MmCached, flags);
+        if (m_pMdl != NULL && MmGetMdlByteCount(m_pMdl) != total)
+        {
+            MmFreePagesFromMdl(m_pMdl);
+            ExFreePool(m_pMdl);
+            m_pMdl = NULL;
+        }
+        if (m_pMdl == NULL && chunk > PAGE_SIZE)
+        {
+            DbgPrint(TRACE_LEVEL_WARNING, ("%s no %Iu-byte chunks for %Iu bytes\n", __FUNCTION__, chunk, bytes));
+        }
     }
-    m_Size = size;
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
+    if (m_pMdl == NULL)
+    {
+        DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s no memory for %Iu bytes\n", __FUNCTION__, bytes));
+        return FALSE;
+    }
+    m_bSystemMemory = TRUE;
+    m_Size = MmGetMdlByteCount(m_pMdl);
+    m_pVAddr = MmMapLockedPagesSpecifyCache(m_pMdl,
+                                            KernelMode,
+                                            MmCached,
+                                            NULL,
+                                            FALSE,
+                                            NormalPagePriority | MdlMappingNoExecute);
+    if (m_pVAddr == NULL)
+    {
+        DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s cannot map %Iu bytes\n", __FUNCTION__, m_Size));
+        Close();
+        return FALSE;
+    }
 
+    PPFN_NUMBER pfn = MmGetMdlPfnArray(m_pMdl);
+    ULONG pages = (ULONG)(m_Size >> PAGE_SHIFT);
+    ULONG runs = 0;
+    for (ULONG i = 0; i < pages; i++)
+    {
+        if (i == 0 || pfn[i] != pfn[i - 1] + 1)
+        {
+            runs++;
+        }
+    }
+    if (runs > VIOGPU_MAX_BACKING_ENTRIES)
+    {
+        DbgPrint(TRACE_LEVEL_FATAL,
+                 ("<--- %s %Iu bytes in chunks of %Iu are %d runs, more than one ATTACH_BACKING takes\n",
+                  __FUNCTION__,
+                  m_Size,
+                  chunk,
+                  runs));
+        Close();
+        return FALSE;
+    }
+    SIZE_T sglsize = sizeof(SCATTER_GATHER_LIST) + sizeof(SCATTER_GATHER_ELEMENT) * runs;
+    m_pSGList = reinterpret_cast<PSCATTER_GATHER_LIST>(new (NonPagedPoolNx) BYTE[sglsize]);
+    if (m_pSGList == NULL)
+    {
+        DbgPrint(TRACE_LEVEL_FATAL, ("<--- %s no memory for the scatter-gather list\n", __FUNCTION__));
+        Close();
+        return FALSE;
+    }
+    RtlZeroMemory(m_pSGList, sglsize);
+    for (ULONG i = 0; i < pages; i++)
+    {
+        if (i == 0 || pfn[i] != pfn[i - 1] + 1)
+        {
+            m_pSGList->Elements[m_pSGList->NumberOfElements].Address.QuadPart = (LONGLONG)pfn[i] << PAGE_SHIFT;
+            m_pSGList->NumberOfElements++;
+        }
+        m_pSGList->Elements[m_pSGList->NumberOfElements - 1].Length += PAGE_SIZE;
+    }
+    DbgPrint(TRACE_LEVEL_INFORMATION,
+             ("<--- %s %Iu bytes in %d run(s), chunks of %Iu\n", __FUNCTION__, m_Size, runs, chunk));
     return TRUE;
 }
 
-PHYSICAL_ADDRESS VioGpuMemSegment::GetPhysicalAddress(void)
-{
-    PAGED_CODE();
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
-
-    PHYSICAL_ADDRESS pa = {0};
-    if (m_pVAddr && MmIsAddressValid(m_pVAddr))
-    {
-        pa = MmGetPhysicalAddress(m_pVAddr);
-    }
-
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
-
-    return pa;
-}
-
+// Frees or unmaps what Init set up. A segment closed before holds nothing.
 void VioGpuMemSegment::Close(void)
 {
     PAGED_CODE();
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
-    if (m_pMdl)
-    {
-        if (m_bSystemMemory)
-        {
-            MmUnlockPages(m_pMdl);
-        }
-        IoFreeMdl(m_pMdl);
-        m_pMdl = NULL;
-    }
-
     if (m_bSystemMemory)
     {
-        delete[] reinterpret_cast<PBYTE>(m_pVAddr);
-    }
-    else
-    {
-        // A segment closed before has nothing mapped: UnmapFrameBuffer would report (NULL, m_Size) as an error.
         if (m_pVAddr != NULL)
         {
-            UnmapFrameBuffer(m_pVAddr, (ULONG)m_Size);
+            MmUnmapLockedPages(m_pVAddr, m_pMdl);
         }
-        m_bMapped = FALSE;
+        if (m_pMdl != NULL)
+        {
+            MmFreePagesFromMdl(m_pMdl);
+            ExFreePool(m_pMdl);
+        }
     }
+    else if (m_bMapped && m_pVAddr != NULL)
+    {
+        UnmapFrameBuffer(m_pVAddr, (ULONG)m_Size);
+    }
+    m_pMdl = NULL;
     m_pVAddr = NULL;
+    m_bSystemMemory = FALSE;
+    m_bMapped = FALSE;
+    m_Size = 0;
 
     delete[] reinterpret_cast<PBYTE>(m_pSGList);
     m_pSGList = NULL;
@@ -1103,14 +1147,12 @@ VioGpuObj::VioGpuObj(void)
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
     m_uiHwRes = 0;
-    m_pSegment = NULL;
-    m_Size = 0;
     m_pNextReleased = NULL;
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
-// The segment and its pages stay: the adapter keeps them (VioGpuAdapter::HWClose).
+// Frees the pages with the segment, only once the host no longer uses them: the bugcheck flow never deletes an object.
 VioGpuObj::~VioGpuObj(void)
 {
     PAGED_CODE();
@@ -1120,26 +1162,14 @@ VioGpuObj::~VioGpuObj(void)
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
 
-BOOLEAN VioGpuObj::Init(_In_ UINT size, _In_ VioGpuMemSegment *pSegment)
+BOOLEAN VioGpuObj::Init(_In_ UINT size, _In_opt_ PPHYSICAL_ADDRESS pBar)
 {
     PAGED_CODE();
 
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s requested size = %d\n", __FUNCTION__, size));
 
     ASSERT(size);
-    ASSERT(pSegment);
-    UINT pages = BYTES_TO_PAGES(size);
-    size = pages * PAGE_SIZE;
-    if (size > pSegment->GetSize())
-    {
-        DbgPrint(TRACE_LEVEL_FATAL,
-                 ("<--- %s segment size too small = %Iu (%u)\n", __FUNCTION__, pSegment->GetSize(), size));
-        return FALSE;
-    }
-    m_pSegment = pSegment;
-    m_Size = size;
-    DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s size = %Iu\n", __FUNCTION__, m_Size));
-    return TRUE;
+    return m_Segment.Init(size, pBar);
 }
 
 PAGED_CODE_SEG_END
