@@ -10,6 +10,38 @@
 
 static BOOLEAN DmaWriteCallback(PVIRTIO_DMA_TRANSACTION_PARAMS params);
 
+/* OutVqLock protects the write's position and its single in-flight batch. */
+static BOOLEAN VIOSerialQueueNextWriteChunkLocked(PVIOSERIAL_PORT Port, PWRITE_BUFFER_ENTRY Entry, BOOLEAN *Notify)
+{
+    struct virtqueue *vq = GetOutQueue(Port);
+    ULONG remaining = Entry->NumElements - Entry->NextElement;
+    ULONG count = min(remaining, min(QUEUE_DESCRIPTORS, virtio_get_queue_size(vq)));
+    SIZE_T bytes = 0;
+    ULONG i;
+    int ret;
+
+    *Notify = FALSE;
+    if (!count)
+    {
+        return FALSE;
+    }
+    ret = virtqueue_add_buf(vq, Entry->Sg + Entry->NextElement, count, 0, Entry, NULL, 0);
+    if (ret < 0)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "Error adding buffer to queue (ret = %d)\n", ret);
+        return FALSE;
+    }
+
+    for (i = 0; i < count; ++i)
+    {
+        bytes += Entry->Sg[Entry->NextElement + i].length;
+    }
+    Entry->NextElement += count;
+    Entry->InFlightBytes = bytes;
+    *Notify = virtqueue_kick_prepare(vq);
+    return TRUE;
+}
+
 PPORT_BUFFER
 VIOSerialAllocateSinglePageBuffer(IN VirtIODevice *vdev, IN ULONG id)
 {
@@ -81,40 +113,50 @@ DmaWriteCallback(PVIRTIO_DMA_TRANSACTION_PARAMS params)
     NTSTATUS status = STATUS_INSUFFICIENT_RESOURCES;
     PWRITE_BUFFER_ENTRY Entry = params->param2;
     struct virtqueue *vq = GetOutQueue(Port);
-    struct VirtIOBufferDescriptor sg[QUEUE_DESCRIPTORS];
-    int prepared = 0, ret;
     ULONG i = 0;
-    if (!params->sgList || params->sgList->NumberOfElements > QUEUE_DESCRIPTORS)
+    SIZE_T allocationSize;
+    BOOLEAN notify = FALSE;
+    WDFREQUEST request;
+
+    if (!params->sgList || !params->sgList->NumberOfElements ||
+        !NT_SUCCESS(RtlSizeTMult(params->sgList->NumberOfElements, sizeof(*Entry->Sg), &allocationSize)))
     {
         TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "%s sgList problem\n", __FUNCTION__);
         goto error;
     }
-    for (i = 0; i < params->sgList->NumberOfElements; ++i)
+
+    Entry->Sg = ExAllocatePoolUninitialized(NonPagedPool, allocationSize, VIOSERIAL_DRIVER_MEMORY_TAG);
+    if (!Entry->Sg)
     {
-        sg[i].physAddr = params->sgList->Elements[i].Address;
-        sg[i].length = params->sgList->Elements[i].Length;
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "%s failed to allocate sg array\n", __FUNCTION__);
+        goto error;
     }
+    Entry->NumElements = params->sgList->NumberOfElements;
+    for (i = 0; i < Entry->NumElements; ++i)
+    {
+        Entry->Sg[i].physAddr = params->sgList->Elements[i].Address;
+        Entry->Sg[i].length = params->sgList->Elements[i].Length;
+    }
+
     WdfSpinLockAcquire(Port->OutVqLock);
-
-    ret = virtqueue_add_buf(vq, sg, params->sgList->NumberOfElements, 0, Entry, NULL, 0);
-
-    if (ret >= 0)
+    if (Port->Removed)
     {
-        prepared = virtqueue_kick_prepare(vq);
-        PushEntryList(&Port->WriteBuffersList, &Entry->ListEntry);
-        Entry->dmaTransaction = params->transaction;
-    }
-    else
-    {
-        Port->OutVqFull = TRUE;
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "Error adding buffer to queue (ret = %d)\n", ret);
         WdfSpinLockRelease(Port->OutVqLock);
         goto error;
     }
 
+    if (!VIOSerialQueueNextWriteChunkLocked(Port, Entry, &notify))
+    {
+        Port->OutVqFull = TRUE;
+        WdfSpinLockRelease(Port->OutVqLock);
+        goto error;
+    }
+    Port->OutVqFull = FALSE;
+    Entry->dmaTransaction = params->transaction;
+    PushEntryList(&Port->WriteBuffersList, &Entry->ListEntry);
     WdfSpinLockRelease(Port->OutVqLock);
 
-    if (prepared)
+    if (notify)
     {
         // notify can run without the lock held
         virtqueue_notify(vq);
@@ -124,8 +166,27 @@ DmaWriteCallback(PVIRTIO_DMA_TRANSACTION_PARAMS params)
     return TRUE;
 
 error:
+    WdfSpinLockAcquire(Port->OutVqLock);
+    if (Port->CurrentWrite == Entry)
+    {
+        Port->CurrentWrite = NULL;
+    }
+    request = Entry->Request;
+    Entry->Request = NULL;
+    status = Port->Removed           ? STATUS_INVALID_DEVICE_STATE
+             : Entry->StopAfterBatch ? STATUS_CANCELLED
+                                     : STATUS_INSUFFICIENT_RESOURCES;
+    WdfSpinLockRelease(Port->OutVqLock);
+    if (Entry->Sg)
+    {
+        ExFreePoolWithTag(Entry->Sg, VIOSERIAL_DRIVER_MEMORY_TAG);
+    }
     VirtIOWdfDeviceDmaTxComplete(vq->vdev, params->transaction);
-    WdfRequestComplete(Entry->Request, status);
+    if (request)
+    {
+        WdfRequestCompleteWithInformation(request, status, 0);
+    }
+
     WdfObjectDelete(Entry->EntryHandle);
     TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "<-- %s error\n", __FUNCTION__);
     return FALSE;
@@ -210,13 +271,13 @@ VOID VIOSerialProcessInputBuffers(IN PVIOSERIAL_PORT Port)
 
 BOOLEAN VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
 {
-    WDFREQUEST request;
     SINGLE_LIST_ENTRY ReclaimedList = {NULL};
     PSINGLE_LIST_ENTRY iter, last = &ReclaimedList;
     PVOID buffer;
     UINT len;
     struct virtqueue *vq = GetOutQueue(Port);
     BOOLEAN ret;
+    BOOLEAN notify = FALSE;
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_QUEUEING, "--> %s\n", __FUNCTION__);
 
@@ -226,6 +287,7 @@ BOOLEAN VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
     {
         while ((buffer = virtqueue_get_buf(vq, &len)) != NULL)
         {
+            Port->OutVqFull = FALSE;
             iter = &Port->WriteBuffersList;
             while (iter->Next != NULL)
             {
@@ -233,40 +295,80 @@ BOOLEAN VIOSerialReclaimConsumedBuffers(IN PVIOSERIAL_PORT Port)
 
                 if (buffer == entry)
                 {
-                    // remove from WriteBuffersList
-                    iter->Next = entry->ListEntry.Next;
+                    BOOLEAN kick = FALSE;
+                    entry->CompletedBytes += entry->InFlightBytes;
+                    entry->InFlightBytes = 0;
 
-                    // append to ReclaimedList
-                    last->Next = &entry->ListEntry;
-                    last = last->Next;
-                    last->Next = NULL;
+                    if (!Port->Removed && !entry->StopRequested && !entry->StopAfterBatch &&
+                        entry->NextElement < entry->NumElements &&
+                        VIOSerialQueueNextWriteChunkLocked(Port, entry, &kick))
+                    {
+                        notify |= kick;
+                    }
+                    else
+                    {
+                        if (!Port->Removed && !entry->StopRequested && !entry->StopAfterBatch &&
+                            entry->NextElement < entry->NumElements)
+                        {
+                            Port->OutVqFull = TRUE;
+                        }
+                        if (entry->NextElement == entry->NumElements)
+                        {
+                            entry->CompletionStatus = STATUS_SUCCESS;
+                        }
+                        else if (Port->Removed)
+                        {
+                            entry->CompletionStatus = STATUS_INVALID_DEVICE_STATE;
+                        }
+                        else if (entry->StopRequested || entry->StopAfterBatch)
+                        {
+                            entry->CompletionStatus = STATUS_CANCELLED;
+                        }
+                        else
+                        {
+                            entry->CompletionStatus = STATUS_INSUFFICIENT_RESOURCES;
+                        }
+                        if (Port->CurrentWrite == entry)
+                        {
+                            Port->CurrentWrite = NULL;
+                        }
+                        iter->Next = entry->ListEntry.Next;
+                        last->Next = &entry->ListEntry;
+                        last = last->Next;
+                        last->Next = NULL;
+                    }
+                    break;
                 }
                 else
                 {
                     iter = iter->Next;
                 }
             };
-
-            Port->OutVqFull = FALSE;
         }
     }
     ret = Port->OutVqFull;
 
     WdfSpinLockRelease(Port->OutVqLock);
 
+    if (notify)
+    {
+        virtqueue_notify(vq);
+    }
+
     // no need to hold the lock to complete requests and free buffers
     while ((iter = PopEntryList(&ReclaimedList)) != NULL)
     {
         PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter, WRITE_BUFFER_ENTRY, ListEntry);
+        WDFREQUEST request = entry->Request;
 
         if (vq != NULL && entry->dmaTransaction)
         {
             VirtIOWdfDeviceDmaTxComplete(vq->vdev, entry->dmaTransaction);
         }
-        request = entry->Request;
+        ExFreePoolWithTag(entry->Sg, VIOSERIAL_DRIVER_MEMORY_TAG);
         if (request != NULL)
         {
-            WdfRequestCompleteWithInformation(request, STATUS_SUCCESS, WdfRequestGetInformation(request));
+            WdfRequestCompleteWithInformation(request, entry->CompletionStatus, entry->CompletedBytes);
         }
         WdfObjectDelete(entry->EntryHandle);
     };
