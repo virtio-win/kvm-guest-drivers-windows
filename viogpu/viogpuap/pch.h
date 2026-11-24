@@ -11,7 +11,9 @@
 #include <d3dkmthk.h>
 // #include <d3d10umddi.h>
 
+#include <algorithm>
 #include <list>
+#include <vector>
 #include <string>
 
 #include "viogpum.h"

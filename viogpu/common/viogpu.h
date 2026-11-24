@@ -275,59 +275,45 @@ typedef struct virtio_gpu_cmd_get_edid
 } GPU_CMD_GET_EDID, *PGPU_CMD_GET_EDID;
 #pragma pack()
 
-/* VIRTIO_GPU_RESP_OK_EDID */
+/* VIRTIO_GPU_RESP_OK_EDID: the base block and up to seven extensions */
+#define EDID_MAX_SIZE 1024
 #pragma pack(1)
 typedef struct virtio_gpu_resp_edid
 {
     GPU_CTRL_HDR hdr;
     ULONG size;
     ULONG padding;
-    UCHAR edid[1024];
+    UCHAR edid[EDID_MAX_SIZE];
 } GPU_RESP_EDID, *PGPU_RESP_EDID;
 #pragma pack()
 
-#define EDID_V1_BLOCK_SIZE  128
-#define EDID_RAW_BLOCK_SIZE 256
+#define EDID_V1_BLOCK_SIZE 128
 
-#pragma pack(push)
 #pragma pack(1)
-
-typedef struct _FEATURES_SUPPORT
+typedef struct virtio_gpu_config
 {
-    UCHAR DefaultGTF : 1;
-    UCHAR PreferredTimingNode : 1;
-    UCHAR StandardDefaultColorSpace : 1;
-    UCHAR DisplayType : 2;
-    UCHAR ActiveOff : 1;
-    UCHAR Suspend : 1;
-    UCHAR Standby : 1;
-} FEATURES_SUPPORT, *PFEATURES_SUPPORT;
-
-typedef struct _COLOR_CHARACTERISTICS
-{
-    UCHAR GreenYLow : 2;
-    UCHAR GreenXLow : 2;
-    UCHAR RedYLow : 2;
-    UCHAR RedXLow : 2;
-    UCHAR WhiteYLow : 2;
-    UCHAR WhiteXLow : 2;
-    UCHAR BlueYLow : 2;
-    UCHAR BlueXLow : 2;
-    UCHAR RedX;
-    UCHAR RedY;
-    UCHAR GreenX;
-    UCHAR GreenY;
-    UCHAR BlueX;
-    UCHAR BlueY;
-    UCHAR WhiteX;
-    UCHAR WhiteY;
-} COLOR_CHARACTERISTICS, *PCOLOR_CHARACTERISTICS;
-
-#pragma pack(pop)
+    u32 events_read;
+    u32 events_clear;
+    u32 num_scanouts;
+    u32 num_capsets;
+    // Not read: it puts max_cursor_size at its offset.
+    u32 blob_alignment;
+    u32 max_cursor_size;
+} GPU_CONFIG, *PGPU_CONFIG;
+// A proposed feature whose bit the virtio specification has not assigned: the device has a valid max_cursor_size, and
+// a cursor resource may be up to that size in each dimension instead of exactly 64x64. Negotiated only when the
+// registry asks for larger cursors (MaxCursorSize), until the specification assigns the bit: 6 is provisional, as
+// another pending proposal (CREATE_GUEST_HANDLE) claims it too.
+#define VIRTIO_GPU_F_CURSOR_SIZE 6
+#pragma pack()
 
 #define VIRTIO_GPU_F_VIRGL 0
 #define VIRTIO_GPU_F_EDID  1
 
+/* The causes the ISR records for the DPC (m_PendingWorks): the driver's own, not bits of the ISR status register. */
 #define ISR_REASON_DISPLAY 1
 #define ISR_REASON_CURSOR  2
 #define ISR_REASON_CHANGE  4
+
+/* The bit of the ISR status register that reports used buffers in a queue; VIRTIO_PCI_ISR_CONFIG is the other. */
+#define VIOGPU_ISR_QUEUE   0x1

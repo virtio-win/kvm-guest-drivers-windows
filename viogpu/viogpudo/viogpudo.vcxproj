@@ -261,8 +261,15 @@
     <ClCompile Include="..\common\viogpu_idr.cpp" />
     <ClCompile Include="..\common\viogpu_pci.cpp" />
     <ClCompile Include="..\common\viogpu_queue.cpp" />
+    <ClCompile Include="..\common\viogpu_commands.cpp" />
     <ClCompile Include="driver.cpp" />
     <ClCompile Include="viogpudo.cpp" />
+    <ClCompile Include="viogpu_hostdisplays.cpp" />
+    <ClCompile Include="viogpu_display.cpp" />
+    <ClCompile Include="viogpu_resources.cpp" />
+    <ClCompile Include="viogpu_cursor.cpp" />
+    <ClCompile Include="viogpu_vsync.cpp" />
+    <ClCompile Include="viogpu_helper.cpp" />
     <ClCompile Include="..\common\baseobj.cpp" />
     <ClCompile Include="..\common\bitops.cpp" />
   </ItemGroup>

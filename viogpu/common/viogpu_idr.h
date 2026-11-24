@@ -29,26 +29,15 @@
 #pragma once
 #include "helper.h"
 
+// Resource IDs. An ID is not used again until the 32-bit counter wraps, and 0, which is no resource, never: the host
+// may still hold a resource whose RESOURCE_UNREF it has not processed, or never got.
 class VioGpuIdr
 {
   public:
     VioGpuIdr();
-    ~VioGpuIdr();
-    BOOLEAN Init(_In_ ULONG start);
+    void Init(_In_ ULONG start);
     ULONG GetId(VOID);
-    VOID PutId(_In_ ULONG id);
 
   private:
-    VOID Close(VOID);
-
-  private:
-    struct FreeId
-    {
-        LIST_ENTRY list_entry;
-        ULONG id;
-    };
-
-    ULONG m_nextId;
-    KSPIN_LOCK m_lock;
-    LIST_ENTRY m_freeList;
+    volatile LONG m_nextId;
 };

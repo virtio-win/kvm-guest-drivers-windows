@@ -56,10 +56,9 @@ BOOL GpuAdaptersMgr::FindDisplayDevice(PDISPLAY_DEVICE lpDisplayDevice, std::wst
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
-    DWORD index = *adapterIndex;
-    (*adapterIndex)++;
-
-    if (GetDisplayDevice(NULL, index, lpDisplayDevice, 0))
+    // Display devices of other adapters, as an emulated VGA device or a GPU passed through, can come first: skip
+    // them, up to the last display device.
+    while (GetDisplayDevice(NULL, (*adapterIndex)++, lpDisplayDevice, 0))
     {
         if (!name.empty() && !_wcsnicmp(lpDisplayDevice->DeviceID, name.c_str(), name.size()))
         {
@@ -260,10 +259,20 @@ void GpuAdaptersMgr::AddAdapter(const wchar_t *name)
 
     for (Iterator it = Adapters.begin(); it != Adapters.end(); it++)
     {
-        if (_wcsnicmp((*it)->m_DeviceName.c_str(), name, (*it)->m_DeviceName.size()) == 0)
+        // Whole names: a prefix match would take \\.\DISPLAY19 for \\.\DISPLAY1.
+        if (_wcsicmp((*it)->m_DeviceName.c_str(), name) == 0)
         {
-            (*it)->SetStatus(Active);
-            return;
+            if ((*it)->IsReady())
+            {
+                (*it)->SetStatus(Active);
+                return;
+            }
+            // Its setup failed, as when the display went away meanwhile, or the driver could not make its events: it
+            // is set up again.
+            PrintMessage(L"%ws %ws: not set up, set up again\n", __FUNCTIONW__, name);
+            delete *it;
+            Adapters.erase(it);
+            break;
         }
     }
 

@@ -115,6 +115,16 @@ void PipeServer::Close()
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
+    // The server thread waits on the pipe, in ConnectNamedPipe or in a read, and on a synchronous pipe every other
+    // call waits for that one: end it, and the thread with it, first. CancelSynchronousIo ends only a call already
+    // waiting, so it is repeated until the thread ends.
+    if (m_hThread != NULL)
+    {
+        do
+        {
+            ::CancelSynchronousIo(m_hThread);
+        } while (::WaitForSingleObject(m_hThread, 100) == WAIT_TIMEOUT);
+    }
     ::FlushFileBuffers(m_hPipe);
     ::DisconnectNamedPipe(m_hPipe);
     ::CloseHandle(m_hPipe);

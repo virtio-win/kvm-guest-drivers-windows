@@ -150,6 +150,16 @@ VioGpuDodQueryVidPnHWCapability(_In_ CONST HANDLE hAdapter, _Inout_ DXGKARG_QUER
 
 NTSTATUS
 APIENTRY
+VioGpuDodControlInterrupt(_In_ CONST HANDLE hAdapter,
+                          _In_ CONST DXGK_INTERRUPT_TYPE InterruptType,
+                          _In_ BOOLEAN Enable);
+
+NTSTATUS
+APIENTRY
+VioGpuDodGetScanLine(_In_ CONST HANDLE hAdapter, _Inout_ DXGKARG_GETSCANLINE *pGetScanLine);
+
+NTSTATUS
+APIENTRY
 VioGpuDodStopDeviceAndReleasePostDisplayOwnership(_In_ VOID *pDeviceContext,
                                                   _In_ D3DDDI_VIDEO_PRESENT_TARGET_ID TargetId,
                                                   _Out_ DXGK_DISPLAY_INFORMATION *DisplayInfo);

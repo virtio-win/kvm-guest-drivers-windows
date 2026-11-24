@@ -3,7 +3,14 @@
 #define REDHAT_PCI_VENDOR_ID          0x1AF4
 
 #define PORT_MASK                     0xFFFF
+
+// With MSI the device gets one message per cause when Windows grants VIRTIO_GPU_MSIX_VECTORS: configuration changes,
+// then each queue in queue order, a queue's being the control queue's plus the queue's index. With fewer, every cause
+// shares message 0. They are the MessageNumber values of the ISR. Without MSI there is one line, and no vector is set.
 #define VIRTIO_GPU_MSIX_CONFIG_VECTOR 0
+#define VIRTIO_GPU_MSIX_CTRL_VECTOR   1
+#define VIRTIO_GPU_MSIX_CURSOR_VECTOR 2
+#define VIRTIO_GPU_MSIX_VECTORS       3
 
 class CPciBar
 {
@@ -55,7 +62,7 @@ class CPciBar
 class CPciResources
 {
   public:
-    CPciResources() : m_pDxgkInterface(nullptr), m_InterruptFlags(0)
+    CPciResources() : m_pDxgkInterface(nullptr), m_InterruptFlags(0), m_MessageCount(0)
     {
     }
 
@@ -85,6 +92,19 @@ class CPciResources
         return (m_InterruptFlags & CM_RESOURCE_INTERRUPT_MESSAGE);
     }
 
+    // The MSI messages Windows granted: one translated descriptor each with MSI-X, one descriptor with MSI, none with
+    // a line.
+    ULONG GetMessageCount()
+    {
+        return m_MessageCount;
+    }
+
+    // One message per cause (VIRTIO_GPU_MSIX_*_VECTOR), or every cause on message 0.
+    BOOLEAN IsMessagePerCause()
+    {
+        return IsMSIEnabled() && m_MessageCount >= VIRTIO_GPU_MSIX_VECTORS;
+    }
+
     CPciBar *GetPciBar(UINT bar)
     {
         ASSERT(bar < PCI_TYPE0_ADDRESSES);
@@ -100,6 +120,7 @@ class CPciResources
   private:
     PDXGKRNL_INTERFACE m_pDxgkInterface;
     USHORT m_InterruptFlags;
+    ULONG m_MessageCount;
     CPciBar m_Bars[PCI_TYPE0_ADDRESSES];
 };
 

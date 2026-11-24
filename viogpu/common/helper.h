@@ -42,7 +42,8 @@ extern "C"
 
 #include <initguid.h>
 
-#include <ntddk.h>
+// ntifs.h: ntddk.h, plus ZwWaitForSingleObject.
+#include <ntifs.h>
 
 #ifndef FAR
 #define FAR
@@ -68,14 +69,20 @@ extern "C"
 #include "trace.h"
 }
 
-#define MAX_CHILDREN                       1
-#define MAX_VIEWS                          1
+// A virtio-gpu device has up to 16 scanouts; the driver presents a child and a VidPN source for each.
+#define MAX_CHILDREN                       16
+#define MAX_VIEWS                          16
 #define BITS_PER_BYTE                      8
 
+// The side of the square cursor resource, unless MaxCursorSize in the registry asks for larger ones and the device
+// offers them (VIRTIO_GPU_F_CURSOR_SIZE).
 #define POINTER_SIZE                       64
 
 #define MIN_WIDTH_SIZE                     640
 #define MIN_HEIGHT_SIZE                    480
+// The largest mode the driver offers or sets, in each dimension (ModeFits); Linux's virtio-gpu driver uses the same.
+#define MAX_WIDTH_SIZE                     8192
+#define MAX_HEIGHT_SIZE                    8192
 
 #define NOM_WIDTH_SIZE                     1024
 #define NOM_HEIGHT_SIZE                    768

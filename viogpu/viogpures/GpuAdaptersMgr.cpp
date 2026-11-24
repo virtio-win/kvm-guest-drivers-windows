@@ -28,6 +28,7 @@
  */
 
 #include "pch.h"
+#include <stdio.h>
 
 void GpuAdaptersMgr::FindAdapters()
 {
@@ -45,14 +46,31 @@ void GpuAdaptersMgr::FindAdapters()
     }
 }
 
-void GpuAdaptersMgr::SetCustomResolution(USHORT Width, USHORT Height)
+// false, with a line on stderr, when no virtio-gpu display was found, or for each display whose driver refused the
+// size or whose mode could not be set. A display with no active path keeps the size in its driver and counts as set.
+bool GpuAdaptersMgr::SetCustomResolution(USHORT Width, USHORT Height)
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
+    if (Adapters.empty())
+    {
+        fwprintf(stderr, L"No active virtio-gpu display found\n");
+        return false;
+    }
+    bool done = true;
     for (Iterator it = Adapters.begin(); it != Adapters.end(); it++)
     {
-        (*it)->SetCustomResolution(Width, Height);
+        if (!(*it)->SetCustomResolution(Width, Height))
+        {
+            fwprintf(stderr,
+                     L"%ws: %ux%u was not set, see viogpures.log\n",
+                     (*it)->m_DeviceName.c_str(),
+                     Width,
+                     Height);
+            done = false;
+        }
     }
+    return done;
 }
 
 BOOL GpuAdaptersMgr::GetDisplayDevice(LPCTSTR lpDevice, DWORD iDevNum, PDISPLAY_DEVICE lpDisplayDevice, DWORD dwFlags)
@@ -66,10 +84,9 @@ BOOL GpuAdaptersMgr::FindDisplayDevice(PDISPLAY_DEVICE lpDisplayDevice, std::wst
 {
     PrintMessage(L"%ws\n", __FUNCTIONW__);
 
-    DWORD index = *adapterIndex;
-    (*adapterIndex)++;
-
-    if (GetDisplayDevice(NULL, index, lpDisplayDevice, 0))
+    // Display devices of other adapters, as an emulated VGA device or a GPU passed through, can come first: skip
+    // them, up to the last display device.
+    while (GetDisplayDevice(NULL, (*adapterIndex)++, lpDisplayDevice, 0))
     {
         if (!name.empty() && !_wcsnicmp(lpDisplayDevice->DeviceID, name.c_str(), name.size()))
         {
@@ -100,7 +117,8 @@ void GpuAdaptersMgr::AddAdapter(const wchar_t *name)
 
     for (Iterator it = Adapters.begin(); it != Adapters.end(); it++)
     {
-        if (_wcsnicmp((*it)->m_DeviceName.c_str(), name, (*it)->m_DeviceName.size()) == 0)
+        // Whole names: a prefix match would take \\.\DISPLAY19 for \\.\DISPLAY1.
+        if (_wcsicmp((*it)->m_DeviceName.c_str(), name) == 0)
         {
             (*it)->SetStatus(Active);
             return;

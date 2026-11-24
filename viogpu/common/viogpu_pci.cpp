@@ -232,17 +232,15 @@ u16 vdev_get_msix_vector(void *context, int queue)
     IVioGpuPCI *pdev = static_cast<IVioGpuPCI *>(context);
     u16 vector = VIRTIO_MSI_NO_VECTOR;
 
-    if (queue >= 0)
+    // The cursor queue, queue 1, follows the control queue, queue 0.
+    C_ASSERT(VIRTIO_GPU_MSIX_CURSOR_VECTOR == VIRTIO_GPU_MSIX_CTRL_VECTOR + 1);
+    if (pdev->GetPciResources()->IsMessagePerCause())
     {
-        /* queue interrupt */
-        if (pdev->IsMSIEnabled())
-        {
-            vector = (u16)(queue + 1);
-        }
+        vector = (queue >= 0) ? (u16)(VIRTIO_GPU_MSIX_CTRL_VECTOR + queue) : (u16)VIRTIO_GPU_MSIX_CONFIG_VECTOR;
     }
-    else
+    else if (pdev->IsMSIEnabled())
     {
-        vector = VIRTIO_GPU_MSIX_CONFIG_VECTOR;
+        vector = 0;
     }
     return vector;
 }
@@ -407,6 +405,10 @@ bool CPciResources::Init(PDXGKRNL_INTERFACE pDxgkInterface, PCM_RESOURCE_LIST pR
                 case CmResourceTypeInterrupt:
                     {
                         m_InterruptFlags = pResDescriptor->Flags;
+                        if (pResDescriptor->Flags & CM_RESOURCE_INTERRUPT_MESSAGE)
+                        {
+                            m_MessageCount++;
+                        }
                         if (IsMSIEnabled())
                         {
                             DbgPrint(TRACE_LEVEL_FATAL,
@@ -461,6 +463,19 @@ bool CPciResources::Init(PDXGKRNL_INTERFACE pDxgkInterface, PCM_RESOURCE_LIST pR
     {
         DbgPrint(TRACE_LEVEL_FATAL, ("[%s] resource enumeration failed\n", __FUNCTION__));
         return false;
+    }
+    // Fewer messages than causes work, more slowly: logged as a warning.
+    if (IsMessagePerCause())
+    {
+        DbgPrint(TRACE_LEVEL_INFORMATION, ("[%s] %lu MSI messages, one per cause\n", __FUNCTION__, m_MessageCount));
+    }
+    else if (IsMSIEnabled())
+    {
+        DbgPrint(TRACE_LEVEL_WARNING,
+                 ("[%s] %lu MSI message(s), fewer than %d: every cause on message 0\n",
+                  __FUNCTION__,
+                  m_MessageCount,
+                  VIRTIO_GPU_MSIX_VECTORS));
     }
     return true;
 }
