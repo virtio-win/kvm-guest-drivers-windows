@@ -133,6 +133,20 @@ typedef struct _WriteBufferEntry
     PVOID OriginalWriteBuffer;
     SIZE_T OriginalWriteBufferSize;
     WDFDMATRANSACTION dmaTransaction;
+    struct VirtIOBufferDescriptor *Sg;
+    // Total descriptors in the DMA scatter-gather list
+    ULONG NumElements;
+    // Index of the first descriptor not yet submitted to the virtqueue. It advances when a batch is queued
+    ULONG NextElement;
+    // Bytes in the one submitted batch awaiting reclaim.
+    SIZE_T InFlightBytes;
+    // Bytes in batches already reclaimed from the virtqueue. Used for the request's reported byte count
+    SIZE_T CompletedBytes;
+    // Stop detached the request after a batch was queued; send no more batches.
+    BOOLEAN StopRequested;
+    // Stop arrived before the first batch; complete after that batch returns.
+    BOOLEAN StopAfterBatch;
+    NTSTATUS CompletionStatus;
 } WRITE_BUFFER_ENTRY, *PWRITE_BUFFER_ENTRY;
 
 typedef struct _tagVioSerialPort
@@ -160,6 +174,9 @@ typedef struct _tagVioSerialPort
     // Hold a list of allocated buffers which were written to the virt queue
     // and was not returned yet.
     SINGLE_LIST_ENTRY WriteBuffersList;
+    // Port's active WDF write request. It is set before DMA mapping starts
+    // so stop handling can find it before submission
+    PWRITE_BUFFER_ENTRY CurrentWrite;
 
     WDFQUEUE WriteQueue;
     WDFQUEUE IoctlQueue;
@@ -261,7 +278,6 @@ EVT_WDF_IO_QUEUE_IO_WRITE _IRQL_requires_(PASSIVE_LEVEL) VIOSerialPortWrite;
 EVT_WDF_IO_QUEUE_IO_STOP _IRQL_requires_(PASSIVE_LEVEL) VIOSerialPortReadIoStop;
 EVT_WDF_IO_QUEUE_IO_STOP _IRQL_requires_(PASSIVE_LEVEL) VIOSerialPortWriteIoStop;
 EVT_WDF_IO_QUEUE_IO_DEVICE_CONTROL _IRQL_requires_(PASSIVE_LEVEL) VIOSerialPortDeviceControl;
-EVT_WDF_REQUEST_CANCEL VIOSerialPortWriteRequestCancel;
 
 EVT_WDF_DEVICE_FILE_CREATE VIOSerialPortCreate;
 EVT_WDF_FILE_CLOSE VIOSerialPortClose;

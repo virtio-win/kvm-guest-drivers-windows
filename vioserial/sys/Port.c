@@ -420,7 +420,9 @@ VIOSerialDeviceListCreatePdo(IN WDFCHILDLIST DeviceList,
             break;
         }
 
-        WDF_IO_QUEUE_CONFIG_INIT(&queueConfig, WdfIoQueueDispatchParallel);
+        // A write may span multiple virtqueue batches. Dispatch writes one
+        // at a time so their bytes cannot interleave.
+        WDF_IO_QUEUE_CONFIG_INIT(&queueConfig, WdfIoQueueDispatchSequential);
         queueConfig.AllowZeroLengthRequests = WdfFalse;
         queueConfig.EvtIoWrite = VIOSerialPortWrite;
         queueConfig.EvtIoStop = VIOSerialPortWriteIoStop;
@@ -483,6 +485,8 @@ VIOSerialDeviceListCreatePdo(IN WDFCHILDLIST DeviceList,
             TraceEvents(TRACE_LEVEL_ERROR, DBG_PNP, "WdfSpinLockCreate failed 0x%x\n", status);
             break;
         }
+        pport->WriteBuffersList.Next = NULL;
+        pport->CurrentWrite = NULL;
 
     } while (0);
 
@@ -611,30 +615,55 @@ VOID VIOSerialPortWrite(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN size_t Leng
         return;
     }
 
-    /* We make Write request cancellable only after we successfully
-     * started DMA transaction, otherwise it is complicated to discard it
-     */
-
-    WdfRequestSetInformation(Request, (ULONG_PTR)Length);
-
     entry = (PWRITE_BUFFER_ENTRY)WdfMemoryGetBuffer(EntryHandle, NULL);
     entry->EntryHandle = EntryHandle;
     entry->OriginalWriteBuffer = InBuf;
     entry->OriginalWriteBufferSize = Length;
     entry->Request = Request;
     entry->dmaTransaction = NULL;
+    entry->Sg = NULL;
+    entry->NumElements = 0;
+    entry->NextElement = 0;
+    entry->InFlightBytes = 0;
+    entry->CompletedBytes = 0;
+    entry->StopRequested = FALSE;
+    entry->StopAfterBatch = FALSE;
+    entry->CompletionStatus = STATUS_SUCCESS;
+
+    WdfSpinLockAcquire(Port->OutVqLock);
+    if (Port->Removed)
+    {
+        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "Failed to send user's buffer: port removed.\n");
+
+        WdfSpinLockRelease(Port->OutVqLock);
+        WdfObjectDelete(EntryHandle);
+        WdfRequestCompleteWithInformation(Request, STATUS_OBJECT_NO_LONGER_EXISTS, 0);
+        return;
+    }
+    ASSERT(Port->CurrentWrite == NULL);
+    Port->CurrentWrite = entry;
+    WdfSpinLockRelease(Port->OutVqLock);
 
     if (VIOSerialSendBuffers(Port, entry) == 0)
     {
-        TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "Failed to send user's buffer.\n");
+        WDFREQUEST failedRequest;
+        NTSTATUS failureStatus;
 
-        if (entry->dmaTransaction)
+        WdfSpinLockAcquire(Port->OutVqLock);
+        if (Port->CurrentWrite == entry)
         {
-            VirtIOWdfDeviceDmaTxComplete(GetOutQueue(Port)->vdev, entry->dmaTransaction);
+            Port->CurrentWrite = NULL;
         }
+        failedRequest = entry->Request;
+        failureStatus = Port->Removed ? STATUS_INVALID_DEVICE_STATE : STATUS_INSUFFICIENT_RESOURCES;
+        entry->Request = NULL;
+        WdfSpinLockRelease(Port->OutVqLock);
         WdfObjectDelete(EntryHandle);
 
-        WdfRequestComplete(Request, Port->Removed ? STATUS_INVALID_DEVICE_STATE : STATUS_INSUFFICIENT_RESOURCES);
+        if (failedRequest)
+        {
+            WdfRequestCompleteWithInformation(failedRequest, failureStatus, 0);
+        }
     }
 
     TraceEvents(TRACE_LEVEL_VERBOSE, DBG_WRITE, "<-- %s\n", __FUNCTION__);
@@ -657,31 +686,32 @@ VOID VIOSerialPortReadRequestCancel(IN WDFREQUEST Request)
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE, "<-- %s\n", __FUNCTION__);
 }
 
-VOID VIOSerialPortWriteRequestCancel(IN WDFREQUEST Request)
+static BOOLEAN VIOSerialStopWriteRequest(PVIOSERIAL_PORT Port, WDFREQUEST Request, SIZE_T *CompletedBytes)
 {
-    PVIOSERIAL_PORT Port = RawPdoSerialPortGetData(WdfIoQueueGetDevice(WdfRequestGetIoQueue(Request)))->port;
-    PSINGLE_LIST_ENTRY iter;
+    PWRITE_BUFFER_ENTRY entry;
+    BOOLEAN found = FALSE;
 
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE, "--> %s Request: 0x%p\n", __FUNCTION__, Request);
-
-    // synchronize with VIOSerialReclaimConsumedBuffers because the pending
-    // request is not guaranteed to be alive after we return from this callback
+    *CompletedBytes = 0;
     WdfSpinLockAcquire(Port->OutVqLock);
-    iter = &Port->WriteBuffersList;
-    while ((iter = iter->Next) != NULL)
+    entry = Port->CurrentWrite;
+    if (entry != NULL && entry->Request == Request)
     {
-        PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter, WRITE_BUFFER_ENTRY, ListEntry);
-        if (entry->Request == Request)
+        if (entry->NextElement == 0)
+        {
+            entry->StopAfterBatch = TRUE;
+        }
+        else
         {
             entry->Request = NULL;
-            break;
+            entry->StopRequested = TRUE;
+            Port->CurrentWrite = NULL;
+            *CompletedBytes = entry->CompletedBytes;
+            found = TRUE;
         }
     }
     WdfSpinLockRelease(Port->OutVqLock);
 
-    WdfRequestCompleteWithInformation(Request, STATUS_CANCELLED, 0L);
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE, "<-- %s\n", __FUNCTION__);
+    return found;
 }
 
 VOID VIOSerialPortDeviceControl(IN WDFQUEUE Queue,
@@ -1092,6 +1122,8 @@ VIOSerialEvtChildListIdentificationDescriptionDuplicate(WDFCHILDLIST DeviceList,
     dst->PendingReadRequest = src->PendingReadRequest;
     dst->WriteQueue = src->WriteQueue;
     dst->IoctlQueue = src->IoctlQueue;
+    dst->WriteBuffersList.Next = NULL;
+    dst->CurrentWrite = NULL;
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_CREATE_CLOSE, "<-- %s\n", __FUNCTION__);
     return STATUS_SUCCESS;
@@ -1164,103 +1196,29 @@ VOID VIOSerialPortReadIoStop(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN ULONG 
     WdfSpinLockRelease(pport->InBufLock);
 }
 
-static BOOLEAN VIOSerialDetachRequest(IN WDFQUEUE Queue, IN WDFREQUEST Request)
-{
-    PSINGLE_LIST_ENTRY iter = NULL;
-    PRAWPDO_VIOSERIAL_PORT pdoData = RawPdoSerialPortGetData(WdfIoQueueGetDevice(Queue));
-    PVIOSERIAL_PORT pport = pdoData->port;
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE, "--> %s\n", __FUNCTION__);
-
-    WdfSpinLockAcquire(pport->OutVqLock);
-    iter = &pport->WriteBuffersList;
-    while ((iter = iter->Next) != NULL)
-    {
-        PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter, WRITE_BUFFER_ENTRY, ListEntry);
-        if (entry->Request == Request)
-        {
-            entry->Request = NULL;
-            break;
-        }
-    }
-
-    WdfSpinLockRelease(pport->OutVqLock);
-
-    TraceEvents(TRACE_LEVEL_INFORMATION, DBG_WRITE, "<-- %s\n", __FUNCTION__);
-
-    return (iter != NULL);
-}
-
 VOID VIOSerialPortWriteIoStop(IN WDFQUEUE Queue, IN WDFREQUEST Request, IN ULONG ActionFlags)
 {
-    PRAWPDO_VIOSERIAL_PORT pdoData = RawPdoSerialPortGetData(WdfIoQueueGetDevice(Queue));
-    PVIOSERIAL_PORT pport = pdoData->port;
+    SIZE_T completedBytes;
 
     TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "--> %s\n", __FUNCTION__);
 
-    if (ActionFlags & WdfRequestStopRequestCancelable)
+    // Before the first batch, leave the request with the write path. Reclaim
+    // completes it after that batch rather than sending the rest of a large write.
+    if (VIOSerialStopWriteRequest(RawPdoSerialPortGetData(WdfIoQueueGetDevice(Queue))->port, Request, &completedBytes))
     {
-        NTSTATUS status = WdfRequestUnmarkCancelable(Request);
-        __analysis_assume(status != STATUS_NOT_SUPPORTED);
-        if (status == STATUS_CANCELLED)
+        if (completedBytes == 0 && (ActionFlags & WdfRequestStopActionSuspend))
         {
-            WdfRequestStopAcknowledge(Request, FALSE);
-            goto end_io_stop;
-        }
-    }
-
-    if (ActionFlags & WdfRequestStopActionSuspend)
-    {
-        PSINGLE_LIST_ENTRY iter;
-
-        // If the request cannot be found in the WriteBuffersList list,
-        // it was removed from it during DPC processing and gets completed
-        // in a moment, thus, there is no need to acknowledge it here (the framework
-        // will wait for the completion).
-        //
-        // If the request is still in the list, §et us requeue it for next
-        // power up.
-        if (VIOSerialDetachRequest(Queue, Request))
-        {
-            TraceEvents(TRACE_LEVEL_WARNING,
-                        DBG_WRITE,
-                        "Request 0x%p found in the WriteBuffersList list, requeuing\n",
-                        Request);
             WdfRequestStopAcknowledge(Request, TRUE);
         }
         else
         {
-            TraceEvents(TRACE_LEVEL_WARNING,
-                        DBG_WRITE,
-                        "Request 0x%p not found in the WriteBuffersList list, let the framework wait for its "
-                        "completion\n",
-                        Request);
+            NTSTATUS status = (ActionFlags & WdfRequestStopActionPurge) ? STATUS_OBJECT_NO_LONGER_EXISTS
+                                                                        : STATUS_CANCELLED;
+            WdfRequestCompleteWithInformation(Request, status, completedBytes);
         }
     }
-    else if (ActionFlags & WdfRequestStopActionPurge)
-    {
-        PSINGLE_LIST_ENTRY iter;
 
-        WdfSpinLockAcquire(pport->OutVqLock);
-        iter = &pport->WriteBuffersList;
-        while ((iter = iter->Next) != NULL)
-        {
-            PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter, WRITE_BUFFER_ENTRY, ListEntry);
-            if (entry->Request == Request)
-            {
-                entry->Request = NULL;
-                break;
-            }
-        }
-        WdfRequestComplete(Request, STATUS_OBJECT_NO_LONGER_EXISTS);
-        WdfSpinLockRelease(pport->OutVqLock);
-    }
-    else
-    {
-        WdfRequestComplete(Request, STATUS_UNSUCCESSFUL);
-    }
-
-end_io_stop:
+    // Otherwise the write path or reclaim owns completion.
     TraceEvents(TRACE_LEVEL_ERROR, DBG_WRITE, "<-- %s\n", __FUNCTION__);
 }
 
@@ -1319,8 +1277,10 @@ VIOSerialPortEvtDeviceD0Exit(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE Targ
                 Port->PortId,
                 TargetState - WdfPowerDeviceD0);
 
+    WdfSpinLockAcquire(Port->OutVqLock);
     Port->Removed = TRUE;
     Port->HostConnected = FALSE;
+    WdfSpinLockRelease(Port->OutVqLock);
 
     VIOSerialDisableInterruptQueue(GetInQueue(Port));
 
@@ -1344,20 +1304,41 @@ VIOSerialPortEvtDeviceD0Exit(IN WDFDEVICE Device, IN WDF_POWER_DEVICE_STATE Targ
 
     VirtIOWdfDeviceFreeDmaMemoryByTag(GetInQueue(Port)->vdev, Port->DmaGroupTag);
 
-    iter = PopEntryList(&Port->WriteBuffersList);
-    while (iter != NULL)
+    for (;;)
     {
-        PWRITE_BUFFER_ENTRY entry = CONTAINING_RECORD(iter, WRITE_BUFFER_ENTRY, ListEntry);
+        PWRITE_BUFFER_ENTRY entry;
+        WDFREQUEST request;
+        SIZE_T completedBytes;
+
+        WdfSpinLockAcquire(Port->OutVqLock);
+        iter = PopEntryList(&Port->WriteBuffersList);
+        if (iter == NULL)
+        {
+            WdfSpinLockRelease(Port->OutVqLock);
+            break;
+        }
+        entry = CONTAINING_RECORD(iter, WRITE_BUFFER_ENTRY, ListEntry);
+        if (Port->CurrentWrite == entry)
+        {
+            Port->CurrentWrite = NULL;
+        }
+        request = entry->Request;
+        entry->Request = NULL;
+        completedBytes = entry->CompletedBytes;
+        WdfSpinLockRelease(Port->OutVqLock);
 
         if (entry->dmaTransaction)
         {
             VirtIOWdfDeviceDmaTxComplete(GetOutQueue(Port)->vdev, entry->dmaTransaction);
         }
 
+        ExFreePoolWithTag(entry->Sg, VIOSERIAL_DRIVER_MEMORY_TAG);
+        if (request)
+        {
+            WdfRequestCompleteWithInformation(request, STATUS_INVALID_DEVICE_STATE, completedBytes);
+        }
         WdfObjectDelete(entry->EntryHandle);
-
-        iter = PopEntryList(&Port->WriteBuffersList);
-    };
+    }
 
     TraceEvents(TRACE_LEVEL_INFORMATION, DBG_INIT, "<-- %s\n", __FUNCTION__);
 
