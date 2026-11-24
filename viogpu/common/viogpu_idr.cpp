@@ -78,6 +78,11 @@ VOID VioGpuIdr::PutId(_In_ ULONG id)
 {
     DbgPrint(TRACE_LEVEL_VERBOSE, ("[%s] id = %d\n", __FUNCTION__, id));
     FreeId *freeId = new (NonPagedPoolNx) FreeId;
+    if (freeId == NULL)
+    {
+        // The ID is not used again.
+        return;
+    }
     freeId->id = id;
     ExInterlockedInsertTailList(&m_freeList, &freeId->list_entry, &m_lock);
 }
