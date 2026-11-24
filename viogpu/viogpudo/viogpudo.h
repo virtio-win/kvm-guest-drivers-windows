@@ -31,6 +31,8 @@
 
 #include "viogpu.h"
 #include "viogpu_queue.h"
+#include "viogpu_commands.h"
+#include "viogpu_hostdisplays.h"
 
 #pragma pack(push)
 #pragma pack(1)
@@ -38,13 +40,12 @@
 typedef struct
 {
     UINT DriverStarted : 1;
-    UINT HardwareInit : 1;
     UINT PointerEnabled : 1;
     UINT VgaDevice : 1;
     UINT FlexResolution : 1;
     UINT UsePhysicalMemory : 1;
     UINT UsePresentProgress : 1;
-    UINT Unused : 25;
+    UINT Unused : 26;
 } DRIVER_STATUS_FLAG;
 
 #pragma pack(pop)
@@ -72,11 +73,15 @@ typedef struct _CURRENT_MODE
 
 class VioGpuDod;
 
+// The most components an adapter has.
+#define VIOGPU_MAX_COMPONENTS 8
+
 class VioGpuAdapter : IVioGpuPCI
 {
   public:
     VioGpuAdapter(_In_ VioGpuDod *pVioGpuDod);
     ~VioGpuAdapter(void);
+    void Shutdown(void);
     NTSTATUS SetCurrentMode(ULONG Mode, CURRENT_MODE *pCurrentMode);
     ULONG GetModeCount(void)
     {
@@ -115,6 +120,17 @@ class VioGpuAdapter : IVioGpuPCI
     {
         return m_PciResources.IsMSIEnabled();
     }
+    // The interrupt messages whose lock fences the ISR: every MSI message Windows granted, or the line.
+    ULONG GetMessageCount()
+    {
+        return IsMSIEnabled() ? m_PciResources.GetMessageCount() : 1;
+    }
+    // The message whose ISR notifies dxgkrnl, DXGK_DRIVERCAPS.InterruptMessageNumber: the control queue's with one
+    // message per cause, else message 0, which also stands for the line.
+    ULONG GetNotifyMessage()
+    {
+        return m_PciResources.IsMessagePerCause() ? VIRTIO_GPU_MSIX_CTRL_VECTOR : 0;
+    }
     PHYSICAL_ADDRESS GetFrameBufferPA(void)
     {
         return m_PciResources.GetPciBar(0)->GetPA();
@@ -150,7 +166,9 @@ class VioGpuAdapter : IVioGpuPCI
         return m_Id;
     }
     PBYTE GetEdidData(void);
-    PBYTE GetCTA861Data(void);
+    ULONG GetEdidSize(void);
+    // For the config-change thread (VioGpuHostDisplays), while it may use the device.
+    BOOLEAN ConfigChanged(BOOLEAN Reread);
 
   protected:
   private:
@@ -159,27 +177,30 @@ class VioGpuAdapter : IVioGpuPCI
     void VioGpuAdapterClose(void);
     NTSTATUS BuildModeList(DXGK_DISPLAY_INFORMATION *pDispInfo);
     BOOLEAN AckFeature(UINT64 Feature);
-    BOOLEAN GetDisplayInfo(void);
+    BOOLEAN GetDisplayInfo(_Out_opt_ PBOOLEAN pTaken = NULL);
+    static void DisplayInfoLate(_In_opt_ PVOID ctx, _In_ NTSTATUS status);
     int ProcessEdid(void);
     void FixEdid(void);
     BOOLEAN GetEdids(void);
     int AddEdidModes(void);
     BOOLEAN UpdateModes(USHORT xres, USHORT yres, int &cnt);
     NTSTATUS UpdateChildStatus(BOOLEAN connect);
-    void SetCustomDisplay(_In_ USHORT xres, _In_ USHORT yres);
+    BOOLEAN SetCustomDisplay(_In_ ULONG xres, _In_ ULONG yres);
     BOOLEAN CreateFrameBufferObj(PVIDEO_MODE_INFORMATION pModeInfo, CURRENT_MODE *pCurrentMode);
     void DestroyFrameBufferObj(BOOLEAN bReset, BOOLEAN bKeepBuffer);
     BOOLEAN CreateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape, _In_ CONST CURRENT_MODE *pCurrentMode);
     BOOLEAN UpdateCursor(_In_ CONST DXGKARG_SETPOINTERSHAPE *pSetPointerShape, _In_ CONST CURRENT_MODE *pCurrentMode);
     void DestroyCursor(void);
     BOOLEAN GpuObjectAttach(UINT res_id, VioGpuObj *obj);
-    void static ThreadWork(_In_ PVOID Context);
-    void ThreadWorkRoutine(void);
-    void ConfigChanged(void);
+    void UnrefResource(UINT res_id);
     NTSTATUS VirtIoDeviceInit(void);
     VOID CreateResolutionEvent(VOID);
     VOID NotifyResolutionEvent(VOID);
     VOID CloseResolutionEvent(VOID);
+    NTSTATUS StartComponents(void);
+    void OpenComponents(void);
+    void CloseComponents(void);
+    void StopComponents(void);
 
   private:
     VioGpuDod *m_pVioGpuDod;
@@ -188,7 +209,9 @@ class VioGpuAdapter : IVioGpuPCI
     USHORT m_CurrentModeIndex;
     USHORT m_CustomModeIndex;
     ULONG m_Id;
-    BYTE m_EDIDs[EDID_RAW_BLOCK_SIZE];
+    BYTE m_EDIDs[EDID_MAX_SIZE];
+    // The valid part of m_EDIDs (EdidValidSize).
+    ULONG m_EdidSize;
     BOOLEAN m_bEDID;
 
     VirtIODevice m_VioDev;
@@ -197,8 +220,9 @@ class VioGpuAdapter : IVioGpuPCI
     UINT64 m_u64GuestFeatures;
     UINT32 m_u32NumCapsets;
     UINT32 m_u32NumScanouts;
-    CtrlQueue m_CtrlQueue;
-    CrsrQueue m_CursorQueue;
+    VioGpuQueue m_CtrlQueue;
+    VioGpuQueue m_CursorQueue;
+    VioGpuCommands m_Commands;
     VioGpuBuf m_GpuBuf;
     VioGpuIdr m_Idr;
     VioGpuObj *m_pFrameBuf;
@@ -219,9 +243,29 @@ class VioGpuAdapter : IVioGpuPCI
     VioGpuMemSegment m_CursorSegment;
     VioGpuMemSegment m_FrameSegment;
     volatile ULONG m_PendingWorks;
-    KEVENT m_ConfigUpdateEvent;
-    PETHREAD m_pWorkThread;
-    BOOLEAN m_bStopWorkThread;
+    // The ISR and the DPC use the device and the queues only while this is set. It changes only in
+    // SwitchInterrupts, under the interrupt lock of each message whenever one can be taken, so an ISR never touches a
+    // device that is not open yet or whose rings are gone. The DPC reads it without the lock: VioGpuAdapterClose
+    // switches it off before flushing the DPCs, so a DPC that read it set finishes before the rings are deleted.
+    volatile BOOLEAN m_InterruptsOn;
+    // The causes still pending when interrupts were last switched on, which belonged to the open before: logged by
+    // SwitchInterrupts.
+    ULONG m_DroppedWorks;
+    // The device is open between VioGpuAdapterInit and VioGpuAdapterClose, which run in level 3 DDIs,
+    // DxgkDdiStopDeviceAndReleasePostDisplayOwnership or the bugcheck flow.
+    BOOLEAN m_bDeviceOpen;
+    void SwitchInterrupts(BOOLEAN On);
+    static BOOLEAN InterruptsOnCb(PVOID Context);
+    static BOOLEAN InterruptsOffCb(PVOID Context);
+    VioGpuHostDisplays m_HostDisplays;
+    // The components, in the order they open (VioGpuComponent): how many there are, how many of them started, and
+    // whether they are open.
+    VioGpuComponent *m_Components[VIOGPU_MAX_COMPONENTS];
+    UINT m_ComponentCount;
+    UINT m_ComponentsStarted;
+    BOOLEAN m_bComponentsOpen;
+    // A GET_DISPLAY_INFO left on the ring without an answer: no other is sent until the device answers it.
+    volatile LONG m_DisplayInfoOutstanding;
     PKEVENT m_ResolutionEvent;
     HANDLE m_ResolutionEventHandle;
 };
@@ -242,6 +286,10 @@ class VioGpuDod
     DXGK_DISPLAY_INFORMATION m_SystemDisplayInfo;
 
     DXGKARG_SETPOINTERSHAPE m_PointerShape;
+    // The adapter, from the StartDevice that makes it (the ISR and the DPC reach it while it starts) until StopDevice
+    // or a failed StartDevice frees it; NULL otherwise. The DDIs driver.cpp gates on IsDriverActive use it only while
+    // DriverStarted is set; QueryAdapterInfo, the ISR, the DPC, ResetDevice and SystemDisplayEnable, which dxgkrnl may
+    // call on a stopped device, check it.
     VioGpuAdapter *m_pHWDevice;
 
     USHORT m_PersistentDispMode0Width;
@@ -255,14 +303,6 @@ class VioGpuDod
     BOOLEAN IsDriverActive() const
     {
         return m_Flags.DriverStarted;
-    }
-    BOOLEAN IsHardwareInit() const
-    {
-        return m_Flags.HardwareInit;
-    }
-    void SetHardwareInit(BOOLEAN init)
-    {
-        m_Flags.HardwareInit = init;
     }
     BOOLEAN IsPointerEnabled() const
     {
@@ -379,6 +419,12 @@ class VioGpuDod
     }
 
   private:
+    void DeleteAdapter(void);
+    static BOOLEAN DetachAdapterCb(PVOID Context);
+    NTSTATUS StartAdapter(_In_ DXGK_START_INFO *pDxgkStartInfo,
+                          _In_ DXGKRNL_INTERFACE *pDxgkInterface,
+                          _Out_ ULONG *pNumberOfViews,
+                          _Out_ ULONG *pNumberOfChildren);
     BOOLEAN CheckHardware();
     NTSTATUS WriteRegistryString(_In_ HANDLE DevInstRegKeyHandle, _In_ PCWSTR pszwValueName, _In_ PCSTR pszValue);
     NTSTATUS WriteRegistryDWORD(_In_ HANDLE DevInstRegKeyHandle, _In_ PCWSTR pszwValueName, _In_ PDWORD pdwValue);

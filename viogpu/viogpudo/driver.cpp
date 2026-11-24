@@ -562,11 +562,6 @@ VOID VioGpuDodDpcRoutine(_In_ VOID *pDeviceContext)
     DbgPrint(TRACE_LEVEL_VERBOSE, ("---> %s\n", __FUNCTION__));
 
     VioGpuDod *pVioGpuDod = reinterpret_cast<VioGpuDod *>(pDeviceContext);
-    if (!pVioGpuDod->IsHardwareInit())
-    {
-        DbgPrint(TRACE_LEVEL_FATAL, ("VioGpu (%p) is being called when not active!", pVioGpuDod));
-        return;
-    }
     pVioGpuDod->DpcRoutine();
     DbgPrint(TRACE_LEVEL_VERBOSE, ("<--- %s\n", __FUNCTION__));
 }
