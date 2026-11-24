@@ -463,6 +463,16 @@ VioScsiFindAdapter(IN PVOID DeviceExtension,
     /* Set num_cpus and max_cpus to some sane values, to keep "Static Driver Verification" happy */
     num_cpus = max(1, num_cpus);
     max_cpus = max(1, max_cpus);
+    if (num_cpus > MAX_CPU || max_cpus > MAX_CPU)
+    {
+        RhelDbgPrint(TRACE_LEVEL_WARNING,
+                     " Limiting CPU count to %d, system reports %d CPUs (max %d).\n",
+                     MAX_CPU,
+                     num_cpus,
+                     max_cpus);
+        num_cpus = min(num_cpus, MAX_CPU);
+        max_cpus = min(max_cpus, MAX_CPU);
+    }
 
     adaptExt->num_queues = adaptExt->scsi_config.num_queues;
     if (adaptExt->dump_mode || !adaptExt->msix_enabled)
