@@ -293,10 +293,10 @@ NTSTATUS VirtIOWdfShutdown(PVIRTIO_WDF_DRIVER pWdfDriver)
 
 NTSTATUS VirtIOWdfDestroyQueues(PVIRTIO_WDF_DRIVER pWdfDriver)
 {
-    virtio_device_reset(&pWdfDriver->VIODevice);
+    NTSTATUS status = virtio_device_reset(&pWdfDriver->VIODevice);
     virtio_delete_queues(&pWdfDriver->VIODevice);
 
-    return STATUS_SUCCESS;
+    return status;
 }
 
 void VirtIOWdfDeviceGet(PVIRTIO_WDF_DRIVER pWdfDriver, ULONG offset, PVOID buf, ULONG len)

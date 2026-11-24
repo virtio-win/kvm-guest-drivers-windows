@@ -206,7 +206,7 @@ struct virtio_device_ops {
     // read/write device status byte and reset the device
     u8 (*get_status)(VirtIODevice *vdev);
     void (*set_status)(VirtIODevice *vdev, u8 status);
-    void (*reset)(VirtIODevice *vdev);
+    NTSTATUS (*reset)(VirtIODevice *vdev);
 
     // get/set device feature bits
     u64 (*get_features)(VirtIODevice *vdev);
@@ -294,7 +294,7 @@ u8 virtio_get_status(VirtIODevice *vdev);
 void virtio_set_status(VirtIODevice *vdev, u8 status);
 void virtio_add_status(VirtIODevice *vdev, u8 status);
 
-void virtio_device_reset(VirtIODevice *vdev);
+NTSTATUS virtio_device_reset(VirtIODevice *vdev);
 void virtio_device_ready(VirtIODevice *vdev);
 
 /* Driver API: device feature bitmap manipulation

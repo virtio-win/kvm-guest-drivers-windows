@@ -60,8 +60,9 @@ NTSTATUS virtio_device_initialize(VirtIODevice *vdev, const VirtIOSystemOps *pSy
     }
     if (NT_SUCCESS(status)) {
         /* Always start by resetting the device */
-        virtio_device_reset(vdev);
-
+        status = virtio_device_reset(vdev);
+    }
+    if (NT_SUCCESS(status)) {
         /* Acknowledge that we've seen the device. */
         virtio_add_status(vdev, VIRTIO_CONFIG_S_ACKNOWLEDGE);
 
@@ -95,9 +96,9 @@ void virtio_add_status(VirtIODevice *vdev, u8 status)
     vdev->device->set_status(vdev, (u8)(vdev->device->get_status(vdev) | status));
 }
 
-void virtio_device_reset(VirtIODevice *vdev)
+NTSTATUS virtio_device_reset(VirtIODevice *vdev)
 {
-    vdev->device->reset(vdev);
+    return vdev->device->reset(vdev);
 }
 
 void virtio_device_ready(VirtIODevice *vdev)
