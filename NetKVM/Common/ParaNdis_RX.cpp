@@ -1113,8 +1113,8 @@ pRxNetDescriptor CParaNdisRX::ProcessMergedBuffers(pRxNetDescriptor pFirstBuffer
                 "ERROR: num_buffers=%u is out of the valid range [1,%u] - VirtIO protocol violation",
                 numBuffers,
                 VIRTIO_NET_MAX_MRG_BUFS);
-        m_Context->Statistics.ifInErrors++;
-        m_Context->Statistics.ifInDiscards++;
+        ParaNdis_StatAdd(m_Context->Statistics.ifInErrors, 1);
+        ParaNdis_StatAdd(m_Context->Statistics.ifInDiscards, 1);
         // Don't repost to the untrustworthy ring; decrement capacity like
         // ReuseReceiveBufferNoLock's free path does.
         ParaNdis_FreeRxBufferDescriptor(m_Context, pFirstBuffer);

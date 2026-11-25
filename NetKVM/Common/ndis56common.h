@@ -604,7 +604,10 @@ struct _PARANDIS_ADAPTER : public CNdisAllocatable<_PARANDIS_ADAPTER, 'DCTX'>
     CGuestAnnouncePackets guestAnnouncePackets;
 
     /* send part */
-    alignas(8) NDIS_STATISTICS_INFO Statistics = {};
+    // RX/TX queues and the VF callback can update these counters concurrently.
+    // Update counter fields with ParaNdis_StatAdd and read them with
+    // ParaNdis_StatRead or ParaNdis_StatisticsSnapshot.
+    DECLSPEC_ALIGN(8) NDIS_STATISTICS_INFO Statistics = {};
     NDIS_STATISTICS_INFO VfStatistics = {};
     struct
     {
